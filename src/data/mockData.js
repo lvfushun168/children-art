@@ -12,12 +12,12 @@ export const navItems = [
 ]
 
 export const school = {
-  name: '星禾美育',
-  campus: '滨江校区',
+  name: '梦地美术',
+  campus: '大学城校区',
   storage: 'system://works/2026/06',
   aiProvider: 'OpenAI 图文能力',
   objectStorage: '校区私有作品库',
-  watermark: '星禾美育 · 滨江校区'
+  watermark: '梦地美术 · 大学城校区'
 }
 
 export const teachers = [

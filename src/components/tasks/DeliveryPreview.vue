@@ -95,6 +95,10 @@ defineEmits(['copy-export'])
         <span v-if="activeImageTemplate.watermark !== '隐藏水印'">{{ school.name }}</span>
       </div>
       <strong>{{ activeStudent.name }} · {{ activeCourse.title }}</strong>
+      <small>
+        图片状态：{{ activeSessionStudent.imageProcessStatus || '未处理' }} ·
+        {{ activeSessionStudent.imageConfirmed ? '老师已确认' : '待老师确认' }}
+      </small>
       <small v-if="displayConfig.showLessonType">
         {{ activeTask.lessonType }} · 本信息仅为课后展示记录，不作为正式财务或课消依据
       </small>

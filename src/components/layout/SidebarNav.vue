@@ -45,7 +45,7 @@ defineEmits(['update:activeNav'])
     <section class="nav-summary">
       <span>今日待处理</span>
       <strong>{{ pendingCount }} 个班</strong>
-      <small>从课表自动生成课后交付任务</small>
+      <small>从课表生成课后交付任务</small>
     </section>
   </aside>
 </template>

@@ -1,12 +1,15 @@
 import { computed, reactive, ref } from 'vue'
 import {
   archives as archiveSeed,
+  archiveRecords as archiveRecordSeed,
+  aiCallLogs as aiCallLogSeed,
   classes as classSeed,
   courses as courseSeed,
   displayConfigSeed,
   externalLinks as externalLinkSeed,
   homeworkSeed,
   importBatches as importBatchSeed,
+  importPreviewRows as importPreviewSeed,
   initialBulkRecord,
   initialSessionStudents,
   lessonMaterials as lessonMaterialSeed,
@@ -16,6 +19,7 @@ import {
   students as studentSeed,
   tasks as taskSeed,
   templates as templateSeed,
+  teachers as teacherSeed,
   wheatTraces as wheatTraceSeed
 } from '../data/mockData'
 
@@ -24,6 +28,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export function useDeliveryWorkflow() {
   const school = reactive(clone(schoolSeed))
+  const teachers = reactive(clone(teacherSeed))
   const students = reactive(clone(studentSeed))
   const classes = reactive(clone(classSeed))
   const courses = reactive(clone(courseSeed))
@@ -31,12 +36,15 @@ export function useDeliveryWorkflow() {
   const tasks = reactive(clone(taskSeed))
   const sessionStudents = reactive(clone(initialSessionStudents))
   const archives = reactive(clone(archiveSeed))
+  const archiveRecords = reactive(clone(archiveRecordSeed))
+  const aiCallLogs = reactive(clone(aiCallLogSeed))
   const materials = reactive(clone(lessonMaterialSeed))
   const homework = reactive(clone(homeworkSeed))
   const displayConfig = reactive(clone(displayConfigSeed))
   const externalLinks = reactive(clone(externalLinkSeed))
   const wheatTraces = reactive(clone(wheatTraceSeed))
   const importBatches = reactive(clone(importBatchSeed))
+  const importPreviewRows = reactive(clone(importPreviewSeed))
   const settings = reactive(clone(settingSeed))
 
   const activeTaskId = ref(1)
@@ -45,6 +53,9 @@ export function useDeliveryWorkflow() {
   const selectedImageTemplate = ref(0)
   const selectedCommentTemplate = ref(0)
   const copied = ref(false)
+  const isLoggedIn = ref(false)
+  const currentUserId = ref(1)
+  const loginForm = reactive({ phone: '137****9011', role: '老师' })
   const showReport = ref(false)
   const processingAction = ref('')
   const toast = ref('')
@@ -54,7 +65,17 @@ export function useDeliveryWorkflow() {
   const bulkRecord = ref(initialBulkRecord)
   const activeShareMode = ref('student')
 
-  const activeTask = computed(() => tasks.find((task) => task.id === activeTaskId.value))
+  const currentUser = computed(() => teachers.find((teacher) => teacher.id === currentUserId.value))
+  const isAdmin = computed(() => currentUser.value?.role === '管理员')
+  const authorizedClassIds = computed(() => (isAdmin.value ? classes.map((klass) => klass.id) : currentUser.value?.classes || []))
+  const visibleTasks = computed(() =>
+    tasks.filter((task) => isAdmin.value || authorizedClassIds.value.includes(task.classId) || task.teacher === currentUser.value?.name)
+  )
+  const visibleNavItems = computed(() => {
+    const adminOnly = ['settings']
+    return isAdmin.value ? [] : adminOnly
+  })
+  const activeTask = computed(() => visibleTasks.value.find((task) => task.id === activeTaskId.value) || visibleTasks.value[0] || tasks[0])
   const activeClass = computed(() => classes.find((item) => item.id === activeTask.value.classId))
   const activeCourse = computed(() => courses.find((item) => item.id === activeTask.value.courseId))
   const activeSessionStudent = computed(() => sessionStudents.find((item) => item.id === activeStudentId.value))
@@ -65,6 +86,35 @@ export function useDeliveryWorkflow() {
   const activeCommentTemplate = computed(() => templates.comment[selectedCommentTemplate.value])
   const isProcessing = computed(() => Boolean(processingAction.value))
   const selectedExternalLinks = computed(() => externalLinks.filter((link) => homework.externalLinkIds.includes(link.id)))
+  const permissionSummary = computed(() => ({
+    role: currentUser.value?.role || '未登录',
+    visibleClasses: authorizedClassIds.value.map((id) => classes.find((klass) => klass.id === id)?.name).filter(Boolean),
+    taskScope: isAdmin.value ? '全部课次' : '本人授权班级课次',
+    canManageSettings: isAdmin.value,
+    canProcessLesson: Boolean(activeTask.value && (isAdmin.value || authorizedClassIds.value.includes(activeTask.value.classId)))
+  }))
+  const importStats = computed(() => ({
+    total: importPreviewRows.length,
+    ok: importPreviewRows.filter((row) => row.status === '可导入').length,
+    warning: importPreviewRows.filter((row) => row.status !== '可导入').length
+  }))
+  const archiveFilter = reactive({
+    studentId: 'all',
+    classId: 'all',
+    teacher: 'all',
+    date: 'all'
+  })
+  const archiveDates = computed(() => [...new Set(archiveRecords.map((record) => record.date))])
+  const filteredArchiveRecords = computed(() =>
+    archiveRecords.filter((record) => {
+      const studentOk = archiveFilter.studentId === 'all' || record.studentId === Number(archiveFilter.studentId)
+      const classOk = archiveFilter.classId === 'all' || record.classId === Number(archiveFilter.classId)
+      const teacherOk = archiveFilter.teacher === 'all' || record.teacher === archiveFilter.teacher
+      const dateOk = archiveFilter.date === 'all' || record.date === archiveFilter.date
+      return studentOk && classOk && teacherOk && dateOk
+    })
+  )
+  const studentHistoryFor = (studentId) => archiveRecords.filter((record) => record.studentId === Number(studentId))
 
   const counts = computed(() => ({
     total: classStudents.value.length,
@@ -101,6 +151,13 @@ export function useDeliveryWorkflow() {
       counts.value.archived
     return Math.min(100, Math.round((done / total) * 100))
   })
+
+  const progressForTask = (task) => {
+    if (task.id === activeTaskId.value) return taskProgress.value
+    if (task.status === '已完成') return 100
+    if (task.status === '处理中') return 28
+    return 0
+  }
 
   const currentWarnings = computed(() => {
     const warnings = []
@@ -185,6 +242,10 @@ export function useDeliveryWorkflow() {
       return {
         id: studentId,
         attendance: isAbsent ? '请假' : '到课',
+        originalImage: seed.image,
+        processedImage: '',
+        imageProcessStatus: '未处理',
+        imageProcessError: '',
         image: seed.image,
         imageMatched: !isAbsent,
         processed: false,
@@ -207,8 +268,34 @@ export function useDeliveryWorkflow() {
   }
 
   const selectTask = (task) => {
+    if (!isAdmin.value && !authorizedClassIds.value.includes(task.classId) && task.teacher !== currentUser.value?.name) {
+      notify('无权限查看该课次，请联系管理员授权班级')
+      return
+    }
     activeTaskId.value = task.id
     resetSessionForTask(task)
+  }
+
+  const loginAs = (teacherId) => {
+    const teacher = teachers.find((item) => item.id === Number(teacherId))
+    if (!teacher) return
+    currentUserId.value = teacher.id
+    loginForm.phone = teacher.phone
+    loginForm.role = teacher.role
+    isLoggedIn.value = true
+    const firstTask = visibleTasks.value[0]
+    if (firstTask) selectTask(firstTask)
+    notify(`已登录：${teacher.name}（${teacher.role}）`)
+  }
+
+  const loginWithForm = () => {
+    const teacher = teachers.find((item) => item.phone === loginForm.phone && item.role === loginForm.role) || teachers.find((item) => item.role === loginForm.role)
+    loginAs(teacher?.id || teachers[0]?.id)
+  }
+
+  const logout = () => {
+    isLoggedIn.value = false
+    notify('已退出登录')
   }
 
   const setAttendance = (row, value) => {
@@ -283,18 +370,68 @@ export function useDeliveryWorkflow() {
     })
   }
 
+  const addAiLog = (type, target, status, message, retry = 0) => {
+    aiCallLogs.unshift({
+      id: Date.now() + aiCallLogs.length,
+      time: '刚刚',
+      type,
+      target,
+      status,
+      retry,
+      cost: status === '成功' ? '0.012' : '0.000',
+      message
+    })
+  }
+
   const confirmImages = () => {
     attendingRows.value.forEach((row) => {
-      if (row.imageMatched) row.imageConfirmed = true
+      if (row.imageMatched) {
+        if (row.processedImage && row.imageProcessStatus === '成功') row.image = row.processedImage
+        row.imageConfirmed = true
+      }
     })
-    notify('已确认全部作品图片')
+    notify('已确认全部可用图片，处理图已生效')
   }
 
   const processImages = async () => {
     await runAction('正在进行作品美化和水印处理...', `已按“${activeImageTemplate.value.name}”处理 ${counts.value.matched} 张作品`, async () => {
       sessionStudents.forEach((row) => {
-        if (row.attendance === '到课' && row.imageMatched) row.processed = true
+        if (row.attendance === '到课' && row.imageMatched) {
+          const student = students.find((item) => item.id === row.id)
+          row.imageProcessStatus = '成功'
+          row.imageProcessError = ''
+          row.processedImage = row.originalImage || row.image
+          row.processed = true
+          row.imageConfirmed = false
+          addAiLog('图片处理', student?.name || '学生', '成功', '已生成处理图，等待老师确认')
+        }
       })
+      pulsePreview()
+    })
+  }
+
+  const failCurrentImageProcess = () => {
+    const row = activeSessionStudent.value
+    const student = activeStudent.value
+    row.imageProcessStatus = '失败'
+    row.imageProcessError = '接口返回质量不足，请重试或保留原图'
+    row.processed = false
+    row.processedImage = ''
+    row.imageConfirmed = false
+    addAiLog('图片处理', student?.name || '当前学生', '失败', row.imageProcessError, 1)
+    notify(`${student?.name || '当前学生'}图片处理失败，可重试或确认原图`)
+  }
+
+  const retryCurrentImageProcess = async () => {
+    const row = activeSessionStudent.value
+    const student = activeStudent.value
+    await runAction('正在重试图片处理...', `${student?.name || '当前学生'}处理图已重新生成`, async () => {
+      row.imageProcessStatus = '成功'
+      row.imageProcessError = ''
+      row.processedImage = row.originalImage || row.image
+      row.processed = true
+      row.imageConfirmed = false
+      addAiLog('图片处理', student?.name || '当前学生', '成功', '重试成功，等待老师确认', 1)
       pulsePreview()
     })
   }
@@ -328,6 +465,7 @@ export function useDeliveryWorkflow() {
       await wait(260)
       generateOne(row)
       activeStudentId.value = row.id
+      addAiLog('课评生成', students.find((item) => item.id === row.id)?.name || '学生', '成功', '生成 1v1 课评，等待老师确认')
       pulseComment()
     }
     await wait(180)
@@ -409,6 +547,29 @@ export function useDeliveryWorkflow() {
           wheatStatus: trace.status
         })
       }
+      attendingRows.value.forEach((row) => {
+        const student = students.find((item) => item.id === row.id)
+        if (!student || archiveRecords.some((record) => record.date === activeTask.value.date && record.studentId === row.id && record.course === activeCourse.value.title)) return
+        archiveRecords.unshift({
+          id: Date.now() + row.id,
+          date: activeTask.value.date,
+          time: activeTask.value.time,
+          classId: activeClass.value.id,
+          className: activeClass.value.name,
+          teacher: activeTask.value.teacher,
+          course: activeCourse.value.title,
+          lessonType: activeTask.value.lessonType,
+          studentId: row.id,
+          studentName: student.name,
+          artwork: row.image,
+          feedback: row.comment,
+          homework: homework.content,
+          highlight: row.highlight,
+          highlightNote: row.highlightNote,
+          shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.id}`,
+          wheatStatus: trace.status
+        })
+      })
     })
   }
 
@@ -439,6 +600,167 @@ export function useDeliveryWorkflow() {
     notify(`小麦留痕已标记为：${status}`)
   }
 
+  const nextId = (collection) => Math.max(0, ...collection.map((item) => item.id || 0)) + 1
+
+  const addStudent = (payload) => {
+    const student = {
+      id: nextId(students),
+      name: payload.name || '新学生',
+      nickname: payload.nickname || payload.name || '新学生',
+      age: Number(payload.age) || 6,
+      parent: payload.parent || '待补充',
+      phone: payload.phone || '',
+      classId: Number(payload.classId) || classes[0]?.id,
+      status: payload.status || '在读',
+      note: payload.note || '',
+      works: 0,
+      highlights: 0
+    }
+    students.push(student)
+    const klass = classes.find((item) => item.id === student.classId)
+    if (klass && !klass.studentIds.includes(student.id)) klass.studentIds.push(student.id)
+    notify(`已新增学生：${student.name}`)
+    return student
+  }
+
+  const updateStudent = (id, payload) => {
+    const student = students.find((item) => item.id === id)
+    if (!student) return null
+    const oldClassId = student.classId
+    Object.assign(student, {
+      ...payload,
+      age: Number(payload.age) || student.age,
+      classId: Number(payload.classId) || student.classId
+    })
+    if (oldClassId !== student.classId) {
+      const oldClass = classes.find((item) => item.id === oldClassId)
+      const nextClass = classes.find((item) => item.id === student.classId)
+      if (oldClass) oldClass.studentIds = oldClass.studentIds.filter((studentId) => studentId !== student.id)
+      if (nextClass && !nextClass.studentIds.includes(student.id)) nextClass.studentIds.push(student.id)
+    }
+    notify(`已保存学生：${student.name}`)
+    return student
+  }
+
+  const addClass = (payload) => {
+    const teacher = teachers.find((item) => item.id === Number(payload.teacherId))
+    const klass = {
+      id: nextId(classes),
+      name: payload.name || '新班级',
+      time: payload.time || '待排课',
+      teacherId: Number(payload.teacherId) || teachers[0]?.id,
+      teacher: teacher?.name || payload.teacher || '待配置',
+      group: payload.group || '待创建家长群',
+      status: payload.status || '筹备中',
+      studentIds: payload.studentIds || [],
+      courseId: Number(payload.courseId) || courses[0]?.id
+    }
+    classes.push(klass)
+    notify(`已新增班级：${klass.name}`)
+    return klass
+  }
+
+  const updateClass = (id, payload) => {
+    const klass = classes.find((item) => item.id === id)
+    if (!klass) return null
+    const teacher = teachers.find((item) => item.id === Number(payload.teacherId))
+    Object.assign(klass, {
+      ...payload,
+      teacherId: Number(payload.teacherId) || klass.teacherId,
+      teacher: teacher?.name || klass.teacher,
+      courseId: Number(payload.courseId) || klass.courseId,
+      studentIds: payload.studentIds || klass.studentIds
+    })
+    students.forEach((student) => {
+      if (klass.studentIds.includes(student.id)) student.classId = klass.id
+    })
+    notify(`已保存班级：${klass.name}`)
+    return klass
+  }
+
+  const addCourse = (payload) => {
+    const course = {
+      id: nextId(courses),
+      title: payload.title || '新课程主题',
+      age: payload.age || '5-7岁',
+      goal: payload.goal || '',
+      materials: payload.materials || '',
+      reference: payload.reference || '',
+      defaultFocus: payload.defaultFocus || '色彩',
+      commentTemplate: payload.commentTemplate || templates.comment[0]?.name,
+      imageTemplate: payload.imageTemplate || templates.image[0]?.name,
+      onlineLinks: payload.onlineLinks || []
+    }
+    courses.push(course)
+    notify(`已新增课程：${course.title}`)
+    return course
+  }
+
+  const updateCourse = (id, payload) => {
+    const course = courses.find((item) => item.id === id)
+    if (!course) return null
+    Object.assign(course, payload)
+    notify(`已保存课程：${course.title}`)
+    return course
+  }
+
+  const addTeacher = (payload) => {
+    const teacher = {
+      id: nextId(teachers),
+      name: payload.name || '新老师',
+      phone: payload.phone || '',
+      role: payload.role || '老师',
+      status: payload.status || '启用',
+      classes: []
+    }
+    teachers.push(teacher)
+    notify(`已新增账号：${teacher.name}`)
+    return teacher
+  }
+
+  const updateTeacher = (id, payload) => {
+    const teacher = teachers.find((item) => item.id === id)
+    if (!teacher) return null
+    Object.assign(teacher, payload)
+    notify(`已保存账号：${teacher.name}`)
+    return teacher
+  }
+
+  const applyImportRows = () => {
+    const rows = importPreviewRows.filter((row) => row.status === '可导入')
+    rows.forEach((row) => {
+      if (row.type === 'student') {
+        const klass = classes.find((item) => item.name === row.className)
+        addStudent({ name: row.name, nickname: row.nickname, parent: row.parent, phone: row.phone, classId: klass?.id, status: '在读' })
+      }
+      if (row.type === 'class') {
+        const teacher = teachers.find((item) => item.name === row.teacher)
+        const course = courses.find((item) => item.title === row.course)
+        addClass({ name: row.name, teacherId: teacher?.id, time: row.time, courseId: course?.id, status: '筹备中' })
+      }
+    })
+    importBatches.unshift({
+      id: Date.now(),
+      source: '导入预览确认',
+      time: '6月21日 16:30',
+      success: rows.length,
+      failed: importPreviewRows.length - rows.length,
+      note: '可导入记录已写入基础数据，异常记录保留待补录'
+    })
+    notify(`已导入 ${rows.length} 条基础数据`)
+  }
+
+  const updateSetting = (id, payload) => {
+    const setting = settings.find((item) => item.id === id)
+    if (!setting) return null
+    Object.assign(setting, payload)
+    if (setting.name === 'AI 接口') school.aiProvider = setting.value
+    if (setting.name === '作品存储') school.objectStorage = setting.value
+    if (setting.name === '水印配置') school.watermark = setting.value
+    notify(`已保存配置：${setting.name}`)
+    return setting
+  }
+
   const nextStep = () => {
     if (currentStep.value < steps.value.length - 1) currentStep.value += 1
   }
@@ -449,6 +771,7 @@ export function useDeliveryWorkflow() {
 
   return {
     school,
+    teachers,
     students,
     classes,
     courses,
@@ -456,12 +779,18 @@ export function useDeliveryWorkflow() {
     tasks,
     sessionStudents,
     archives,
+    archiveRecords,
+    aiCallLogs,
+    archiveFilter,
+    archiveDates,
+    filteredArchiveRecords,
     materials,
     homework,
     displayConfig,
     externalLinks,
     wheatTraces,
     importBatches,
+    importPreviewRows,
     settings,
     activeTaskId,
     activeStudentId,
@@ -469,6 +798,9 @@ export function useDeliveryWorkflow() {
     selectedImageTemplate,
     selectedCommentTemplate,
     copied,
+    isLoggedIn,
+    currentUserId,
+    loginForm,
     showReport,
     processingAction,
     toast,
@@ -478,6 +810,11 @@ export function useDeliveryWorkflow() {
     bulkRecord,
     activeShareMode,
     activeTask,
+    currentUser,
+    isAdmin,
+    authorizedClassIds,
+    visibleTasks,
+    visibleNavItems,
     activeClass,
     activeCourse,
     activeSessionStudent,
@@ -488,15 +825,22 @@ export function useDeliveryWorkflow() {
     activeCommentTemplate,
     isProcessing,
     selectedExternalLinks,
+    permissionSummary,
+    studentHistoryFor,
+    importStats,
     counts,
     steps,
     taskProgress,
+    progressForTask,
     currentWarnings,
     parentShareUrl,
     qrText,
     exportText,
     fileNameFor,
     selectTask,
+    loginAs,
+    loginWithForm,
+    logout,
     setAttendance,
     toggleMaterialVisible,
     addMaterial,
@@ -507,6 +851,8 @@ export function useDeliveryWorkflow() {
     matchImages,
     confirmImages,
     processImages,
+    failCurrentImageProcess,
+    retryCurrentImageProcess,
     generateOne,
     generateAll,
     confirmAll,
@@ -517,6 +863,16 @@ export function useDeliveryWorkflow() {
     copyExport,
     updateImage,
     markTrace,
+    addStudent,
+    updateStudent,
+    addClass,
+    updateClass,
+    addCourse,
+    updateCourse,
+    addTeacher,
+    updateTeacher,
+    applyImportRows,
+    updateSetting,
     nextStep,
     prevStep,
     notify,

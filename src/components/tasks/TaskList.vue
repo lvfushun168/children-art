@@ -15,6 +15,10 @@ defineProps({
   courses: {
     type: Array,
     required: true
+  },
+  progressForTask: {
+    type: Function,
+    required: true
   }
 })
 
@@ -40,8 +44,9 @@ defineEmits(['select-task'])
       <span>
         <strong>{{ classes.find((item) => item.id === task.classId).name }}</strong>
         <small>{{ courses.find((item) => item.id === task.courseId).title }} · {{ task.teacher }} · {{ task.lessonType }}</small>
+        <i class="mini-progress"><b :style="{ width: `${progressForTask(task)}%` }"></b></i>
       </span>
-      <em>{{ task.status }}</em>
+      <em>{{ task.status }} · {{ progressForTask(task) }}%</em>
     </button>
   </aside>
 </template>

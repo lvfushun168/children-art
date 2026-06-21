@@ -18,6 +18,12 @@ export const school = {
   watermark: '星禾美育 · 滨江校区'
 }
 
+export const teachers = [
+  { id: 1, name: '林老师', phone: '137****9011', role: '老师', status: '启用', classes: [1, 2] },
+  { id: 2, name: '周老师', phone: '136****2708', role: '老师', status: '启用', classes: [3] },
+  { id: 3, name: '王教务', phone: '139****1822', role: '管理员', status: '启用', classes: [] }
+]
+
 export const students = [
   {
     id: 1,
@@ -91,8 +97,10 @@ export const classes = [
     id: 1,
     name: '周二创想班',
     time: '每周二 17:40',
+    teacherId: 1,
     teacher: '林老师',
     group: '家长微信群：周二创想班',
+    status: '开班中',
     studentIds: [1, 2, 3, 4],
     courseId: 1
   },
@@ -100,8 +108,10 @@ export const classes = [
     id: 2,
     name: '线描提高班',
     time: '每周三 19:20',
+    teacherId: 1,
     teacher: '林老师',
     group: '家长微信群：线描提高班',
+    status: '开班中',
     studentIds: [5],
     courseId: 3
   },
@@ -109,8 +119,10 @@ export const classes = [
     id: 3,
     name: '幼儿启蒙班',
     time: '每周四 18:30',
+    teacherId: 2,
     teacher: '周老师',
     group: '家长微信群：幼儿启蒙班',
+    status: '开班中',
     studentIds: [4],
     courseId: 2
   }
@@ -260,6 +272,10 @@ export const initialSessionStudents = [
   {
     id: 1,
     attendance: '到课',
+    originalImage: sessionSeed[1].image,
+    processedImage: '',
+    imageProcessStatus: '未处理',
+    imageProcessError: '',
     image: sessionSeed[1].image,
     imageMatched: true,
     processed: false,
@@ -276,6 +292,10 @@ export const initialSessionStudents = [
   {
     id: 2,
     attendance: '到课',
+    originalImage: sessionSeed[2].image,
+    processedImage: '',
+    imageProcessStatus: '未处理',
+    imageProcessError: '',
     image: sessionSeed[2].image,
     imageMatched: true,
     processed: false,
@@ -292,6 +312,10 @@ export const initialSessionStudents = [
   {
     id: 3,
     attendance: '到课',
+    originalImage: sessionSeed[3].image,
+    processedImage: '',
+    imageProcessStatus: '未处理',
+    imageProcessError: '',
     image: sessionSeed[3].image,
     imageMatched: true,
     processed: false,
@@ -308,6 +332,10 @@ export const initialSessionStudents = [
   {
     id: 4,
     attendance: '请假',
+    originalImage: sessionSeed[4].image,
+    processedImage: '',
+    imageProcessStatus: '未处理',
+    imageProcessError: '',
     image: sessionSeed[4].image,
     imageMatched: false,
     processed: false,
@@ -321,6 +349,12 @@ export const initialSessionStudents = [
     shareReady: false,
     archived: false
   }
+]
+
+export const aiCallLogs = [
+  { id: 1, time: '6月21日 15:42', type: '图片处理', target: '彤彤', status: '成功', retry: 0, cost: '0.012', message: '生成处理图，等待老师确认' },
+  { id: 2, time: '6月21日 15:43', type: '课评生成', target: '全班', status: '成功', retry: 0, cost: '0.018', message: '生成 3 条 1v1 课评' },
+  { id: 3, time: '6月21日 15:44', type: '图片处理', target: '浩浩', status: '失败', retry: 1, cost: '0.000', message: '图片过暗，接口返回质量不足' }
 ]
 
 export const lessonMaterials = [
@@ -380,6 +414,85 @@ export const archives = [
   }
 ]
 
+export const archiveRecords = [
+  {
+    id: 1,
+    date: '6月9日',
+    time: '17:40',
+    classId: 1,
+    className: '周二创想班',
+    teacher: '林老师',
+    course: '森林里的小屋',
+    lessonType: '收费课',
+    studentId: 1,
+    studentName: '彤彤',
+    artwork: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=720&q=80',
+    feedback: '彤彤今天能把小屋主体画得很稳定，色彩搭配温暖，背景树木也有层次。下次可以继续注意前后空间。',
+    homework: '回家观察一种小房子的屋顶形状，下节课分享。',
+    highlight: true,
+    highlightNote: '主体突出，暖色背景完整，是本节课优秀作品。',
+    shareUrl: 'https://share.xinghe-art.local/student-archive-1',
+    wheatStatus: '已人工处理'
+  },
+  {
+    id: 2,
+    date: '6月9日',
+    time: '17:40',
+    classId: 1,
+    className: '周二创想班',
+    teacher: '林老师',
+    course: '森林里的小屋',
+    lessonType: '收费课',
+    studentId: 2,
+    studentName: '浩浩',
+    artwork: 'https://images.unsplash.com/photo-1547891654-e66ed7ebb968?auto=format&fit=crop&w=720&q=80',
+    feedback: '浩浩今天的小屋故事感很强，能主动增加树和小路。建议后续把门窗比例画得更清楚。',
+    homework: '用铅笔画一条从家门口出发的小路。',
+    highlight: false,
+    highlightNote: '',
+    shareUrl: 'https://share.xinghe-art.local/student-archive-2',
+    wheatStatus: '已人工处理'
+  },
+  {
+    id: 3,
+    date: '6月12日',
+    time: '19:20',
+    classId: 2,
+    className: '线描提高班',
+    teacher: '林老师',
+    course: '老街房子',
+    lessonType: '收费课',
+    studentId: 5,
+    studentName: '小宇',
+    artwork: 'https://images.unsplash.com/photo-1513475382585-d06e58bcb0ea?auto=format&fit=crop&w=720&q=80',
+    feedback: '小宇本节课线条秩序很好，建筑高低关系清楚。下一步可以继续加强窗户细节的统一。',
+    homework: '拍一张街边建筑照片，观察窗户排列规律。',
+    highlight: true,
+    highlightNote: '线条稳定，建筑层次完整，适合作为线描高光案例。',
+    shareUrl: 'https://share.xinghe-art.local/student-archive-3',
+    wheatStatus: '已人工处理'
+  },
+  {
+    id: 4,
+    date: '6月18日',
+    time: '18:30',
+    classId: 3,
+    className: '幼儿启蒙班',
+    teacher: '周老师',
+    course: '彩色小鱼',
+    lessonType: '体验课',
+    studentId: 4,
+    studentName: '米米',
+    artwork: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=720&q=80',
+    feedback: '米米今天观察很认真，鱼鳍和气泡都画得很可爱。后续可以多鼓励她大胆选择颜色。',
+    homework: '和家长一起找三种喜欢的鱼颜色。',
+    highlight: false,
+    highlightNote: '',
+    shareUrl: 'https://share.xinghe-art.local/student-archive-4',
+    wheatStatus: '异常'
+  }
+]
+
 export const wheatTraces = [
   {
     id: 1,
@@ -413,6 +526,13 @@ export const settings = [
   { id: 2, name: '作品存储', value: school.objectStorage, status: '已启用' },
   { id: 3, name: '账号角色', value: '管理员、老师', status: '基础可用' },
   { id: 4, name: '水印配置', value: school.watermark, status: '已启用' }
+]
+
+export const importPreviewRows = [
+  { id: 1, type: 'student', name: '可可', nickname: '可可', className: '周二创想班', parent: '可可妈妈', phone: '138****4452', status: '可导入', issue: '' },
+  { id: 2, type: 'student', name: '乐乐', nickname: '乐乐', className: '', parent: '乐乐爸爸', phone: '137****2381', status: '异常', issue: '缺少班级字段' },
+  { id: 3, type: 'class', name: '周五创想班', teacher: '周老师', time: '每周五 18:30', course: '彩色小鱼', status: '可导入', issue: '' },
+  { id: 4, type: 'lesson', name: '6月21日 20:10 体验课', teacher: '林老师', time: '20:10', course: '夏日向日葵', status: '重复', issue: '同班级同时间已存在课次' }
 ]
 
 export const initialBulkRecord =

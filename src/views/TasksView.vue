@@ -16,22 +16,15 @@ defineEmits(['navigate'])
 
 <template>
   <div v-if="state.toast" class="toast">{{ state.toast }}</div>
-  <PageHead eyebrow="老师工作台" title="今日课后任务">
-    <div class="progress-card">
-      <span>当前班级完成度</span>
-      <strong>{{ state.taskProgress }}%</strong>
-      <div class="progress-track">
-        <i :style="{ width: `${state.taskProgress}%` }"></i>
-      </div>
-    </div>
-  </PageHead>
+  <PageHead eyebrow="老师工作台" title="今日课后任务" />
 
   <div class="task-layout">
     <TaskList
-      :tasks="state.tasks"
+      :tasks="state.visibleTasks"
       :active-task-id="state.activeTaskId"
       :classes="state.classes"
       :courses="state.courses"
+      :progress-for-task="state.progressForTask"
       @select-task="state.selectTask"
     />
 

@@ -22,6 +22,14 @@ defineEmits(['navigate'])
         <span>{{ state.activeTask.date }} · {{ state.activeTask.time }} · {{ state.activeTask.lessonType }}</span>
         <h2>{{ state.activeClass.name }} · {{ state.activeCourse.title }}</h2>
       </div>
+      <div class="lesson-status">
+        <span>当前课次进度</span>
+        <strong>{{ state.taskProgress }}%</strong>
+        <div class="progress-track slim">
+          <i :style="{ width: `${state.taskProgress}%` }"></i>
+        </div>
+        <small>{{ state.steps.filter((step) => step.done === step.total && step.total > 0).length }}/{{ state.steps.length }} 步完成</small>
+      </div>
       <button class="ghost" @click="state.showReport = !state.showReport">{{ state.showReport ? '继续编辑' : '查看报告' }}</button>
     </header>
 
@@ -174,6 +182,7 @@ defineEmits(['navigate'])
           </div>
           <div class="button-pair">
             <button class="secondary" :disabled="state.isProcessing" @click="state.processImages">AI 图片处理</button>
+            <button class="secondary" :disabled="state.isProcessing" @click="state.confirmImages">确认处理图</button>
             <button class="primary" :disabled="state.isProcessing" @click="state.generateAll">生成全班课评</button>
           </div>
         </div>
@@ -225,6 +234,25 @@ defineEmits(['navigate'])
               当前学生课评
               <textarea v-model="state.activeSessionStudent.comment" rows="7" />
             </label>
+            <div class="image-review" v-if="state.activeSessionStudent">
+              <div>
+                <span>原图</span>
+                <img :src="state.activeSessionStudent.originalImage || state.activeSessionStudent.image" alt="原图" />
+              </div>
+              <div>
+                <span>处理图</span>
+                <img :src="state.activeSessionStudent.processedImage || state.activeSessionStudent.image" alt="处理图" />
+              </div>
+              <article>
+                <strong>{{ state.activeSessionStudent.imageProcessStatus }}</strong>
+                <small v-if="state.activeSessionStudent.imageProcessError">{{ state.activeSessionStudent.imageProcessError }}</small>
+                <small v-else>{{ state.activeSessionStudent.processedImage ? '处理图已生成，需老师确认后进入展示页。' : '尚未生成处理图，家长页仍使用原图。' }}</small>
+                <div class="button-pair">
+                  <button class="ghost" @click="state.failCurrentImageProcess">模拟失败</button>
+                  <button class="secondary" :disabled="state.isProcessing" @click="state.retryCurrentImageProcess">重试当前图片</button>
+                </div>
+              </article>
+            </div>
             <div class="button-pair">
               <button
                 class="secondary"
@@ -234,6 +262,17 @@ defineEmits(['navigate'])
                 重写当前学生
               </button>
               <button class="primary" @click="state.confirmAll">确认全部课评</button>
+            </div>
+          </article>
+          <article class="ai-log-panel">
+            <div class="mini-head">
+              <span>AI 调用记录</span>
+              <strong>{{ state.aiCallLogs.length }} 条</strong>
+            </div>
+            <div v-for="log in state.aiCallLogs.slice(0, 6)" :key="log.id" class="ai-log-row" :class="log.status">
+              <strong>{{ log.type }} · {{ log.target }}</strong>
+              <span>{{ log.status }} · 重试 {{ log.retry }} · 成本 {{ log.cost }}</span>
+              <small>{{ log.time }} · {{ log.message }}</small>
             </div>
           </article>
         </div>

@@ -76,9 +76,7 @@ const shareRoute = computed(() => {
 
       <WheatTraceView
         v-if="activeNav === 'wheat'"
-        :traces="state.wheatTraces"
-        :import-batches="state.importBatches"
-        @mark-trace="state.markTrace"
+        :state="state"
       />
 
       <SystemSettingsView v-if="activeNav === 'settings' && state.isAdmin" :state="state" />

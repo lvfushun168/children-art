@@ -1,18 +1,15 @@
 <script setup>
+import { reactive } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 
-defineProps({
-  traces: {
-    type: Array,
-    required: true
-  },
-  importBatches: {
-    type: Array,
-    required: true
-  }
+const props = defineProps({
+  state: { type: Object, required: true }
 })
 
-defineEmits(['mark-trace'])
+const reasons = reactive({})
+const updateTrace = (trace, status) => {
+  if (props.state.markTrace(trace, status, reasons[trace.id] || '')) reasons[trace.id] = ''
+}
 </script>
 
 <template>
@@ -25,20 +22,23 @@ defineEmits(['mark-trace'])
       <div class="section-head">
         <div>
           <span>人工处理清单</span>
-          <strong>{{ traces.length }} 条留痕</strong>
+          <strong>{{ state.wheatTraces.length }} 条留痕</strong>
         </div>
       </div>
-      <div v-for="trace in traces" :key="trace.id" class="trace-row" :class="trace.status">
+      <div v-for="trace in state.wheatTraces" :key="trace.id" class="trace-row" :class="trace.status">
         <div>
           <strong>{{ trace.lesson }}</strong>
           <span>{{ trace.course }} · {{ trace.teacher }} · {{ trace.type }}</span>
           <small>{{ trace.source }} · {{ trace.note }}</small>
+          <small v-if="trace.operator">最近操作：{{ trace.operator }} · {{ trace.processedAt }}</small>
         </div>
         <em>{{ trace.status }}</em>
+        <input v-model="reasons[trace.id]" placeholder="异常、无需处理或更正原因" />
         <div class="button-pair">
-          <button class="secondary" @click="$emit('mark-trace', trace, '已人工处理')">已处理</button>
-          <button class="ghost" @click="$emit('mark-trace', trace, '无需处理')">无需处理</button>
-          <button class="ghost" @click="$emit('mark-trace', trace, '异常')">异常</button>
+          <button v-if="['待处理', '异常'].includes(trace.status)" class="secondary" @click="updateTrace(trace, '已人工处理')">已处理</button>
+          <button v-if="['待处理', '异常'].includes(trace.status)" class="ghost" @click="updateTrace(trace, '无需处理')">无需处理</button>
+          <button v-if="trace.status === '待处理'" class="ghost" @click="updateTrace(trace, '异常')">异常</button>
+          <button v-if="state.isAdmin && ['已人工处理', '无需处理'].includes(trace.status)" class="ghost" @click="updateTrace(trace, '待处理')">更正为待处理</button>
         </div>
       </div>
     </article>
@@ -47,10 +47,10 @@ defineEmits(['mark-trace'])
       <div class="section-head">
         <div>
           <span>导入记录</span>
-          <strong>{{ importBatches.length }} 批</strong>
+          <strong>{{ state.importBatches.length }} 批</strong>
         </div>
       </div>
-      <div v-for="batch in importBatches" :key="batch.id" class="template-row">
+      <div v-for="batch in state.importBatches" :key="batch.id" class="template-row">
         <strong>{{ batch.source }}</strong>
         <span>{{ batch.time }} · 成功 {{ batch.success }} · 异常 {{ batch.failed }}</span>
         <small>{{ batch.note }}</small>
@@ -58,6 +58,14 @@ defineEmits(['mark-trace'])
       <div class="notice-box">
         <strong>一期边界</strong>
         <small>本系统只生成待办和状态记录，不自动读取或回写小麦课程完成状态。</small>
+      </div>
+      <div class="audit-list">
+        <strong>小麦留痕审计</strong>
+        <div v-for="log in state.statusChangeLogs.filter((item) => item.objectType === '小麦留痕').slice(0, 8)" :key="log.id" class="audit-row">
+          <strong>{{ log.before }} → {{ log.after }}</strong>
+          <span>{{ log.operator }} · {{ log.time }}</span>
+          <small>{{ log.reason }}</small>
+        </div>
       </div>
     </article>
   </section>

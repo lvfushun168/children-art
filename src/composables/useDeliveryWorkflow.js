@@ -35,37 +35,161 @@ export function useDeliveryWorkflow() {
   const courses = reactive(clone(courseSeed))
   const templates = reactive(clone(templateSeed))
   const tasks = reactive(clone(taskSeed))
-  const sessionStudents = reactive(clone(initialSessionStudents))
   const archives = reactive(clone(archiveSeed))
   const archiveRecords = reactive(clone(archiveRecordSeed))
-  const aiCallLogs = reactive(clone(aiCallLogSeed))
+  const aiCallLogStore = reactive(clone(aiCallLogSeed).map((log) => ({ ...log, lessonId: log.lessonId || 1 })))
   const extraTaskArchives = reactive(clone(extraTaskArchiveSeed))
-  const materials = reactive(clone(lessonMaterialSeed))
-  const homework = reactive(clone(homeworkSeed))
-  const displayConfig = reactive(clone(displayConfigSeed))
   const externalLinks = reactive(clone(externalLinkSeed))
   const wheatTraces = reactive(clone(wheatTraceSeed))
   const importBatches = reactive(clone(importBatchSeed))
   const importPreviewRows = reactive(clone(importPreviewSeed))
   const settings = reactive(clone(settingSeed))
+  const statusChangeLogs = reactive([])
 
   const activeTaskId = ref(1)
-  const activeStudentId = ref(1)
-  const currentStep = ref(0)
-  const selectedImageTemplate = ref(0)
-  const selectedCommentTemplate = ref(0)
   const copied = ref(false)
   const isLoggedIn = ref(false)
   const currentUserId = ref(1)
   const loginForm = reactive({ phone: '137****9011', role: '老师' })
-  const showReport = ref(false)
   const processingAction = ref('')
   const toast = ref('')
   const previewPulse = ref(false)
   const commentPulse = ref(false)
   const reportPulse = ref(false)
-  const bulkRecord = ref(initialBulkRecord)
-  const activeShareMode = ref('student')
+
+  const createStudentDeliveries = (task, useInitialSeed = false) => {
+    const targetClass = classes.find((item) => item.id === task.classId)
+    if (useInitialSeed) {
+      return clone(initialSessionStudents).map((row) => ({
+        ...row,
+        lessonId: task.id,
+        studentId: row.id
+      }))
+    }
+
+    return (targetClass?.studentIds || []).map((studentId) => {
+      const seed = sessionSeed[studentId] || { image: '', record: '', focus: '色彩' }
+      const student = students.find((item) => item.id === studentId)
+      const isAbsent = student?.status === '请假'
+      return {
+        id: studentId,
+        lessonId: task.id,
+        studentId,
+        attendance: isAbsent ? '请假' : '到课',
+        originalImage: seed.image,
+        processedImage: '',
+        imageProcessStatus: '未处理',
+        imageProcessError: '',
+        image: seed.image,
+        imageMatched: Boolean(seed.image) && !isAbsent,
+        processed: false,
+        imageConfirmed: false,
+        record: isAbsent ? '' : seed.record,
+        focus: seed.focus,
+        comment: '',
+        confirmed: false,
+        highlight: false,
+        highlightNote: '',
+        shareReady: false,
+        archived: false
+      }
+    })
+  }
+
+  const createLessonWorkspace = (task, useInitialSeed = false) => ({
+    lessonId: task.id,
+    studentDeliveries: createStudentDeliveries(task, useInitialSeed),
+    materials: clone(lessonMaterialSeed).map((material) => ({ ...material, lessonId: task.id })),
+    homework: { ...clone(homeworkSeed), lessonId: task.id },
+    displayConfig: { ...clone(displayConfigSeed), lessonId: task.id },
+    bulkRecord: useInitialSeed ? initialBulkRecord : '',
+    selectedImageTemplate: 0,
+    selectedCommentTemplate: 0,
+    activeShareMode: 'student',
+    activeStudentId: null,
+    currentStep: 0,
+    showReport: false,
+    sharePage: {
+      status: '草稿',
+      draftVersion: 1,
+      publishedVersion: 0,
+      publishedSnapshot: null,
+      lastPublishedHash: '',
+      revokedReason: '',
+      publishedAt: '',
+      revokedAt: ''
+    }
+  })
+
+  const lessonWorkspaces = reactive(
+    Object.fromEntries(tasks.map((task) => [task.id, createLessonWorkspace(task, task.id === activeTaskId.value)]))
+  )
+
+  const ensureLessonWorkspace = (task) => {
+    if (!lessonWorkspaces[task.id]) lessonWorkspaces[task.id] = createLessonWorkspace(task)
+    const workspace = lessonWorkspaces[task.id]
+    if (!workspace.activeStudentId) {
+      workspace.activeStudentId =
+        workspace.studentDeliveries.find((row) => row.attendance === '到课')?.studentId ||
+        workspace.studentDeliveries[0]?.studentId ||
+        null
+    }
+    return workspace
+  }
+
+  tasks.forEach((task) => ensureLessonWorkspace(task))
+
+  const persistSharePage = (lessonId, page) => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(`children-art-share-${lessonId}`, JSON.stringify(page))
+  }
+
+  if (typeof window !== 'undefined') {
+    tasks.forEach((task) => {
+      try {
+        const saved = window.localStorage.getItem(`children-art-share-${task.id}`)
+        if (saved) Object.assign(lessonWorkspaces[task.id].sharePage, JSON.parse(saved))
+      } catch {
+        // 原型存储损坏时回退为本课次初始草稿，不影响其他课次。
+      }
+    })
+  }
+
+  const activeWorkspace = computed(() => ensureLessonWorkspace(activeTask.value))
+  const sessionStudents = computed(() => activeWorkspace.value.studentDeliveries)
+  const materials = computed(() => activeWorkspace.value.materials)
+  const homework = computed(() => activeWorkspace.value.homework)
+  const displayConfig = computed(() => activeWorkspace.value.displayConfig)
+  const sharePage = computed(() => activeWorkspace.value.sharePage)
+  const activeStudentId = computed({
+    get: () => activeWorkspace.value.activeStudentId,
+    set: (value) => { activeWorkspace.value.activeStudentId = Number(value) }
+  })
+  const currentStep = computed({
+    get: () => activeWorkspace.value.currentStep,
+    set: (value) => { activeWorkspace.value.currentStep = Number(value) }
+  })
+  const selectedImageTemplate = computed({
+    get: () => activeWorkspace.value.selectedImageTemplate,
+    set: (value) => { activeWorkspace.value.selectedImageTemplate = Number(value) }
+  })
+  const selectedCommentTemplate = computed({
+    get: () => activeWorkspace.value.selectedCommentTemplate,
+    set: (value) => { activeWorkspace.value.selectedCommentTemplate = Number(value) }
+  })
+  const bulkRecord = computed({
+    get: () => activeWorkspace.value.bulkRecord,
+    set: (value) => { activeWorkspace.value.bulkRecord = value }
+  })
+  const activeShareMode = computed({
+    get: () => activeWorkspace.value.activeShareMode,
+    set: (value) => { activeWorkspace.value.activeShareMode = value }
+  })
+  const showReport = computed({
+    get: () => activeWorkspace.value.showReport,
+    set: (value) => { activeWorkspace.value.showReport = Boolean(value) }
+  })
+  const aiCallLogs = computed(() => aiCallLogStore.filter((log) => log.lessonId === activeTaskId.value))
 
   const currentUser = computed(() => teachers.find((teacher) => teacher.id === currentUserId.value))
   const isAdmin = computed(() => currentUser.value?.role === '管理员')
@@ -80,14 +204,14 @@ export function useDeliveryWorkflow() {
   const activeTask = computed(() => visibleTasks.value.find((task) => task.id === activeTaskId.value) || visibleTasks.value[0] || tasks[0])
   const activeClass = computed(() => classes.find((item) => item.id === activeTask.value.classId))
   const activeCourse = computed(() => courses.find((item) => item.id === activeTask.value.courseId))
-  const activeSessionStudent = computed(() => sessionStudents.find((item) => item.id === activeStudentId.value))
+  const activeSessionStudent = computed(() => sessionStudents.value.find((item) => item.studentId === activeStudentId.value))
   const activeStudent = computed(() => students.find((item) => item.id === activeStudentId.value))
   const classStudents = computed(() => activeClass.value.studentIds.map((id) => students.find((item) => item.id === id)).filter(Boolean))
-  const attendingRows = computed(() => sessionStudents.filter((item) => item.attendance === '到课'))
+  const attendingRows = computed(() => sessionStudents.value.filter((item) => item.attendance === '到课'))
   const activeImageTemplate = computed(() => templates.image[selectedImageTemplate.value])
   const activeCommentTemplate = computed(() => templates.comment[selectedCommentTemplate.value])
   const isProcessing = computed(() => Boolean(processingAction.value))
-  const selectedExternalLinks = computed(() => externalLinks.filter((link) => homework.externalLinkIds.includes(link.id)))
+  const selectedExternalLinks = computed(() => externalLinks.filter((link) => homework.value.externalLinkIds.includes(link.id)))
   const permissionSummary = computed(() => ({
     role: currentUser.value?.role || '未登录',
     visibleClasses: authorizedClassIds.value.map((id) => classes.find((klass) => klass.id === id)?.name).filter(Boolean),
@@ -120,17 +244,17 @@ export function useDeliveryWorkflow() {
 
   const counts = computed(() => ({
     total: classStudents.value.length,
-    attend: sessionStudents.filter((item) => item.attendance === '到课').length,
-    matched: sessionStudents.filter((item) => item.attendance === '到课' && item.imageMatched).length,
-    imageConfirmed: sessionStudents.filter((item) => item.attendance === '到课' && item.imageConfirmed).length,
-    records: sessionStudents.filter((item) => item.attendance === '到课' && item.record).length,
-    processed: sessionStudents.filter((item) => item.attendance === '到课' && item.processed).length,
-    comments: sessionStudents.filter((item) => item.attendance === '到课' && item.comment).length,
-    confirmed: sessionStudents.filter((item) => item.attendance === '到课' && item.confirmed).length,
-    highlights: sessionStudents.filter((item) => item.attendance === '到课' && item.highlight).length,
-    shareReady: sessionStudents.filter((item) => item.attendance === '到课' && item.shareReady).length,
-    archived: sessionStudents.filter((item) => item.attendance === '到课' && item.archived).length,
-    visibleMaterials: materials.filter((item) => item.visible).length
+    attend: sessionStudents.value.filter((item) => item.attendance === '到课').length,
+    matched: sessionStudents.value.filter((item) => item.attendance === '到课' && item.imageMatched).length,
+    imageConfirmed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.imageConfirmed).length,
+    records: sessionStudents.value.filter((item) => item.attendance === '到课' && item.record).length,
+    processed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.processed).length,
+    comments: sessionStudents.value.filter((item) => item.attendance === '到课' && item.comment).length,
+    confirmed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.confirmed).length,
+    highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
+    shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
+    archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
+    visibleMaterials: materials.value.filter((item) => item.visible).length
   }))
 
   const steps = computed(() => [
@@ -155,18 +279,28 @@ export function useDeliveryWorkflow() {
   })
 
   const progressForTask = (task) => {
-    if (task.id === activeTaskId.value) return taskProgress.value
+    const workspace = ensureLessonWorkspace(task)
+    const rows = workspace.studentDeliveries.filter((row) => row.attendance === '到课')
     if (task.status === '已完成') return 100
-    if (task.status === '处理中') return 28
-    return 0
+    if (!rows.length) return 0
+    const completed =
+      rows.length +
+      Math.min(rows.filter((row) => row.imageMatched).length, rows.filter((row) => row.imageConfirmed).length) +
+      rows.filter((row) => row.record).length +
+      Math.min(rows.filter((row) => row.processed).length, rows.filter((row) => row.confirmed).length) +
+      rows.filter((row) => row.shareReady).length +
+      rows.filter((row) => row.archived).length
+    const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 6)) * 100))
+    if (task.id === activeTaskId.value) return taskProgress.value
+    return workspaceProgress
   }
 
   const currentWarnings = computed(() => {
     const warnings = []
-    if (!materials.some((item) => item.visible)) warnings.push('缺少可展示的范画或步骤图')
-    if (homework.visible && !homework.content.trim()) warnings.push('课后任务内容为空')
+    if (!materials.value.some((item) => item.visible)) warnings.push('缺少可展示的范画或步骤图')
+    if (homework.value.visible && !homework.value.content.trim()) warnings.push('课后任务内容为空')
     attendingRows.value.forEach((row) => {
-      const student = students.find((item) => item.id === row.id)
+      const student = students.find((item) => item.id === row.studentId)
       if (!row.imageMatched) warnings.push(`${student.name}缺作品`)
       if (!row.imageConfirmed) warnings.push(`${student.name}图片待确认`)
       if (!row.record) warnings.push(`${student.name}缺课堂记录`)
@@ -186,15 +320,15 @@ export function useDeliveryWorkflow() {
   const qrText = computed(() => `QR · ${activeShareMode.value === 'class' ? activeClass.value.name : activeStudent.value?.name || ''}`)
 
   const fileNameFor = (row) => {
-    const student = students.find((item) => item.id === row.id)
+    const student = students.find((item) => item.id === row.studentId)
     return `${activeTask.value.date}-${activeClass.value.name}-${student.name}-${activeCourse.value.title}.jpg`
   }
 
   const exportText = computed(() =>
     attendingRows.value
       .map((row, index) => {
-        const student = students.find((item) => item.id === row.id)
-        const link = `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.id}`
+        const student = students.find((item) => item.id === row.studentId)
+        const link = `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`
         return `${index + 1}. ${student.name}\n作品文件：${fileNameFor(row)}\n展示页：${link}\n课评：${row.comment || '待生成'}`
       })
       .join('\n\n')
@@ -205,6 +339,65 @@ export function useDeliveryWorkflow() {
     setTimeout(() => {
       if (toast.value === message) toast.value = ''
     }, 2200)
+  }
+
+  const nowText = () => new Date().toLocaleString('zh-CN', { hour12: false })
+  const nextId = (collection) => Math.max(0, ...collection.map((item) => item.id || 0)) + 1
+  const addStatusLog = (objectType, objectId, before, after, reason, source = '工作台', lessonId = activeTask.value?.id || null) => {
+    statusChangeLogs.unshift({
+      id: nextId(statusChangeLogs),
+      lessonId,
+      objectType,
+      objectId,
+      before,
+      after,
+      operator: currentUser.value?.name || '未登录用户',
+      time: nowText(),
+      reason,
+      source
+    })
+  }
+
+  const lessonStatusLogs = computed(() => statusChangeLogs.filter((log) => log.lessonId === activeTask.value.id))
+
+  const transitionLesson = (action, reason, exceptionType = '') => {
+    const task = activeTask.value
+    const before = task.status
+    const rules = {
+      start: { from: ['待处理'], to: '处理中' },
+      exception: { from: ['待处理', '处理中'], to: '异常' },
+      recover: { from: ['异常'], to: '处理中' },
+      reopen: { from: ['已完成'], to: '处理中', admin: true }
+    }
+    const rule = rules[action]
+    if (!rule || !rule.from.includes(before)) {
+      notify(`操作未执行：课次当前为“${before}”，不满足状态前置条件`)
+      return false
+    }
+    if (rule.admin && !isAdmin.value) {
+      notify('操作未执行：只有管理员可以重新打开已完成课次')
+      return false
+    }
+    if (action !== 'start' && !reason?.trim()) {
+      notify('请填写本次状态变更原因')
+      return false
+    }
+    if (action === 'exception' && !exceptionType) {
+      notify('请先选择异常类型')
+      return false
+    }
+    task.status = rule.to
+    task.exceptionType = action === 'exception' ? exceptionType : task.exceptionType || ''
+    task.exceptionReason = action === 'exception' ? reason.trim() : task.exceptionReason || ''
+    if (action === 'recover') task.recoveryReason = reason.trim()
+    if (action === 'reopen') {
+      task.reopenReason = reason.trim()
+      task.archived = false
+      showReport.value = false
+    }
+    addStatusLog('课次', task.id, before, rule.to, action === 'start' ? '开始课后处理' : reason.trim())
+    notify(`课次状态已由“${before}”变更为“${rule.to}”`)
+    return true
   }
 
   const runAction = async (label, message, action) => {
@@ -236,47 +429,13 @@ export function useDeliveryWorkflow() {
     })
   }
 
-  const resetSessionForTask = (task) => {
-    const targetClass = classes.find((item) => item.id === task.classId)
-    const rows = targetClass.studentIds.map((studentId) => {
-      const seed = sessionSeed[studentId]
-      const student = students.find((item) => item.id === studentId)
-      const isAbsent = student.status === '请假'
-      return {
-        id: studentId,
-        attendance: isAbsent ? '请假' : '到课',
-        originalImage: seed.image,
-        processedImage: '',
-        imageProcessStatus: '未处理',
-        imageProcessError: '',
-        image: seed.image,
-        imageMatched: !isAbsent,
-        processed: false,
-        imageConfirmed: false,
-        record: isAbsent ? '' : seed.record,
-        focus: seed.focus,
-        comment: '',
-        confirmed: false,
-        highlight: false,
-        highlightNote: '',
-        shareReady: false,
-        archived: false
-      }
-    })
-    sessionStudents.splice(0, sessionStudents.length, ...rows)
-    activeStudentId.value = rows.find((row) => row.attendance === '到课')?.id || rows[0]?.id || 1
-    currentStep.value = 0
-    showReport.value = false
-    activeShareMode.value = 'student'
-  }
-
   const selectTask = (task) => {
     if (!isAdmin.value && !authorizedClassIds.value.includes(task.classId) && task.teacher !== currentUser.value?.name) {
       notify('无权限查看该课次，请联系管理员授权班级')
       return
     }
+    ensureLessonWorkspace(task)
     activeTaskId.value = task.id
-    resetSessionForTask(task)
   }
 
   const loginAs = (teacherId) => {
@@ -311,7 +470,7 @@ export function useDeliveryWorkflow() {
       row.shareReady = false
       row.archived = false
     } else if (!row.image) {
-      row.image = sessionSeed[row.id].image
+      row.image = sessionSeed[row.studentId]?.image || ''
     }
   }
 
@@ -321,10 +480,11 @@ export function useDeliveryWorkflow() {
   }
 
   const addMaterial = () => {
-    materials.push({
+    materials.value.push({
       id: Date.now(),
+      lessonId: activeTaskId.value,
       type: '步骤图',
-      title: `新增步骤图 ${materials.length + 1}`,
+      title: `新增步骤图 ${materials.value.length + 1}`,
       image: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=720&q=80',
       visible: true
     })
@@ -351,7 +511,7 @@ export function useDeliveryWorkflow() {
       .forEach((line) => {
         const [rawName, ...rest] = line.split(/[:：]/)
         const student = students.find((item) => item.name === rawName.trim() || item.nickname === rawName.trim())
-        const row = student ? sessionStudents.find((item) => item.id === student.id) : null
+        const row = student ? sessionStudents.value.find((item) => item.studentId === student.id) : null
         if (row && rest.length) row.record = rest.join('：').trim()
       })
     notify('课堂记录已匹配到学生')
@@ -367,15 +527,16 @@ export function useDeliveryWorkflow() {
 
   const matchImages = async () => {
     await runAction('正在匹配作品图片...', `已匹配 ${counts.value.attend} 张作品`, async () => {
-      sessionStudents.forEach((row) => {
+      sessionStudents.value.forEach((row) => {
         if (row.attendance === '到课') row.imageMatched = true
       })
     })
   }
 
   const addAiLog = (type, target, status, message, retry = 0) => {
-    aiCallLogs.unshift({
-      id: Date.now() + aiCallLogs.length,
+    aiCallLogStore.unshift({
+      id: Date.now() + aiCallLogStore.length,
+      lessonId: activeTaskId.value,
       time: '刚刚',
       type,
       target,
@@ -398,9 +559,9 @@ export function useDeliveryWorkflow() {
 
   const processImages = async () => {
     await runAction('正在进行作品美化和水印处理...', `已按“${activeImageTemplate.value.name}”处理 ${counts.value.matched} 张作品`, async () => {
-      sessionStudents.forEach((row) => {
+      sessionStudents.value.forEach((row) => {
         if (row.attendance === '到课' && row.imageMatched) {
-          const student = students.find((item) => item.id === row.id)
+          const student = students.find((item) => item.id === row.studentId)
           row.imageProcessStatus = '成功'
           row.imageProcessError = ''
           row.processedImage = row.originalImage || row.image
@@ -440,7 +601,7 @@ export function useDeliveryWorkflow() {
   }
 
   const generateOne = (row) => {
-    const student = students.find((item) => item.id === row.id)
+    const student = students.find((item) => item.id === row.studentId)
     const complimentMap = {
       色彩: '今天的色彩选择很大胆，画面一下子就亮了起来',
       想象力: '今天的想法很丰富，能把自己的故事放进画面里',
@@ -467,8 +628,8 @@ export function useDeliveryWorkflow() {
     for (const row of attendingRows.value) {
       await wait(260)
       generateOne(row)
-      activeStudentId.value = row.id
-      addAiLog('课评生成', students.find((item) => item.id === row.id)?.name || '学生', '成功', '生成 1v1 课评，等待老师确认')
+      activeStudentId.value = row.studentId
+      addAiLog('课评生成', students.find((item) => item.id === row.studentId)?.name || '学生', '成功', '生成 1v1 课评，等待老师确认')
       pulseComment()
     }
     await wait(180)
@@ -490,28 +651,138 @@ export function useDeliveryWorkflow() {
   }
 
   const toggleHomeworkLink = (id) => {
-    const index = homework.externalLinkIds.indexOf(id)
-    if (index >= 0) homework.externalLinkIds.splice(index, 1)
-    else homework.externalLinkIds.push(id)
+    const index = homework.value.externalLinkIds.indexOf(id)
+    if (index >= 0) homework.value.externalLinkIds.splice(index, 1)
+    else homework.value.externalLinkIds.push(id)
+  }
+
+  const shareDraftPayload = () => ({
+    lesson: clone(activeTask.value),
+    klass: clone(activeClass.value),
+    course: clone(activeCourse.value),
+    studentDeliveries: clone(sessionStudents.value),
+    students: clone(students),
+    materials: clone(materials.value),
+    homework: clone(homework.value),
+    displayConfig: clone(displayConfig.value),
+    school: clone(school),
+    externalLinks: clone(selectedExternalLinks.value)
+  })
+
+  const shareContentHash = () => JSON.stringify({
+    lesson: {
+      id: activeTask.value.id,
+      date: activeTask.value.date,
+      time: activeTask.value.time,
+      lessonType: activeTask.value.lessonType,
+      classId: activeTask.value.classId,
+      courseId: activeTask.value.courseId
+    },
+    studentDeliveries: sessionStudents.value.map(({ shareReady, archived, ...row }) => row),
+    materials: materials.value,
+    homework: homework.value,
+    displayConfig: Object.fromEntries(Object.entries(displayConfig.value).filter(([key]) => key !== 'publicStatus')),
+    externalLinks: selectedExternalLinks.value
+  })
+
+  const saveShareDraft = (reason = '调整展示内容') => {
+    const before = sharePage.value.status
+    if (before === '草稿') {
+      notify(`展示页已经是草稿状态（V${sharePage.value.draftVersion}），重复保存未新建版本`)
+      return false
+    }
+    sharePage.value.status = '草稿'
+    sharePage.value.draftVersion = Math.max(sharePage.value.draftVersion, sharePage.value.publishedVersion + 1)
+    displayConfig.value.publicStatus = '草稿'
+    persistSharePage(activeTask.value.id, sharePage.value)
+    addStatusLog('家长展示页', activeTask.value.id, before, '草稿', reason)
+    notify(`已保存为 V${sharePage.value.draftVersion} 草稿；家长仍可访问上一发布版本`)
+    return true
   }
 
   const generateSharePages = async () => {
-    await runAction('正在生成家长展示页和二维码...', `已生成 ${counts.value.attend} 个学生展示页`, async () => {
-      attendingRows.value.forEach((row) => {
-        if (row.confirmed && row.imageConfirmed) row.shareReady = true
-      })
+    const missing = attendingRows.value.filter((row) => !row.confirmed || !row.imageConfirmed)
+    if (missing.length) {
+      notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
+      return false
+    }
+    const payload = shareDraftPayload()
+    const payloadHash = shareContentHash()
+    if (sharePage.value.publishedVersion && sharePage.value.lastPublishedHash === payloadHash) {
+      const before = sharePage.value.status
+      sharePage.value.status = '已发布'
+      sharePage.value.draftVersion = sharePage.value.publishedVersion
+      displayConfig.value.publicStatus = '已发布'
+      persistSharePage(activeTask.value.id, sharePage.value)
+      if (before !== '已发布') addStatusLog('家长展示页', activeTask.value.id, before, '已发布', '草稿内容与已发布版本一致，恢复原发布状态')
+      notify(`重复发布已拦截：内容与 V${sharePage.value.publishedVersion} 一致，未生成重复链接或版本`)
+      return false
+    }
+    await runAction('正在发布家长展示页和二维码...', '', async () => {
+      const before = sharePage.value.status
+      attendingRows.value.forEach((row) => { row.shareReady = true })
+      sharePage.value.publishedVersion += 1
+      sharePage.value.draftVersion = sharePage.value.publishedVersion
+      sharePage.value.status = '已发布'
+      sharePage.value.publishedSnapshot = payload
+      sharePage.value.lastPublishedHash = payloadHash
+      sharePage.value.publishedAt = nowText()
+      sharePage.value.revokedAt = ''
+      sharePage.value.revokedReason = ''
+      persistSharePage(activeTask.value.id, sharePage.value)
       activeTask.value.shareGenerated = true
-      displayConfig.publicStatus = '已发布'
+      displayConfig.value.publicStatus = '已发布'
+      addStatusLog('家长展示页', activeTask.value.id, before, '已发布', `发布 V${sharePage.value.publishedVersion}`)
       pulsePreview()
     })
+    notify(`家长展示页 V${sharePage.value.publishedVersion} 已发布，共 ${counts.value.attend} 个学生链接`)
+    return true
+  }
+
+  const revokeSharePage = (reason) => {
+    if (!isAdmin.value) {
+      notify('操作未执行：只有管理员可以撤销家长展示页')
+      return false
+    }
+    if (!reason?.trim()) {
+      notify('请填写撤销原因')
+      return false
+    }
+    if (sharePage.value.status === '已失效') {
+      notify(`重复撤销已拦截：展示页已于 ${sharePage.value.revokedAt} 失效`)
+      return false
+    }
+    const before = sharePage.value.status
+    sharePage.value.status = '已失效'
+    sharePage.value.revokedAt = nowText()
+    sharePage.value.revokedReason = reason.trim()
+    displayConfig.value.publicStatus = '已失效'
+    persistSharePage(activeTask.value.id, sharePage.value)
+    addStatusLog('家长展示页', activeTask.value.id, before, '已失效', reason.trim())
+    notify('家长展示页已撤销，所有现有链接立即失效')
+    return true
+  }
+
+  const getLessonWorkspace = (lessonId) => lessonWorkspaces[Number(lessonId)]
+  const expectedShareToken = (route) => route.type === 'lesson'
+    ? `lesson-demo-${route.lessonId}`
+    : `student-demo-${route.lessonId}-${route.studentId}`
+  const isShareAccessible = (route) => {
+    const workspace = getLessonWorkspace(route.lessonId)
+    return Boolean(
+      workspace?.sharePage?.publishedSnapshot &&
+      workspace.sharePage.status !== '已失效' &&
+      route.token === expectedShareToken(route)
+    )
   }
 
   const ensureWheatTrace = () => {
     const lesson = `${activeTask.value.date} ${activeTask.value.time} · ${activeClass.value.name}`
-    const exists = wheatTraces.find((item) => item.lesson === lesson)
+    const exists = wheatTraces.find((item) => item.lessonId === activeTask.value.id || item.lesson === lesson)
     if (exists) return exists
     const trace = {
       id: Date.now(),
+      lessonId: activeTask.value.id,
       lesson,
       course: activeCourse.value.title,
       teacher: activeTask.value.teacher,
@@ -525,22 +796,43 @@ export function useDeliveryWorkflow() {
   }
 
   const archiveAll = async () => {
+    if (activeTask.value.status === '已完成' || activeTask.value.archived) {
+      const trace = wheatTraces.find((item) => item.lessonId === activeTask.value.id)
+      notify(`重复提交已拦截：归档和小麦待办均未重复生成${trace ? `（待办 #${trace.id}）` : ''}`)
+      return false
+    }
+    if (activeTask.value.status === '异常') {
+      notify('归档失败：请先恢复异常课次再完成交付')
+      return false
+    }
+    if (activeTask.value.status !== '处理中') {
+      notify(`归档失败：课次当前为“${activeTask.value.status}”，请先开始处理`)
+      return false
+    }
+    if (currentWarnings.value.length) {
+      notify(`归档失败：仍有 ${currentWarnings.value.length} 项完成门槛未通过`)
+      return false
+    }
     await runAction('正在保存档案并生成小麦留痕待办...', '本节课已归档，小麦留痕待办已生成', async () => {
+      const before = activeTask.value.status
       attendingRows.value.forEach((row) => {
         if (row.shareReady) row.archived = true
       })
       const trace = ensureWheatTrace()
       activeTask.value.wheatStatus = trace.status
       activeTask.value.archived = true
+      activeTask.value.archiveVersion = (activeTask.value.archiveVersion || 0) + 1
       activeTask.value.status = '已完成'
+      addStatusLog('课次', activeTask.value.id, before, '已完成', '完成门槛校验通过，归档与小麦待办同次生成')
       showReport.value = true
       reportPulse.value = true
       setTimeout(() => {
         reportPulse.value = false
       }, 1200)
-      if (!archives.some((item) => item.date === activeTask.value.date && item.course === activeCourse.value.title)) {
+      if (!archives.some((item) => item.lessonId === activeTask.value.id)) {
         archives.unshift({
           id: Date.now() + 1,
+          lessonId: activeTask.value.id,
           date: activeTask.value.date,
           className: activeClass.value.name,
           course: activeCourse.value.title,
@@ -552,10 +844,11 @@ export function useDeliveryWorkflow() {
         })
       }
       attendingRows.value.forEach((row) => {
-        const student = students.find((item) => item.id === row.id)
-        if (!student || archiveRecords.some((record) => record.date === activeTask.value.date && record.studentId === row.id && record.course === activeCourse.value.title)) return
+        const student = students.find((item) => item.id === row.studentId)
+        if (!student || archiveRecords.some((record) => record.lessonId === activeTask.value.id && record.studentId === row.studentId)) return
         archiveRecords.unshift({
-          id: Date.now() + row.id,
+          id: Date.now() + row.studentId,
+          lessonId: activeTask.value.id,
           date: activeTask.value.date,
           time: activeTask.value.time,
           classId: activeClass.value.id,
@@ -563,18 +856,19 @@ export function useDeliveryWorkflow() {
           teacher: activeTask.value.teacher,
           course: activeCourse.value.title,
           lessonType: activeTask.value.lessonType,
-          studentId: row.id,
+          studentId: row.studentId,
           studentName: student.name,
           artwork: row.image,
           feedback: row.comment,
-          homework: homework.content,
+          homework: homework.value.content,
           highlight: row.highlight,
           highlightNote: row.highlightNote,
-          shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.id}`,
+          shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`,
           wheatStatus: trace.status
         })
       })
     })
+    return true
   }
 
   const copyExport = async () => {
@@ -595,16 +889,32 @@ export function useDeliveryWorkflow() {
     row.processed = false
   }
 
-  const markTrace = (trace, status) => {
+  const markTrace = (trace, status, reason = '') => {
+    const before = trace.status
+    if (before === status) {
+      notify(`重复提交已拦截：该留痕已经是“${status}”`)
+      return false
+    }
+    const isCorrection = ['已人工处理', '无需处理'].includes(before)
+    if ((status === '异常' || status === '无需处理' || isCorrection) && !reason?.trim()) {
+      notify(isCorrection ? '更正已完成状态必须填写更正原因' : '该状态变更必须填写说明')
+      return false
+    }
+    if (isCorrection && !isAdmin.value) {
+      notify('操作未执行：只有管理员可以更正已完成的留痕状态')
+      return false
+    }
     trace.status = status
-    if (status === '已人工处理') trace.note = '已在小麦助教人工处理完成'
-    if (status === '无需处理') trace.note = '本课次无需回小麦处理'
+    trace.note = reason?.trim() || (status === '已人工处理' ? '已在小麦助教人工处理完成' : trace.note)
+    trace.lastReason = reason?.trim() || '人工确认已处理'
+    trace.operator = currentUser.value?.name
+    trace.processedAt = nowText()
     const lesson = `${activeTask.value.date} ${activeTask.value.time} · ${activeClass.value.name}`
     if (trace.lesson === lesson) activeTask.value.wheatStatus = status
+    addStatusLog('小麦留痕', trace.id, before, status, trace.lastReason, '小麦留痕页', trace.lessonId || null)
     notify(`小麦留痕已标记为：${status}`)
+    return true
   }
-
-  const nextId = (collection) => Math.max(0, ...collection.map((item) => item.id || 0)) + 1
 
   const addLesson = (payload) => {
     const klass = classes.find((item) => item.id === Number(payload.classId))
@@ -626,7 +936,7 @@ export function useDeliveryWorkflow() {
     }
     tasks.unshift(lesson)
     activeTaskId.value = lesson.id
-    resetSessionForTask(lesson)
+    ensureLessonWorkspace(lesson)
     notify(`已补录课次：${klass?.name || '班级'} · ${course?.title || '课程'}`)
     return lesson
   }
@@ -882,6 +1192,11 @@ export function useDeliveryWorkflow() {
     courses,
     templates,
     tasks,
+    lessonWorkspaces,
+    activeWorkspace,
+    sharePage,
+    statusChangeLogs,
+    lessonStatusLogs,
     sessionStudents,
     archives,
     archiveRecords,
@@ -944,6 +1259,7 @@ export function useDeliveryWorkflow() {
     exportText,
     fileNameFor,
     selectTask,
+    transitionLesson,
     loginAs,
     loginWithForm,
     logout,
@@ -964,7 +1280,11 @@ export function useDeliveryWorkflow() {
     confirmAll,
     toggleHighlight,
     toggleHomeworkLink,
+    saveShareDraft,
     generateSharePages,
+    revokeSharePage,
+    getLessonWorkspace,
+    isShareAccessible,
     archiveAll,
     copyExport,
     updateImage,

@@ -1,5 +1,6 @@
 <script setup>
 import TaskReport from './TaskReport.vue'
+import StateControlPanel from './StateControlPanel.vue'
 
 defineProps({
   state: {
@@ -8,7 +9,7 @@ defineProps({
   }
 })
 
-defineEmits(['navigate'])
+defineEmits(['navigate', 'back'])
 </script>
 
 <template>
@@ -33,6 +34,11 @@ defineEmits(['navigate'])
       <button class="ghost" @click="state.showReport = !state.showReport">{{ state.showReport ? '继续编辑' : '查看报告' }}</button>
     </header>
 
+    <details class="advanced-state">
+      <summary>课次状态与发布记录 <span>{{ state.activeTask.status }} · {{ state.sharePage.status }}</span></summary>
+      <StateControlPanel :state="state" />
+    </details>
+
     <TaskReport
       v-if="state.showReport"
       :counts="state.counts"
@@ -54,7 +60,7 @@ defineEmits(['navigate'])
           <b>{{ index + 1 }}</b>
           <span>
             <strong>{{ step.title }}</strong>
-            <small>{{ step.done }}/{{ step.total }} · {{ step.hint }}</small>
+            <small>{{ state.currentStep === index ? step.hint : (step.done === step.total && step.total > 0 ? '已完成' : `${step.done}/${step.total}`) }}</small>
           </span>
         </button>
       </nav>
@@ -98,12 +104,12 @@ defineEmits(['navigate'])
         <div class="roster-table">
           <button
             v-for="row in state.sessionStudents"
-            :key="row.id"
-            :class="{ active: row.id === state.activeStudentId, absent: row.attendance !== '到课' }"
-            @click="state.activeStudentId = row.id"
+            :key="`${row.lessonId}-${row.studentId}`"
+            :class="{ active: row.studentId === state.activeStudentId, absent: row.attendance !== '到课' }"
+            @click="state.activeStudentId = row.studentId"
           >
-            <strong>{{ state.students.find((item) => item.id === row.id).name }}</strong>
-            <span>{{ state.students.find((item) => item.id === row.id).parent }}</span>
+            <strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong>
+            <span>{{ state.students.find((item) => item.id === row.studentId).parent }}</span>
             <select :value="row.attendance" @change="state.setAttendance(row, $event.target.value)" @click.stop>
               <option>到课</option>
               <option>请假</option>
@@ -127,12 +133,12 @@ defineEmits(['navigate'])
         <div class="works-grid">
           <article
             v-for="row in state.sessionStudents"
-            :key="row.id"
+            :key="`${row.lessonId}-${row.studentId}`"
             :class="{ absent: row.attendance !== '到课' }"
             class="work-card"
           >
-            <img :src="row.image" :alt="state.students.find((item) => item.id === row.id).name" />
-            <strong>{{ state.students.find((item) => item.id === row.id).name }}</strong>
+            <img :src="row.image" :alt="state.students.find((item) => item.id === row.studentId).name" />
+            <strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong>
             <small>{{ row.attendance === '到课' ? state.fileNameFor(row) : '本节课未到课，不生成交付' }}</small>
             <label v-if="row.attendance === '到课'" class="file-button">
               替换作品
@@ -160,8 +166,8 @@ defineEmits(['navigate'])
             <button class="primary" @click="state.parseBulkRecord">解析到学生</button>
           </article>
           <article class="record-table">
-            <label v-for="row in state.attendingRows" :key="row.id">
-              {{ state.students.find((item) => item.id === row.id).name }} · 关注点
+            <label v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`">
+              {{ state.students.find((item) => item.id === row.studentId).name }} · 关注点
               <select v-model="row.focus">
                 <option>色彩</option>
                 <option>想象力</option>
@@ -223,11 +229,11 @@ defineEmits(['navigate'])
             <div class="student-tabs">
               <button
                 v-for="row in state.attendingRows"
-                :key="row.id"
-                :class="{ selected: row.id === state.activeStudentId }"
-                @click="state.activeStudentId = row.id"
+                :key="`${row.lessonId}-${row.studentId}`"
+                :class="{ selected: row.studentId === state.activeStudentId }"
+                @click="state.activeStudentId = row.studentId"
               >
-                {{ state.students.find((item) => item.id === row.id).name }}
+                {{ state.students.find((item) => item.id === row.studentId).name }}
               </button>
             </div>
             <label>
@@ -284,7 +290,7 @@ defineEmits(['navigate'])
             <span>第 5 步</span>
             <strong>配置家长展示页、课后任务和高光作品</strong>
           </div>
-          <button class="primary" :disabled="state.isProcessing" @click="state.generateSharePages">生成链接/二维码</button>
+          <button class="primary" :disabled="state.isProcessing" @click="state.generateSharePages">发布链接/二维码</button>
         </div>
         <div class="parent-layout">
           <article class="record-table">
@@ -336,11 +342,11 @@ defineEmits(['navigate'])
             <div class="student-tabs">
               <button
                 v-for="row in state.attendingRows"
-                :key="row.id"
-                :class="{ selected: row.id === state.activeStudentId }"
-                @click="state.activeStudentId = row.id"
+                :key="`${row.lessonId}-${row.studentId}`"
+                :class="{ selected: row.studentId === state.activeStudentId }"
+                @click="state.activeStudentId = row.studentId"
               >
-                {{ state.students.find((item) => item.id === row.id).name }}
+                {{ state.students.find((item) => item.id === row.studentId).name }}
               </button>
             </div>
             <label class="inline-check">
@@ -373,7 +379,7 @@ defineEmits(['navigate'])
             <div class="button-pair">
               <button class="secondary" @click="state.confirmImages">确认全部图片</button>
               <button class="secondary" @click="state.confirmAll">确认全部课评</button>
-              <button class="secondary" @click="state.generateSharePages">补生成展示页</button>
+              <button class="secondary" @click="state.generateSharePages">发布展示页</button>
             </div>
           </article>
           <article class="channel-stack">

@@ -220,11 +220,12 @@ export const tasks = [
     courseId: 2,
     teacher: '周老师',
     lessonType: '体验课',
-    status: '待处理',
-    wheatStatus: '未生成',
+    status: '已完成',
+    wheatStatus: '异常',
     importedFrom: '手动补录',
     shareGenerated: false,
-    archived: false
+    archived: true,
+    archiveVersion: 1
   },
   {
     id: 3,

@@ -24,8 +24,10 @@ defineEmits(['navigate'])
       :active-task-id="state.activeTaskId"
       :classes="state.classes"
       :courses="state.courses"
+      :teachers="state.teachers"
       :progress-for-task="state.progressForTask"
       @select-task="state.selectTask"
+      @add-lesson="state.addLesson"
     />
 
     <TaskWizard :state="state" @navigate="$emit('navigate', $event)" />

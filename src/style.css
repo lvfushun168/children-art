@@ -984,6 +984,139 @@ textarea:focus {
   text-decoration: none;
 }
 
+.share-open-link {
+  display: inline-block;
+  margin-top: 6px;
+  color: #315d53;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.parent-h5 {
+  width: min(560px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 16px;
+  background: #fffefa;
+  color: #26312f;
+}
+
+.parent-brand,
+.parent-brand > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.parent-brand > div > span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: #315d53;
+  color: #fffdf4;
+  font-weight: 900;
+}
+
+.parent-brand div div {
+  display: grid;
+}
+
+.parent-hero {
+  padding: 32px 0 20px;
+  border-bottom: 1px solid rgba(77, 107, 95, 0.16);
+}
+
+.parent-hero h1 {
+  margin: 7px 0;
+  font-size: 30px;
+}
+
+.parent-hero p,
+.parent-section p,
+.parent-footer small {
+  line-height: 1.65;
+}
+
+.parent-content,
+.parent-class-grid {
+  display: grid;
+  gap: 14px;
+  padding: 16px 0;
+}
+
+.parent-artwork {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border: 10px solid #e7d5b8;
+}
+
+.parent-section {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #edf3eb;
+}
+
+.parent-section > span {
+  color: #315d53;
+  font-weight: 900;
+}
+
+.parent-section.highlight {
+  background: #f7eadf;
+}
+
+.parent-materials,
+.parent-class-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.parent-materials {
+  display: grid;
+  gap: 8px;
+}
+
+.parent-materials img,
+.parent-class-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 7px;
+}
+
+.parent-section a {
+  color: #315d53;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.parent-class-grid article {
+  display: grid;
+  gap: 6px;
+}
+
+.parent-footer {
+  display: grid;
+  gap: 5px;
+  padding: 16px 0 28px;
+  border-top: 1px solid rgba(77, 107, 95, 0.16);
+  color: #687870;
+}
+
+.share-access-state {
+  display: grid;
+  gap: 8px;
+  min-height: 70vh;
+  place-content: center;
+  text-align: center;
+}
+
 .share-box {
   grid-template-columns: 74px 1fr;
   align-items: center;
@@ -1140,6 +1273,40 @@ textarea:focus {
   background: #edf3eb;
 }
 
+.template-workbench {
+  display: grid;
+  grid-template-columns: 180px 280px minmax(520px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.template-type-list,
+.template-list,
+.template-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.template-type-list button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fffefa;
+  color: inherit;
+  text-align: left;
+}
+
+.template-type-list button.active {
+  background: #315d53;
+  color: #fffdf4;
+}
+
+.template-type-list button.active small {
+  color: rgba(255, 253, 244, 0.76);
+}
+
 .trace-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1190,6 +1357,40 @@ textarea:focus {
   grid-template-columns: 260px minmax(420px, 1fr) 380px;
   gap: 14px;
   align-items: start;
+}
+
+.external-link-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(520px, 1fr) 320px;
+  gap: 14px;
+  align-items: start;
+}
+
+.extra-task-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(520px, 1fr) 320px;
+  gap: 14px;
+  align-items: start;
+}
+
+.link-preview {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #edf3eb;
+  word-break: break-all;
+}
+
+.link-preview p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.link-preview em {
+  color: #c96f3e;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .archive-filters,
@@ -1493,6 +1694,10 @@ textarea:focus {
   box-shadow: 0 28px 80px rgba(24, 34, 32, 0.28);
 }
 
+.lesson-modal {
+  width: min(760px, 100%);
+}
+
 .modal-head,
 .modal-actions {
   display: flex;
@@ -1612,6 +1817,9 @@ textarea:focus {
   .master-layout,
   .settings-layout,
   .archive-query-layout,
+  .external-link-layout,
+  .extra-task-layout,
+  .template-workbench,
   .split-grid,
   .context-grid,
   .report-grid,
@@ -1661,6 +1869,14 @@ textarea:focus {
 
   .user-popover {
     width: 100%;
+  }
+
+  .parent-h5 {
+    padding: 14px;
+  }
+
+  .parent-hero h1 {
+    font-size: 26px;
   }
 
   .stepper,

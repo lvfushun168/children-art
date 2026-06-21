@@ -3,8 +3,10 @@ export const navItems = [
   { id: 'students', label: '学生' },
   { id: 'classes', label: '班级' },
   { id: 'courses', label: '课程资料' },
+  { id: 'externalLinks', label: '外部课程' },
   { id: 'templates', label: '模板配置' },
   { id: 'archives', label: '作品档案' },
+  { id: 'extraTasks', label: '课外任务' },
   { id: 'wheat', label: '小麦留痕' },
   { id: 'settings', label: '系统配置' }
 ]
@@ -168,30 +170,30 @@ export const courses = [
 ]
 
 export const externalLinks = [
-  { id: 1, title: '向日葵色彩延伸课', url: 'https://example.com/sunflower-color', note: '适合 5-7 岁课后复习' },
-  { id: 2, title: '暖色系观察练习', url: 'https://example.com/warm-color', note: '亲子 10 分钟观察任务' },
-  { id: 3, title: '海底世界亲子练习', url: 'https://example.com/fish', note: '低龄形状组合练习' },
-  { id: 4, title: '线描建筑进阶课', url: 'https://example.com/city-line', note: '适合线描提高班' }
+  { id: 1, title: '向日葵色彩延伸课', url: 'https://example.com/sunflower-color', platform: '创客匠人', note: '适合 5-7 岁课后复习', courseIds: [1], status: '启用' },
+  { id: 2, title: '暖色系观察练习', url: 'https://example.com/warm-color', platform: '通用链接', note: '亲子 10 分钟观察任务', courseIds: [1], status: '启用' },
+  { id: 3, title: '海底世界亲子练习', url: 'https://example.com/fish', platform: '创客匠人', note: '低龄形状组合练习', courseIds: [2], status: '启用' },
+  { id: 4, title: '线描建筑进阶课', url: 'https://example.com/city-line', platform: '通用链接', note: '适合线描提高班', courseIds: [3], status: '启用' }
 ]
 
 export const templates = {
   image: [
-    { name: '家长展示标准版', ratio: '4:5', brightness: '+15%', watermark: '右下角校区水印', border: '米白作品框' },
-    { name: '内部归档版', ratio: '1:1', brightness: '+10%', watermark: '课程名+老师名', border: '无边框' },
-    { name: '作品档案版', ratio: '原比例', brightness: '不调整', watermark: '隐藏水印', border: '原图保留' }
+    { name: '家长展示标准版', ratio: '4:5', brightness: '+15%', watermark: '右下角校区水印', border: '米白作品框', crop: '居中裁切', quality: '高清', status: '启用' },
+    { name: '内部归档版', ratio: '1:1', brightness: '+10%', watermark: '课程名+老师名', border: '无边框', crop: '主体居中', quality: '标准', status: '启用' },
+    { name: '作品档案版', ratio: '原比例', brightness: '不调整', watermark: '隐藏水印', border: '原图保留', crop: '不裁切', quality: '原图', status: '启用' }
   ],
   comment: [
-    { name: '温暖亲切版', tone: '像微信语音一样自然', length: '60-80字', rule: '亮点、建议、鼓励' },
-    { name: '低龄鼓励版', tone: '更软、更具体', length: '50-70字', rule: '少建议，多鼓励' },
-    { name: '专业简洁版', tone: '适合高龄段家长', length: '80-100字', rule: '课程目标、完成度、下一步' }
+    { name: '温暖亲切版', tone: '像微信语音一样自然', length: '60-80字', structure: '亮点、建议、鼓励', taboo: '不夸大、不排名、不使用负面标签', sample: '今天色彩选择很大胆，下次可以让背景更透气。', status: '启用' },
+    { name: '低龄鼓励版', tone: '更软、更具体', length: '50-70字', structure: '投入状态、具体动作、鼓励', taboo: '少建议，多鼓励', sample: '今天很愿意尝试颜色，老师看到他一直很投入。', status: '启用' },
+    { name: '专业简洁版', tone: '适合高龄段家长', length: '80-100字', structure: '课程目标、完成度、下一步', taboo: '避免口语过多', sample: '本节课能围绕主题完成主体表达，下一步关注画面层次。', status: '启用' }
   ],
   prompt: [
-    { name: '1v1 课评生成', model: '学生记录 + 课程参考 + 模板规则', status: '启用' },
-    { name: '作品美化提示词', model: '保留原作笔触，轻微提亮和裁切', status: '启用' }
+    { name: '1v1 课评生成', model: '学生记录 + 课程参考 + 模板规则', scene: 'feedback', systemPrompt: '你是少儿美术老师助手，生成自然、具体、适合家长阅读的课评。', userPrompt: '学生：{{student}}；课程：{{course}}；课堂记录：{{record}}；模板：{{template}}', temperature: 0.7, maxTokens: 220, status: '启用' },
+    { name: '作品美化提示词', model: '保留原作笔触，轻微提亮和裁切', scene: 'image', systemPrompt: '保留儿童原作笔触，不重绘主体，仅做轻微校正。', userPrompt: '按 {{imageTemplate}} 处理作品，输出处理图供老师确认。', temperature: 0.3, maxTokens: 120, status: '启用' }
   ],
   watermark: [
-    { name: '校区基础水印', value: school.watermark, status: '启用' },
-    { name: '课程名水印', value: '课程主题 + 老师名', status: '可选' }
+    { name: '校区基础水印', value: school.watermark, position: '右下角', opacity: '84%', font: '授权字体-常规', color: '#315d53', status: '启用' },
+    { name: '课程名水印', value: '课程主题 + 老师名', position: '左下角', opacity: '72%', font: '系统默认', color: '#26312f', status: '可选' }
   ]
 }
 
@@ -386,7 +388,12 @@ export const displayConfigSeed = {
   showMaterials: true,
   showHomework: true,
   showHighlight: true,
-  showLessonType: true
+  showLessonType: true,
+  accessPolicy: '链接密钥访问',
+  expiresInDays: 30,
+  expiresAt: '2026年7月21日 23:59',
+  allowForward: false,
+  publicStatus: '待发布'
 }
 
 export const archives = [
@@ -490,6 +497,33 @@ export const archiveRecords = [
     highlightNote: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-4',
     wheatStatus: '异常'
+  }
+]
+
+export const extraTaskArchives = [
+  {
+    id: 1,
+    title: '朋友圈作品素材整理',
+    taskType: '招生宣传',
+    owner: '林老师',
+    relatedLessonId: 1,
+    relatedLesson: '6月21日 17:40 · 周二创想班',
+    content: '挑选 3 张高光作品，整理朋友圈文案素材。',
+    dueDate: '6月22日',
+    status: '已归档',
+    note: '一期仅归档查询，不计入绩效工资。'
+  },
+  {
+    id: 2,
+    title: '校区橱窗作品更换',
+    taskType: '非课堂任务',
+    owner: '周老师',
+    relatedLessonId: null,
+    relatedLesson: '无归属课次',
+    content: '更换校区门口橱窗作品，记录使用作品名单。',
+    dueDate: '6月25日',
+    status: '待归档',
+    note: '无归属课次，仅作为内部任务记录。'
   }
 ]
 

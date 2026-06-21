@@ -6,6 +6,7 @@ import {
   classes as classSeed,
   courses as courseSeed,
   displayConfigSeed,
+  extraTaskArchives as extraTaskArchiveSeed,
   externalLinks as externalLinkSeed,
   homeworkSeed,
   importBatches as importBatchSeed,
@@ -38,6 +39,7 @@ export function useDeliveryWorkflow() {
   const archives = reactive(clone(archiveSeed))
   const archiveRecords = reactive(clone(archiveRecordSeed))
   const aiCallLogs = reactive(clone(aiCallLogSeed))
+  const extraTaskArchives = reactive(clone(extraTaskArchiveSeed))
   const materials = reactive(clone(lessonMaterialSeed))
   const homework = reactive(clone(homeworkSeed))
   const displayConfig = reactive(clone(displayConfigSeed))
@@ -176,8 +178,9 @@ export function useDeliveryWorkflow() {
   })
 
   const parentShareUrl = computed(() => {
-    const suffix = activeShareMode.value === 'class' ? `class-${activeTask.value.id}` : `student-${activeTask.value.id}-${activeStudentId.value}`
-    return `https://share.xinghe-art.local/${suffix}`
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:5174'
+    if (activeShareMode.value === 'class') return `${base}/#/share/lesson/${activeTask.value.id}?token=lesson-demo-${activeTask.value.id}`
+    return `${base}/#/share/student/${activeTask.value.id}/${activeStudentId.value}?token=student-demo-${activeTask.value.id}-${activeStudentId.value}`
   })
 
   const qrText = computed(() => `QR · ${activeShareMode.value === 'class' ? activeClass.value.name : activeStudent.value?.name || ''}`)
@@ -498,6 +501,7 @@ export function useDeliveryWorkflow() {
         if (row.confirmed && row.imageConfirmed) row.shareReady = true
       })
       activeTask.value.shareGenerated = true
+      displayConfig.publicStatus = '已发布'
       pulsePreview()
     })
   }
@@ -602,6 +606,31 @@ export function useDeliveryWorkflow() {
 
   const nextId = (collection) => Math.max(0, ...collection.map((item) => item.id || 0)) + 1
 
+  const addLesson = (payload) => {
+    const klass = classes.find((item) => item.id === Number(payload.classId))
+    const course = courses.find((item) => item.id === Number(payload.courseId))
+    const teacher = teachers.find((item) => item.id === Number(payload.teacherId))
+    const lesson = {
+      id: nextId(tasks),
+      date: payload.date || '6月21日',
+      time: payload.time || '17:40',
+      classId: klass?.id || classes[0]?.id,
+      courseId: course?.id || courses[0]?.id,
+      teacher: teacher?.name || klass?.teacher || '待配置',
+      lessonType: payload.lessonType || '收费课',
+      status: payload.status || '待处理',
+      wheatStatus: '未生成',
+      importedFrom: payload.importedFrom || '手动补录',
+      shareGenerated: false,
+      archived: false
+    }
+    tasks.unshift(lesson)
+    activeTaskId.value = lesson.id
+    resetSessionForTask(lesson)
+    notify(`已补录课次：${klass?.name || '班级'} · ${course?.title || '课程'}`)
+    return lesson
+  }
+
   const addStudent = (payload) => {
     const student = {
       id: nextId(students),
@@ -704,6 +733,29 @@ export function useDeliveryWorkflow() {
     return course
   }
 
+  const addExternalLink = (payload) => {
+    const link = {
+      id: nextId(externalLinks),
+      title: payload.title || '新外部课程',
+      url: payload.url || 'https://example.com/course',
+      platform: payload.platform || '通用链接',
+      note: payload.note || '',
+      courseIds: payload.courseIds || [],
+      status: payload.status || '启用'
+    }
+    externalLinks.push(link)
+    notify(`已新增外部课程链接：${link.title}`)
+    return link
+  }
+
+  const updateExternalLink = (id, payload) => {
+    const link = externalLinks.find((item) => item.id === id)
+    if (!link) return null
+    Object.assign(link, payload, { courseIds: payload.courseIds || [] })
+    notify(`已保存外部课程链接：${link.title}`)
+    return link
+  }
+
   const addTeacher = (payload) => {
     const teacher = {
       id: nextId(teachers),
@@ -761,6 +813,59 @@ export function useDeliveryWorkflow() {
     return setting
   }
 
+  const addTemplate = (type, payload) => {
+    const defaults = {
+      image: { ratio: '4:5', brightness: '+10%', watermark: '右下角校区水印', border: '米白作品框', crop: '居中裁切', quality: '高清', status: '启用' },
+      comment: { tone: '温暖自然', length: '60-80字', structure: '亮点、建议、鼓励', taboo: '不夸大、不排名', sample: '', status: '启用' },
+      prompt: { model: '学生记录 + 课程参考 + 模板规则', scene: 'feedback', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' },
+      watermark: { value: school.watermark, position: '右下角', opacity: '80%', font: '授权字体', color: '#315d53', status: '启用' }
+    }
+    const template = { name: payload.name || '新模板', ...defaults[type], ...payload }
+    templates[type].push(template)
+    notify(`已新增模板：${template.name}`)
+    return template
+  }
+
+  const updateTemplate = (type, index, payload) => {
+    if (!templates[type]?.[index]) return null
+    Object.assign(templates[type][index], payload)
+    notify(`已保存模板：${templates[type][index].name}`)
+    return templates[type][index]
+  }
+
+  const addExtraTask = (payload) => {
+    const lesson = tasks.find((task) => task.id === Number(payload.relatedLessonId))
+    const klass = lesson ? classes.find((item) => item.id === lesson.classId) : null
+    const task = {
+      id: nextId(extraTaskArchives),
+      title: payload.title || '新课外任务',
+      taskType: payload.taskType || '非课堂任务',
+      owner: payload.owner || currentUser.value?.name || '待分配',
+      relatedLessonId: payload.relatedLessonId ? Number(payload.relatedLessonId) : null,
+      relatedLesson: lesson ? `${lesson.date} ${lesson.time} · ${klass?.name || '班级'}` : '无归属课次',
+      content: payload.content || '',
+      dueDate: payload.dueDate || '',
+      status: payload.status || '待归档',
+      note: payload.note || '一期仅归档查询，不计入绩效工资。'
+    }
+    extraTaskArchives.unshift(task)
+    notify(`已新增课外任务：${task.title}`)
+    return task
+  }
+
+  const updateExtraTask = (id, payload) => {
+    const task = extraTaskArchives.find((item) => item.id === id)
+    if (!task) return null
+    const lesson = tasks.find((item) => item.id === Number(payload.relatedLessonId))
+    const klass = lesson ? classes.find((item) => item.id === lesson.classId) : null
+    Object.assign(task, payload, {
+      relatedLessonId: payload.relatedLessonId ? Number(payload.relatedLessonId) : null,
+      relatedLesson: lesson ? `${lesson.date} ${lesson.time} · ${klass?.name || '班级'}` : '无归属课次'
+    })
+    notify(`已保存课外任务：${task.title}`)
+    return task
+  }
+
   const nextStep = () => {
     if (currentStep.value < steps.value.length - 1) currentStep.value += 1
   }
@@ -781,6 +886,7 @@ export function useDeliveryWorkflow() {
     archives,
     archiveRecords,
     aiCallLogs,
+    extraTaskArchives,
     archiveFilter,
     archiveDates,
     filteredArchiveRecords,
@@ -863,16 +969,23 @@ export function useDeliveryWorkflow() {
     copyExport,
     updateImage,
     markTrace,
+    addLesson,
     addStudent,
     updateStudent,
     addClass,
     updateClass,
     addCourse,
     updateCourse,
+    addExternalLink,
+    updateExternalLink,
     addTeacher,
     updateTeacher,
     applyImportRows,
     updateSetting,
+    addTemplate,
+    updateTemplate,
+    addExtraTask,
+    updateExtraTask,
     nextStep,
     prevStep,
     notify,

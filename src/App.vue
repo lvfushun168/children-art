@@ -1,12 +1,15 @@
 <script setup>
-import { computed, proxyRefs, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, proxyRefs, ref } from 'vue'
 import SidebarNav from './components/layout/SidebarNav.vue'
 import UserMenu from './components/layout/UserMenu.vue'
 import { navItems } from './data/mockData'
 import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
 import ArchiveQueryView from './views/ArchiveQueryView.vue'
+import ExternalLinksView from './views/ExternalLinksView.vue'
+import ExtraTasksView from './views/ExtraTasksView.vue'
 import LoginView from './views/LoginView.vue'
 import MasterDataView from './views/MasterDataView.vue'
+import ParentSharePage from './views/ParentSharePage.vue'
 import SystemSettingsView from './views/SystemSettingsView.vue'
 import TasksView from './views/TasksView.vue'
 import TemplatesView from './views/TemplatesView.vue'
@@ -17,11 +20,26 @@ const state = proxyRefs(useDeliveryWorkflow())
 
 const filteredNavItems = computed(() => navItems.filter((item) => !state.visibleNavItems.includes(item.id)))
 const pendingCount = computed(() => state.visibleTasks.filter((task) => task.status !== '已完成').length)
+const routeHash = ref(window.location.hash)
+const updateRouteHash = () => { routeHash.value = window.location.hash }
+
+onMounted(() => window.addEventListener('hashchange', updateRouteHash))
+onBeforeUnmount(() => window.removeEventListener('hashchange', updateRouteHash))
+
+const shareRoute = computed(() => {
+  const studentMatch = routeHash.value.match(/^#\/share\/student\/(\d+)\/(\d+)(?:\?token=([^&]+))?/)
+  if (studentMatch) return { type: 'student', lessonId: Number(studentMatch[1]), studentId: Number(studentMatch[2]), token: studentMatch[3] || '' }
+  const lessonMatch = routeHash.value.match(/^#\/share\/lesson\/(\d+)(?:\?token=([^&]+))?/)
+  if (lessonMatch) return { type: 'lesson', lessonId: Number(lessonMatch[1]), token: lessonMatch[2] || '' }
+  return null
+})
 
 </script>
 
 <template>
-  <LoginView v-if="!state.isLoggedIn" :state="state" />
+  <ParentSharePage v-if="shareRoute" :state="state" :route="shareRoute" />
+
+  <LoginView v-else-if="!state.isLoggedIn" :state="state" />
 
   <main v-else class="app-shell">
     <SidebarNav
@@ -48,9 +66,13 @@ const pendingCount = computed(() => state.visibleTasks.filter((task) => task.sta
 
       <MasterDataView v-if="activeNav === 'courses'" :state="state" entity="courses" />
 
-      <TemplatesView v-if="activeNav === 'templates'" :templates="state.templates" />
+      <ExternalLinksView v-if="activeNav === 'externalLinks'" :state="state" />
+
+      <TemplatesView v-if="activeNav === 'templates'" :state="state" />
 
       <ArchiveQueryView v-if="activeNav === 'archives'" :state="state" />
+
+      <ExtraTasksView v-if="activeNav === 'extraTasks'" :state="state" />
 
       <WheatTraceView
         v-if="activeNav === 'wheat'"

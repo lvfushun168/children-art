@@ -118,7 +118,10 @@ defineEmits(['copy-export'])
       </div>
       <div class="share-box">
         <div class="qr-code">{{ qrText }}</div>
-        <small>{{ parentShareUrl }}</small>
+        <div>
+          <small>{{ parentShareUrl }}</small>
+          <a class="share-open-link" :href="parentShareUrl" target="_blank">打开家长 H5</a>
+        </div>
       </div>
       <small>{{ fileNameFor(activeSessionStudent) }}</small>
     </article>

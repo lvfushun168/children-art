@@ -305,7 +305,21 @@ defineEmits(['navigate'])
               <label><input v-model="state.displayConfig.showHomework" type="checkbox" /> 展示课后任务</label>
               <label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label>
               <label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label>
+              <label><input v-model="state.displayConfig.allowForward" type="checkbox" /> 允许转发继续访问</label>
             </div>
+            <label>
+              访问策略
+              <select v-model="state.displayConfig.accessPolicy">
+                <option>链接密钥访问</option>
+                <option>密码访问</option>
+                <option>公开访问</option>
+              </select>
+            </label>
+            <label>
+              有效期（天）
+              <input v-model.number="state.displayConfig.expiresInDays" type="number" />
+            </label>
+            <small>当前到期时间：{{ state.displayConfig.expiresAt }} · {{ state.displayConfig.publicStatus }}</small>
           </article>
           <article class="record-table">
             <strong>外部在线课程链接</strong>

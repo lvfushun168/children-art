@@ -1,16 +1,22 @@
 import { computed, reactive, ref } from 'vue'
 import {
   archives as archiveSeed,
-  channels as channelSeed,
   classes as classSeed,
   courses as courseSeed,
+  displayConfigSeed,
+  externalLinks as externalLinkSeed,
+  homeworkSeed,
+  importBatches as importBatchSeed,
   initialBulkRecord,
   initialSessionStudents,
+  lessonMaterials as lessonMaterialSeed,
   school as schoolSeed,
   sessionSeed,
+  settings as settingSeed,
   students as studentSeed,
   tasks as taskSeed,
-  templates as templateSeed
+  templates as templateSeed,
+  wheatTraces as wheatTraceSeed
 } from '../data/mockData'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
@@ -22,10 +28,16 @@ export function useDeliveryWorkflow() {
   const classes = reactive(clone(classSeed))
   const courses = reactive(clone(courseSeed))
   const templates = reactive(clone(templateSeed))
-  const channels = reactive(clone(channelSeed))
   const tasks = reactive(clone(taskSeed))
   const sessionStudents = reactive(clone(initialSessionStudents))
   const archives = reactive(clone(archiveSeed))
+  const materials = reactive(clone(lessonMaterialSeed))
+  const homework = reactive(clone(homeworkSeed))
+  const displayConfig = reactive(clone(displayConfigSeed))
+  const externalLinks = reactive(clone(externalLinkSeed))
+  const wheatTraces = reactive(clone(wheatTraceSeed))
+  const importBatches = reactive(clone(importBatchSeed))
+  const settings = reactive(clone(settingSeed))
 
   const activeTaskId = ref(1)
   const activeStudentId = ref(1)
@@ -40,6 +52,7 @@ export function useDeliveryWorkflow() {
   const commentPulse = ref(false)
   const reportPulse = ref(false)
   const bulkRecord = ref(initialBulkRecord)
+  const activeShareMode = ref('student')
 
   const activeTask = computed(() => tasks.find((task) => task.id === activeTaskId.value))
   const activeClass = computed(() => classes.find((item) => item.id === activeTask.value.classId))
@@ -51,49 +64,66 @@ export function useDeliveryWorkflow() {
   const activeImageTemplate = computed(() => templates.image[selectedImageTemplate.value])
   const activeCommentTemplate = computed(() => templates.comment[selectedCommentTemplate.value])
   const isProcessing = computed(() => Boolean(processingAction.value))
+  const selectedExternalLinks = computed(() => externalLinks.filter((link) => homework.externalLinkIds.includes(link.id)))
 
   const counts = computed(() => ({
     total: classStudents.value.length,
     attend: sessionStudents.filter((item) => item.attendance === '到课').length,
     matched: sessionStudents.filter((item) => item.attendance === '到课' && item.imageMatched).length,
+    imageConfirmed: sessionStudents.filter((item) => item.attendance === '到课' && item.imageConfirmed).length,
     records: sessionStudents.filter((item) => item.attendance === '到课' && item.record).length,
     processed: sessionStudents.filter((item) => item.attendance === '到课' && item.processed).length,
     comments: sessionStudents.filter((item) => item.attendance === '到课' && item.comment).length,
     confirmed: sessionStudents.filter((item) => item.attendance === '到课' && item.confirmed).length,
-    archived: sessionStudents.filter((item) => item.attendance === '到课' && item.archived).length
+    highlights: sessionStudents.filter((item) => item.attendance === '到课' && item.highlight).length,
+    shareReady: sessionStudents.filter((item) => item.attendance === '到课' && item.shareReady).length,
+    archived: sessionStudents.filter((item) => item.attendance === '到课' && item.archived).length,
+    visibleMaterials: materials.filter((item) => item.visible).length
   }))
 
   const steps = computed(() => [
-    { title: '课次确认', hint: '从课表带出班级、课程和学生', done: counts.value.attend, total: counts.value.total },
-    { title: '作品匹配', hint: '批量上传并匹配学生作品', done: counts.value.matched, total: counts.value.attend },
-    { title: '课堂记录', hint: '语音、粘贴或逐个录入', done: counts.value.records, total: counts.value.attend },
-    { title: '图文生成', hint: '批处理图片并生成课评', done: Math.min(counts.value.processed, counts.value.comments), total: counts.value.attend },
-    { title: '审核分发', hint: '检查异常，推送群聊并归档', done: counts.value.archived, total: counts.value.attend }
+    { title: '课次确认', hint: '确认课次类型、范画和出勤', done: counts.value.attend && counts.value.visibleMaterials ? 1 : 0, total: 1 },
+    { title: '作品匹配', hint: '按学生上传作品并确认图片', done: Math.min(counts.value.matched, counts.value.imageConfirmed), total: counts.value.attend },
+    { title: '课堂记录', hint: '批量解析或逐个录入关键词', done: counts.value.records, total: counts.value.attend },
+    { title: '图文生成', hint: '图片处理、AI 课评和人工确认', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
+    { title: '家长展示', hint: '任务、高光、展示页和二维码', done: counts.value.shareReady, total: counts.value.attend },
+    { title: '归档留痕', hint: '保存档案并生成小麦待办', done: counts.value.archived, total: counts.value.attend }
   ])
 
   const taskProgress = computed(() => {
-    const total = counts.value.attend * 5
+    const total = counts.value.attend * 6 || 1
     const done =
       counts.value.attend +
-      counts.value.matched +
+      Math.min(counts.value.matched, counts.value.imageConfirmed) +
       counts.value.records +
-      counts.value.processed +
+      Math.min(counts.value.processed, counts.value.confirmed) +
+      counts.value.shareReady +
       counts.value.archived
-    return total ? Math.round((done / total) * 100) : 0
+    return Math.min(100, Math.round((done / total) * 100))
   })
 
   const currentWarnings = computed(() => {
     const warnings = []
-    sessionStudents.forEach((row) => {
+    if (!materials.some((item) => item.visible)) warnings.push('缺少可展示的范画或步骤图')
+    if (homework.visible && !homework.content.trim()) warnings.push('课后任务内容为空')
+    attendingRows.value.forEach((row) => {
       const student = students.find((item) => item.id === row.id)
-      if (row.attendance !== '到课') return
       if (!row.imageMatched) warnings.push(`${student.name}缺作品`)
+      if (!row.imageConfirmed) warnings.push(`${student.name}图片待确认`)
       if (!row.record) warnings.push(`${student.name}缺课堂记录`)
       if (!row.comment) warnings.push(`${student.name}缺课评`)
       if (row.comment && !row.confirmed) warnings.push(`${student.name}课评待确认`)
+      if (!row.shareReady) warnings.push(`${student.name}展示页待生成`)
     })
     return warnings
   })
+
+  const parentShareUrl = computed(() => {
+    const suffix = activeShareMode.value === 'class' ? `class-${activeTask.value.id}` : `student-${activeTask.value.id}-${activeStudentId.value}`
+    return `https://share.xinghe-art.local/${suffix}`
+  })
+
+  const qrText = computed(() => `QR · ${activeShareMode.value === 'class' ? activeClass.value.name : activeStudent.value?.name || ''}`)
 
   const fileNameFor = (row) => {
     const student = students.find((item) => item.id === row.id)
@@ -104,7 +134,8 @@ export function useDeliveryWorkflow() {
     attendingRows.value
       .map((row, index) => {
         const student = students.find((item) => item.id === row.id)
-        return `${index + 1}. ${student.name}\n作品文件：${fileNameFor(row)}\n课评：${row.comment || '待生成'}`
+        const link = `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.id}`
+        return `${index + 1}. ${student.name}\n作品文件：${fileNameFor(row)}\n展示页：${link}\n课评：${row.comment || '待生成'}`
       })
       .join('\n\n')
   )
@@ -118,9 +149,9 @@ export function useDeliveryWorkflow() {
 
   const runAction = async (label, message, action) => {
     processingAction.value = label
-    await wait(520)
+    await wait(420)
     await action()
-    await wait(260)
+    await wait(220)
     processingAction.value = ''
     notify(message)
   }
@@ -145,20 +176,7 @@ export function useDeliveryWorkflow() {
     })
   }
 
-  const chooseImageTemplate = (index) => {
-    selectedImageTemplate.value = index
-    pulsePreview()
-    notify(`已切换图片模板：${templates.image[index].name}`)
-  }
-
-  const chooseCommentTemplate = (index) => {
-    selectedCommentTemplate.value = index
-    pulseComment()
-    notify(`已切换课评模板：${templates.comment[index].name}`)
-  }
-
-  const selectTask = (task) => {
-    activeTaskId.value = task.id
+  const resetSessionForTask = (task) => {
     const targetClass = classes.find((item) => item.id === task.classId)
     const rows = targetClass.studentIds.map((studentId) => {
       const seed = sessionSeed[studentId]
@@ -169,19 +187,70 @@ export function useDeliveryWorkflow() {
         attendance: isAbsent ? '请假' : '到课',
         image: seed.image,
         imageMatched: !isAbsent,
-        processed: task.imagesProcessed && !isAbsent,
+        processed: false,
+        imageConfirmed: false,
         record: isAbsent ? '' : seed.record,
         focus: seed.focus,
         comment: '',
         confirmed: false,
-        delivered: false,
+        highlight: false,
+        highlightNote: '',
+        shareReady: false,
         archived: false
       }
     })
     sessionStudents.splice(0, sessionStudents.length, ...rows)
-    activeStudentId.value = rows[0]?.id || 1
+    activeStudentId.value = rows.find((row) => row.attendance === '到课')?.id || rows[0]?.id || 1
     currentStep.value = 0
     showReport.value = false
+    activeShareMode.value = 'student'
+  }
+
+  const selectTask = (task) => {
+    activeTaskId.value = task.id
+    resetSessionForTask(task)
+  }
+
+  const setAttendance = (row, value) => {
+    row.attendance = value
+    if (value !== '到课') {
+      row.imageMatched = false
+      row.imageConfirmed = false
+      row.processed = false
+      row.confirmed = false
+      row.shareReady = false
+      row.archived = false
+    } else if (!row.image) {
+      row.image = sessionSeed[row.id].image
+    }
+  }
+
+  const toggleMaterialVisible = (material) => {
+    material.visible = !material.visible
+    notify(`${material.title}${material.visible ? '会展示给家长' : '已隐藏'}`)
+  }
+
+  const addMaterial = () => {
+    materials.push({
+      id: Date.now(),
+      type: '步骤图',
+      title: `新增步骤图 ${materials.length + 1}`,
+      image: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=720&q=80',
+      visible: true
+    })
+    notify('已补充一张步骤图')
+  }
+
+  const chooseImageTemplate = (index) => {
+    selectedImageTemplate.value = index
+    pulsePreview()
+    notify(`已切换图片模板：${templates.image[index].name}`)
+  }
+
+  const chooseCommentTemplate = (index) => {
+    selectedCommentTemplate.value = index
+    pulseComment()
+    notify(`已切换课评模板：${templates.comment[index].name}`)
   }
 
   const parseBulkRecord = () => {
@@ -195,11 +264,11 @@ export function useDeliveryWorkflow() {
         const row = student ? sessionStudents.find((item) => item.id === student.id) : null
         if (row && rest.length) row.record = rest.join('：').trim()
       })
-    activeTask.value.recordsImported = true
+    notify('课堂记录已匹配到学生')
   }
 
   const simulateVoice = async () => {
-    await runAction('正在识别课堂语音...', '已识别并匹配 3 条课堂记录', async () => {
+    await runAction('正在识别课堂语音...', '已识别并匹配课堂记录', async () => {
       bulkRecord.value =
         '彤彤：今天向日葵颜色很大胆，叶子比上次更舒展，背景留白再注意\n浩浩：恐龙世界很有故事感，涂色均匀很多，爪子细节可以更细\n安安：海底世界构图完整，小鱼排列有节奏，水草层次可以再丰富'
       parseBulkRecord()
@@ -214,12 +283,18 @@ export function useDeliveryWorkflow() {
     })
   }
 
+  const confirmImages = () => {
+    attendingRows.value.forEach((row) => {
+      if (row.imageMatched) row.imageConfirmed = true
+    })
+    notify('已确认全部作品图片')
+  }
+
   const processImages = async () => {
-    await runAction('正在套用图片模板...', `已按“${activeImageTemplate.value.name}”处理 ${counts.value.matched} 张作品`, async () => {
+    await runAction('正在进行作品美化和水印处理...', `已按“${activeImageTemplate.value.name}”处理 ${counts.value.matched} 张作品`, async () => {
       sessionStudents.forEach((row) => {
         if (row.attendance === '到课' && row.imageMatched) row.processed = true
       })
-      activeTask.value.imagesProcessed = true
       pulsePreview()
     })
   }
@@ -238,7 +313,7 @@ export function useDeliveryWorkflow() {
       构图: '下次可以继续加强前后层次，让画面更有空间感',
       细节: '下次可以在主体和背景之间做一点更清楚的区分'
     }
-    row.comment = `${student.nickname}今天表现很棒，${complimentMap[row.focus] || complimentMap.色彩}。从作品里能看到他认真跟着课堂节奏推进，也保留了自己的表达。${suggestionMap[row.focus] || suggestionMap.色彩}。继续保持这份专注和大胆，下节课会更有进步。`
+    row.comment = `${student.nickname}今天表现很棒，${complimentMap[row.focus] || complimentMap.色彩}。本节课围绕“${activeCourse.value.title}”完成练习，能看到他认真跟着课堂节奏推进，也保留了自己的表达。${suggestionMap[row.focus] || suggestionMap.色彩}。继续保持这份专注和大胆。`
     if (activeCommentTemplate.value.name === '低龄鼓励版') {
       row.comment = `${student.nickname}今天特别投入，${complimentMap[row.focus] || complimentMap.色彩}。老师能看到他一直在认真完成自己的小作品，也很愿意大胆尝试。下次我们继续鼓励他把喜欢的细节画得更多一些，相信会越来越棒。`
     }
@@ -250,13 +325,12 @@ export function useDeliveryWorkflow() {
   const generateAll = async () => {
     processingAction.value = '正在生成全班 1v1 课评...'
     for (const row of attendingRows.value) {
-      await wait(420)
+      await wait(260)
       generateOne(row)
       activeStudentId.value = row.id
       pulseComment()
     }
-    activeTask.value.commentsGenerated = true
-    await wait(240)
+    await wait(180)
     processingAction.value = ''
     notify(`已按“${activeCommentTemplate.value.name}”生成 ${counts.value.comments} 条课评`)
   }
@@ -265,17 +339,56 @@ export function useDeliveryWorkflow() {
     attendingRows.value.forEach((row) => {
       if (row.comment) row.confirmed = true
     })
-    notify('已确认全部课评，发送前检查通过')
+    notify('已确认全部课评')
+  }
+
+  const toggleHighlight = (row) => {
+    row.highlight = !row.highlight
+    if (row.highlight && !row.highlightNote) row.highlightNote = '作品表现突出，可作为本节课高光展示。'
+    notify(row.highlight ? '已标记高光作品' : '已取消高光标记')
+  }
+
+  const toggleHomeworkLink = (id) => {
+    const index = homework.externalLinkIds.indexOf(id)
+    if (index >= 0) homework.externalLinkIds.splice(index, 1)
+    else homework.externalLinkIds.push(id)
+  }
+
+  const generateSharePages = async () => {
+    await runAction('正在生成家长展示页和二维码...', `已生成 ${counts.value.attend} 个学生展示页`, async () => {
+      attendingRows.value.forEach((row) => {
+        if (row.confirmed && row.imageConfirmed) row.shareReady = true
+      })
+      activeTask.value.shareGenerated = true
+      pulsePreview()
+    })
+  }
+
+  const ensureWheatTrace = () => {
+    const lesson = `${activeTask.value.date} ${activeTask.value.time} · ${activeClass.value.name}`
+    const exists = wheatTraces.find((item) => item.lesson === lesson)
+    if (exists) return exists
+    const trace = {
+      id: Date.now(),
+      lesson,
+      course: activeCourse.value.title,
+      teacher: activeTask.value.teacher,
+      type: activeTask.value.lessonType,
+      status: '待处理',
+      source: '课后归档生成',
+      note: '请回到小麦助教人工标记课程完成状态'
+    }
+    wheatTraces.unshift(trace)
+    return trace
   }
 
   const archiveAll = async () => {
-    await runAction('正在推送企业微信并归档...', '本节课已分发并归档到系统作品库', async () => {
+    await runAction('正在保存档案并生成小麦留痕待办...', '本节课已归档，小麦留痕待办已生成', async () => {
       attendingRows.value.forEach((row) => {
-        row.delivered = true
-        row.archived = true
-        row.confirmed = true
+        if (row.shareReady) row.archived = true
       })
-      activeTask.value.distributed = true
+      const trace = ensureWheatTrace()
+      activeTask.value.wheatStatus = trace.status
       activeTask.value.archived = true
       activeTask.value.status = '已完成'
       showReport.value = true
@@ -285,13 +398,15 @@ export function useDeliveryWorkflow() {
       }, 1200)
       if (!archives.some((item) => item.date === activeTask.value.date && item.course === activeCourse.value.title)) {
         archives.unshift({
-          id: Date.now(),
+          id: Date.now() + 1,
           date: activeTask.value.date,
           className: activeClass.value.name,
           course: activeCourse.value.title,
           works: counts.value.attend,
           comments: counts.value.comments || counts.value.attend,
-          teacher: activeTask.value.teacher
+          highlights: counts.value.highlights,
+          teacher: activeTask.value.teacher,
+          wheatStatus: trace.status
         })
       }
     })
@@ -300,7 +415,7 @@ export function useDeliveryWorkflow() {
   const copyExport = async () => {
     await navigator.clipboard.writeText(exportText.value)
     copied.value = true
-    notify('家长群文案已复制')
+    notify('家长展示链接和文案已复制')
     setTimeout(() => {
       copied.value = false
     }, 1600)
@@ -311,7 +426,17 @@ export function useDeliveryWorkflow() {
     if (!file) return
     row.image = URL.createObjectURL(file)
     row.imageMatched = true
+    row.imageConfirmed = false
     row.processed = false
+  }
+
+  const markTrace = (trace, status) => {
+    trace.status = status
+    if (status === '已人工处理') trace.note = '已在小麦助教人工处理完成'
+    if (status === '无需处理') trace.note = '本课次无需回小麦处理'
+    const lesson = `${activeTask.value.date} ${activeTask.value.time} · ${activeClass.value.name}`
+    if (trace.lesson === lesson) activeTask.value.wheatStatus = status
+    notify(`小麦留痕已标记为：${status}`)
   }
 
   const nextStep = () => {
@@ -328,10 +453,16 @@ export function useDeliveryWorkflow() {
     classes,
     courses,
     templates,
-    channels,
     tasks,
     sessionStudents,
     archives,
+    materials,
+    homework,
+    displayConfig,
+    externalLinks,
+    wheatTraces,
+    importBatches,
+    settings,
     activeTaskId,
     activeStudentId,
     currentStep,
@@ -345,6 +476,7 @@ export function useDeliveryWorkflow() {
     commentPulse,
     reportPulse,
     bulkRecord,
+    activeShareMode,
     activeTask,
     activeClass,
     activeCourse,
@@ -355,25 +487,36 @@ export function useDeliveryWorkflow() {
     activeImageTemplate,
     activeCommentTemplate,
     isProcessing,
+    selectedExternalLinks,
     counts,
     steps,
     taskProgress,
     currentWarnings,
+    parentShareUrl,
+    qrText,
     exportText,
     fileNameFor,
+    selectTask,
+    setAttendance,
+    toggleMaterialVisible,
+    addMaterial,
     chooseImageTemplate,
     chooseCommentTemplate,
-    selectTask,
     parseBulkRecord,
     simulateVoice,
     matchImages,
+    confirmImages,
     processImages,
     generateOne,
     generateAll,
     confirmAll,
+    toggleHighlight,
+    toggleHomeworkLink,
+    generateSharePages,
     archiveAll,
     copyExport,
     updateImage,
+    markTrace,
     nextStep,
     prevStep,
     notify,

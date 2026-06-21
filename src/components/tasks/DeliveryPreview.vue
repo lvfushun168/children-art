@@ -12,8 +12,28 @@ defineProps({
     type: Object,
     required: true
   },
+  activeTask: {
+    type: Object,
+    required: true
+  },
   activeImageTemplate: {
     type: Object,
+    required: true
+  },
+  materials: {
+    type: Array,
+    required: true
+  },
+  homework: {
+    type: Object,
+    required: true
+  },
+  displayConfig: {
+    type: Object,
+    required: true
+  },
+  selectedExternalLinks: {
+    type: Array,
     required: true
   },
   school: {
@@ -36,6 +56,14 @@ defineProps({
     type: Boolean,
     required: true
   },
+  parentShareUrl: {
+    type: String,
+    required: true
+  },
+  qrText: {
+    type: String,
+    required: true
+  },
   fileNameFor: {
     type: Function,
     required: true
@@ -49,10 +77,10 @@ defineEmits(['copy-export'])
   <aside class="preview panel" :class="{ 'preview-pulse': previewPulse, 'comment-pulse': commentPulse }">
     <div class="section-head">
       <div>
-        <span>交付预览</span>
+        <span>家长展示预览</span>
         <strong>{{ activeStudent?.name || '未选择' }}</strong>
       </div>
-      <button class="ghost" @click="$emit('copy-export')">{{ copied ? '已复制' : '复制文案' }}</button>
+      <button class="ghost" @click="$emit('copy-export')">{{ copied ? '已复制' : '复制链接' }}</button>
     </div>
     <article class="delivery-card" v-if="activeSessionStudent && activeStudent">
       <div
@@ -67,8 +95,27 @@ defineEmits(['copy-export'])
         <span v-if="activeImageTemplate.watermark !== '隐藏水印'">{{ school.name }}</span>
       </div>
       <strong>{{ activeStudent.name }} · {{ activeCourse.title }}</strong>
-      <small>图片模板：{{ activeImageTemplate.name }} · {{ activeImageTemplate.ratio }} · {{ activeImageTemplate.brightness }}</small>
+      <small v-if="displayConfig.showLessonType">
+        {{ activeTask.lessonType }} · 本信息仅为课后展示记录，不作为正式财务或课消依据
+      </small>
       <p>{{ activeSessionStudent.comment || '课评生成后会在这里预览。' }}</p>
+      <div v-if="displayConfig.showHighlight && activeSessionStudent.highlight" class="highlight-note">
+        <strong>高光作品</strong>
+        <small>{{ activeSessionStudent.highlightNote }}</small>
+      </div>
+      <div v-if="displayConfig.showMaterials" class="preview-materials">
+        <img v-for="material in materials.filter((item) => item.visible)" :key="material.id" :src="material.image" :alt="material.title" />
+      </div>
+      <div v-if="displayConfig.showHomework" class="homework-preview">
+        <strong>课后任务</strong>
+        <small>{{ homework.content }}</small>
+        <small>{{ homework.requirement }} · {{ homework.dueDate }}</small>
+        <a v-for="link in selectedExternalLinks" :key="link.id" :href="link.url">{{ link.title }}</a>
+      </div>
+      <div class="share-box">
+        <div class="qr-code">{{ qrText }}</div>
+        <small>{{ parentShareUrl }}</small>
+      </div>
       <small>{{ fileNameFor(activeSessionStudent) }}</small>
     </article>
     <textarea class="export-box" :value="exportText" readonly />

@@ -6,6 +6,7 @@ import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
 import DataCardsView from './views/DataCardsView.vue'
 import TasksView from './views/TasksView.vue'
 import TemplatesView from './views/TemplatesView.vue'
+import WheatTraceView from './views/WheatTraceView.vue'
 
 const activeNav = ref('tasks')
 const state = proxyRefs(useDeliveryWorkflow())
@@ -51,20 +52,20 @@ const archiveCards = computed(() =>
     className: 'archive',
     title: `${archive.date} · ${archive.className}`,
     subtitle: `${archive.course} · ${archive.teacher}`,
-    meta: `作品 ${archive.works} 张 · 课评 ${archive.comments} 条`,
-    body: '已沉淀到系统作品库，可按学生、班级、课程继续追溯。',
+    meta: `作品 ${archive.works} 张 · 课评 ${archive.comments} 条 · 高光 ${archive.highlights} 件`,
+    body: `已归档作品、课评、范画、课后任务和家长展示配置，小麦状态：${archive.wheatStatus}`,
     footer: '查看课次档案'
   }))
 )
 
-const channelCards = computed(() =>
-  state.channels.map((channel) => ({
-    id: channel.id,
-    title: channel.name,
-    subtitle: `${channel.type} · ${channel.status}`,
-    meta: channel.target,
-    body: channel.risk,
-    footer: channel.status === '待授权' ? '去授权' : '测试连接'
+const settingCards = computed(() =>
+  state.settings.map((item) => ({
+    id: item.id,
+    title: item.name,
+    subtitle: item.status,
+    meta: item.value,
+    body: item.name === 'AI 接口' ? '用于课评生成和作品美化，失败时不阻断老师手动交付。' : '一期保留基础配置能力，后台以电脑端为主。',
+    footer: '查看配置'
   }))
 )
 </script>
@@ -115,12 +116,19 @@ const channelCards = computed(() =>
         :items="archiveCards"
       />
 
+      <WheatTraceView
+        v-if="activeNav === 'wheat'"
+        :traces="state.wheatTraces"
+        :import-batches="state.importBatches"
+        @mark-trace="state.markTrace"
+      />
+
       <DataCardsView
-        v-if="activeNav === 'channels'"
-        eyebrow="系统集成"
-        title="分发通道"
-        action-label="新增连接"
-        :items="channelCards"
+        v-if="activeNav === 'settings'"
+        eyebrow="后台配置"
+        title="系统配置"
+        action-label="更新配置"
+        :items="settingCards"
       />
     </section>
   </main>

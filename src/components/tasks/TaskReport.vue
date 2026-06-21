@@ -7,10 +7,14 @@ defineProps({
   reportPulse: {
     type: Boolean,
     required: true
+  },
+  activeTask: {
+    type: Object,
+    required: true
   }
 })
 
-defineEmits(['show-archives', 'show-students'])
+defineEmits(['show-archives', 'show-students', 'show-wheat'])
 </script>
 
 <template>
@@ -18,25 +22,26 @@ defineEmits(['show-archives', 'show-students'])
     <div class="success-badge">本节课交付已闭环</div>
     <div class="report-grid">
       <article>
-        <span>作品处理</span>
-        <strong>{{ counts.processed }}/{{ counts.attend }}</strong>
+        <span>作品确认</span>
+        <strong>{{ counts.imageConfirmed }}/{{ counts.attend }}</strong>
       </article>
       <article>
-        <span>课评生成</span>
-        <strong>{{ counts.comments }}/{{ counts.attend }}</strong>
+        <span>课评确认</span>
+        <strong>{{ counts.confirmed }}/{{ counts.attend }}</strong>
       </article>
       <article>
-        <span>家长群材料</span>
-        <strong>已生成</strong>
+        <span>家长展示页</span>
+        <strong>{{ counts.shareReady }}/{{ counts.attend }}</strong>
       </article>
       <article>
-        <span>系统归档</span>
-        <strong>{{ counts.archived }}/{{ counts.attend }}</strong>
+        <span>小麦留痕</span>
+        <strong>{{ activeTask.wheatStatus }}</strong>
       </article>
     </div>
     <div class="report-actions">
       <button class="primary" @click="$emit('show-archives')">查看本节课档案</button>
       <button class="secondary" @click="$emit('show-students')">查看学生成长记录</button>
+      <button class="secondary" @click="$emit('show-wheat')">处理小麦留痕</button>
     </div>
   </section>
 </template>

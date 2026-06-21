@@ -39,7 +39,7 @@ defineEmits(['select-task'])
       <span class="time">{{ task.time }}</span>
       <span>
         <strong>{{ classes.find((item) => item.id === task.classId).name }}</strong>
-        <small>{{ courses.find((item) => item.id === task.courseId).title }} · {{ task.teacher }}</small>
+        <small>{{ courses.find((item) => item.id === task.courseId).title }} · {{ task.teacher }} · {{ task.lessonType }}</small>
       </span>
       <em>{{ task.status }}</em>
     </button>

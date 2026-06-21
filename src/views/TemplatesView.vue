@@ -42,5 +42,33 @@ defineProps({
         <small>{{ item.rule }}</small>
       </div>
     </article>
+
+    <article class="panel">
+      <div class="section-head">
+        <div>
+          <span>提示词模板</span>
+          <strong>{{ templates.prompt.length }} 套</strong>
+        </div>
+      </div>
+      <div v-for="item in templates.prompt" :key="item.name" class="template-row">
+        <strong>{{ item.name }}</strong>
+        <span>{{ item.model }}</span>
+        <small>{{ item.status }}</small>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="section-head">
+        <div>
+          <span>水印配置</span>
+          <strong>{{ templates.watermark.length }} 项</strong>
+        </div>
+      </div>
+      <div v-for="item in templates.watermark" :key="item.name" class="template-row">
+        <strong>{{ item.name }}</strong>
+        <span>{{ item.value }}</span>
+        <small>{{ item.status }}</small>
+      </div>
+    </article>
   </section>
 </template>

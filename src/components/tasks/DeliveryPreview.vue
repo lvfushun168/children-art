@@ -64,6 +64,10 @@ defineProps({
     type: String,
     required: true
   },
+  reviewOnly: {
+    type: Boolean,
+    default: false
+  },
   fileNameFor: {
     type: Function,
     required: true
@@ -80,7 +84,7 @@ defineEmits(['copy-export'])
         <span>家长展示预览</span>
         <strong>{{ activeStudent?.name || '未选择' }}</strong>
       </div>
-      <button class="ghost" @click="$emit('copy-export')">{{ copied ? '已复制' : '复制链接' }}</button>
+      <button v-if="!reviewOnly" class="ghost" @click="$emit('copy-export')">{{ copied ? '已复制' : '复制链接' }}</button>
     </div>
     <article class="delivery-card" v-if="activeSessionStudent && activeStudent">
       <div
@@ -116,7 +120,7 @@ defineEmits(['copy-export'])
         <small>{{ homework.requirement }} · {{ homework.dueDate }}</small>
         <a v-for="link in selectedExternalLinks" :key="link.id" :href="link.url">{{ link.title }}</a>
       </div>
-      <div class="share-box">
+      <div v-if="!reviewOnly" class="share-box">
         <div class="qr-code">{{ qrText }}</div>
         <div>
           <small>{{ parentShareUrl }}</small>
@@ -125,6 +129,6 @@ defineEmits(['copy-export'])
       </div>
       <small>{{ fileNameFor(activeSessionStudent) }}</small>
     </article>
-    <textarea class="export-box" :value="exportText" readonly />
+    <textarea v-if="!reviewOnly" class="export-box" :value="exportText" readonly />
   </aside>
 </template>

@@ -1,8 +1,9 @@
 <script setup>
+import { ref, watch } from 'vue'
 import TaskReport from './TaskReport.vue'
 import StateControlPanel from './StateControlPanel.vue'
 
-defineProps({
+const props = defineProps({
   state: {
     type: Object,
     required: true
@@ -10,6 +11,27 @@ defineProps({
 })
 
 defineEmits(['navigate', 'back'])
+
+const generateStage = ref('settings')
+const showTemplateChoices = ref(false)
+
+watch(() => props.state.activeTask.id, () => {
+  generateStage.value = 'settings'
+  showTemplateChoices.value = false
+})
+
+watch(() => props.state.currentStep, (step) => {
+  if (step !== 4) return
+  if (props.state.counts.comments === props.state.counts.attend && props.state.counts.attend > 0) generateStage.value = 'review'
+  else if (props.state.counts.comments || props.state.counts.processed) generateStage.value = 'generate'
+  else generateStage.value = 'settings'
+}, { immediate: true })
+
+const runBatchGeneration = async () => {
+  await props.state.processImages()
+  await props.state.generateAll()
+  generateStage.value = 'review'
+}
 </script>
 
 <template>
@@ -199,48 +221,80 @@ defineEmits(['navigate', 'back'])
         <div class="section-head">
           <div>
             <span>第 5 步</span>
-            <strong>处理图片、生成课评并人工确认</strong>
-          </div>
-          <div class="button-pair">
-            <button class="secondary" :disabled="state.isProcessing" @click="state.processImages">AI 图片处理</button>
-            <button class="secondary" :disabled="state.isProcessing" @click="state.confirmImages">确认处理图</button>
-            <button class="primary" :disabled="state.isProcessing" @click="state.generateAll">生成全班课评</button>
+            <strong>生成并确认全班图文课评</strong>
           </div>
         </div>
-        <div class="generate-layout">
-          <article class="template-picker">
-            <div class="mini-head">
-              <span>图片模板</span>
+
+        <nav class="generate-subnav">
+          <button :class="{ active: generateStage === 'settings' }" @click="generateStage = 'settings'">
+            <b>1</b><span><strong>生成设置</strong><small>确认图片与课评风格</small></span>
+          </button>
+          <button :class="{ active: generateStage === 'generate' }" @click="generateStage = 'generate'">
+            <b>2</b><span><strong>批量生成</strong><small>{{ state.counts.comments }}/{{ state.counts.attend }} 已生成</small></span>
+          </button>
+          <button :class="{ active: generateStage === 'review' }" @click="generateStage = 'review'">
+            <b>3</b><span><strong>逐个确认</strong><small>{{ state.counts.confirmed }}/{{ state.counts.attend }} 已确认</small></span>
+          </button>
+        </nav>
+
+        <section v-if="generateStage === 'settings'" class="generate-stage-panel">
+          <div class="stage-copy">
+            <span>当前采用课程默认设置</span>
+            <strong>如果没有特殊要求，可以直接继续生成</strong>
+          </div>
+          <div class="setting-summary-grid">
+            <article>
+              <span>作品图片</span>
               <strong>{{ state.activeImageTemplate.name }}</strong>
-            </div>
-            <button
-              v-for="(template, index) in state.templates.image"
-              :key="template.name"
-              :class="{ selected: state.selectedImageTemplate === index }"
-              @click="state.chooseImageTemplate(index)"
-            >
-              <strong>{{ template.name }}</strong>
-              <span>{{ template.ratio }} · {{ template.brightness }}</span>
-              <small>{{ template.border }} · {{ template.watermark }}</small>
-            </button>
-          </article>
-          <article class="template-picker">
-            <div class="mini-head">
-              <span>课评模板</span>
+              <small>{{ state.activeImageTemplate.ratio }} · {{ state.activeImageTemplate.brightness }} · {{ state.activeImageTemplate.watermark }}</small>
+            </article>
+            <article>
+              <span>家长课评</span>
               <strong>{{ state.activeCommentTemplate.name }}</strong>
+              <small>{{ state.activeCommentTemplate.tone }} · {{ state.activeCommentTemplate.length }} · {{ state.activeCommentTemplate.rule }}</small>
+            </article>
+          </div>
+          <button class="ghost change-settings" @click="showTemplateChoices = !showTemplateChoices">{{ showTemplateChoices ? '收起其他设置' : '更换设置' }}</button>
+          <div v-if="showTemplateChoices" class="generate-layout template-choices">
+            <article class="template-picker">
+              <div class="mini-head"><span>图片效果</span><strong>{{ state.activeImageTemplate.name }}</strong></div>
+              <button v-for="(template, index) in state.templates.image" :key="template.name" :class="{ selected: state.selectedImageTemplate === index }" @click="state.chooseImageTemplate(index)">
+                <strong>{{ template.name }}</strong><span>{{ template.ratio }} · {{ template.brightness }}</span><small>{{ template.border }} · {{ template.watermark }}</small>
+              </button>
+            </article>
+            <article class="template-picker">
+              <div class="mini-head"><span>课评风格</span><strong>{{ state.activeCommentTemplate.name }}</strong></div>
+              <button v-for="(template, index) in state.templates.comment" :key="template.name" :class="{ selected: state.selectedCommentTemplate === index }" @click="state.chooseCommentTemplate(index)">
+                <strong>{{ template.name }}</strong><span>{{ template.tone }} · {{ template.length }}</span><small>{{ template.rule }}</small>
+              </button>
+            </article>
+          </div>
+          <div class="stage-actions"><button class="primary" @click="generateStage = 'generate'">设置没问题，继续</button></div>
+        </section>
+
+        <section v-if="generateStage === 'generate'" class="generate-stage-panel batch-generate-panel">
+          <div class="stage-copy">
+            <span>批量处理全班 {{ state.counts.attend }} 名学生</span>
+            <strong>{{ state.counts.comments === state.counts.attend && state.counts.processed === state.counts.attend ? '图文内容已经生成' : '准备生成作品处理图和 1v1 课评' }}</strong>
+          </div>
+          <div class="batch-progress-grid">
+            <article><span>作品图片</span><strong>{{ state.counts.processed }}/{{ state.counts.attend }}</strong><div class="progress-track slim"><i :style="{ width: `${state.counts.attend ? state.counts.processed / state.counts.attend * 100 : 0}%` }"></i></div></article>
+            <article><span>学生课评</span><strong>{{ state.counts.comments }}/{{ state.counts.attend }}</strong><div class="progress-track slim"><i :style="{ width: `${state.counts.attend ? state.counts.comments / state.counts.attend * 100 : 0}%` }"></i></div></article>
+          </div>
+          <button class="primary batch-main-action" :disabled="state.isProcessing" @click="runBatchGeneration">{{ state.counts.comments ? '重新生成全班图文' : '生成全班图文' }}</button>
+          <small class="batch-note">生成完成后仍需老师逐个确认，系统不会直接发布给家长。</small>
+          <details class="advanced-state batch-advanced">
+            <summary>需要单独处理图片或课评？</summary>
+            <div class="button-pair">
+              <button class="secondary" :disabled="state.isProcessing" @click="state.processImages">只处理全班图片</button>
+              <button class="secondary" :disabled="state.isProcessing" @click="state.generateAll">只生成全班课评</button>
             </div>
-            <button
-              v-for="(template, index) in state.templates.comment"
-              :key="template.name"
-              :class="{ selected: state.selectedCommentTemplate === index }"
-              @click="state.chooseCommentTemplate(index)"
-            >
-              <strong>{{ template.name }}</strong>
-              <span>{{ template.tone }} · {{ template.length }}</span>
-              <small>{{ template.rule }}</small>
-            </button>
-          </article>
-          <article class="comment-editor">
+          </details>
+          <div v-if="state.counts.comments" class="stage-actions"><button class="primary" @click="generateStage = 'review'">开始逐个确认</button></div>
+        </section>
+
+        <section v-if="generateStage === 'review'" class="generate-stage-panel">
+          <article class="comment-editor review-editor">
             <div class="student-tabs">
               <button
                 v-for="row in state.attendingRows"
@@ -282,9 +336,14 @@ defineEmits(['navigate', 'back'])
               >
                 重写当前学生
               </button>
+              <button class="secondary" @click="state.confirmImages">确认全部处理图</button>
               <button class="primary" @click="state.confirmAll">确认全部课评</button>
             </div>
           </article>
+        </section>
+
+        <details class="ai-log-details">
+          <summary>处理详情与失败记录 <span>{{ state.aiCallLogs.filter((log) => log.status === '失败').length }} 条失败</span></summary>
           <article class="ai-log-panel">
             <div class="mini-head">
               <span>AI 调用记录</span>
@@ -296,7 +355,7 @@ defineEmits(['navigate', 'back'])
               <small>{{ log.time }} · {{ log.message }}</small>
             </div>
           </article>
-        </div>
+        </details>
       </section>
 
       <section v-if="state.currentStep === 5" class="step-panel">

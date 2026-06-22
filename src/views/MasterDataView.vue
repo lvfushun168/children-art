@@ -12,23 +12,10 @@ const props = defineProps({
     required: true
   }
 })
+defineEmits(['open-import'])
 
 const selectedId = ref(null)
 const mode = ref('detail')
-const showImportDialog = ref(false)
-const importStep = ref('upload')
-const importFileName = ref('')
-const importSource = ref('小麦 Excel 导出')
-const fieldMapping = ref({
-  name: '学生姓名',
-  nickname: '小名',
-  className: '班级名称',
-  parent: '家长称呼',
-  phone: '手机号',
-  teacher: '任课老师',
-  time: '上课时间',
-  course: '课程主题'
-})
 
 const config = computed(() => {
   const map = {
@@ -153,52 +140,12 @@ const className = (classId) => props.state.classes.find((item) => item.id === cl
 const courseTitle = (courseId) => props.state.courses.find((item) => item.id === courseId)?.title || '待配置'
 const teacherName = (teacherId) => props.state.teachers.find((item) => item.id === teacherId)?.name || '待配置'
 
-const filteredImportRows = computed(() => {
-  if (props.entity === 'students') return props.state.importPreviewRows.filter((row) => row.type === 'student')
-  if (props.entity === 'classes') return props.state.importPreviewRows.filter((row) => row.type === 'class' || row.type === 'lesson')
-  return props.state.importPreviewRows.filter((row) => row.type === 'class' || row.type === 'lesson')
-})
-
-const importColumns = computed(() => {
-  if (props.entity === 'students') return ['学生姓名', '小名', '班级名称', '家长称呼', '手机号']
-  if (props.entity === 'classes') return ['班级名称', '任课老师', '上课时间', '默认课程', '状态']
-  return ['课程主题', '适用年龄', '教学目标', '材料', '参考话术']
-})
-
-const openImportDialog = () => {
-  showImportDialog.value = true
-  importStep.value = 'upload'
-  importFileName.value = ''
-}
-
-const handleImportFile = (event) => {
-  const file = event.target.files?.[0]
-  if (!file) return
-  importFileName.value = file.name
-  importStep.value = 'mapping'
-}
-
-const loadDemoImportFile = () => {
-  importFileName.value = props.entity === 'students' ? '小麦学员名单-20260621.xlsx' : '小麦班级课表-20260621.xlsx'
-  importStep.value = 'mapping'
-}
-
-const previewImport = () => {
-  importStep.value = 'preview'
-  props.state.notify(`已解析 ${importFileName.value || 'Excel 文件'}，请确认导入预览`)
-}
-
-const confirmImport = () => {
-  props.state.applyImportRows()
-  showImportDialog.value = false
-  importStep.value = 'upload'
-}
 </script>
 
 <template>
   <PageHead :eyebrow="config.eyebrow" :title="config.title">
     <div class="button-pair">
-      <button class="secondary" @click="openImportDialog">导入 Excel</button>
+      <button v-if="state.isAdmin" class="secondary" @click="$emit('open-import')">导入数据</button>
       <button class="primary" @click="startNew">{{ config.action }}</button>
     </div>
   </PageHead>
@@ -360,131 +307,5 @@ const confirmImport = () => {
       </template>
     </section>
 
-    <aside class="import-panel panel">
-      <div class="section-head">
-        <div>
-          <span>最近导入结果</span>
-          <strong>{{ state.importStats.ok }}/{{ state.importStats.total }} 可导入</strong>
-        </div>
-      </div>
-      <div class="paste-box">
-        <strong>导入入口</strong>
-        <small>点击页面右上角“导入 Excel”，选择小麦导出的 .xlsx / .xls 文件后再进入字段映射和预览。</small>
-      </div>
-      <div v-for="row in filteredImportRows" :key="row.id" class="import-row" :class="row.status">
-        <strong>{{ row.name }}</strong>
-        <span>{{ row.className || row.teacher || row.course || '待识别' }}</span>
-        <small>{{ row.status }}{{ row.issue ? ` · ${row.issue}` : '' }}</small>
-      </div>
-      <div class="notice-box">
-        <strong>验收覆盖</strong>
-        <small>导入必须经过文件选择、字段映射、预览校验、异常处理和最终确认。</small>
-      </div>
-    </aside>
   </section>
-
-  <div v-if="showImportDialog" class="modal-backdrop">
-    <section class="import-modal">
-      <header class="modal-head">
-        <div>
-          <span>Excel 导入</span>
-          <strong>{{ config.title }}</strong>
-        </div>
-        <button class="ghost" @click="showImportDialog = false">关闭</button>
-      </header>
-
-      <nav class="import-steps">
-        <span :class="{ active: importStep === 'upload' }">1 选择文件</span>
-        <span :class="{ active: importStep === 'mapping' }">2 字段映射</span>
-        <span :class="{ active: importStep === 'preview' }">3 预览确认</span>
-      </nav>
-
-      <section v-if="importStep === 'upload'" class="modal-section">
-        <label>
-          数据来源
-          <select v-model="importSource">
-            <option>小麦 Excel 导出</option>
-            <option>小麦课表整理表</option>
-            <option>手工维护表格</option>
-          </select>
-        </label>
-        <label class="upload-zone">
-          <strong>选择 Excel 文件</strong>
-          <small>支持 .xlsx / .xls / .csv；选择后只进入预览，不会直接新增数据。</small>
-          <input type="file" accept=".xlsx,.xls,.csv" @change="handleImportFile" />
-        </label>
-        <button class="secondary" @click="loadDemoImportFile">原型演示：加载示例 Excel</button>
-        <div class="notice-box">
-          <strong>开发要求</strong>
-          <small>后端需保存导入批次、原始文件名、来源、解析结果、成功/失败数量和异常明细。</small>
-        </div>
-      </section>
-
-      <section v-if="importStep === 'mapping'" class="modal-section">
-        <div class="file-pill">
-          <strong>{{ importFileName }}</strong>
-          <small>{{ importSource }} · 待映射字段</small>
-        </div>
-        <div class="mapping-grid">
-          <label v-for="column in importColumns" :key="column">
-            {{ column }}
-            <select v-model="fieldMapping[column.includes('班级') ? 'className' : column.includes('老师') ? 'teacher' : column.includes('时间') ? 'time' : column.includes('课程') ? 'course' : column.includes('电话') || column.includes('手机号') ? 'phone' : column.includes('家长') ? 'parent' : column.includes('小名') ? 'nickname' : 'name']">
-              <option>{{ column }}</option>
-              <option>学生姓名</option>
-              <option>小名</option>
-              <option>班级名称</option>
-              <option>家长称呼</option>
-              <option>手机号</option>
-              <option>任课老师</option>
-              <option>上课时间</option>
-              <option>课程主题</option>
-            </select>
-          </label>
-        </div>
-        <footer class="modal-actions">
-          <button class="ghost" @click="importStep = 'upload'">重新选择</button>
-          <button class="primary" @click="previewImport">解析并预览</button>
-        </footer>
-      </section>
-
-      <section v-if="importStep === 'preview'" class="modal-section">
-        <div class="import-summary">
-          <article>
-            <span>文件</span>
-            <strong>{{ importFileName }}</strong>
-          </article>
-          <article>
-            <span>可导入</span>
-            <strong>{{ filteredImportRows.filter((row) => row.status === '可导入').length }}</strong>
-          </article>
-          <article>
-            <span>需处理</span>
-            <strong>{{ filteredImportRows.filter((row) => row.status !== '可导入').length }}</strong>
-          </article>
-        </div>
-        <div class="preview-table">
-          <div class="preview-row head">
-            <strong>名称</strong>
-            <strong>识别字段</strong>
-            <strong>状态</strong>
-            <strong>异常</strong>
-          </div>
-          <div v-for="row in filteredImportRows" :key="row.id" class="preview-row" :class="row.status">
-            <span>{{ row.name }}</span>
-            <span>{{ row.className || row.teacher || row.course || '待识别' }}</span>
-            <span>{{ row.status }}</span>
-            <span>{{ row.issue || '无' }}</span>
-          </div>
-        </div>
-        <div class="notice-box">
-          <strong>异常处理规则</strong>
-          <small>缺少班级、重复课次、字段无法识别的数据不得直接入库，需要老师/教务补录或跳过。</small>
-        </div>
-        <footer class="modal-actions">
-          <button class="ghost" @click="importStep = 'mapping'">返回映射</button>
-          <button class="primary" @click="confirmImport">确认导入可用数据</button>
-        </footer>
-      </section>
-    </section>
-  </div>
 </template>

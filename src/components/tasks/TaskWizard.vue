@@ -69,7 +69,7 @@ defineEmits(['navigate', 'back'])
         <div class="section-head">
           <div>
             <span>第 1 步</span>
-            <strong>确认课次、学生、范画和课次类型</strong>
+            <strong>确认课次信息和学生出勤</strong>
           </div>
           <button class="secondary">从小麦导入记录刷新</button>
         </div>
@@ -85,21 +85,10 @@ defineEmits(['navigate', 'back'])
             <small>家长页会展示免责声明</small>
           </article>
           <article>
-            <span>课程参考</span>
-            <strong>{{ state.activeCourse.goal }}</strong>
-            <small>{{ state.activeCourse.materials }}</small>
+            <span>课程主题</span>
+            <strong>{{ state.activeCourse.title }}</strong>
+            <small>{{ state.activeClass.time }}</small>
           </article>
-        </div>
-        <div class="material-strip">
-          <article v-for="material in state.materials" :key="material.id" :class="{ hidden: !material.visible }">
-            <img :src="material.image" :alt="material.title" />
-            <div>
-              <strong>{{ material.type }} · {{ material.title }}</strong>
-              <small>{{ material.visible ? '会出现在家长展示页' : '仅内部归档' }}</small>
-            </div>
-            <button class="ghost" @click="state.toggleMaterialVisible(material)">{{ material.visible ? '隐藏' : '展示' }}</button>
-          </article>
-          <button class="add-tile" @click="state.addMaterial">补充步骤图</button>
         </div>
         <div class="roster-table">
           <button
@@ -123,6 +112,32 @@ defineEmits(['navigate', 'back'])
         <div class="section-head">
           <div>
             <span>第 2 步</span>
+            <strong>准备本节课的范画和步骤图</strong>
+          </div>
+          <button class="secondary" @click="state.addMaterial">补充课堂素材</button>
+        </div>
+        <div class="material-intro">
+          <strong>已从“{{ state.activeCourse.title }}”课程资料中带出 {{ state.materials.length }} 项素材</strong>
+          <small>{{ state.activeCourse.goal }} · 使用材料：{{ state.activeCourse.materials }}</small>
+          <small>确认本节实际使用的素材，以及是否需要展示给家长。</small>
+        </div>
+        <div class="material-gallery">
+          <article v-for="material in state.materials" :key="material.id" :class="{ hidden: !material.visible }">
+            <img :src="material.image" :alt="material.title" />
+            <div>
+              <span>{{ material.type }}</span>
+              <strong>{{ material.title }}</strong>
+              <small>{{ material.visible ? '家长展示页可见' : '仅保存到内部档案' }}</small>
+            </div>
+            <button class="ghost" @click="state.toggleMaterialVisible(material)">{{ material.visible ? '设为不展示' : '展示给家长' }}</button>
+          </article>
+        </div>
+      </section>
+
+      <section v-if="state.currentStep === 2" class="step-panel">
+        <div class="section-head">
+          <div>
+            <span>第 3 步</span>
             <strong>上传、匹配并确认全班作品</strong>
           </div>
           <div class="button-pair">
@@ -149,10 +164,10 @@ defineEmits(['navigate', 'back'])
         </div>
       </section>
 
-      <section v-if="state.currentStep === 2" class="step-panel">
+      <section v-if="state.currentStep === 3" class="step-panel">
         <div class="section-head">
           <div>
-            <span>第 3 步</span>
+            <span>第 4 步</span>
             <strong>录入课堂记录和个性化关键词</strong>
           </div>
           <button class="secondary" :disabled="state.isProcessing" @click="state.simulateVoice">模拟语音识别</button>
@@ -180,10 +195,10 @@ defineEmits(['navigate', 'back'])
         </div>
       </section>
 
-      <section v-if="state.currentStep === 3" class="step-panel">
+      <section v-if="state.currentStep === 4" class="step-panel">
         <div class="section-head">
           <div>
-            <span>第 4 步</span>
+            <span>第 5 步</span>
             <strong>处理图片、生成课评并人工确认</strong>
           </div>
           <div class="button-pair">
@@ -284,10 +299,10 @@ defineEmits(['navigate', 'back'])
         </div>
       </section>
 
-      <section v-if="state.currentStep === 4" class="step-panel">
+      <section v-if="state.currentStep === 5" class="step-panel">
         <div class="section-head">
           <div>
-            <span>第 5 步</span>
+            <span>第 6 步</span>
             <strong>配置家长展示页、课后任务和高光作品</strong>
           </div>
           <button class="primary" :disabled="state.isProcessing" @click="state.generateSharePages">发布链接/二维码</button>
@@ -361,10 +376,10 @@ defineEmits(['navigate', 'back'])
         </div>
       </section>
 
-      <section v-if="state.currentStep === 5" class="step-panel">
+      <section v-if="state.currentStep === 6" class="step-panel">
         <div class="section-head">
           <div>
-            <span>第 6 步</span>
+            <span>第 7 步</span>
             <strong>发送前检查、归档并生成小麦留痕</strong>
           </div>
           <button class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">

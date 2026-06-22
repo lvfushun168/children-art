@@ -198,7 +198,7 @@ export function useDeliveryWorkflow() {
     tasks.filter((task) => isAdmin.value || authorizedClassIds.value.includes(task.classId) || task.teacher === currentUser.value?.name)
   )
   const visibleNavItems = computed(() => {
-    const adminOnly = ['settings']
+    const adminOnly = ['imports', 'settings']
     return isAdmin.value ? [] : adminOnly
   })
   const activeTask = computed(() => visibleTasks.value.find((task) => task.id === activeTaskId.value) || visibleTasks.value[0] || tasks[0])
@@ -258,7 +258,8 @@ export function useDeliveryWorkflow() {
   }))
 
   const steps = computed(() => [
-    { title: '课次确认', hint: '确认课次类型、范画和出勤', done: counts.value.attend && counts.value.visibleMaterials ? 1 : 0, total: 1 },
+    { title: '课次确认', hint: '核对课次信息和学生出勤', done: counts.value.attend ? 1 : 0, total: 1 },
+    { title: '课堂素材', hint: '确认本节范画和步骤图', done: counts.value.visibleMaterials ? 1 : 0, total: 1 },
     { title: '作品匹配', hint: '按学生上传作品并确认图片', done: Math.min(counts.value.matched, counts.value.imageConfirmed), total: counts.value.attend },
     { title: '课堂记录', hint: '批量解析或逐个录入关键词', done: counts.value.records, total: counts.value.attend },
     { title: '图文生成', hint: '图片处理、AI 课评和人工确认', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
@@ -267,9 +268,10 @@ export function useDeliveryWorkflow() {
   ])
 
   const taskProgress = computed(() => {
-    const total = counts.value.attend * 6 || 1
+    const total = counts.value.attend * 7 || 1
     const done =
       counts.value.attend +
+      (counts.value.visibleMaterials ? counts.value.attend : 0) +
       Math.min(counts.value.matched, counts.value.imageConfirmed) +
       counts.value.records +
       Math.min(counts.value.processed, counts.value.confirmed) +
@@ -285,12 +287,13 @@ export function useDeliveryWorkflow() {
     if (!rows.length) return 0
     const completed =
       rows.length +
+      (workspace.materials.some((item) => item.visible) ? rows.length : 0) +
       Math.min(rows.filter((row) => row.imageMatched).length, rows.filter((row) => row.imageConfirmed).length) +
       rows.filter((row) => row.record).length +
       Math.min(rows.filter((row) => row.processed).length, rows.filter((row) => row.confirmed).length) +
       rows.filter((row) => row.shareReady).length +
       rows.filter((row) => row.archived).length
-    const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 6)) * 100))
+    const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 7)) * 100))
     if (task.id === activeTaskId.value) return taskProgress.value
     return workspaceProgress
   }

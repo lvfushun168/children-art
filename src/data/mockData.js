@@ -3,6 +3,7 @@ export const navItems = [
   { id: 'students', label: '学生' },
   { id: 'classes', label: '班级' },
   { id: 'courses', label: '课程资料' },
+  { id: 'imports', label: '数据导入' },
   { id: 'externalLinks', label: '外部课程' },
   { id: 'templates', label: '模板配置' },
   { id: 'archives', label: '作品档案' },

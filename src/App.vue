@@ -6,6 +6,7 @@ import { navItems } from './data/mockData'
 import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
 import ArchiveQueryView from './views/ArchiveQueryView.vue'
 import ExternalLinksView from './views/ExternalLinksView.vue'
+import ImportCenterView from './views/ImportCenterView.vue'
 import ExtraTasksView from './views/ExtraTasksView.vue'
 import LoginView from './views/LoginView.vue'
 import MasterDataView from './views/MasterDataView.vue'
@@ -16,12 +17,17 @@ import TemplatesView from './views/TemplatesView.vue'
 import WheatTraceView from './views/WheatTraceView.vue'
 
 const activeNav = ref('tasks')
+const activeImportType = ref('综合课表')
 const state = proxyRefs(useDeliveryWorkflow())
 
 const filteredNavItems = computed(() => navItems.filter((item) => !state.visibleNavItems.includes(item.id)))
 const pendingCount = computed(() => state.visibleTasks.filter((task) => task.status !== '已完成').length)
 const routeHash = ref(window.location.hash)
 const updateRouteHash = () => { routeHash.value = window.location.hash }
+const openImportCenter = (type = '综合课表') => {
+  activeImportType.value = type
+  activeNav.value = 'imports'
+}
 
 onMounted(() => window.addEventListener('hashchange', updateRouteHash))
 onBeforeUnmount(() => window.removeEventListener('hashchange', updateRouteHash))
@@ -60,11 +66,13 @@ const shareRoute = computed(() => {
 
       <TasksView v-if="activeNav === 'tasks'" :state="state" @navigate="activeNav = $event" />
 
-      <MasterDataView v-if="activeNav === 'students'" :state="state" entity="students" />
+      <MasterDataView v-if="activeNav === 'students'" :state="state" entity="students" @open-import="openImportCenter('学生名单')" />
 
-      <MasterDataView v-if="activeNav === 'classes'" :state="state" entity="classes" />
+      <MasterDataView v-if="activeNav === 'classes'" :state="state" entity="classes" @open-import="openImportCenter('综合课表')" />
 
-      <MasterDataView v-if="activeNav === 'courses'" :state="state" entity="courses" />
+      <MasterDataView v-if="activeNav === 'courses'" :state="state" entity="courses" @open-import="openImportCenter('课程资料')" />
+
+      <ImportCenterView v-if="activeNav === 'imports'" :state="state" :initial-type="activeImportType" />
 
       <ExternalLinksView v-if="activeNav === 'externalLinks'" :state="state" />
 

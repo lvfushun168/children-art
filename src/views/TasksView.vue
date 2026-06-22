@@ -64,11 +64,11 @@ const openTask = (task) => {
       <button class="back-link" @click="workspaceOpen = false">← 返回今日课后</button>
       <span>一次只处理一节课，进度会自动保存</span>
     </div>
-    <div class="focus-layout" :class="{ 'with-preview': state.currentStep === 4 }">
+    <div class="focus-layout" :class="{ 'with-preview': state.currentStep === 5 }">
       <TaskWizard :state="state" @back="workspaceOpen = false" @navigate="$emit('navigate', $event)" />
 
       <DeliveryPreview
-        v-if="state.currentStep === 4"
+        v-if="state.currentStep === 5"
         :active-student="state.activeStudent"
         :active-session-student="state.activeSessionStudent"
         :active-course="state.activeCourse"

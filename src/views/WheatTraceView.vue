@@ -14,10 +14,9 @@ const updateTrace = (trace, status) => {
 
 <template>
   <PageHead eyebrow="小麦旁路留痕" title="小麦留痕待办">
-    <button class="primary">导入小麦数据</button>
   </PageHead>
 
-  <section class="split-grid">
+  <section>
     <article class="panel">
       <div class="section-head">
         <div>
@@ -43,18 +42,8 @@ const updateTrace = (trace, status) => {
       </div>
     </article>
 
-    <article class="panel">
-      <div class="section-head">
-        <div>
-          <span>导入记录</span>
-          <strong>{{ state.importBatches.length }} 批</strong>
-        </div>
-      </div>
-      <div v-for="batch in state.importBatches" :key="batch.id" class="template-row">
-        <strong>{{ batch.source }}</strong>
-        <span>{{ batch.time }} · 成功 {{ batch.success }} · 异常 {{ batch.failed }}</span>
-        <small>{{ batch.note }}</small>
-      </div>
+    <details class="advanced-state trace-audit">
+      <summary>查看留痕状态变更记录</summary>
       <div class="notice-box">
         <strong>一期边界</strong>
         <small>本系统只生成待办和状态记录，不自动读取或回写小麦课程完成状态。</small>
@@ -67,6 +56,6 @@ const updateTrace = (trace, status) => {
           <small>{{ log.reason }}</small>
         </div>
       </div>
-    </article>
+    </details>
   </section>
 </template>

@@ -345,10 +345,6 @@ const runBatchGeneration = async () => {
         </nav>
 
         <section v-if="generateStage === 'settings'" class="generate-stage-panel">
-          <div class="stage-copy">
-            <span>当前采用课程默认设置</span>
-            <strong>如果没有特殊要求，可以直接继续生成</strong>
-          </div>
           <div class="setting-summary-grid">
             <article>
               <span>作品图片</span>

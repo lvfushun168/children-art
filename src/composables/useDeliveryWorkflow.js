@@ -50,6 +50,7 @@ export function useDeliveryWorkflow() {
 
   const activeTaskId = ref(1)
   const copied = ref(false)
+  const copiedStudentId = ref(null)
   const isLoggedIn = ref(false)
   const currentUserId = ref(1)
   const loginForm = reactive({ phone: '137****9011', role: '老师' })
@@ -119,10 +120,12 @@ export function useDeliveryWorkflow() {
       draftVersion: 1,
       publishedVersion: 0,
       publishedSnapshot: null,
+      studentTokens: {},
       lastPublishedHash: '',
       revokedReason: '',
       publishedAt: '',
-      revokedAt: ''
+      revokedAt: '',
+      expiresAtTimestamp: null
     }
   })
 
@@ -269,7 +272,7 @@ export function useDeliveryWorkflow() {
     { title: '上传作品', hint: '逐个学生上传至少 1 张作品', done: counts.value.matched, total: counts.value.attend },
     { title: '课堂记录', hint: '逐个录入学生课堂表现', done: counts.value.records, total: counts.value.attend },
     { title: '图文生成', hint: '图片处理、AI 课评和人工确认', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
-    { title: '家长展示', hint: '任务、高光、展示页和二维码', done: counts.value.shareReady, total: counts.value.attend },
+    { title: '家长展示', hint: '课后任务与学生分享链接', done: counts.value.shareReady, total: counts.value.attend },
     { title: '归档留痕', hint: '保存档案并生成小麦待办', done: counts.value.archived, total: counts.value.attend }
   ])
 
@@ -320,11 +323,25 @@ export function useDeliveryWorkflow() {
     return warnings
   })
 
-  const parentShareUrl = computed(() => {
+  const createShareToken = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID().replaceAll('-', '')
+    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
+  }
+
+  const ensureStudentToken = (lessonId, studentId) => {
+    const workspace = ensureLessonWorkspace(tasks.find((task) => task.id === Number(lessonId)))
+    if (!workspace.sharePage.studentTokens) workspace.sharePage.studentTokens = {}
+    if (!workspace.sharePage.studentTokens[studentId]) workspace.sharePage.studentTokens[studentId] = createShareToken()
+    return workspace.sharePage.studentTokens[studentId]
+  }
+
+  const studentShareUrlFor = (rowOrId) => {
+    const studentId = Number(rowOrId?.studentId || rowOrId)
     const base = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:5174'
-    if (activeShareMode.value === 'class') return `${base}/#/share/lesson/${activeTask.value.id}?token=lesson-demo-${activeTask.value.id}`
-    return `${base}/#/share/student/${activeTask.value.id}/${activeStudentId.value}?token=student-demo-${activeTask.value.id}-${activeStudentId.value}`
-  })
+    return `${base}/#/share/student/${activeTask.value.id}/${studentId}?token=${ensureStudentToken(activeTask.value.id, studentId)}`
+  }
+
+  const parentShareUrl = computed(() => studentShareUrlFor(activeStudentId.value))
 
   const qrText = computed(() => `QR · ${activeShareMode.value === 'class' ? activeClass.value.name : activeStudent.value?.name || ''}`)
 
@@ -337,7 +354,7 @@ export function useDeliveryWorkflow() {
     attendingRows.value
       .map((row, index) => {
         const student = students.find((item) => item.id === row.studentId)
-        const link = `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`
+        const link = studentShareUrlFor(row)
         return `${index + 1}. ${student.name}\n作品文件：${fileNameFor(row)}\n展示页：${link}\n课评：${row.comment || '待生成'}`
       })
       .join('\n\n')
@@ -759,7 +776,7 @@ export function useDeliveryWorkflow() {
     studentDeliveries: sessionStudents.value.map(({ shareReady, archived, ...row }) => row),
     materials: materials.value,
     homework: homework.value,
-    displayConfig: Object.fromEntries(Object.entries(displayConfig.value).filter(([key]) => key !== 'publicStatus')),
+    displayConfig: Object.fromEntries(Object.entries(displayConfig.value).filter(([key]) => !['publicStatus', 'expiresAt', 'expiresAtTimestamp'].includes(key))),
     externalLinks: selectedExternalLinks.value
   })
 
@@ -784,6 +801,7 @@ export function useDeliveryWorkflow() {
       notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
       return false
     }
+    attendingRows.value.forEach((row) => ensureStudentToken(activeTask.value.id, row.studentId))
     const payload = shareDraftPayload()
     const payloadHash = shareContentHash()
     if (sharePage.value.publishedVersion && sharePage.value.lastPublishedHash === payloadHash) {
@@ -798,13 +816,19 @@ export function useDeliveryWorkflow() {
     }
     await runAction('正在发布家长展示页和二维码...', '', async () => {
       const before = sharePage.value.status
-      attendingRows.value.forEach((row) => { row.shareReady = true })
+      attendingRows.value.forEach((row) => {
+        ensureStudentToken(activeTask.value.id, row.studentId)
+        row.shareReady = true
+      })
       sharePage.value.publishedVersion += 1
       sharePage.value.draftVersion = sharePage.value.publishedVersion
       sharePage.value.status = '已发布'
       sharePage.value.publishedSnapshot = payload
       sharePage.value.lastPublishedHash = payloadHash
       sharePage.value.publishedAt = nowText()
+      displayConfig.value.expiresAtTimestamp = Date.now() + Math.max(1, Number(displayConfig.value.expiresInDays) || 1) * 24 * 60 * 60 * 1000
+      sharePage.value.expiresAtTimestamp = displayConfig.value.expiresAtTimestamp
+      displayConfig.value.expiresAt = new Date(displayConfig.value.expiresAtTimestamp).toLocaleString('zh-CN', { hour12: false })
       sharePage.value.revokedAt = ''
       sharePage.value.revokedReason = ''
       persistSharePage(activeTask.value.id, sharePage.value)
@@ -842,15 +866,15 @@ export function useDeliveryWorkflow() {
   }
 
   const getLessonWorkspace = (lessonId) => lessonWorkspaces[Number(lessonId)]
-  const expectedShareToken = (route) => route.type === 'lesson'
-    ? `lesson-demo-${route.lessonId}`
-    : `student-demo-${route.lessonId}-${route.studentId}`
   const isShareAccessible = (route) => {
     const workspace = getLessonWorkspace(route.lessonId)
     return Boolean(
+      route.type === 'student' &&
       workspace?.sharePage?.publishedSnapshot &&
       workspace.sharePage.status !== '已失效' &&
-      route.token === expectedShareToken(route)
+      (!workspace.sharePage.expiresAtTimestamp || Date.now() < workspace.sharePage.expiresAtTimestamp) &&
+      route.token &&
+      route.token === workspace.sharePage.studentTokens?.[route.studentId]
     )
   }
 
@@ -955,6 +979,15 @@ export function useDeliveryWorkflow() {
     notify('家长展示链接和文案已复制')
     setTimeout(() => {
       copied.value = false
+    }, 1600)
+  }
+
+  const copyStudentLink = async (row) => {
+    await navigator.clipboard.writeText(studentShareUrlFor(row))
+    copiedStudentId.value = row.studentId
+    notify(`已复制${students.find((item) => item.id === row.studentId)?.name || '学生'}的家长链接`)
+    setTimeout(() => {
+      if (copiedStudentId.value === row.studentId) copiedStudentId.value = null
     }, 1600)
   }
 
@@ -1322,6 +1355,7 @@ export function useDeliveryWorkflow() {
     selectedImageTemplate,
     selectedCommentTemplate,
     copied,
+    copiedStudentId,
     isLoggedIn,
     currentUserId,
     loginForm,
@@ -1358,6 +1392,7 @@ export function useDeliveryWorkflow() {
     progressForTask,
     currentWarnings,
     parentShareUrl,
+    studentShareUrlFor,
     qrText,
     exportText,
     fileNameFor,
@@ -1396,6 +1431,7 @@ export function useDeliveryWorkflow() {
     isShareAccessible,
     archiveAll,
     copyExport,
+    copyStudentLink,
     updateImage,
     removeStudentImage,
     markTrace,

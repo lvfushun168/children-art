@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
-import DeliveryPreview from '../components/tasks/DeliveryPreview.vue'
 import TaskList from '../components/tasks/TaskList.vue'
 import TaskWizard from '../components/tasks/TaskWizard.vue'
 
@@ -15,7 +14,6 @@ const props = defineProps({
 defineEmits(['navigate'])
 
 const workspaceOpen = ref(false)
-const shareStage = ref('content')
 const unfinishedTasks = computed(() => props.state.visibleTasks.filter((task) => task.status !== '已完成'))
 const completedTasks = computed(() => props.state.visibleTasks.filter((task) => task.status === '已完成'))
 const nextTask = computed(() => unfinishedTasks.value[0] || props.state.visibleTasks[0])
@@ -65,31 +63,8 @@ const openTask = (task) => {
       <button class="back-link" @click="workspaceOpen = false">← 返回今日课后</button>
       <span>一次只处理一节课，进度会自动保存</span>
     </div>
-    <div class="focus-layout" :class="{ 'with-preview': state.currentStep === 5 && shareStage === 'review' }">
-      <TaskWizard :state="state" @back="workspaceOpen = false" @navigate="$emit('navigate', $event)" @share-stage="shareStage = $event" />
-
-      <DeliveryPreview
-        v-if="state.currentStep === 5 && shareStage === 'review'"
-        :active-student="state.activeStudent"
-        :active-session-student="state.activeSessionStudent"
-        :active-course="state.activeCourse"
-        :active-task="state.activeTask"
-        :active-image-template="state.activeImageTemplate"
-        :materials="state.materials"
-        :homework="state.homework"
-        :display-config="state.displayConfig"
-        :selected-external-links="state.selectedExternalLinks"
-        :school="state.school"
-        :export-text="state.exportText"
-        :copied="state.copied"
-        :preview-pulse="state.previewPulse"
-        :comment-pulse="state.commentPulse"
-        :parent-share-url="state.parentShareUrl"
-        :qr-text="state.qrText"
-        review-only
-        :file-name-for="state.fileNameFor"
-        @copy-export="state.copyExport"
-      />
+    <div class="focus-layout">
+      <TaskWizard :state="state" @back="workspaceOpen = false" @navigate="$emit('navigate', $event)" />
     </div>
   </template>
 </template>

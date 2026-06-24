@@ -10,14 +10,12 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'back', 'share-stage'])
+defineEmits(['navigate', 'back'])
 
 const generateStage = ref('settings')
 const showTemplateChoices = ref(false)
-const shareStage = ref('content')
 const showAllCourses = ref(false)
 const showContentSettings = ref(false)
-const showPublishSettings = ref(false)
 const showArtworkLibrary = ref(false)
 const workPreview = ref(null)
 const currentRecordIndex = computed(() => props.state.attendingRows.findIndex((row) => row.studentId === props.state.activeStudentId))
@@ -66,30 +64,18 @@ const removePreviewedWork = () => {
   else workPreview.value.index = Math.min(index, row.images.length - 1)
 }
 
-const setShareStage = (stage) => {
-  shareStage.value = stage
-  emit('share-stage', stage)
-}
-
 watch(() => props.state.activeTask.id, () => {
   generateStage.value = 'settings'
   showTemplateChoices.value = false
-  shareStage.value = 'content'
   showAllCourses.value = false
   showContentSettings.value = false
-  showPublishSettings.value = false
   showArtworkLibrary.value = false
-  emit('share-stage', 'content')
 })
 
 watch(() => props.state.currentStep, (step) => {
   if (step !== 4) return
   if (props.state.counts.comments === props.state.counts.attend && props.state.counts.attend > 0) generateStage.value = 'review'
   else generateStage.value = 'settings'
-}, { immediate: true })
-
-watch(() => props.state.currentStep, (step) => {
-  if (step === 5) emit('share-stage', shareStage.value)
 }, { immediate: true })
 
 const runBatchGeneration = async () => {
@@ -408,6 +394,11 @@ const confirmStudentAndNext = () => {
                 <button class="secondary" :disabled="state.isProcessing" @click="state.generateOne(state.activeSessionStudent); state.pulseComment(); state.notify('已重新生成当前学生课评')">重新生成</button>
               </div>
             </article>
+            <article class="highlight-review-card">
+              <div><span>高光作品</span><strong>{{ state.activeSessionStudent.highlight ? '已标记为本节高光' : '普通作品' }}</strong><small>高光说明会随当前学生的家长展示页一起发布。</small></div>
+              <label class="inline-check"><input type="checkbox" :checked="state.activeSessionStudent.highlight" @change="state.toggleHighlight(state.activeSessionStudent)" /><span>将当前学生作品标记为高光</span></label>
+              <label v-if="state.activeSessionStudent.highlight">高光说明<textarea v-model="state.activeSessionStudent.highlightNote" rows="3" /></label>
+            </article>
           </div>
           <div class="review-next-action"><button class="primary" @click="confirmStudentAndNext">{{ currentReviewIndex < state.attendingRows.length - 1 ? '确认并下一位' : '完成当前学生确认' }}</button></div>
         </section>
@@ -432,18 +423,10 @@ const confirmStudentAndNext = () => {
         <div class="section-head">
           <div>
             <span>第 6 步</span>
-            <strong>准备并发布家长展示</strong>
+            <strong>准备课后任务并生成家长链接</strong>
           </div>
         </div>
-
-        <nav class="generate-subnav share-subnav">
-          <button :class="{ active: shareStage === 'content' }" @click="setShareStage('content')"><b>1</b><span><strong>准备内容</strong><small>课后任务与延伸课程</small></span></button>
-          <button :class="{ active: shareStage === 'review' }" @click="setShareStage('review')"><b>2</b><span><strong>检查学生</strong><small>逐个查看最终展示</small></span></button>
-          <button :class="{ active: shareStage === 'publish' }" @click="setShareStage('publish')"><b>3</b><span><strong>发布分享</strong><small>{{ state.sharePage.status }}</small></span></button>
-        </nav>
-
-        <section v-if="shareStage === 'content'" class="generate-stage-panel share-content-stage">
-          <div class="stage-copy"><span>本次课后延伸</span><strong>准备家长需要看到的任务和课程链接</strong></div>
+        <section class="parent-delivery-panel">
           <article class="record-table homework-editor">
             <label>
               课后任务
@@ -469,67 +452,26 @@ const confirmStudentAndNext = () => {
               <span><strong>{{ link.title }}</strong><small>{{ link.note }}</small></span>
             </label>
           </article>
+          <div class="share-expiry-setting">
+            <div><span>链接有效期</span><strong>{{ state.displayConfig.expiresInDays }} 天</strong><small>每位学生会生成一个独立访问凭证</small></div>
+            <label>有效期（天）<input v-model.number="state.displayConfig.expiresInDays" type="number" min="1" /></label>
+          </div>
           <details class="advanced-state content-settings" :open="showContentSettings" @toggle="showContentSettings = $event.target.open">
-            <summary>调整展示内容 <span>已使用机构默认设置</span></summary>
-            <div class="switch-row">
-              <label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示范画步骤</label>
-              <label><input v-model="state.displayConfig.showHomework" type="checkbox" /> 展示课后任务</label>
-              <label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label>
-              <label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label>
-            </div>
+            <summary>调整家长页展示内容 <span>默认展示范画、任务和高光说明</span></summary>
+            <div class="switch-row"><label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示范画步骤</label><label><input v-model="state.displayConfig.showHomework" type="checkbox" /> 展示课后任务</label><label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label><label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label></div>
           </details>
-          <div class="stage-actions"><button class="primary" @click="setShareStage('review')">内容准备好了，检查学生</button></div>
-        </section>
+          <button class="primary publish-main-action" :disabled="state.isProcessing || state.counts.confirmed !== state.counts.attend || state.counts.imageConfirmed !== state.counts.attend" @click="state.generateSharePages">{{ state.sharePage.publishedVersion ? '更新全班家长链接' : '生成全班家长链接' }}</button>
+          <small class="batch-note">将为 {{ state.counts.attend }} 名到课学生分别生成独立链接和二维码。</small>
 
-        <section v-if="shareStage === 'review'" class="generate-stage-panel share-review-stage">
-          <div class="stage-copy"><span>逐个检查 {{ state.counts.attend }} 名学生</span><strong>确认作品、课评和高光说明是否适合发送</strong></div>
-          <article class="comment-editor review-editor">
-            <div class="student-tabs">
-              <button
-                v-for="row in state.attendingRows"
-                :key="`${row.lessonId}-${row.studentId}`"
-                :class="{ selected: row.studentId === state.activeStudentId }"
-                @click="state.activeStudentId = row.studentId"
-              >
-                {{ state.students.find((item) => item.id === row.studentId).name }}{{ row.confirmed && row.imageConfirmed ? ' ✓' : '' }}
-              </button>
-            </div>
-            <div class="student-share-summary">
-              <img :src="state.activeSessionStudent.image" :alt="state.activeStudent.name" />
-              <div><span>当前学生</span><strong>{{ state.activeStudent.name }}</strong><small>{{ state.activeSessionStudent.imageConfirmed ? '作品已确认' : '作品待确认' }} · {{ state.activeSessionStudent.confirmed ? '课评已确认' : '课评待确认' }}</small></div>
-            </div>
-            <label class="inline-check">
-              <input type="checkbox" :checked="state.activeSessionStudent.highlight" @change="state.toggleHighlight(state.activeSessionStudent)" />
-              <span>标记当前学生作品为高光</span>
-            </label>
-            <label>
-              高光说明
-              <textarea v-model="state.activeSessionStudent.highlightNote" rows="4" />
-            </label>
-          </article>
-          <div class="stage-actions"><button class="primary" @click="setShareStage('publish')">学生内容没问题，继续发布</button></div>
-        </section>
-
-        <section v-if="shareStage === 'publish'" class="generate-stage-panel publish-stage">
-          <div class="stage-copy"><span>发布前最后确认</span><strong>{{ state.counts.confirmed === state.counts.attend && state.counts.imageConfirmed === state.counts.attend ? '全班内容已准备完成' : '还有学生内容需要确认' }}</strong></div>
-          <div class="publish-check-grid">
-            <article><span>作品</span><strong>{{ state.counts.imageConfirmed }}/{{ state.counts.attend }}</strong><small>已确认</small></article>
-            <article><span>课评</span><strong>{{ state.counts.confirmed }}/{{ state.counts.attend }}</strong><small>已确认</small></article>
-            <article><span>分享状态</span><strong>{{ state.sharePage.status }}</strong><small>V{{ state.sharePage.status === '草稿' ? state.sharePage.draftVersion : state.sharePage.publishedVersion }}</small></article>
-          </div>
-          <div class="publish-defaults"><div><span>访问方式</span><strong>{{ state.displayConfig.accessPolicy }}</strong></div><div><span>链接有效期</span><strong>{{ state.displayConfig.expiresInDays }} 天</strong></div><div><span>家长转发</span><strong>{{ state.displayConfig.allowForward ? '允许' : '不允许' }}</strong></div><button class="ghost" @click="showPublishSettings = !showPublishSettings">修改</button></div>
-          <div v-if="showPublishSettings" class="publish-settings">
-            <label>访问策略<select v-model="state.displayConfig.accessPolicy"><option>链接密钥访问</option><option>密码访问</option><option>公开访问</option></select></label>
-            <label>有效期（天）<input v-model.number="state.displayConfig.expiresInDays" type="number" /></label>
-            <label class="inline-check"><input v-model="state.displayConfig.allowForward" type="checkbox" /><span>允许转发后继续访问</span></label>
-          </div>
-          <button class="primary publish-main-action" :disabled="state.isProcessing || state.counts.confirmed !== state.counts.attend || state.counts.imageConfirmed !== state.counts.attend" @click="state.generateSharePages">{{ state.sharePage.publishedVersion ? '发布新版本' : '生成家长链接和二维码' }}</button>
-          <small class="batch-note">发布后由老师复制链接或二维码，人工发送给家长。</small>
-          <div v-if="state.sharePage.status === '已发布'" class="publish-result">
-            <div class="qr-code">{{ state.qrText }}</div>
-            <div><span>家长展示已发布</span><strong>{{ state.parentShareUrl }}</strong><small>V{{ state.sharePage.publishedVersion }} · {{ state.sharePage.publishedAt }}</small></div>
-            <button class="secondary" @click="state.copyExport">{{ state.copied ? '链接已复制' : '复制家长链接' }}</button>
-          </div>
+          <section v-if="state.sharePage.status === '已发布'" class="student-share-list">
+            <div class="section-head"><div><span>学生独立分享凭证</span><strong>{{ state.counts.shareReady }} 个链接已生成</strong></div></div>
+            <article v-for="row in state.attendingRows" :key="row.studentId">
+              <div class="student-share-identity"><span>{{ state.students.find((item) => item.id === row.studentId).name.slice(0, 1) }}</span><div><strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong><small>{{ state.students.find((item) => item.id === row.studentId).parent }}</small></div></div>
+              <div class="student-token-link"><strong>{{ state.studentShareUrlFor(row) }}</strong><small>仅可访问该学生本节课内容 · {{ state.displayConfig.expiresInDays }} 天有效</small></div>
+              <div class="qr-code">QR · {{ state.students.find((item) => item.id === row.studentId).name }}</div>
+              <button class="secondary" @click="state.copyStudentLink(row)">{{ state.copiedStudentId === row.studentId ? '已复制' : '复制链接' }}</button>
+            </article>
+          </section>
         </section>
       </section>
 
@@ -548,11 +490,6 @@ const confirmStudentAndNext = () => {
             <strong>发送前检查</strong>
             <span v-if="!state.currentWarnings.length" class="ok-text">全部学生材料、展示页和任务已准备完成</span>
             <small v-for="warning in state.currentWarnings" :key="warning">{{ warning }}</small>
-            <div class="button-pair">
-              <button class="secondary" @click="state.confirmImages">确认全部图片</button>
-              <button class="secondary" @click="state.confirmAll">确认全部课评</button>
-              <button class="secondary" @click="state.generateSharePages">发布展示页</button>
-            </div>
           </article>
           <article class="channel-stack">
             <div>

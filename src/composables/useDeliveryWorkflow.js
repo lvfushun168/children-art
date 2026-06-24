@@ -610,6 +610,16 @@ export function useDeliveryWorkflow() {
     notify('已确认全部可用图片，处理图已生效')
   }
 
+  const confirmCurrentImage = (mode = 'processed') => {
+    const row = activeSessionStudent.value
+    if (!row) return false
+    if (mode === 'processed' && row.processedImage) row.image = row.processedImage
+    else row.image = row.originalImage || row.image
+    row.imageConfirmed = true
+    notify(`${activeStudent.value?.name || '当前学生'}已采用${mode === 'processed' && row.processedImage ? '处理图' : '原图'}`)
+    return true
+  }
+
   const processImages = async () => {
     await runAction('正在进行作品美化和水印处理...', `已按“${activeImageTemplate.value.name}”处理 ${counts.value.matched} 张作品`, async () => {
       sessionStudents.value.forEach((row) => {
@@ -655,6 +665,7 @@ export function useDeliveryWorkflow() {
 
   const generateOne = (row) => {
     const student = students.find((item) => item.id === row.studentId)
+    row.confirmed = false
     const record = row.record || ''
     const inferredFocus = /色|涂|暖|冷/.test(record) ? '色彩' : /想法|故事|创意|想象/.test(record) ? '想象力' : /构图|画面|主体|层次|空间/.test(record) ? '构图' : '细节'
     const complimentMap = {
@@ -698,6 +709,17 @@ export function useDeliveryWorkflow() {
       if (row.comment) row.confirmed = true
     })
     notify('已确认全部课评')
+  }
+
+  const confirmCurrentComment = () => {
+    const row = activeSessionStudent.value
+    if (!row?.comment?.trim()) {
+      notify('当前学生还没有课评内容')
+      return false
+    }
+    row.confirmed = true
+    notify(`${activeStudent.value?.name || '当前学生'}课评已确认`)
+    return true
   }
 
   const toggleHighlight = (row) => {
@@ -1357,12 +1379,14 @@ export function useDeliveryWorkflow() {
     simulateVoice,
     matchImages,
     confirmImages,
+    confirmCurrentImage,
     processImages,
     failCurrentImageProcess,
     retryCurrentImageProcess,
     generateOne,
     generateAll,
     confirmAll,
+    confirmCurrentComment,
     toggleHighlight,
     toggleHomeworkLink,
     saveShareDraft,

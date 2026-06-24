@@ -1195,6 +1195,132 @@ textarea:focus {
   margin-bottom: 18px;
 }
 
+.generate-flow-status {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 80px minmax(220px, 1fr);
+  align-items: center;
+  max-width: 680px;
+  margin: 0 auto 18px;
+}
+
+.generate-flow-status > span {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(77, 107, 95, 0.16);
+  border-radius: 9px;
+  background: #f6f2e8;
+}
+
+.generate-flow-status > span.active {
+  border-color: rgba(49, 93, 83, 0.36);
+  background: #edf3eb;
+  box-shadow: inset 0 -3px 0 #315d53;
+}
+
+.generate-flow-status > span > b {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #c96f3e;
+  color: #fffdf4;
+}
+
+.generate-flow-status > span.active > b,
+.generate-flow-status > span.done > b {
+  background: #315d53;
+}
+
+.generate-flow-status > span > span {
+  display: grid;
+  gap: 4px;
+}
+
+.generate-flow-status > i {
+  height: 2px;
+  background: rgba(49, 93, 83, 0.24);
+}
+
+.generation-action-summary {
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: #f6f2e8;
+  color: #687870;
+  text-align: center;
+}
+
+.review-stage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.review-stage-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.review-stage-head span,
+.result-card-head span {
+  color: #687870;
+}
+
+.review-student-tabs button.reviewed {
+  background: #315d53;
+  color: #fffdf4;
+}
+
+.generated-result-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.1fr);
+  gap: 14px;
+}
+
+.generated-image-result,
+.generated-comment-result {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(77, 107, 95, 0.16);
+  border-radius: 9px;
+  background: #fffefa;
+}
+
+.generated-image-result > img {
+  width: 100%;
+  max-height: 390px;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #edf3eb;
+}
+
+.result-card-head > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-next-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
 .generate-subnav button {
   display: grid;
   grid-template-columns: 34px 1fr;
@@ -2964,6 +3090,7 @@ textarea:focus {
   }
 
   .generate-subnav,
+  .generate-flow-status,
   .setting-summary-grid,
   .batch-progress-grid,
   .homework-editor,
@@ -2971,6 +3098,16 @@ textarea:focus {
   .publish-defaults,
   .publish-settings,
   .publish-result {
+    grid-template-columns: 1fr;
+  }
+
+  .generate-flow-status > i {
+    width: 2px;
+    height: 24px;
+    justify-self: center;
+  }
+
+  .generated-result-grid {
     grid-template-columns: 1fr;
   }
 

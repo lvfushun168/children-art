@@ -21,6 +21,7 @@ const showPublishSettings = ref(false)
 const showArtworkLibrary = ref(false)
 const workPreview = ref(null)
 const currentRecordIndex = computed(() => props.state.attendingRows.findIndex((row) => row.studentId === props.state.activeStudentId))
+const currentReviewIndex = computed(() => props.state.attendingRows.findIndex((row) => row.studentId === props.state.activeStudentId))
 
 const moveRecordStudent = (direction) => {
   const rows = props.state.attendingRows
@@ -84,7 +85,6 @@ watch(() => props.state.activeTask.id, () => {
 watch(() => props.state.currentStep, (step) => {
   if (step !== 4) return
   if (props.state.counts.comments === props.state.counts.attend && props.state.counts.attend > 0) generateStage.value = 'review'
-  else if (props.state.counts.comments || props.state.counts.processed) generateStage.value = 'generate'
   else generateStage.value = 'settings'
 }, { immediate: true })
 
@@ -95,7 +95,16 @@ watch(() => props.state.currentStep, (step) => {
 const runBatchGeneration = async () => {
   await props.state.processImages()
   await props.state.generateAll()
+  if (props.state.attendingRows.length) props.state.activeStudentId = props.state.attendingRows[0].studentId
   generateStage.value = 'review'
+}
+
+const confirmStudentAndNext = () => {
+  if (!props.state.activeSessionStudent.imageConfirmed) props.state.confirmCurrentImage('processed')
+  if (!props.state.confirmCurrentComment()) return
+  const rows = props.state.attendingRows
+  if (currentReviewIndex.value < rows.length - 1) props.state.activeStudentId = rows[currentReviewIndex.value + 1].studentId
+  else props.state.notify('全班图文已经逐个确认完成')
 }
 </script>
 
@@ -332,17 +341,11 @@ const runBatchGeneration = async () => {
           </div>
         </div>
 
-        <nav class="generate-subnav">
-          <button :class="{ active: generateStage === 'settings' }" @click="generateStage = 'settings'">
-            <b>1</b><span><strong>生成设置</strong><small>确认图片与课评风格</small></span>
-          </button>
-          <button :class="{ active: generateStage === 'generate' }" @click="generateStage = 'generate'">
-            <b>2</b><span><strong>批量生成</strong><small>{{ state.counts.comments }}/{{ state.counts.attend }} 已生成</small></span>
-          </button>
-          <button :class="{ active: generateStage === 'review' }" @click="generateStage = 'review'">
-            <b>3</b><span><strong>逐个确认</strong><small>{{ state.counts.confirmed }}/{{ state.counts.attend }} 已确认</small></span>
-          </button>
-        </nav>
+        <div class="generate-flow-status">
+          <span :class="{ active: generateStage === 'settings', done: generateStage === 'review' }"><b>1</b><span><strong>生成设置</strong><small>批量生成全班图文</small></span></span>
+          <i></i>
+          <span :class="{ active: generateStage === 'review' }"><b>2</b><span><strong>逐个确认</strong><small>{{ state.counts.confirmed }}/{{ state.counts.attend }} 已完成</small></span></span>
+        </div>
 
         <section v-if="generateStage === 'settings'" class="generate-stage-panel">
           <div class="setting-summary-grid">
@@ -372,77 +375,41 @@ const runBatchGeneration = async () => {
               </button>
             </article>
           </div>
-          <div class="stage-actions"><button class="primary" @click="generateStage = 'generate'">设置没问题，继续</button></div>
-        </section>
-
-        <section v-if="generateStage === 'generate'" class="generate-stage-panel batch-generate-panel">
-          <div class="stage-copy">
-            <span>批量处理全班 {{ state.counts.attend }} 名学生</span>
-            <strong>{{ state.counts.comments === state.counts.attend && state.counts.processed === state.counts.attend ? '图文内容已经生成' : '准备生成作品处理图和 1v1 课评' }}</strong>
-          </div>
-          <div class="batch-progress-grid">
-            <article><span>作品图片</span><strong>{{ state.counts.processed }}/{{ state.counts.attend }}</strong><div class="progress-track slim"><i :style="{ width: `${state.counts.attend ? state.counts.processed / state.counts.attend * 100 : 0}%` }"></i></div></article>
-            <article><span>学生课评</span><strong>{{ state.counts.comments }}/{{ state.counts.attend }}</strong><div class="progress-track slim"><i :style="{ width: `${state.counts.attend ? state.counts.comments / state.counts.attend * 100 : 0}%` }"></i></div></article>
-          </div>
-          <button class="primary batch-main-action" :disabled="state.isProcessing" @click="runBatchGeneration">{{ state.counts.comments ? '重新生成全班图文' : '生成全班图文' }}</button>
-          <small class="batch-note">生成完成后仍需老师逐个确认，系统不会直接发布给家长。</small>
-          <details class="advanced-state batch-advanced">
-            <summary>需要单独处理图片或课评？</summary>
-            <div class="button-pair">
-              <button class="secondary" :disabled="state.isProcessing" @click="state.processImages">只处理全班图片</button>
-              <button class="secondary" :disabled="state.isProcessing" @click="state.generateAll">只生成全班课评</button>
-            </div>
-          </details>
-          <div v-if="state.counts.comments" class="stage-actions"><button class="primary" @click="generateStage = 'review'">开始逐个确认</button></div>
+          <div class="generation-action-summary">将处理 {{ state.counts.matched }} 张作品，并根据课堂记录生成 {{ state.counts.attend }} 条课评。</div>
+          <div class="stage-actions"><button class="primary batch-main-action" :disabled="state.isProcessing" @click="runBatchGeneration">{{ state.isProcessing ? '正在生成…' : '生成全班图文' }}</button></div>
         </section>
 
         <section v-if="generateStage === 'review'" class="generate-stage-panel">
-          <article class="comment-editor review-editor">
-            <div class="student-tabs">
-              <button
-                v-for="row in state.attendingRows"
-                :key="`${row.lessonId}-${row.studentId}`"
-                :class="{ selected: row.studentId === state.activeStudentId }"
-                @click="state.activeStudentId = row.studentId"
-              >
-                {{ state.students.find((item) => item.id === row.studentId).name }}
-              </button>
-            </div>
-            <label>
-              当前学生课评
-              <textarea v-model="state.activeSessionStudent.comment" rows="7" />
-            </label>
-            <div class="image-review" v-if="state.activeSessionStudent">
-              <div>
-                <span>原图</span>
-                <img :src="state.activeSessionStudent.originalImage || state.activeSessionStudent.image" alt="原图" />
+          <div class="review-stage-head">
+            <div><span>第 {{ currentReviewIndex + 1 }}/{{ state.attendingRows.length }} 位</span><strong>{{ state.activeStudent.name }}</strong></div>
+            <button class="ghost" @click="generateStage = 'settings'">返回生成设置</button>
+          </div>
+          <div class="student-tabs review-student-tabs">
+            <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: row.studentId === state.activeStudentId, reviewed: row.confirmed && row.imageConfirmed }" @click="state.activeStudentId = row.studentId">
+              {{ state.students.find((item) => item.id === row.studentId).name }}{{ row.confirmed && row.imageConfirmed ? ' ✓' : '' }}
+            </button>
+          </div>
+          <div class="generated-result-grid">
+            <article class="generated-image-result">
+              <div class="result-card-head"><div><span>作品图片</span><strong>{{ state.activeSessionStudent.imageConfirmed ? '已采用' : '待确认' }}</strong></div></div>
+              <img :src="state.activeSessionStudent.processedImage || state.activeSessionStudent.originalImage || state.activeSessionStudent.image" alt="生成后的作品图片" />
+              <small v-if="state.activeSessionStudent.imageProcessError" class="missing-text">{{ state.activeSessionStudent.imageProcessError }}</small>
+              <div class="result-actions">
+                <button class="primary" :disabled="!state.activeSessionStudent.processedImage" @click="state.confirmCurrentImage('processed')">使用处理图</button>
+                <button class="ghost" @click="state.confirmCurrentImage('original')">使用原图</button>
+                <button class="secondary" :disabled="state.isProcessing" @click="state.retryCurrentImageProcess">重新处理</button>
               </div>
-              <div>
-                <span>处理图</span>
-                <img :src="state.activeSessionStudent.processedImage || state.activeSessionStudent.image" alt="处理图" />
+            </article>
+            <article class="generated-comment-result">
+              <div class="result-card-head"><div><span>家长课评</span><strong>{{ state.activeSessionStudent.confirmed ? '已确认' : '待确认' }}</strong></div></div>
+              <textarea v-model="state.activeSessionStudent.comment" rows="12" @input="state.activeSessionStudent.confirmed = false" />
+              <div class="result-actions">
+                <button class="primary" @click="state.confirmCurrentComment">确认课评</button>
+                <button class="secondary" :disabled="state.isProcessing" @click="state.generateOne(state.activeSessionStudent); state.pulseComment(); state.notify('已重新生成当前学生课评')">重新生成</button>
               </div>
-              <article>
-                <strong>{{ state.activeSessionStudent.imageProcessStatus }}</strong>
-                <small v-if="state.activeSessionStudent.imageProcessError">{{ state.activeSessionStudent.imageProcessError }}</small>
-                <small v-else>{{ state.activeSessionStudent.processedImage ? '处理图已生成，需老师确认后进入展示页。' : '尚未生成处理图，家长页仍使用原图。' }}</small>
-                <div class="button-pair">
-                  <button class="ghost" @click="state.failCurrentImageProcess">模拟失败</button>
-                  <button class="secondary" :disabled="state.isProcessing" @click="state.retryCurrentImageProcess">重试当前图片</button>
-                </div>
-              </article>
-            </div>
-            <div class="button-pair">
-              <button
-                class="secondary"
-                :disabled="state.isProcessing"
-                @click="state.generateOne(state.activeSessionStudent); state.pulseComment(); state.notify('已重写当前学生课评')"
-              >
-                重写当前学生
-              </button>
-              <button class="secondary" @click="state.confirmImages">确认全部处理图</button>
-              <button class="primary" @click="state.confirmAll">确认全部课评</button>
-            </div>
-          </article>
+            </article>
+          </div>
+          <div class="review-next-action"><button class="primary" @click="confirmStudentAndNext">{{ currentReviewIndex < state.attendingRows.length - 1 ? '确认并下一位' : '完成当前学生确认' }}</button></div>
         </section>
 
         <details class="ai-log-details">
@@ -609,7 +576,7 @@ const runBatchGeneration = async () => {
 
       <footer class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
-        <button v-if="state.currentStep < state.steps.length - 1" class="primary" @click="state.nextStep">下一步</button>
+        <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 4 && (state.counts.confirmed < state.counts.attend || state.counts.imageConfirmed < state.counts.attend)" @click="state.nextStep">下一步</button>
         <button v-else class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">完成本班交付</button>
       </footer>
     </template>

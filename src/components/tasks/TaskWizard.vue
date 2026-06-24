@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import TaskReport from './TaskReport.vue'
 import StateControlPanel from './StateControlPanel.vue'
 
@@ -20,6 +20,33 @@ const showContentSettings = ref(false)
 const showPublishSettings = ref(false)
 const showArtworkLibrary = ref(false)
 const workPreview = ref(null)
+const currentRecordIndex = computed(() => props.state.attendingRows.findIndex((row) => row.studentId === props.state.activeStudentId))
+
+const moveRecordStudent = (direction) => {
+  const rows = props.state.attendingRows
+  if (!rows.length) return
+  const nextIndex = Math.min(rows.length - 1, Math.max(0, currentRecordIndex.value + direction))
+  props.state.activeStudentId = rows[nextIndex].studentId
+}
+
+const saveRecordAndNext = () => {
+  if (!props.state.activeSessionStudent.record?.trim()) {
+    props.state.notify('请先录入当前学生的课堂表现')
+    return
+  }
+  if (currentRecordIndex.value < props.state.attendingRows.length - 1) {
+    props.state.notify(`已保存${props.state.activeStudent.name}的课堂记录`)
+    moveRecordStudent(1)
+  } else {
+    props.state.notify('全班课堂记录已保存')
+  }
+}
+
+watch(() => props.state.currentStep, (step) => {
+  if (step === 3 && currentRecordIndex.value < 0 && props.state.attendingRows.length) {
+    props.state.activeStudentId = props.state.attendingRows[0].studentId
+  }
+})
 
 const openWorkPreview = (row, index) => {
   workPreview.value = { row, index }
@@ -267,31 +294,34 @@ const runBatchGeneration = async () => {
         <div class="section-head">
           <div>
             <span>第 4 步</span>
-            <strong>录入课堂记录和个性化关键词</strong>
+            <strong>逐个记录学生课堂表现</strong>
           </div>
-          <button class="secondary" :disabled="state.isProcessing" @click="state.simulateVoice">模拟语音识别</button>
         </div>
-        <div class="record-layout">
-          <article>
-            <label>
-              批量记录
-              <textarea v-model="state.bulkRecord" rows="12" />
-            </label>
-            <button class="primary" @click="state.parseBulkRecord">解析到学生</button>
-          </article>
-          <article class="record-table">
-            <label v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`">
-              {{ state.students.find((item) => item.id === row.studentId).name }} · 关注点
-              <select v-model="row.focus">
-                <option>色彩</option>
-                <option>想象力</option>
-                <option>构图</option>
-                <option>细节</option>
-              </select>
-              <input v-model="row.record" />
-            </label>
-          </article>
+        <div class="record-progress-summary">
+          <div><span>本节到课</span><strong>{{ state.counts.attend }} 人</strong></div>
+          <div><span>已记录</span><strong>{{ state.counts.records }} 人</strong></div>
+          <div><span>待记录</span><strong>{{ state.counts.attend - state.counts.records }} 人</strong></div>
         </div>
+        <div class="record-student-tabs">
+          <button v-for="(row, index) in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ active: row.studentId === state.activeStudentId, done: row.record?.trim() }" @click="state.activeStudentId = row.studentId">
+            <b>{{ index + 1 }}</b><span><strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong><small>{{ row.record?.trim() ? '已记录' : '待记录' }}</small></span>
+          </button>
+        </div>
+        <article v-if="state.activeSessionStudent" class="single-record-editor">
+          <header>
+            <div><span>第 {{ currentRecordIndex + 1 }}/{{ state.attendingRows.length }} 位</span><h2>{{ state.activeStudent.name }}</h2><small>{{ state.activeStudent.parent }}</small></div>
+            <button class="secondary voice-record-button" :disabled="state.isProcessing" @click="state.simulateVoice">🎙 {{ state.isProcessing ? '正在识别…' : '语音转文字' }}</button>
+          </header>
+          <label>
+            课堂表现
+            <textarea v-model="state.activeSessionStudent.record" rows="9" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" />
+          </label>
+          <small>语音内容会直接添加到 {{ state.activeStudent.name }} 名下，不需要再次解析学生姓名。</small>
+          <footer class="record-editor-actions">
+            <button class="ghost" :disabled="currentRecordIndex <= 0" @click="moveRecordStudent(-1)">上一位</button>
+            <button class="primary" @click="saveRecordAndNext">{{ currentRecordIndex < state.attendingRows.length - 1 ? '保存并下一位' : '保存记录' }}</button>
+          </footer>
+        </article>
       </section>
 
       <section v-if="state.currentStep === 4" class="step-panel">

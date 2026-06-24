@@ -267,7 +267,7 @@ export function useDeliveryWorkflow() {
     { title: '课次确认', hint: '核对课次信息和学生出勤', done: counts.value.attend ? 1 : 0, total: 1 },
     { title: '上传范画', hint: '至少上传 1 张本节范画', done: counts.value.artworks ? 1 : 0, total: 1 },
     { title: '上传作品', hint: '逐个学生上传至少 1 张作品', done: counts.value.matched, total: counts.value.attend },
-    { title: '课堂记录', hint: '批量解析或逐个录入关键词', done: counts.value.records, total: counts.value.attend },
+    { title: '课堂记录', hint: '逐个录入学生课堂表现', done: counts.value.records, total: counts.value.attend },
     { title: '图文生成', hint: '图片处理、AI 课评和人工确认', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
     { title: '家长展示', hint: '任务、高光、展示页和二维码', done: counts.value.shareReady, total: counts.value.attend },
     { title: '归档留痕', hint: '保存档案并生成小麦待办', done: counts.value.archived, total: counts.value.attend }
@@ -564,10 +564,17 @@ export function useDeliveryWorkflow() {
   }
 
   const simulateVoice = async () => {
-    await runAction('正在识别课堂语音...', '已识别并匹配课堂记录', async () => {
-      bulkRecord.value =
-        '彤彤：今天向日葵颜色很大胆，叶子比上次更舒展，背景留白再注意\n浩浩：恐龙世界很有故事感，涂色均匀很多，爪子细节可以更细\n安安：海底世界构图完整，小鱼排列有节奏，水草层次可以再丰富'
-      parseBulkRecord()
+    const row = activeSessionStudent.value
+    const student = activeStudent.value
+    if (!row || row.attendance !== '到课') return
+    await runAction('正在将语音转成文字...', '语音内容已添加到当前学生记录', async () => {
+      const samples = {
+        彤彤: '今天用色很大胆，叶子比上次更舒展，背景留白可以再注意。',
+        浩浩: '今天的画面很有故事感，涂色均匀了很多，细节可以继续深入。',
+        安安: '今天构图很完整，画面排列有节奏，背景层次可以再丰富。'
+      }
+      const text = samples[student?.name] || '今天课堂参与认真，能够跟随步骤完成作品，也有自己的表达。'
+      row.record = row.record?.trim() ? `${row.record.trim()} ${text}` : text
     })
   }
 
@@ -648,6 +655,8 @@ export function useDeliveryWorkflow() {
 
   const generateOne = (row) => {
     const student = students.find((item) => item.id === row.studentId)
+    const record = row.record || ''
+    const inferredFocus = /色|涂|暖|冷/.test(record) ? '色彩' : /想法|故事|创意|想象/.test(record) ? '想象力' : /构图|画面|主体|层次|空间/.test(record) ? '构图' : '细节'
     const complimentMap = {
       色彩: '今天的色彩选择很大胆，画面一下子就亮了起来',
       想象力: '今天的想法很丰富，能把自己的故事放进画面里',
@@ -660,12 +669,13 @@ export function useDeliveryWorkflow() {
       构图: '下次可以继续加强前后层次，让画面更有空间感',
       细节: '下次可以在主体和背景之间做一点更清楚的区分'
     }
-    row.comment = `${student.nickname}今天表现很棒，${complimentMap[row.focus] || complimentMap.色彩}。本节课围绕“${activeCourse.value.title}”完成练习，能看到他认真跟着课堂节奏推进，也保留了自己的表达。${suggestionMap[row.focus] || suggestionMap.色彩}。继续保持这份专注和大胆。`
+    const observation = record.trim() ? `课堂记录中可以看到：${record.trim()}` : '课堂中能够认真跟随步骤完成作品'
+    row.comment = `${student.nickname}今天表现很棒，${complimentMap[inferredFocus]}。${observation} 本节课围绕“${activeCourse.value.title}”完成练习，也保留了自己的表达。${suggestionMap[inferredFocus]}。继续保持这份专注和大胆。`
     if (activeCommentTemplate.value.name === '低龄鼓励版') {
-      row.comment = `${student.nickname}今天特别投入，${complimentMap[row.focus] || complimentMap.色彩}。老师能看到他一直在认真完成自己的小作品，也很愿意大胆尝试。下次我们继续鼓励他把喜欢的细节画得更多一些，相信会越来越棒。`
+      row.comment = `${student.nickname}今天特别投入，${complimentMap[inferredFocus]}。${observation} 老师能看到他很愿意大胆尝试。下次我们继续鼓励他把喜欢的细节画得更多一些，相信会越来越棒。`
     }
     if (activeCommentTemplate.value.name === '专业简洁版') {
-      row.comment = `${student.nickname}本节课能围绕“${activeCourse.value.title}”完成主体表达，${complimentMap[row.focus] || complimentMap.色彩}。下一步建议继续关注画面层次和细节完整度，让作品呈现更稳定。整体完成度不错，课堂专注度也值得肯定。`
+      row.comment = `${student.nickname}本节课能围绕“${activeCourse.value.title}”完成主体表达，${complimentMap[inferredFocus]}。${observation} 下一步建议继续关注画面层次和细节完整度，让作品呈现更稳定。`
     }
   }
 

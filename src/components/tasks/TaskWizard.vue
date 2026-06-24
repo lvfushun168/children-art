@@ -18,6 +18,7 @@ const shareStage = ref('content')
 const showAllCourses = ref(false)
 const showContentSettings = ref(false)
 const showPublishSettings = ref(false)
+const showArtworkLibrary = ref(false)
 
 const setShareStage = (stage) => {
   shareStage.value = stage
@@ -31,6 +32,7 @@ watch(() => props.state.activeTask.id, () => {
   showAllCourses.value = false
   showContentSettings.value = false
   showPublishSettings.value = false
+  showArtworkLibrary.value = false
   emit('share-stage', 'content')
 })
 
@@ -145,15 +147,27 @@ const runBatchGeneration = async () => {
         <div class="section-head">
           <div>
             <span>第 2 步</span>
-            <strong>准备本节课的范画和步骤图</strong>
+            <strong>上传本节课的范画</strong>
           </div>
-          <button class="secondary" @click="state.addMaterial">补充课堂素材</button>
+          <div class="button-pair">
+            <label class="file-button material-upload-button">上传范画<input type="file" accept="image/*" @change="state.uploadLessonMaterial($event, '范画')" /></label>
+            <button class="secondary" @click="showArtworkLibrary = !showArtworkLibrary">{{ showArtworkLibrary ? '收起范画库' : '从范画库选择' }}</button>
+          </div>
         </div>
         <div class="material-intro">
-          <strong>已从“{{ state.activeCourse.title }}”课程资料中带出 {{ state.materials.length }} 项素材</strong>
-          <small>{{ state.activeCourse.goal }} · 使用材料：{{ state.activeCourse.materials }}</small>
-          <small>确认本节实际使用的素材，以及是否需要展示给家长。</small>
+          <strong>{{ state.counts.artworks ? `已上传 ${state.counts.artworks} 张范画` : '请至少上传 1 张范画' }}</strong>
+          <small>步骤图为可选内容；范画和步骤图都可以决定是否展示给家长。</small>
         </div>
+        <section v-if="showArtworkLibrary" class="lesson-library-picker">
+          <div class="mini-head"><div><span>老师共享范画库</span><strong>选择后会复制到本节课</strong></div><small>{{ state.artworkLibrary.length }} 项可用素材</small></div>
+          <div class="library-picker-grid">
+            <article v-for="item in state.artworkLibrary" :key="item.id">
+              <img :src="item.image" :alt="item.title" />
+              <div><span>{{ item.type }} · {{ item.theme }}</span><strong>{{ item.title }}</strong><small>{{ item.uploader }} · 已使用 {{ item.usage }} 次</small></div>
+              <button class="ghost" @click="state.useArtworkFromLibrary(item)">选择</button>
+            </article>
+          </div>
+        </section>
         <div class="material-gallery">
           <article v-for="material in state.materials" :key="material.id" :class="{ hidden: !material.visible }">
             <img :src="material.image" :alt="material.title" />
@@ -162,9 +176,13 @@ const runBatchGeneration = async () => {
               <strong>{{ material.title }}</strong>
               <small>{{ material.visible ? '家长展示页可见' : '仅保存到内部档案' }}</small>
             </div>
-            <button class="ghost" @click="state.toggleMaterialVisible(material)">{{ material.visible ? '设为不展示' : '展示给家长' }}</button>
+            <div class="material-card-actions">
+              <button class="ghost" @click="state.toggleMaterialVisible(material)">{{ material.visible ? '设为不展示' : '展示给家长' }}</button>
+              <button v-if="!material.libraryId" class="ghost" @click="state.saveMaterialToLibrary(material)">保存到范画库</button>
+            </div>
           </article>
         </div>
+        <label class="file-button optional-step-upload">＋ 可选：上传步骤图<input type="file" accept="image/*" @change="state.uploadLessonMaterial($event, '步骤图')" /></label>
       </section>
 
       <section v-if="state.currentStep === 2" class="step-panel">

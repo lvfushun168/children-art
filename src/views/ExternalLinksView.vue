@@ -67,7 +67,7 @@ const save = () => {
 </script>
 
 <template>
-  <PageHead eyebrow="课程资料" title="外部在线课程链接">
+  <PageHead eyebrow="课后任务资源" title="外部在线课程链接">
     <div class="button-pair">
       <button class="secondary" @click="startEdit">编辑当前链接</button>
       <button class="primary" @click="startNew">新增外部课程</button>

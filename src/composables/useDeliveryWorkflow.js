@@ -1,5 +1,6 @@
 import { computed, reactive, ref } from 'vue'
 import {
+  artworkLibrary as artworkLibrarySeed,
   archives as archiveSeed,
   archiveRecords as archiveRecordSeed,
   aiCallLogs as aiCallLogSeed,
@@ -29,6 +30,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export function useDeliveryWorkflow() {
   const school = reactive(clone(schoolSeed))
+  const artworkLibrary = reactive(clone(artworkLibrarySeed))
   const teachers = reactive(clone(teacherSeed))
   const students = reactive(clone(studentSeed))
   const classes = reactive(clone(classSeed))
@@ -254,12 +256,13 @@ export function useDeliveryWorkflow() {
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
+    artworks: materials.value.filter((item) => item.type === '范画').length,
     visibleMaterials: materials.value.filter((item) => item.visible).length
   }))
 
   const steps = computed(() => [
     { title: '课次确认', hint: '核对课次信息和学生出勤', done: counts.value.attend ? 1 : 0, total: 1 },
-    { title: '课堂素材', hint: '确认本节范画和步骤图', done: counts.value.visibleMaterials ? 1 : 0, total: 1 },
+    { title: '上传范画', hint: '至少上传 1 张本节范画', done: counts.value.artworks ? 1 : 0, total: 1 },
     { title: '作品匹配', hint: '按学生上传作品并确认图片', done: Math.min(counts.value.matched, counts.value.imageConfirmed), total: counts.value.attend },
     { title: '课堂记录', hint: '批量解析或逐个录入关键词', done: counts.value.records, total: counts.value.attend },
     { title: '图文生成', hint: '图片处理、AI 课评和人工确认', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
@@ -271,7 +274,7 @@ export function useDeliveryWorkflow() {
     const total = counts.value.attend * 7 || 1
     const done =
       counts.value.attend +
-      (counts.value.visibleMaterials ? counts.value.attend : 0) +
+      (counts.value.artworks ? counts.value.attend : 0) +
       Math.min(counts.value.matched, counts.value.imageConfirmed) +
       counts.value.records +
       Math.min(counts.value.processed, counts.value.confirmed) +
@@ -287,7 +290,7 @@ export function useDeliveryWorkflow() {
     if (!rows.length) return 0
     const completed =
       rows.length +
-      (workspace.materials.some((item) => item.visible) ? rows.length : 0) +
+      (workspace.materials.some((item) => item.type === '范画') ? rows.length : 0) +
       Math.min(rows.filter((row) => row.imageMatched).length, rows.filter((row) => row.imageConfirmed).length) +
       rows.filter((row) => row.record).length +
       Math.min(rows.filter((row) => row.processed).length, rows.filter((row) => row.confirmed).length) +
@@ -300,7 +303,7 @@ export function useDeliveryWorkflow() {
 
   const currentWarnings = computed(() => {
     const warnings = []
-    if (!materials.value.some((item) => item.visible)) warnings.push('缺少可展示的范画或步骤图')
+    if (!materials.value.some((item) => item.type === '范画')) warnings.push('本节课至少需要上传 1 张范画')
     if (homework.value.visible && !homework.value.content.trim()) warnings.push('课后任务内容为空')
     attendingRows.value.forEach((row) => {
       const student = students.find((item) => item.id === row.studentId)
@@ -482,16 +485,50 @@ export function useDeliveryWorkflow() {
     notify(`${material.title}${material.visible ? '会展示给家长' : '已隐藏'}`)
   }
 
-  const addMaterial = () => {
+  const addMaterial = (type = '范画') => {
     materials.value.push({
       id: Date.now(),
       lessonId: activeTaskId.value,
-      type: '步骤图',
-      title: `新增步骤图 ${materials.value.length + 1}`,
+      type,
+      title: `新上传${type} ${materials.value.length + 1}`,
       image: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=720&q=80',
-      visible: true
+      visible: true,
+      libraryId: null
     })
-    notify('已补充一张步骤图')
+    notify(`已上传一张${type}`)
+  }
+
+  const uploadLessonMaterial = (event, type = '范画') => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    materials.value.push({ id: Date.now(), lessonId: activeTaskId.value, type, title: file.name.replace(/\.[^.]+$/, ''), image: URL.createObjectURL(file), visible: true, libraryId: null })
+    event.target.value = ''
+    notify(`已上传${type}：${file.name}`)
+  }
+
+  const useArtworkFromLibrary = (item) => {
+    if (materials.value.some((material) => material.libraryId === item.id)) {
+      notify(`${item.title}已在本节课中`)
+      return
+    }
+    materials.value.push({ id: Date.now(), lessonId: activeTaskId.value, type: item.type, title: item.title, image: item.image, visible: true, libraryId: item.id })
+    item.usage += 1
+    notify(`已从范画库选择：${item.title}`)
+  }
+
+  const saveMaterialToLibrary = (material) => {
+    if (material.libraryId) return notify('这项素材已经在范画库中')
+    const item = { id: nextId(artworkLibrary), type: material.type, title: material.title, theme: activeCourse.value.title, age: activeCourse.value.age, uploader: currentUser.value.name, usage: 1, image: material.image }
+    artworkLibrary.unshift(item)
+    material.libraryId = item.id
+    notify(`已保存到范画库：${material.title}`)
+  }
+
+  const addArtworkLibraryItem = (payload) => {
+    const item = { id: nextId(artworkLibrary), type: payload.type || '范画', title: payload.title || '新范画', theme: payload.theme || '未分类', age: payload.age || '不限', uploader: currentUser.value.name, usage: 0, image: payload.image || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=720&q=80' }
+    artworkLibrary.unshift(item)
+    notify(`已加入范画库：${item.title}`)
+    return item
   }
 
   const chooseImageTemplate = (index) => {
@@ -1189,6 +1226,7 @@ export function useDeliveryWorkflow() {
 
   return {
     school,
+    artworkLibrary,
     teachers,
     students,
     classes,
@@ -1269,6 +1307,10 @@ export function useDeliveryWorkflow() {
     setAttendance,
     toggleMaterialVisible,
     addMaterial,
+    uploadLessonMaterial,
+    useArtworkFromLibrary,
+    saveMaterialToLibrary,
+    addArtworkLibraryItem,
     chooseImageTemplate,
     chooseCommentTemplate,
     parseBulkRecord,

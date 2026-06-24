@@ -23,7 +23,7 @@ watch(() => props.initialType, (value) => { dataType.value = value })
 
 const rows = computed(() => {
   if (dataType.value === '学生名单') return props.state.importPreviewRows.filter((row) => row.type === 'student')
-  if (dataType.value === '课程资料') return props.state.importPreviewRows.filter((row) => row.type === 'class')
+  if (dataType.value === '班级课表') return props.state.importPreviewRows.filter((row) => row.type === 'class' || row.type === 'lesson')
   return props.state.importPreviewRows
 })
 const validRows = computed(() => rows.value.filter((row) => row.status === '可导入'))
@@ -31,7 +31,7 @@ const warningRows = computed(() => rows.value.filter((row) => row.status !== '�
 const latestBatch = computed(() => props.state.importBatches[0])
 const columns = computed(() => {
   if (dataType.value === '学生名单') return ['学生姓名', '班级名称', '家长称呼', '手机号']
-  if (dataType.value === '课程资料') return ['课程主题', '适用年龄', '教学目标', '材料']
+  if (dataType.value === '班级课表') return ['班级名称', '任课老师', '上课时间', '课程主题']
   return ['学生姓名', '班级名称', '任课老师', '上课时间', '课程主题']
 })
 
@@ -120,9 +120,9 @@ const mappingKey = (column) => {
         <p>如果文件里同时包含学生和课表，选择“综合课表”即可。</p>
       </div>
       <div class="import-type-picker">
-        <button v-for="type in ['综合课表', '学生名单', '课程资料']" :key="type" :class="{ selected: dataType === type }" @click="dataType = type">
+        <button v-for="type in ['综合课表', '学生名单', '班级课表']" :key="type" :class="{ selected: dataType === type }" @click="dataType = type">
           <strong>{{ type }}</strong>
-          <small>{{ type === '综合课表' ? '同时更新学生、班级、课程和课次' : type === '学生名单' ? '新增或更新学生及所属班级' : '新增或更新课程主题与教学资料' }}</small>
+          <small>{{ type === '综合课表' ? '同时更新学生、班级和课次' : type === '学生名单' ? '新增或更新学生及所属班级' : '新增或更新班级安排和上课时间' }}</small>
         </button>
       </div>
       <label>数据来源<select v-model="source"><option>小麦 Excel 导出</option><option>小麦课表整理表</option><option>手工维护表格</option></select></label>

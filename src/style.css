@@ -1335,6 +1335,117 @@ textarea:focus {
   justify-self: start;
 }
 
+.material-card-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.material-upload-button {
+  padding: 0 14px;
+}
+
+.optional-step-upload {
+  justify-self: start;
+  margin-top: 14px;
+  padding: 0 14px;
+}
+
+.lesson-library-picker {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid rgba(77, 107, 95, 0.16);
+  border-radius: 10px;
+  background: #f6f2e8;
+}
+
+.lesson-library-picker .mini-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.library-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.library-picker-grid article {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #fffefa;
+}
+
+.library-picker-grid img {
+  width: 84px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 7px;
+}
+
+.library-picker-grid article > div {
+  display: grid;
+  gap: 4px;
+}
+
+.library-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.library-toolbar > input {
+  max-width: 420px;
+}
+
+.artwork-library-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.artwork-library-card {
+  display: grid;
+  gap: 12px;
+}
+
+.artwork-library-card > img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.artwork-library-card > div {
+  display: grid;
+  gap: 5px;
+}
+
+.artwork-library-card span,
+.artwork-library-card small {
+  color: #687870;
+}
+
+.library-upload {
+  display: grid;
+  gap: 12px;
+  max-width: 920px;
+  margin-bottom: 14px;
+}
+
+.library-file {
+  min-height: 52px;
+  padding: 0 14px;
+}
+
 .material-strip article,
 .add-tile,
 .notice-box,
@@ -2682,9 +2793,20 @@ textarea:focus {
   }
 
   .material-gallery img,
-  .material-gallery article > button {
+  .material-gallery article > button,
+  .material-card-actions {
     grid-column: 1;
     grid-row: auto;
+  }
+
+  .library-picker-grid,
+  .artwork-library-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .library-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .modal-head,

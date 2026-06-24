@@ -5,6 +5,7 @@ import UserMenu from './components/layout/UserMenu.vue'
 import { navItems } from './data/mockData'
 import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
 import ArchiveQueryView from './views/ArchiveQueryView.vue'
+import ArtworkLibraryView from './views/ArtworkLibraryView.vue'
 import ExternalLinksView from './views/ExternalLinksView.vue'
 import ImportCenterView from './views/ImportCenterView.vue'
 import ExtraTasksView from './views/ExtraTasksView.vue'
@@ -70,7 +71,7 @@ const shareRoute = computed(() => {
 
       <MasterDataView v-if="activeNav === 'classes'" :state="state" entity="classes" @open-import="openImportCenter('综合课表')" />
 
-      <MasterDataView v-if="activeNav === 'courses'" :state="state" entity="courses" @open-import="openImportCenter('课程资料')" />
+      <ArtworkLibraryView v-if="activeNav === 'courses'" :state="state" />
 
       <ImportCenterView v-if="activeNav === 'imports'" :state="state" :initial-type="activeImportType" />
 

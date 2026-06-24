@@ -65,7 +65,9 @@ export function useDeliveryWorkflow() {
       return clone(initialSessionStudents).map((row) => ({
         ...row,
         lessonId: task.id,
-        studentId: row.id
+        studentId: row.id,
+        images: row.image && row.attendance === '到课' ? [row.image] : [],
+        imageConfirmed: Boolean(row.imageMatched) && row.attendance === '到课'
       }))
     }
 
@@ -83,9 +85,10 @@ export function useDeliveryWorkflow() {
         imageProcessStatus: '未处理',
         imageProcessError: '',
         image: seed.image,
+        images: seed.image && !isAbsent ? [seed.image] : [],
         imageMatched: Boolean(seed.image) && !isAbsent,
         processed: false,
-        imageConfirmed: false,
+        imageConfirmed: Boolean(seed.image) && !isAbsent,
         record: isAbsent ? '' : seed.record,
         focus: seed.focus,
         comment: '',
@@ -263,7 +266,7 @@ export function useDeliveryWorkflow() {
   const steps = computed(() => [
     { title: '课次确认', hint: '核对课次信息和学生出勤', done: counts.value.attend ? 1 : 0, total: 1 },
     { title: '上传范画', hint: '至少上传 1 张本节范画', done: counts.value.artworks ? 1 : 0, total: 1 },
-    { title: '作品匹配', hint: '按学生上传作品并确认图片', done: Math.min(counts.value.matched, counts.value.imageConfirmed), total: counts.value.attend },
+    { title: '上传作品', hint: '逐个学生上传至少 1 张作品', done: counts.value.matched, total: counts.value.attend },
     { title: '课堂记录', hint: '批量解析或逐个录入关键词', done: counts.value.records, total: counts.value.attend },
     { title: '图文生成', hint: '图片处理、AI 课评和人工确认', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
     { title: '家长展示', hint: '任务、高光、展示页和二维码', done: counts.value.shareReady, total: counts.value.attend },
@@ -275,7 +278,7 @@ export function useDeliveryWorkflow() {
     const done =
       counts.value.attend +
       (counts.value.artworks ? counts.value.attend : 0) +
-      Math.min(counts.value.matched, counts.value.imageConfirmed) +
+      counts.value.matched +
       counts.value.records +
       Math.min(counts.value.processed, counts.value.confirmed) +
       counts.value.shareReady +
@@ -291,7 +294,7 @@ export function useDeliveryWorkflow() {
     const completed =
       rows.length +
       (workspace.materials.some((item) => item.type === '范画') ? rows.length : 0) +
-      Math.min(rows.filter((row) => row.imageMatched).length, rows.filter((row) => row.imageConfirmed).length) +
+      rows.filter((row) => row.imageMatched).length +
       rows.filter((row) => row.record).length +
       Math.min(rows.filter((row) => row.processed).length, rows.filter((row) => row.confirmed).length) +
       rows.filter((row) => row.shareReady).length +
@@ -475,8 +478,11 @@ export function useDeliveryWorkflow() {
       row.confirmed = false
       row.shareReady = false
       row.archived = false
-    } else if (!row.image) {
-      row.image = sessionSeed[row.studentId]?.image || ''
+    } else {
+      if (!row.image) row.image = sessionSeed[row.studentId]?.image || ''
+      if (!row.images?.length && row.image) row.images = [row.image]
+      row.imageMatched = Boolean(row.images?.length)
+      row.imageConfirmed = row.imageMatched
     }
   }
 
@@ -920,13 +926,37 @@ export function useDeliveryWorkflow() {
     }, 1600)
   }
 
-  const updateImage = (event, row) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    row.image = URL.createObjectURL(file)
-    row.imageMatched = true
-    row.imageConfirmed = false
+  const updateImage = (event, row, replaceIndex = null) => {
+    const files = [...(event.target.files || [])]
+    if (!files.length) return
+    if (!Array.isArray(row.images)) row.images = row.image ? [row.image] : []
+    const urls = files.map((file) => URL.createObjectURL(file))
+    if (replaceIndex === null) row.images.push(...urls)
+    else row.images.splice(replaceIndex, 1, urls[0])
+    row.image = row.images[0] || ''
+    row.originalImage = row.image
+    row.imageMatched = row.images.length > 0
+    row.imageConfirmed = row.imageMatched
     row.processed = false
+    row.processedImage = ''
+    row.imageProcessStatus = '未处理'
+    row.imageProcessError = ''
+    event.target.value = ''
+    notify(`已为${students.find((item) => item.id === row.studentId)?.name || '学生'}上传 ${files.length} 张作品`)
+  }
+
+  const removeStudentImage = (row, index) => {
+    if (!Array.isArray(row.images)) row.images = row.image ? [row.image] : []
+    row.images.splice(index, 1)
+    row.image = row.images[0] || ''
+    row.originalImage = row.image
+    row.imageMatched = row.images.length > 0
+    row.imageConfirmed = row.imageMatched
+    row.processed = false
+    row.processedImage = ''
+    row.imageProcessStatus = '未处理'
+    row.imageProcessError = ''
+    notify(row.imageMatched ? '已删除这张作品' : '该学生暂无作品，请重新上传')
   }
 
   const markTrace = (trace, status, reason = '') => {
@@ -1333,6 +1363,7 @@ export function useDeliveryWorkflow() {
     archiveAll,
     copyExport,
     updateImage,
+    removeStudentImage,
     markTrace,
     addLesson,
     addStudent,

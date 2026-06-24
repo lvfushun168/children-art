@@ -19,6 +19,24 @@ const showAllCourses = ref(false)
 const showContentSettings = ref(false)
 const showPublishSettings = ref(false)
 const showArtworkLibrary = ref(false)
+const workPreview = ref(null)
+
+const openWorkPreview = (row, index) => {
+  workPreview.value = { row, index }
+}
+
+const moveWorkPreview = (direction) => {
+  if (!workPreview.value) return
+  const images = workPreview.value.row.images || []
+  workPreview.value.index = (workPreview.value.index + direction + images.length) % images.length
+}
+
+const removePreviewedWork = () => {
+  const { row, index } = workPreview.value
+  props.state.removeStudentImage(row, index)
+  if (!row.images.length) workPreview.value = null
+  else workPreview.value.index = Math.min(index, row.images.length - 1)
+}
 
 const setShareStage = (stage) => {
   shareStage.value = stage
@@ -189,29 +207,59 @@ const runBatchGeneration = async () => {
         <div class="section-head">
           <div>
             <span>第 3 步</span>
-            <strong>上传、匹配并确认全班作品</strong>
-          </div>
-          <div class="button-pair">
-            <button class="secondary" :disabled="state.isProcessing" @click="state.matchImages">批量匹配</button>
-            <button class="primary" @click="state.confirmImages">确认图片</button>
+            <strong>按学生上传作品</strong>
           </div>
         </div>
-        <div class="works-grid">
+        <div class="work-upload-summary">
+          <div><span>本节到课</span><strong>{{ state.counts.attend }} 人</strong></div>
+          <div><span>已上传</span><strong>{{ state.counts.matched }} 人</strong></div>
+          <div><span>待上传</span><strong>{{ state.counts.attend - state.counts.matched }} 人</strong></div>
+          <small>每位到课学生至少上传 1 张作品，传错后可直接删除或替换。</small>
+        </div>
+        <div class="student-work-list">
           <article
             v-for="row in state.sessionStudents"
             :key="`${row.lessonId}-${row.studentId}`"
             :class="{ absent: row.attendance !== '到课' }"
-            class="work-card"
+            class="student-work-row"
           >
-            <img :src="row.image" :alt="state.students.find((item) => item.id === row.studentId).name" />
-            <strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong>
-            <small>{{ row.attendance === '到课' ? state.fileNameFor(row) : '本节课未到课，不生成交付' }}</small>
-            <label v-if="row.attendance === '到课'" class="file-button">
-              替换作品
-              <input type="file" accept="image/*" @change="state.updateImage($event, row)" />
-            </label>
-            <em>{{ row.imageConfirmed ? '已确认' : row.imageMatched ? '待确认' : '缺作品' }}</em>
+            <div class="student-work-person">
+              <strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong>
+              <small>{{ state.students.find((item) => item.id === row.studentId).parent }}</small>
+              <span>{{ row.attendance }}</span>
+            </div>
+            <div v-if="row.attendance === '到课'" class="work-thumbnails">
+              <button v-for="(image, index) in (row.images || (row.image ? [row.image] : []))" :key="`${image}-${index}`" class="work-thumbnail" @click="openWorkPreview(row, index)">
+                <img :src="image" :alt="`${state.students.find((item) => item.id === row.studentId).name}作品${index + 1}`" />
+              </button>
+              <span v-if="!row.images?.length" class="work-empty">尚未上传作品</span>
+            </div>
+            <div v-else class="work-absent-note">本节无需上传</div>
+            <div class="student-work-action">
+              <strong v-if="row.attendance === '到课'" :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${row.images?.length || 1} 张` : '待上传' }}</strong>
+              <label v-if="row.attendance === '到课'" class="file-button add-work-button">{{ row.imageMatched ? '继续添加' : '上传作品' }}<input type="file" accept="image/*" multiple @change="state.updateImage($event, row)" /></label>
+            </div>
           </article>
+        </div>
+
+        <div v-if="workPreview" class="modal-backdrop" @click.self="workPreview = null">
+          <section class="work-preview-modal">
+            <header class="modal-head">
+              <div><span>{{ state.students.find((item) => item.id === workPreview.row.studentId).name }}</span><strong>作品 {{ workPreview.index + 1 }}/{{ workPreview.row.images.length }}</strong></div>
+              <button class="ghost" @click="workPreview = null">关闭</button>
+            </header>
+            <img :src="workPreview.row.images[workPreview.index]" alt="作品大图预览" />
+            <footer class="work-preview-actions">
+              <div class="button-pair">
+                <button class="ghost" :disabled="workPreview.row.images.length < 2" @click="moveWorkPreview(-1)">上一张</button>
+                <button class="ghost" :disabled="workPreview.row.images.length < 2" @click="moveWorkPreview(1)">下一张</button>
+              </div>
+              <div class="button-pair">
+                <button class="ghost danger-action" @click="removePreviewedWork">删除这张</button>
+                <label class="secondary file-button">替换这张<input type="file" accept="image/*" @change="state.updateImage($event, workPreview.row, workPreview.index)" /></label>
+              </div>
+            </footer>
+          </section>
         </div>
       </section>
 

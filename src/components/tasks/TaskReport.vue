@@ -22,8 +22,8 @@ defineEmits(['show-archives', 'show-students', 'show-wheat'])
     <div class="success-badge">本节课交付已闭环</div>
     <div class="report-grid">
       <article>
-        <span>作品确认</span>
-        <strong>{{ counts.imageConfirmed }}/{{ counts.attend }}</strong>
+        <span>作品已上传</span>
+        <strong>{{ counts.matched }}/{{ counts.attend }}</strong>
       </article>
       <article>
         <span>课评确认</span>

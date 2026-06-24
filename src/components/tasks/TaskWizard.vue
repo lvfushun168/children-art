@@ -111,24 +111,17 @@ const runBatchGeneration = async () => {
             <span>第 1 步</span>
             <strong>确认课次信息和学生出勤</strong>
           </div>
-          <button class="secondary">从小麦导入记录刷新</button>
         </div>
-        <div class="context-grid">
-          <article>
-            <span>课次来源</span>
-            <strong>{{ state.activeTask.importedFrom }}</strong>
-            <small>仅作为旁路课后交付数据，不回写小麦</small>
-          </article>
-          <article>
-            <span>课次类型</span>
-            <strong>{{ state.activeTask.lessonType }}</strong>
-            <small>家长页会展示免责声明</small>
-          </article>
-          <article>
-            <span>课程主题</span>
-            <strong>{{ state.activeCourse.title }}</strong>
-            <small>{{ state.activeClass.time }}</small>
-          </article>
+        <div v-if="state.activeTask.status === '异常'" class="lesson-warning">
+          <strong>这节课的信息需要确认</strong>
+          <span>{{ state.activeTask.exceptionType || '数据异常' }} · {{ state.activeTask.exceptionReason || '请展开课次记录查看并处理' }}</span>
+        </div>
+        <div class="attendance-intro">
+          <div>
+            <span>本班 {{ state.sessionStudents.length }} 名学生</span>
+            <strong>{{ state.counts.attend }} 人到课</strong>
+          </div>
+          <small>请确认本节实际出勤情况，修改后会自动保存。</small>
         </div>
         <div class="roster-table">
           <button

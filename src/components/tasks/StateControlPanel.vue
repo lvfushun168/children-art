@@ -27,6 +27,11 @@ const changeLesson = (action) => {
         <span>课次状态机</span>
         <strong>{{ state.activeTask.status }}</strong>
       </div>
+      <div class="lesson-source-meta">
+        <span>数据来源</span>
+        <strong>{{ state.activeTask.importedFrom }}</strong>
+        <small>旁路导入记录，不代表与小麦实时同步</small>
+      </div>
       <label v-if="['待处理', '处理中'].includes(state.activeTask.status)">
         异常类型
         <select v-model="exceptionType">

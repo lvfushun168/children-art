@@ -113,6 +113,7 @@ export function useDeliveryWorkflow() {
     selectedCommentTemplate: 0,
     activeShareMode: 'student',
     activeStudentId: null,
+    selectedArchiveTargets: ['system', 'cloud:baidu', 'wheat'],
     currentStep: 0,
     showReport: false,
     sharePage: {
@@ -193,6 +194,10 @@ export function useDeliveryWorkflow() {
     get: () => activeWorkspace.value.activeShareMode,
     set: (value) => { activeWorkspace.value.activeShareMode = value }
   })
+  const selectedArchiveTargets = computed({
+    get: () => activeWorkspace.value.selectedArchiveTargets || ['system', 'wheat'],
+    set: (value) => { activeWorkspace.value.selectedArchiveTargets = value }
+  })
   const showReport = computed({
     get: () => activeWorkspace.value.showReport,
     set: (value) => { activeWorkspace.value.showReport = Boolean(value) }
@@ -232,6 +237,33 @@ export function useDeliveryWorkflow() {
     ok: importPreviewRows.filter((row) => row.status === '可导入').length,
     warning: importPreviewRows.filter((row) => row.status !== '可导入').length
   }))
+  const cloudDriveSetting = computed(() => settings.find((item) => item.type === 'cloudDrive' || item.name === '网盘配置'))
+  const enabledCloudProviders = computed(() =>
+    (cloudDriveSetting.value?.value?.providers || []).filter((provider) => provider.enabled)
+  )
+  const archiveTargets = computed(() => [
+    {
+      id: 'system',
+      label: '系统作品档案',
+      description: '保存作品、课评、高光、范画、课后任务和展示版本',
+      required: true,
+      status: '必选'
+    },
+    ...enabledCloudProviders.value.map((provider) => ({
+      id: `cloud:${provider.id}`,
+      label: provider.name,
+      description: `${provider.type} · ${cloudDriveSetting.value?.value?.directoryRule || '按课次目录归档'}`,
+      required: false,
+      status: provider.tokenStatus || '已配置'
+    })),
+    {
+      id: 'wheat',
+      label: '小麦留痕待办',
+      description: '生成待办，由老师或教务回小麦人工处理后再标记',
+      required: true,
+      status: activeTask.value.wheatStatus || '未生成'
+    }
+  ])
   const archiveFilter = reactive({
     studentId: 'all',
     classId: 'all',
@@ -322,6 +354,14 @@ export function useDeliveryWorkflow() {
     })
     return warnings
   })
+
+  const toggleArchiveTarget = (target) => {
+    if (target.required) return
+    const selected = new Set(selectedArchiveTargets.value)
+    if (selected.has(target.id)) selected.delete(target.id)
+    else selected.add(target.id)
+    selectedArchiveTargets.value = ['system', ...[...selected].filter((id) => id !== 'system' && id !== 'wheat'), 'wheat']
+  }
 
   const createShareToken = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID().replaceAll('-', '')
@@ -915,7 +955,9 @@ export function useDeliveryWorkflow() {
       notify(`归档失败：仍有 ${currentWarnings.value.length} 项完成门槛未通过`)
       return false
     }
-    await runAction('正在保存档案并生成小麦留痕待办...', '本节课已归档，小麦留痕待办已生成', async () => {
+    const cloudTargets = archiveTargets.value.filter((target) => target.id.startsWith('cloud:') && selectedArchiveTargets.value.includes(target.id))
+    const targetLabel = cloudTargets.length ? `，并同步 ${cloudTargets.map((target) => target.label).join('、')}` : ''
+    await runAction(`正在保存档案${targetLabel}，并生成小麦留痕待办...`, `本节课已归档${targetLabel}，小麦留痕待办已生成`, async () => {
       const before = activeTask.value.status
       attendingRows.value.forEach((row) => {
         if (row.shareReady) row.archived = true
@@ -923,6 +965,8 @@ export function useDeliveryWorkflow() {
       const trace = ensureWheatTrace()
       activeTask.value.wheatStatus = trace.status
       activeTask.value.archived = true
+      activeTask.value.archiveTargets = selectedArchiveTargets.value
+      activeTask.value.cloudArchiveStatus = cloudTargets.length ? '已同步' : '未选择网盘'
       activeTask.value.archiveVersion = (activeTask.value.archiveVersion || 0) + 1
       activeTask.value.status = '已完成'
       addStatusLog('课次', activeTask.value.id, before, '已完成', '完成门槛校验通过，归档与小麦待办同次生成')
@@ -942,7 +986,8 @@ export function useDeliveryWorkflow() {
           comments: counts.value.comments || counts.value.attend,
           highlights: counts.value.highlights,
           teacher: activeTask.value.teacher,
-          wheatStatus: trace.status
+          wheatStatus: trace.status,
+          cloudArchiveStatus: activeTask.value.cloudArchiveStatus
         })
       }
       attendingRows.value.forEach((row) => {
@@ -966,7 +1011,8 @@ export function useDeliveryWorkflow() {
           highlight: row.highlight,
           highlightNote: row.highlightNote,
           shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`,
-          wheatStatus: trace.status
+          wheatStatus: trace.status,
+          storageTarget: cloudTargets.map((target) => target.label).join('、') || '系统作品档案'
         })
       })
     })
@@ -1349,6 +1395,8 @@ export function useDeliveryWorkflow() {
     importBatches,
     importPreviewRows,
     settings,
+    cloudDriveSetting,
+    enabledCloudProviders,
     activeTaskId,
     activeStudentId,
     currentStep,
@@ -1391,6 +1439,8 @@ export function useDeliveryWorkflow() {
     taskProgress,
     progressForTask,
     currentWarnings,
+    archiveTargets,
+    selectedArchiveTargets,
     parentShareUrl,
     studentShareUrlFor,
     qrText,
@@ -1448,6 +1498,7 @@ export function useDeliveryWorkflow() {
     updateTeacher,
     applyImportRows,
     updateSetting,
+    toggleArchiveTarget,
     addTemplate,
     updateTemplate,
     addExtraTask,

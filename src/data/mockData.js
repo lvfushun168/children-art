@@ -570,7 +570,30 @@ export const settings = [
   { id: 1, name: 'AI 接口', value: school.aiProvider, status: '已配置' },
   { id: 2, name: '作品存储', value: school.objectStorage, status: '已启用' },
   { id: 3, name: '账号角色', value: '管理员、老师', status: '基础可用' },
-  { id: 4, name: '水印配置', value: school.watermark, status: '已启用' }
+  { id: 4, name: '水印配置', value: school.watermark, status: '已启用' },
+  {
+    id: 5,
+    name: '网盘配置',
+    type: 'cloudDrive',
+    status: '已启用',
+    value: {
+      providers: [
+        {
+          id: 'baidu',
+          name: '百度网盘',
+          type: '百度网盘',
+          authType: 'OAuth2',
+          endpoint: 'https://pan.baidu.com/rest/2.0/xpan/file',
+          appKey: 'demo-baidu-app-key',
+          tokenStatus: '已授权',
+          archiveDefault: true,
+          enabled: true
+        }
+      ],
+      directoryRule: '校区 / 班级 / 学生 / 年月 / 课程名',
+      defaultArchiveTargets: ['baidu']
+    }
+  }
 ]
 
 export const importPreviewRows = [

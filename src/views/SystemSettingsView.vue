@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 
 const props = defineProps({
@@ -11,15 +11,46 @@ const props = defineProps({
 
 const selectedId = ref(props.state.settings[0]?.id || null)
 const selected = () => props.state.settings.find((item) => item.id === selectedId.value)
-const draft = ref({ ...(selected() || {}) })
+const clone = (value) => JSON.parse(JSON.stringify(value))
+const draft = ref(clone(selected() || {}))
 
 const selectSetting = (setting) => {
   selectedId.value = setting.id
-  draft.value = { ...setting }
+  draft.value = clone(setting)
 }
 
 const save = () => {
   props.state.updateSetting(selectedId.value, draft.value)
+}
+
+const isCloudDrive = computed(() => draft.value.type === 'cloudDrive')
+const providerTypes = ['百度网盘', '阿里云盘', '本地 NAS', '自定义接口']
+const authTypes = ['OAuth2', 'Access Token', 'AK/SK', '自定义签名']
+
+const addCloudProvider = () => {
+  if (!draft.value.value?.providers) {
+    draft.value.value = {
+      providers: [],
+      directoryRule: '校区 / 班级 / 学生 / 年月 / 课程名',
+      defaultArchiveTargets: []
+    }
+  }
+  const id = `provider-${Date.now()}`
+  draft.value.value.providers.push({
+    id,
+    name: '新的网盘',
+    type: '自定义接口',
+    authType: 'Access Token',
+    endpoint: '',
+    appKey: '',
+    tokenStatus: '未授权',
+    archiveDefault: false,
+    enabled: false
+  })
+}
+
+const testCloudProvider = (provider) => {
+  provider.tokenStatus = provider.endpoint ? '连接正常' : '待填写接口地址'
 }
 
 const newTeacher = ref({ name: '', phone: '', role: '老师', status: '启用' })
@@ -69,14 +100,45 @@ const toggleTeacherClass = (teacher, classId) => {
           <strong>{{ draft.name }}</strong>
         </div>
       </div>
-      <div class="form-grid">
+      <div v-if="!isCloudDrive" class="form-grid">
         <label>配置名称<input v-model="draft.name" /></label>
         <label>状态<input v-model="draft.status" /></label>
         <label class="wide">配置值<textarea v-model="draft.value" rows="5" /></label>
       </div>
+      <div v-else class="cloud-setting-panel">
+        <div class="form-grid">
+          <label>配置名称<input v-model="draft.name" /></label>
+          <label>状态<select v-model="draft.status"><option>已启用</option><option>停用</option><option>待配置</option></select></label>
+          <label class="wide">默认归档目录规则<input v-model="draft.value.directoryRule" /></label>
+        </div>
+        <div class="section-head compact">
+          <div>
+            <span>网盘通道</span>
+            <strong>{{ draft.value.providers.length }} 个接口</strong>
+          </div>
+          <button class="secondary" @click="addCloudProvider">新增网盘</button>
+        </div>
+        <article v-for="provider in draft.value.providers" :key="provider.id" class="cloud-provider-card">
+          <div class="cloud-provider-head">
+            <label>网盘名称<input v-model="provider.name" /></label>
+            <label>网盘类型<select v-model="provider.type"><option v-for="type in providerTypes" :key="type">{{ type }}</option></select></label>
+            <label>授权方式<select v-model="provider.authType"><option v-for="type in authTypes" :key="type">{{ type }}</option></select></label>
+          </div>
+          <div class="form-grid">
+            <label class="wide">接口地址<input v-model="provider.endpoint" placeholder="https://..." /></label>
+            <label>AppKey / 标识<input v-model="provider.appKey" /></label>
+            <label>授权状态<input v-model="provider.tokenStatus" /></label>
+          </div>
+          <div class="cloud-provider-actions">
+            <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该网盘</span></label>
+            <label class="inline-check"><input v-model="provider.archiveDefault" type="checkbox" /> <span>课次归档默认勾选</span></label>
+            <button class="ghost" @click="testCloudProvider(provider)">测试连接</button>
+          </div>
+        </article>
+      </div>
       <div class="notice-box">
         <strong>一期系统边界</strong>
-        <small>这里只维护 AI、存储、水印和基础角色配置，不接管排课、课消和财务主流程。</small>
+        <small>这里只维护 AI、存储、网盘、水印和基础角色配置，不接管排课、课消和财务主流程。</small>
       </div>
     </section>
 

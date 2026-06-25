@@ -479,33 +479,51 @@ const confirmStudentAndNext = () => {
         <div class="section-head">
           <div>
             <span>第 7 步</span>
-            <strong>发送前检查、归档并生成小麦留痕</strong>
+            <strong>完成归档留痕</strong>
           </div>
           <button class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">
-            完成本班交付
+            执行归档
           </button>
         </div>
-        <div class="delivery-layout">
-          <article class="checklist">
-            <strong>发送前检查</strong>
-            <span v-if="!state.currentWarnings.length" class="ok-text">全部学生材料、展示页和任务已准备完成</span>
-            <small v-for="warning in state.currentWarnings" :key="warning">{{ warning }}</small>
+        <div class="archive-close-panel">
+          <article class="archive-action-card">
+            <span>收口动作</span>
+            <strong>{{ state.activeTask.archived ? '本节课已完成归档' : '执行后，本节课将正式进入已完成' }}</strong>
+            <p>系统会保存作品档案，按选中的网盘通道同步资料，并生成小麦留痕待办。小麦仍需老师或教务回到小麦助教中人工处理。</p>
+            <div v-if="state.currentWarnings.length" class="archive-blocker">
+              <strong>还有 {{ state.currentWarnings.length }} 项前置内容未完成</strong>
+              <small>{{ state.currentWarnings.slice(0, 3).join('、') }}{{ state.currentWarnings.length > 3 ? '……' : '' }}</small>
+            </div>
           </article>
-          <article class="channel-stack">
-            <div>
-              <strong>家长展示页</strong>
-              <span>{{ state.counts.shareReady }}/{{ state.counts.attend }} 已生成</span>
-              <small>复制链接或二维码后，由老师人工发送给家长</small>
+          <article class="archive-target-card">
+            <div class="mini-head">
+              <div>
+                <span>归档目标</span>
+                <strong>选择本次要同步的存储通道</strong>
+              </div>
+              <button v-if="!state.enabledCloudProviders.length" class="ghost" @click="$emit('navigate', 'settings')">去配置网盘</button>
             </div>
-            <div>
-              <strong>系统作品档案</strong>
-              <span>{{ state.counts.archived }}/{{ state.counts.attend }} 已归档</span>
-              <small>保存作品、课评、高光、范画、课后任务和展示配置</small>
+            <button
+              v-for="target in state.archiveTargets"
+              :key="target.id"
+              class="archive-target-row"
+              :class="{ selected: target.required || state.selectedArchiveTargets.includes(target.id), required: target.required }"
+              @click="state.toggleArchiveTarget(target)"
+            >
+              <input type="checkbox" :checked="target.required || state.selectedArchiveTargets.includes(target.id)" :disabled="target.required" readonly />
+              <span>
+                <strong>{{ target.label }}</strong>
+                <small>{{ target.description }}</small>
+              </span>
+              <em>{{ target.status }}</em>
+            </button>
+            <div v-if="!state.enabledCloudProviders.length" class="archive-no-cloud">
+              <strong>尚未启用网盘通道</strong>
+              <small>可先只写入系统作品档案；启用百度网盘或其他网盘后，这里会出现可选同步目标。</small>
             </div>
-            <div>
-              <strong>小麦留痕待办</strong>
-              <span>{{ state.activeTask.wheatStatus }}</span>
-              <small>归档后生成待办，教务回小麦人工处理后再标记</small>
+            <div v-if="state.activeTask.archived" class="archive-result-note">
+              <strong>归档结果</strong>
+              <small>{{ state.counts.archived }} 条学生档案已生成 · 小麦留痕：{{ state.activeTask.wheatStatus }} · 网盘：{{ state.activeTask.cloudArchiveStatus || '未选择网盘' }}</small>
             </div>
           </article>
         </div>
@@ -514,7 +532,7 @@ const confirmStudentAndNext = () => {
       <footer class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
         <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 4 && (state.counts.confirmed < state.counts.attend || state.counts.imageConfirmed < state.counts.attend)" @click="state.nextStep">下一步</button>
-        <button v-else class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">完成本班交付</button>
+        <button v-else class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">执行归档</button>
       </footer>
     </template>
   </section>

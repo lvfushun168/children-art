@@ -41,7 +41,7 @@ defineEmits(['show-archives', 'show-students', 'show-wheat'])
     <div class="report-actions">
       <button class="primary" @click="$emit('show-archives')">查看本节课档案</button>
       <button class="secondary" @click="$emit('show-students')">查看学生成长记录</button>
-      <button class="secondary" @click="$emit('show-wheat')">处理小麦留痕</button>
+      <button class="secondary" @click="$emit('show-wheat')">打开待办中心</button>
     </div>
   </section>
 </template>

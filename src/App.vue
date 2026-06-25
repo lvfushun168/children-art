@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, proxyRefs, ref } from 'vue'
 import SidebarNav from './components/layout/SidebarNav.vue'
+import TodoCenterDrawer from './components/layout/TodoCenterDrawer.vue'
 import UserMenu from './components/layout/UserMenu.vue'
 import { navItems } from './data/mockData'
 import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
@@ -15,19 +16,37 @@ import ParentSharePage from './views/ParentSharePage.vue'
 import SystemSettingsView from './views/SystemSettingsView.vue'
 import TasksView from './views/TasksView.vue'
 import TemplatesView from './views/TemplatesView.vue'
-import WheatTraceView from './views/WheatTraceView.vue'
 
 const activeNav = ref('tasks')
 const activeImportType = ref('综合课表')
+const showTodoCenter = ref(false)
+const openWorkspaceSignal = ref(0)
 const state = proxyRefs(useDeliveryWorkflow())
 
 const filteredNavItems = computed(() => navItems.filter((item) => !state.visibleNavItems.includes(item.id)))
 const pendingCount = computed(() => state.visibleTasks.filter((task) => task.status !== '已完成').length)
+const wheatPendingCount = computed(() => state.wheatTraces.filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)).length)
+const importIssueCount = computed(() => state.importPreviewRows.filter((row) => row.status !== '可导入').length)
+const cloudIssueCount = computed(() => state.visibleTasks.filter((task) => task.cloudArchiveStatus === '同步失败').length)
+const todoCount = computed(() => pendingCount.value + wheatPendingCount.value + importIssueCount.value + cloudIssueCount.value)
 const routeHash = ref(window.location.hash)
 const updateRouteHash = () => { routeHash.value = window.location.hash }
 const openImportCenter = (type = '综合课表') => {
   activeImportType.value = type
   activeNav.value = 'imports'
+  showTodoCenter.value = false
+}
+const handleNavigate = (target) => {
+  if (target === 'wheat') {
+    showTodoCenter.value = true
+    return
+  }
+  activeNav.value = target
+}
+const selectTodoTask = (task) => {
+  state.selectTask(task)
+  activeNav.value = 'tasks'
+  openWorkspaceSignal.value += 1
 }
 
 onMounted(() => window.addEventListener('hashchange', updateRouteHash))
@@ -53,7 +72,18 @@ const shareRoute = computed(() => {
       v-model:active-nav="activeNav"
       :nav-items="filteredNavItems"
       :pending-count="pendingCount"
+      :todo-count="todoCount"
+      :wheat-pending-count="wheatPendingCount"
       :school="state.school"
+      @open-todo-center="showTodoCenter = true"
+    />
+
+    <TodoCenterDrawer
+      :state="state"
+      :open="showTodoCenter"
+      @close="showTodoCenter = false"
+      @select-task="selectTodoTask"
+      @open-imports="openImportCenter('综合课表')"
     />
 
     <section class="content">
@@ -65,7 +95,7 @@ const shareRoute = computed(() => {
         @logout="state.logout"
       />
 
-      <TasksView v-if="activeNav === 'tasks'" :state="state" @navigate="activeNav = $event" />
+      <TasksView v-if="activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" @navigate="handleNavigate" />
 
       <MasterDataView v-if="activeNav === 'students'" :state="state" entity="students" @open-import="openImportCenter('学生名单')" />
 
@@ -82,11 +112,6 @@ const shareRoute = computed(() => {
       <ArchiveQueryView v-if="activeNav === 'archives'" :state="state" />
 
       <ExtraTasksView v-if="activeNav === 'extraTasks'" :state="state" />
-
-      <WheatTraceView
-        v-if="activeNav === 'wheat'"
-        :state="state"
-      />
 
       <SystemSettingsView v-if="activeNav === 'settings' && state.isAdmin" :state="state" />
     </section>

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import TaskList from '../components/tasks/TaskList.vue'
 import TaskWizard from '../components/tasks/TaskWizard.vue'
@@ -8,6 +8,10 @@ const props = defineProps({
   state: {
     type: Object,
     required: true
+  },
+  openWorkspaceSignal: {
+    type: Number,
+    default: 0
   }
 })
 
@@ -22,6 +26,10 @@ const openTask = (task) => {
   props.state.selectTask(task)
   workspaceOpen.value = true
 }
+
+watch(() => props.openWorkspaceSignal, (signal) => {
+  if (signal) workspaceOpen.value = true
+})
 </script>
 
 <template>

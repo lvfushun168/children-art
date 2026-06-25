@@ -12,13 +12,21 @@ defineProps({
     type: Number,
     required: true
   },
+  todoCount: {
+    type: Number,
+    required: true
+  },
+  wheatPendingCount: {
+    type: Number,
+    required: true
+  },
   school: {
     type: Object,
     required: true
   }
 })
 
-defineEmits(['update:activeNav'])
+defineEmits(['update:activeNav', 'open-todo-center'])
 </script>
 
 <template>
@@ -42,10 +50,10 @@ defineEmits(['update:activeNav'])
       </button>
     </nav>
 
-    <section class="nav-summary">
-      <span>今日待处理</span>
-      <strong>{{ pendingCount }} 个班</strong>
-      <small>从课表生成课后交付任务</small>
-    </section>
+    <button class="nav-summary todo-entry" @click="$emit('open-todo-center')">
+      <span>待办中心</span>
+      <strong>{{ todoCount }} 个待办</strong>
+      <small>{{ pendingCount }} 个课后交付 · {{ wheatPendingCount }} 个小麦留痕</small>
+    </button>
   </aside>
 </template>

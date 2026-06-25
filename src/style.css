@@ -160,12 +160,141 @@ label {
   gap: 5px;
   margin-top: auto;
   padding: 13px;
+  width: 100%;
   border-radius: 8px;
   background: #edf3eb;
+  color: #315d53;
+  text-align: left;
 }
 
 .nav-summary strong {
   font-size: 24px;
+}
+
+.todo-entry {
+  border: 1px solid rgba(49, 93, 83, 0.08);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.todo-entry:hover {
+  transform: translateY(-1px);
+  border-color: rgba(49, 93, 83, 0.22);
+  box-shadow: 0 10px 24px rgba(49, 93, 83, 0.1);
+}
+
+.todo-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: flex-start;
+  padding: 16px 0 16px 216px;
+  background: rgba(36, 47, 42, 0.12);
+  backdrop-filter: blur(2px);
+}
+
+.todo-drawer {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+  width: min(520px, calc(100vw - 240px));
+  max-height: 100%;
+  padding: 16px;
+  border: 1px solid rgba(77, 107, 95, 0.2);
+  border-radius: 14px;
+  background: #fffdf4;
+  box-shadow: 0 24px 60px rgba(49, 93, 83, 0.22);
+  overflow: auto;
+  animation: drawer-enter 0.22s ease both;
+}
+
+.todo-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(77, 107, 95, 0.14);
+}
+
+.todo-drawer-head div,
+.todo-group,
+.todo-row div,
+.todo-trace-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.todo-drawer-head span,
+.todo-group .mini-head span {
+  color: #687870;
+}
+
+.todo-drawer-head strong {
+  font-size: 24px;
+}
+
+.todo-group {
+  padding: 12px;
+  border: 1px solid rgba(77, 107, 95, 0.14);
+  border-radius: 12px;
+  background: #fffefa;
+}
+
+.todo-row,
+.todo-trace-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 11px;
+  border-radius: 10px;
+  background: #edf3eb;
+  text-align: left;
+}
+
+.todo-row:hover {
+  background: #e5efe5;
+}
+
+.todo-row.static:hover {
+  background: #edf3eb;
+}
+
+.todo-row em,
+.todo-trace-row em {
+  color: #c96f3e;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.todo-trace-row {
+  grid-template-columns: 1fr auto;
+}
+
+.todo-trace-row input,
+.todo-trace-row .button-pair {
+  grid-column: 1 / -1;
+}
+
+.empty-note {
+  padding: 10px;
+  border-radius: 8px;
+  background: #f6f2e8;
+  color: #708078;
+}
+
+@keyframes drawer-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .content {

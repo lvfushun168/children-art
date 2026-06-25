@@ -8,7 +8,7 @@ export const navItems = [
   { id: 'templates', label: '模板配置' },
   { id: 'archives', label: '作品档案' },
   { id: 'extraTasks', label: '课外任务' },
-  { id: 'wheat', label: '小麦留痕' },
+  { id: 'wheat', label: '小麦待办' },
   { id: 'settings', label: '系统配置' }
 ]
 

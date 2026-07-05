@@ -2964,7 +2964,7 @@ textarea:focus {
 
 .archive-row {
   display: grid;
-  grid-template-columns: 76px 1fr;
+  grid-template-columns: 26px 76px 1fr;
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -2976,9 +2976,63 @@ textarea:focus {
   text-align: left;
 }
 
+.archive-row.picked {
+  border-color: rgba(201, 111, 62, 0.42);
+  box-shadow: inset 3px 0 0 #c96f3e;
+}
+
 .archive-row.active {
   border-color: rgba(49, 93, 83, 0.32);
   background: #edf3eb;
+}
+
+.archive-pick {
+  display: grid;
+  place-items: center;
+}
+
+.archive-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f7eadf;
+  font-weight: 900;
+}
+
+.archive-recent-panel,
+.archive-detail-group {
+  display: grid;
+  gap: 8px;
+}
+
+.archive-recent-panel > span,
+.archive-detail-group > span,
+.collection-settings > span {
+  color: #687870;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.archive-selection-bar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f7eadf;
+}
+
+.archive-selection-bar span {
+  color: #687870;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.archive-selection-bar button {
+  grid-row: span 2;
 }
 
 .archive-row img,
@@ -3000,6 +3054,12 @@ textarea:focus {
   font-style: normal;
   font-weight: 900;
   font-size: 12px;
+}
+
+.archive-row em.collection-tag {
+  margin-left: 5px;
+  background: #edf3eb;
+  color: #315d53;
 }
 
 .archive-main-image {
@@ -3036,6 +3096,132 @@ textarea:focus {
 
 .archive-block.highlight {
   background: #f7eadf;
+}
+
+.archive-collection-uses {
+  display: grid;
+  gap: 8px;
+}
+
+.collection-context {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #edf3eb;
+}
+
+.collection-context span {
+  color: #687870;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.collection-context small {
+  color: #687870;
+  font-weight: 800;
+}
+
+.archive-link-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 9px;
+  border-radius: 8px;
+  background: #fffefa;
+}
+
+.archive-link-row small {
+  color: #687870;
+  font-weight: 800;
+}
+
+.archive-link-row button {
+  grid-row: span 2;
+}
+
+.collection-copy-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #edf3eb;
+}
+
+.collection-copy-actions small {
+  color: #687870;
+  font-weight: 800;
+}
+
+.collection-settings {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f6f2e8;
+}
+
+.collection-settings > span {
+  grid-column: 1 / -1;
+}
+
+.collection-settings label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #fffefa;
+  font-weight: 800;
+}
+
+.collection-preview-list {
+  display: grid;
+  gap: 10px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.collection-preview-list article {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid rgba(77, 107, 95, 0.14);
+  border-radius: 8px;
+  background: #fffefa;
+}
+
+.collection-preview-list img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 7px;
+}
+
+.collection-preview-list p {
+  margin: 6px 0 0;
+  color: #687870;
+  line-height: 1.5;
+}
+
+.archive-published-link {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #edf3eb;
+}
+
+.archive-published-link p {
+  margin: 0;
+  word-break: break-all;
+  font-weight: 900;
 }
 
 .student-history {
@@ -3502,7 +3688,8 @@ textarea:focus {
   .publish-check-grid,
   .publish-defaults,
   .publish-settings,
-  .publish-result {
+  .publish-result,
+  .collection-settings {
     grid-template-columns: 1fr;
   }
 

@@ -449,6 +449,7 @@ export const archiveRecords = [
     highlight: true,
     highlightNote: '主体突出，暖色背景完整，是本节课优秀作品。',
     shareUrl: 'https://share.xinghe-art.local/student-archive-1',
+    collectionIds: [1],
     wheatStatus: '已人工处理'
   },
   {
@@ -468,6 +469,7 @@ export const archiveRecords = [
     highlight: false,
     highlightNote: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-2',
+    collectionIds: [],
     wheatStatus: '已人工处理'
   },
   {
@@ -487,6 +489,7 @@ export const archiveRecords = [
     highlight: true,
     highlightNote: '线条稳定，建筑层次完整，适合作为线描高光案例。',
     shareUrl: 'https://share.xinghe-art.local/student-archive-3',
+    collectionIds: [2],
     wheatStatus: '已人工处理'
   },
   {
@@ -506,7 +509,45 @@ export const archiveRecords = [
     highlight: false,
     highlightNote: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-4',
+    collectionIds: [],
     wheatStatus: '异常'
+  }
+]
+
+export const archiveCollections = [
+  {
+    id: 1,
+    type: '学生成长作品集',
+    title: '彤彤 · 春季成长作品集',
+    owner: '林老师',
+    target: '彤彤妈妈',
+    className: '周二创想班',
+    createdAt: '6月20日 21:10',
+    status: '已发布',
+    recordIds: [1],
+    link: 'https://share.xinghe-art.local/collections/tongtong-spring',
+    intro: '这是彤彤春季阶段里最值得记录的几件作品。',
+    summary: '从构图和色彩表达上可以看到彤彤更愿意主动安排画面，也能把主体和背景关系处理得更完整。',
+    teacherMessage: '接下来继续鼓励她大胆表达，同时关注画面层次和细节收尾。',
+    displayConfig: { showDate: true, showCourse: true, showComment: false, showHighlight: true, showWatermark: true },
+    note: '已在家长私聊中发送，可重复复制链接。'
+  },
+  {
+    id: 2,
+    type: '学生成长作品集',
+    title: '小宇 · 6月成长作品集',
+    owner: '林老师',
+    target: '小宇妈妈',
+    className: '线描提高班',
+    createdAt: '6月20日 21:28',
+    status: '已发布',
+    recordIds: [3],
+    link: 'https://share.xinghe-art.local/collections/xiaoyu-june',
+    intro: '这是小宇 6 月线描课程中值得记录的作品。',
+    summary: '从建筑主题中可以看到小宇在线条秩序、建筑层次和画面耐心上的阶段变化。',
+    teacherMessage: '后续可以继续保持稳定的线条控制，并尝试增加更多建筑细节。',
+    displayConfig: { showDate: true, showCourse: true, showComment: false, showHighlight: true, showWatermark: true },
+    note: '已发给小宇妈妈，可重复复制链接。'
   }
 ]
 

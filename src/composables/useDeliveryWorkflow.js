@@ -1,6 +1,7 @@
 import { computed, reactive, ref } from 'vue'
 import {
   artworkLibrary as artworkLibrarySeed,
+  archiveCollections as archiveCollectionSeed,
   archives as archiveSeed,
   archiveRecords as archiveRecordSeed,
   aiCallLogs as aiCallLogSeed,
@@ -39,6 +40,7 @@ export function useDeliveryWorkflow() {
   const tasks = reactive(clone(taskSeed))
   const archives = reactive(clone(archiveSeed))
   const archiveRecords = reactive(clone(archiveRecordSeed))
+  const archiveCollections = reactive(clone(archiveCollectionSeed))
   const aiCallLogStore = reactive(clone(aiCallLogSeed).map((log) => ({ ...log, lessonId: log.lessonId || 1 })))
   const extraTaskArchives = reactive(clone(extraTaskArchiveSeed))
   const externalLinks = reactive(clone(externalLinkSeed))
@@ -268,7 +270,8 @@ export function useDeliveryWorkflow() {
     studentId: 'all',
     classId: 'all',
     teacher: 'all',
-    date: 'all'
+    date: 'all',
+    highlightOnly: false
   })
   const archiveDates = computed(() => [...new Set(archiveRecords.map((record) => record.date))])
   const filteredArchiveRecords = computed(() =>
@@ -277,10 +280,57 @@ export function useDeliveryWorkflow() {
       const classOk = archiveFilter.classId === 'all' || record.classId === Number(archiveFilter.classId)
       const teacherOk = archiveFilter.teacher === 'all' || record.teacher === archiveFilter.teacher
       const dateOk = archiveFilter.date === 'all' || record.date === archiveFilter.date
-      return studentOk && classOk && teacherOk && dateOk
+      const highlightOk = !archiveFilter.highlightOnly || record.highlight
+      return studentOk && classOk && teacherOk && dateOk && highlightOk
     })
   )
   const studentHistoryFor = (studentId) => archiveRecords.filter((record) => record.studentId === Number(studentId))
+  const archiveCollectionsForRecord = (recordId) => archiveCollections.filter((collection) => collection.recordIds.includes(recordId))
+  const createArchiveCollection = (payload) => {
+    const selectedRecords = payload.recordIds
+      .map((id) => archiveRecords.find((record) => record.id === id))
+      .filter(Boolean)
+    if (!selectedRecords.length) {
+      notify('请先选择要发布的作品')
+      return null
+    }
+    const id = nextId(archiveCollections)
+    const firstRecord = selectedRecords[0]
+    const title = payload.title?.trim() || `${firstRecord.studentName} · 高光作品集`
+    const collection = {
+      id,
+      type: payload.type,
+      title,
+      owner: currentUser.value.name,
+      target: payload.target?.trim() || `${firstRecord.studentName}家长`,
+      className: firstRecord.className,
+      createdAt: nowText(),
+      status: '已发布',
+      recordIds: selectedRecords.map((record) => record.id),
+      link: `https://share.xinghe-art.local/collections/${id}`,
+      intro: payload.intro?.trim() || '',
+      summary: payload.summary?.trim() || '',
+      teacherMessage: payload.teacherMessage?.trim() || '',
+      displayConfig: {
+        showDate: payload.showDate !== false,
+        showCourse: payload.showCourse !== false,
+        showComment: payload.showComment === true,
+        showHighlight: payload.showHighlight !== false,
+        showWatermark: payload.showWatermark !== false
+      },
+      note: payload.note?.trim() || '由作品档案高光作品生成，可重复复制发送。'
+    }
+    archiveCollections.unshift(collection)
+    selectedRecords.forEach((record) => {
+      record.collectionIds = [...new Set([...(record.collectionIds || []), id])]
+    })
+    notify(`${collection.title}已生成，可复制链接发送给家长`)
+    return collection
+  }
+  const copyArchiveCollectionLink = async (collection) => {
+    await navigator.clipboard.writeText(`${collection.title}\n${collection.link}`)
+    notify('作品集链接已复制')
+  }
 
   const counts = computed(() => ({
     total: classStudents.value.length,
@@ -1011,6 +1061,7 @@ export function useDeliveryWorkflow() {
           highlight: row.highlight,
           highlightNote: row.highlightNote,
           shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`,
+          collectionIds: [],
           wheatStatus: trace.status,
           storageTarget: cloudTargets.map((target) => target.label).join('、') || '系统作品档案'
         })
@@ -1382,6 +1433,7 @@ export function useDeliveryWorkflow() {
     sessionStudents,
     archives,
     archiveRecords,
+    archiveCollections,
     aiCallLogs,
     extraTaskArchives,
     archiveFilter,
@@ -1433,6 +1485,9 @@ export function useDeliveryWorkflow() {
     selectedExternalLinks,
     permissionSummary,
     studentHistoryFor,
+    archiveCollectionsForRecord,
+    createArchiveCollection,
+    copyArchiveCollectionLink,
     importStats,
     counts,
     steps,

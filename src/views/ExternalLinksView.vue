@@ -142,12 +142,7 @@ const save = () => {
       <div class="section-head">
         <div>
           <span>引用预览</span>
-          <strong>{{ selected?.title || '未选择' }}</strong>
         </div>
-      </div>
-      <div class="notice-box">
-        <strong>数据对象</strong>
-        <small>ExternalCourseLink 独立维护，课后任务只引用链接，不同步第三方账号、订单或学习进度。</small>
       </div>
       <div class="link-preview" v-if="selected">
         <strong>{{ selected.title }}</strong>

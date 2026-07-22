@@ -150,14 +150,10 @@ const save = () => {
     <aside class="panel">
       <div class="section-head">
         <div>
-          <span>一期边界</span>
-          <strong>只归档，不计绩效</strong>
+          <span>任务预览</span>
         </div>
       </div>
-      <div class="notice-box">
-        <strong>ExtraTaskArchive</strong>
-        <small>用于记录非课堂/课外任务，可关联某节课，也可以无归属课次。</small>
-      </div>
+
       <div class="link-preview" v-if="selected">
         <strong>{{ selected.title }}</strong>
         <span>{{ selected.taskType }} · {{ selected.owner }} · {{ selected.status }}</span>

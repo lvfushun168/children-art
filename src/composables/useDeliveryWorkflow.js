@@ -1381,14 +1381,14 @@ export function useDeliveryWorkflow() {
     const task = {
       id: nextId(extraTaskArchives),
       title: payload.title || '新课外任务',
-      taskType: payload.taskType || '非课堂任务',
-      owner: payload.owner || currentUser.value?.name || '待分配',
+      taskType: payload.taskType || '学生课外任务',
+      owner: payload.owner || currentUser.value?.name || '待发布老师',
       relatedLessonId: payload.relatedLessonId ? Number(payload.relatedLessonId) : null,
       relatedLesson: lesson ? `${lesson.date} ${lesson.time} · ${klass?.name || '班级'}` : '无归属课次',
       content: payload.content || '',
       dueDate: payload.dueDate || '',
-      status: payload.status || '待归档',
-      note: payload.note || '一期仅归档查询，不计入绩效工资。'
+      status: payload.status || '待发布',
+      note: payload.note || '老师可随时发布给学生或家长，可不绑定具体课次；一期仅归档查询。'
     }
     extraTaskArchives.unshift(task)
     notify(`已新增课外任务：${task.title}`)

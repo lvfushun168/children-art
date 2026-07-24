@@ -22,13 +22,13 @@ const lessonOptions = computed(() =>
 
 const blankDraft = () => ({
   title: '',
-  taskType: '非课堂任务',
+  taskType: '学生课外任务',
   owner: props.state.currentUser?.name || '',
   relatedLessonId: '',
   content: '',
   dueDate: '',
-  status: '待归档',
-  note: '一期仅归档查询，不计入绩效工资。'
+  status: '待发布',
+  note: '老师可随时发布给学生或家长，可不绑定具体课次；一期仅归档查询。'
 })
 
 const draft = ref(blankDraft())
@@ -68,7 +68,7 @@ const save = () => {
 </script>
 
 <template>
-  <PageHead eyebrow="任务归档" title="课外任务归档">
+  <PageHead eyebrow="任务归档" title="课外任务">
     <div class="button-pair">
       <button class="secondary" @click="startEdit">编辑当前任务</button>
       <button class="primary" @click="startNew">新增课外任务</button>
@@ -113,15 +113,15 @@ const save = () => {
         <label>
           任务类型
           <select v-model="draft.taskType">
-            <option>非课堂任务</option>
-            <option>招生宣传</option>
-            <option>作品整理</option>
-            <option>教研准备</option>
+            <option>学生课外任务</option>
+            <option>亲子观察任务</option>
+            <option>学生课外作品</option>
+            <option>材料准备提醒</option>
             <option>其他</option>
           </select>
         </label>
         <label>
-          负责人
+          发布老师
           <select v-model="draft.owner">
             <option v-for="teacher in state.teachers" :key="teacher.id">{{ teacher.name }}</option>
           </select>
@@ -137,6 +137,8 @@ const save = () => {
         <label>
           状态
           <select v-model="draft.status">
+            <option>待发布</option>
+            <option>已发布</option>
             <option>待归档</option>
             <option>已归档</option>
             <option>异常</option>

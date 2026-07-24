@@ -554,27 +554,27 @@ export const archiveCollections = [
 export const extraTaskArchives = [
   {
     id: 1,
-    title: '朋友圈作品素材整理',
-    taskType: '招生宣传',
+    title: '一周色彩观察小任务',
+    taskType: '亲子观察任务',
     owner: '林老师',
-    relatedLessonId: 1,
-    relatedLesson: '6月21日 17:40 · 周二创想班',
-    content: '挑选 3 张高光作品，整理朋友圈文案素材。',
-    dueDate: '6月22日',
-    status: '已归档',
-    note: '一期仅归档查询，不计入绩效工资。'
+    relatedLessonId: null,
+    relatedLesson: '无归属课次',
+    content: '请孩子和家长一起在家里找 3 个暖色物品，拍照后说一说它们让自己想到什么画面。',
+    dueDate: '6月25日',
+    status: '已发布',
+    note: '老师可随时发布给学生或家长，不绑定具体课次，仅用于课外练习归档。'
   },
   {
     id: 2,
-    title: '校区橱窗作品更换',
-    taskType: '非课堂任务',
+    title: '课外小作品补充归档',
+    taskType: '学生课外作品',
     owner: '周老师',
-    relatedLessonId: null,
-    relatedLesson: '无归属课次',
-    content: '更换校区门口橱窗作品，记录使用作品名单。',
-    dueDate: '6月25日',
+    relatedLessonId: 2,
+    relatedLesson: '6月21日 18:30 · 幼儿启蒙班',
+    content: '家长可上传孩子在家完成的小鱼延伸作品，老师确认后归入学生课外作品档案。',
+    dueDate: '6月28日',
     status: '待归档',
-    note: '无归属课次，仅作为内部任务记录。'
+    note: '可关联课次作为延伸练习，也可不关联课次；归档对象仍以学生为主。'
   }
 ]
 

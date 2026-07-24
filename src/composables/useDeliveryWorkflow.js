@@ -118,7 +118,7 @@ export function useDeliveryWorkflow() {
     homework: { ...clone(homeworkSeed), lessonId: task.id },
     displayConfig: { ...clone(displayConfigSeed), lessonId: task.id },
     bulkRecord: useInitialSeed ? initialBulkRecord : '',
-    selectedImageTemplate: 0,
+    selectedImageTemplate: [1],
     selectedCommentTemplate: 0,
     activeShareMode: 'student',
     activeStudentId: null,
@@ -188,9 +188,20 @@ export function useDeliveryWorkflow() {
     get: () => activeWorkspace.value.currentStep,
     set: (value) => { activeWorkspace.value.currentStep = Number(value) }
   })
+  const selectedImageTemplates = computed({
+    get: () => {
+      const value = activeWorkspace.value.selectedImageTemplate
+      if (Array.isArray(value)) return value.map((item) => Number(item)).filter((item) => Number.isInteger(item))
+      if (value === '' || value === null || value === undefined) return []
+      return [Number(value)].filter((item) => Number.isInteger(item))
+    },
+    set: (value) => {
+      activeWorkspace.value.selectedImageTemplate = [...new Set((Array.isArray(value) ? value : [value]).map((item) => Number(item)).filter((item) => Number.isInteger(item)))]
+    }
+  })
   const selectedImageTemplate = computed({
-    get: () => activeWorkspace.value.selectedImageTemplate,
-    set: (value) => { activeWorkspace.value.selectedImageTemplate = Number(value) }
+    get: () => selectedImageTemplates.value[0] ?? 0,
+    set: (value) => { selectedImageTemplates.value = [Number(value)] }
   })
   const selectedCommentTemplate = computed({
     get: () => activeWorkspace.value.selectedCommentTemplate,
@@ -235,7 +246,11 @@ export function useDeliveryWorkflow() {
   const activeStudent = computed(() => students.find((item) => item.id === activeStudentId.value))
   const classStudents = computed(() => activeClass.value.studentIds.map((id) => students.find((item) => item.id === id)).filter(Boolean))
   const attendingRows = computed(() => sessionStudents.value.filter((item) => item.attendance === '到课'))
-  const activeImageTemplate = computed(() => templates.image[selectedImageTemplate.value])
+  const activeImageTemplates = computed(() => {
+    const picked = selectedImageTemplates.value.map((index) => templates.image[index]).filter(Boolean)
+    return picked.length ? picked : [templates.image[0]]
+  })
+  const activeImageTemplate = computed(() => activeImageTemplates.value[0] || templates.image[0])
   const activeCommentTemplate = computed(() => templates.comment[selectedCommentTemplate.value])
   const isProcessing = computed(() => Boolean(processingAction.value))
   const selectedExternalLinks = computed(() => externalLinks.filter((link) => homework.value.externalLinkIds.includes(link.id)))
@@ -712,9 +727,25 @@ export function useDeliveryWorkflow() {
   }
 
   const chooseImageTemplate = (index) => {
-    selectedImageTemplate.value = index
+    const picked = new Set(selectedImageTemplates.value)
+    if (index === 0) {
+      selectedImageTemplates.value = [0]
+      pulsePreview()
+      notify('已选择图片效果：不套模板/保留原图')
+      return
+    }
+    picked.delete(0)
+    if (picked.has(index)) picked.delete(index)
+    else picked.add(index)
+    selectedImageTemplates.value = [...picked]
     pulsePreview()
-    notify(`已切换图片模板：${templates.image[index].name}`)
+    notify(picked.has(index) ? `已选择图片效果：${templates.image[index].name}` : `已移除图片效果：${templates.image[index].name}`)
+  }
+
+  const removeImageTemplate = (index) => {
+    selectedImageTemplates.value = selectedImageTemplates.value.filter((item) => item !== Number(index))
+    pulsePreview()
+    notify('已移除图片效果，未选择时将使用原图')
   }
 
   const chooseCommentTemplate = (index) => {
@@ -795,7 +826,8 @@ export function useDeliveryWorkflow() {
   }
 
   const processImages = async () => {
-    await runAction('正在进行作品美化和水印处理...', `已按“${activeImageTemplate.value.name}”处理 ${counts.value.matched} 张作品`, async () => {
+    const effectNames = activeImageTemplates.value.map((template) => template.name).join('、')
+    await runAction('正在进行作品美化和水印处理...', `已按“${effectNames}”处理 ${counts.value.matched} 张作品`, async () => {
       sessionStudents.value.forEach((row) => {
         if (row.attendance === '到课' && row.imageMatched) {
           const student = students.find((item) => item.id === row.studentId)
@@ -1623,6 +1655,7 @@ export function useDeliveryWorkflow() {
     activeTaskId,
     activeStudentId,
     currentStep,
+    selectedImageTemplates,
     selectedImageTemplate,
     selectedCommentTemplate,
     copied,
@@ -1650,6 +1683,7 @@ export function useDeliveryWorkflow() {
     activeStudent,
     classStudents,
     attendingRows,
+    activeImageTemplates,
     activeImageTemplate,
     activeCommentTemplate,
     isProcessing,
@@ -1690,6 +1724,7 @@ export function useDeliveryWorkflow() {
     saveMaterialToLibrary,
     addArtworkLibraryItem,
     chooseImageTemplate,
+    removeImageTemplate,
     chooseCommentTemplate,
     parseBulkRecord,
     simulateVoice,

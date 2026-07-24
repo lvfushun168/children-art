@@ -1627,6 +1627,53 @@ textarea:focus {
   padding-top: 4px;
 }
 
+.template-choices.always-open {
+  align-items: start;
+}
+
+.setting-summary-grid article {
+  align-content: start;
+}
+
+.selected-template-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.selected-template-tags button,
+.template-static-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(49, 93, 83, 0.22);
+  border-radius: 999px;
+  background: #fffefa;
+  color: #315d53;
+  font-size: 13px;
+}
+
+.template-static-tag {
+  background: #edf3eb;
+}
+
+.selected-template-tags b {
+  color: #c96f3e;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.template-scroll-list {
+  display: grid;
+  gap: 8px;
+  height: 270px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .stage-actions {
   display: flex;
   justify-content: flex-end;

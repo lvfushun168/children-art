@@ -337,31 +337,42 @@ const confirmStudentAndNext = () => {
           <div class="setting-summary-grid">
             <article>
               <span>作品图片</span>
-              <strong>{{ state.activeImageTemplate.name }}</strong>
-              <small>{{ state.activeImageTemplate.ratio }} · {{ state.activeImageTemplate.brightness }} · {{ state.activeImageTemplate.watermark }}</small>
+              <strong>{{ state.selectedImageTemplates.length ? `已选 ${state.selectedImageTemplates.length} 个图片效果` : '未选择图片效果' }}</strong>
+              <div v-if="state.selectedImageTemplates.length" class="selected-template-tags">
+                <button v-for="index in state.selectedImageTemplates" :key="index" type="button" @click="state.removeImageTemplate(index)">
+                  {{ state.templates.image[index]?.name }} <b>×</b>
+                </button>
+              </div>
+              <small v-else>将直接使用原图，不裁切、不美化、不加水印。</small>
             </article>
             <article>
               <span>家长课评</span>
               <strong>{{ state.activeCommentTemplate.name }}</strong>
-              <small>{{ state.activeCommentTemplate.tone }} · {{ state.activeCommentTemplate.length }} · {{ state.activeCommentTemplate.rule }}</small>
+              <div class="selected-template-tags">
+                <span class="template-static-tag">{{ state.activeCommentTemplate.name }}</span>
+              </div>
+              <small>{{ state.activeCommentTemplate.tone }} · {{ state.activeCommentTemplate.length }}</small>
             </article>
           </div>
-          <button class="ghost change-settings" @click="showTemplateChoices = !showTemplateChoices">{{ showTemplateChoices ? '收起其他设置' : '更换设置' }}</button>
-          <div v-if="showTemplateChoices" class="generate-layout template-choices">
+          <div class="generate-layout template-choices always-open">
             <article class="template-picker">
-              <div class="mini-head"><span>图片效果</span><strong>{{ state.activeImageTemplate.name }}</strong></div>
-              <button v-for="(template, index) in state.templates.image" :key="template.name" :class="{ selected: state.selectedImageTemplate === index }" @click="state.chooseImageTemplate(index)">
-                <strong>{{ template.name }}</strong><span>{{ template.ratio }} · {{ template.brightness }}</span><small>{{ template.border }} · {{ template.watermark }}</small>
-              </button>
+              <div class="mini-head"><span>图片效果</span><strong>可多选</strong></div>
+              <div class="template-scroll-list">
+                <button v-for="(template, index) in state.templates.image" :key="template.name" :class="{ selected: state.selectedImageTemplates.includes(index) }" @click="state.chooseImageTemplate(index)">
+                  <strong>{{ template.name }}</strong><span>{{ template.ratio }} · {{ template.brightness }}</span><small>{{ template.border }} · {{ template.watermark }}</small>
+                </button>
+              </div>
             </article>
             <article class="template-picker">
               <div class="mini-head"><span>课评风格</span><strong>{{ state.activeCommentTemplate.name }}</strong></div>
-              <button v-for="(template, index) in state.templates.comment" :key="template.name" :class="{ selected: state.selectedCommentTemplate === index }" @click="state.chooseCommentTemplate(index)">
-                <strong>{{ template.name }}</strong><span>{{ template.tone }} · {{ template.length }}</span><small>{{ template.rule }}</small>
-              </button>
+              <div class="template-scroll-list">
+                <button v-for="(template, index) in state.templates.comment" :key="template.name" :class="{ selected: state.selectedCommentTemplate === index }" @click="state.chooseCommentTemplate(index)">
+                  <strong>{{ template.name }}</strong><span>{{ template.tone }} · {{ template.length }}</span><small>{{ template.rule }}</small>
+                </button>
+              </div>
             </article>
           </div>
-          <div class="generation-action-summary">将处理 {{ state.counts.matched }} 张作品，并根据课堂记录生成 {{ state.counts.attend }} 条课评。</div>
+          <div class="generation-action-summary">将处理 {{ state.counts.matched }} 个学生作品，并根据课堂记录生成 {{ state.counts.attend }} 条课评。</div>
           <div class="stage-actions"><button class="primary batch-main-action" :disabled="state.isProcessing" @click="runBatchGeneration">{{ state.isProcessing ? '正在生成…' : '生成全班图文' }}</button></div>
         </section>
 

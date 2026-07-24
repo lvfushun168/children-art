@@ -173,11 +173,6 @@ const save = () => {
         <label>字体<input v-model="draft.font" /></label>
         <label>颜色<input v-model="draft.color" /></label>
       </div>
-
-      <div class="notice-box">
-        <strong>验收粒度</strong>
-        <small>模板需支持新增、编辑、启停；课评控制语气/长度/结构/禁用语，提示词保留 system/user prompt，图片模板和水印配置可被课后处理流程引用。</small>
-      </div>
     </section>
   </section>
 </template>

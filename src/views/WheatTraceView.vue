@@ -44,10 +44,7 @@ const updateTrace = (trace, status) => {
 
     <details class="advanced-state trace-audit">
       <summary>查看留痕状态变更记录</summary>
-      <div class="notice-box">
-        <strong>一期边界</strong>
-        <small>本系统只生成待办和状态记录，不自动读取或回写小麦课程完成状态。</small>
-      </div>
+
       <div class="audit-list">
         <strong>小麦留痕审计</strong>
         <div v-for="log in state.statusChangeLogs.filter((item) => item.objectType === '小麦留痕').slice(0, 8)" :key="log.id" class="audit-row">

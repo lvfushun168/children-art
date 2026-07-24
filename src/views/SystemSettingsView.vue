@@ -136,10 +136,6 @@ const toggleTeacherClass = (teacher, classId) => {
           </div>
         </article>
       </div>
-      <div class="notice-box">
-        <strong>一期系统边界</strong>
-        <small>这里只维护 AI、存储、网盘、水印和基础角色配置，不接管排课、课消和财务主流程。</small>
-      </div>
     </section>
 
     <aside class="panel">
@@ -181,10 +177,6 @@ const toggleTeacherClass = (teacher, classId) => {
           <option>管理员</option>
         </select>
         <button class="primary" @click="addTeacher">新增</button>
-      </div>
-      <div class="notice-box">
-        <strong>权限验收点</strong>
-        <small>老师账号只应返回授权班级课次；管理员可查看全部课次、基础数据、系统配置和账号角色。</small>
       </div>
     </aside>
   </section>

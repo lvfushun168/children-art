@@ -144,11 +144,6 @@ const saveLesson = () => {
           </label>
         </div>
 
-        <div class="notice-box">
-          <strong>创建后规则</strong>
-          <small>选择班级后自动带出学生名单；课次类型会展示到家长页，但不作为正式财务或课消依据。</small>
-        </div>
-
         <footer class="modal-actions">
           <button class="ghost" @click="showLessonDialog = false">取消</button>
           <button class="primary" @click="saveLesson">创建课后待办</button>

@@ -104,6 +104,13 @@ export function useDeliveryWorkflow() {
     })
   }
 
+  const createArchiveChecklist = () => ({
+    studentCloudArchive: { status: '待推送', detail: '学生作品和学生照片按学生目录同步到百度网盘', updatedAt: '' },
+    deliveryVideo: { status: '待上传', detail: '可上传最终交付视频；本节无需视频时可跳过', fileName: '', fileMeta: '', updatedAt: '' },
+    teacherEffectArchive: { status: '待生成', detail: '生成本节课老师课效长图，并在后台同步到教学资料归档目录', title: '', imageCount: 0, updatedAt: '' },
+    wheatTrace: { status: '待生成', detail: '生成小麦留痕待办，后续仍需人工回小麦处理', traceId: null, updatedAt: '' }
+  })
+
   const createLessonWorkspace = (task, useInitialSeed = false) => ({
     lessonId: task.id,
     studentDeliveries: createStudentDeliveries(task, useInitialSeed),
@@ -116,6 +123,7 @@ export function useDeliveryWorkflow() {
     activeShareMode: 'student',
     activeStudentId: null,
     selectedArchiveTargets: ['system', 'cloud:baidu', 'wheat'],
+    archiveChecklist: createArchiveChecklist(),
     currentStep: 0,
     showReport: false,
     sharePage: {
@@ -199,6 +207,10 @@ export function useDeliveryWorkflow() {
   const selectedArchiveTargets = computed({
     get: () => activeWorkspace.value.selectedArchiveTargets || ['system', 'wheat'],
     set: (value) => { activeWorkspace.value.selectedArchiveTargets = value }
+  })
+  const archiveChecklist = computed(() => {
+    if (!activeWorkspace.value.archiveChecklist) activeWorkspace.value.archiveChecklist = createArchiveChecklist()
+    return activeWorkspace.value.archiveChecklist
   })
   const showReport = computed({
     get: () => activeWorkspace.value.showReport,
@@ -404,6 +416,61 @@ export function useDeliveryWorkflow() {
     })
     return warnings
   })
+
+  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已跳过']
+  const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
+  const studentArchivePathPreview = computed(() => {
+    const student = attendingRows.value[0] ? students.find((item) => item.id === attendingRows.value[0].studentId) : students[0]
+    return `${school.campus}/2026暑期/${activeTask.value.teacher}/${activeClass.value.name}（固定班）/${student?.name || '学生'}/1.作品（${activeTask.value.date}+${activeCourse.value.title}+${activeTask.value.teacher}+${student?.name || '学生'}）/`
+  })
+  const teacherEffectPathPreview = computed(() =>
+    `${school.campus}/教学资料归档/课程归总/2026/2026暑期+固定班归总/`
+  )
+  const archiveChecklistItems = computed(() => [
+    {
+      key: 'studentCloudArchive',
+      title: '学生作品与照片百度归档',
+      desc: studentArchivePathPreview.value,
+      action: '推送',
+      required: true,
+      item: archiveChecklist.value.studentCloudArchive
+    },
+    {
+      key: 'deliveryVideo',
+      title: '交付视频',
+      desc: archiveChecklist.value.deliveryVideo.fileName || '上传最终交付视频，或标记本节无需视频。',
+      action: '上传视频',
+      required: true,
+      item: archiveChecklist.value.deliveryVideo
+    },
+    {
+      key: 'teacherEffectArchive',
+      title: '老师课效长图归档',
+      desc: archiveChecklist.value.teacherEffectArchive.title || `生成标题+图片纵向排列的课效长图，并同步到：${teacherEffectPathPreview.value}`,
+      action: '生成并归档',
+      required: true,
+      item: archiveChecklist.value.teacherEffectArchive
+    },
+    {
+      key: 'wheatTrace',
+      title: '小麦留痕待办',
+      desc: archiveChecklist.value.wheatTrace.traceId ? `待办 #${archiveChecklist.value.wheatTrace.traceId} · 回小麦人工处理` : '生成小麦留痕待办。',
+      action: '生成待办',
+      required: true,
+      item: archiveChecklist.value.wheatTrace
+    }
+  ])
+  const archiveChecklistProgress = computed(() => {
+    const total = archiveChecklistItems.value.filter((item) => item.required).length || 1
+    const done = archiveChecklistItems.value.filter((item) => item.required && isArchiveDone(item.item)).length
+    return { done, total, percent: Math.round((done / total) * 100) }
+  })
+  const archiveChecklistReady = computed(() =>
+    !currentWarnings.value.length && archiveChecklistItems.value.every((item) => !item.required || isArchiveDone(item.item))
+  )
+  const archiveChecklistPending = computed(() =>
+    archiveChecklistItems.value.filter((item) => item.required && !isArchiveDone(item.item)).map((item) => item.title)
+  )
 
   const toggleArchiveTarget = (target) => {
     if (target.required) return
@@ -987,6 +1054,149 @@ export function useDeliveryWorkflow() {
     return trace
   }
 
+  const setArchiveChecklistItem = (key, patch) => {
+    const item = archiveChecklist.value[key]
+    if (!item) return
+    Object.assign(item, patch, { updatedAt: nowText() })
+  }
+
+  const archiveActionBlocked = () => {
+    if (activeTask.value.status === '异常') {
+      notify('请先恢复异常课次再执行归档动作')
+      return true
+    }
+    if (activeTask.value.status !== '处理中') {
+      notify(`课次当前为“${activeTask.value.status}”，请先开始处理`)
+      return true
+    }
+    if (currentWarnings.value.length) {
+      notify(`还有 ${currentWarnings.value.length} 项前置内容未完成`)
+      return true
+    }
+    return false
+  }
+
+  const writeLessonArchiveRecords = (trace = null, storageTarget = '系统作品档案') => {
+    attendingRows.value.forEach((row) => {
+      if (row.shareReady) row.archived = true
+    })
+    const wheatStatus = trace?.status || activeTask.value.wheatStatus || '未生成'
+    const summary = archives.find((item) => item.lessonId === activeTask.value.id)
+    const summaryPayload = {
+      lessonId: activeTask.value.id,
+      date: activeTask.value.date,
+      className: activeClass.value.name,
+      course: activeCourse.value.title,
+      works: counts.value.attend,
+      comments: counts.value.comments || counts.value.attend,
+      highlights: counts.value.highlights,
+      teacher: activeTask.value.teacher,
+      wheatStatus,
+      cloudArchiveStatus: activeTask.value.cloudArchiveStatus || '待推送'
+    }
+    if (summary) Object.assign(summary, summaryPayload)
+    else archives.unshift({ id: Date.now() + 1, ...summaryPayload })
+    attendingRows.value.forEach((row) => {
+      const student = students.find((item) => item.id === row.studentId)
+      if (!student) return
+      const existing = archiveRecords.find((record) => record.lessonId === activeTask.value.id && record.studentId === row.studentId)
+      const payload = {
+        lessonId: activeTask.value.id,
+        date: activeTask.value.date,
+        time: activeTask.value.time,
+        classId: activeClass.value.id,
+        className: activeClass.value.name,
+        teacher: activeTask.value.teacher,
+        course: activeCourse.value.title,
+        lessonType: activeTask.value.lessonType,
+        studentId: row.studentId,
+        studentName: student.name,
+        artwork: row.image,
+        feedback: row.comment,
+        homework: homework.value.content,
+        highlight: row.highlight,
+        highlightNote: row.highlightNote,
+        shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`,
+        collectionIds: existing?.collectionIds || [],
+        wheatStatus,
+        storageTarget
+      }
+      if (existing) Object.assign(existing, payload)
+      else archiveRecords.unshift({ id: Date.now() + row.studentId, ...payload })
+    })
+  }
+
+  const pushArchiveItem = async (key) => {
+    if (archiveActionBlocked()) return false
+    if (!enabledCloudProviders.value.length) {
+      setArchiveChecklistItem(key, { status: '已跳过', detail: '未启用网盘通道，本项不阻断课次完成' })
+      notify('未启用网盘通道，已标记为跳过')
+      return false
+    }
+    const labels = {
+      studentCloudArchive: '学生作品与照片'
+    }
+    setArchiveChecklistItem(key, { status: '推送中' })
+    await runAction(`正在推送${labels[key]}到百度网盘...`, `${labels[key]}已同步到百度网盘`, async () => {
+      if (!selectedArchiveTargets.value.includes('cloud:baidu')) selectedArchiveTargets.value = [...selectedArchiveTargets.value, 'cloud:baidu']
+      activeTask.value.cloudArchiveStatus = '已同步'
+      setArchiveChecklistItem(key, { status: '已同步', detail: studentArchivePathPreview.value })
+    })
+    return true
+  }
+
+  const uploadDeliveryVideo = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const sizeMb = Math.max(0.1, file.size / 1024 / 1024).toFixed(1)
+    setArchiveChecklistItem('deliveryVideo', {
+      status: '已上传',
+      detail: `${file.name} · ${sizeMb} MB · ${file.type || 'video/*'}`,
+      fileName: file.name,
+      fileMeta: `${sizeMb} MB`
+    })
+    event.target.value = ''
+    notify(`交付视频已上传：${file.name}`)
+  }
+
+  const skipDeliveryVideo = () => {
+    setArchiveChecklistItem('deliveryVideo', { status: '已跳过', detail: '本节课无需交付视频', fileName: '', fileMeta: '' })
+    notify('已标记本节无需交付视频')
+  }
+
+  const archiveTeacherEffectImage = async () => {
+    if (archiveActionBlocked()) return false
+    const title = `${activeTask.value.date}《${activeClass.value.name}--${activeCourse.value.title}》${activeTask.value.teacher} ${activeTask.value.time}`
+    setArchiveChecklistItem('teacherEffectArchive', { status: '生成中' })
+    await runAction('正在生成并归档老师课效长图...', '老师课效长图已生成并进入归档', async () => {
+      if (enabledCloudProviders.value.length && !selectedArchiveTargets.value.includes('cloud:baidu')) selectedArchiveTargets.value = [...selectedArchiveTargets.value, 'cloud:baidu']
+      setArchiveChecklistItem('teacherEffectArchive', {
+        status: enabledCloudProviders.value.length ? '已归档' : '已跳过',
+        title,
+        imageCount: counts.value.matched,
+        detail: enabledCloudProviders.value.length
+          ? `${title} · ${counts.value.matched} 张图片 · 已同步 ${teacherEffectPathPreview.value}`
+          : `${title} · ${counts.value.matched} 张图片 · 已保存到老师归档中心，未启用网盘`
+      })
+    })
+    return true
+  }
+
+  const generateWheatTraceTask = async () => {
+    if (archiveActionBlocked()) return false
+    if (isArchiveDone(archiveChecklist.value.wheatTrace)) {
+      notify('小麦留痕待办已经生成')
+      return false
+    }
+    setArchiveChecklistItem('wheatTrace', { status: '生成中' })
+    await runAction('正在生成小麦留痕待办...', '小麦留痕待办已生成', async () => {
+      const trace = ensureWheatTrace()
+      activeTask.value.wheatStatus = trace.status
+      setArchiveChecklistItem('wheatTrace', { status: '已生成', traceId: trace.id, detail: '待老师或教务回到小麦助教人工处理' })
+    })
+    return true
+  }
+
   const archiveAll = async () => {
     if (activeTask.value.status === '已完成' || activeTask.value.archived) {
       const trace = wheatTraces.find((item) => item.lessonId === activeTask.value.id)
@@ -1005,13 +1215,14 @@ export function useDeliveryWorkflow() {
       notify(`归档失败：仍有 ${currentWarnings.value.length} 项完成门槛未通过`)
       return false
     }
+    if (!archiveChecklistReady.value) {
+      notify(`归档失败：还有 ${archiveChecklistPending.value.slice(0, 3).join('、')} 未完成`)
+      return false
+    }
     const cloudTargets = archiveTargets.value.filter((target) => target.id.startsWith('cloud:') && selectedArchiveTargets.value.includes(target.id))
     const targetLabel = cloudTargets.length ? `，并同步 ${cloudTargets.map((target) => target.label).join('、')}` : ''
-    await runAction(`正在保存档案${targetLabel}，并生成小麦留痕待办...`, `本节课已归档${targetLabel}，小麦留痕待办已生成`, async () => {
+    await runAction(`正在完成本节归档交付...`, `本节课已完成归档交付${targetLabel}`, async () => {
       const before = activeTask.value.status
-      attendingRows.value.forEach((row) => {
-        if (row.shareReady) row.archived = true
-      })
       const trace = ensureWheatTrace()
       activeTask.value.wheatStatus = trace.status
       activeTask.value.archived = true
@@ -1019,53 +1230,13 @@ export function useDeliveryWorkflow() {
       activeTask.value.cloudArchiveStatus = cloudTargets.length ? '已同步' : '未选择网盘'
       activeTask.value.archiveVersion = (activeTask.value.archiveVersion || 0) + 1
       activeTask.value.status = '已完成'
-      addStatusLog('课次', activeTask.value.id, before, '已完成', '完成门槛校验通过，归档与小麦待办同次生成')
+      addStatusLog('课次', activeTask.value.id, before, '已完成', '归档交付清单全部完成')
       showReport.value = true
       reportPulse.value = true
       setTimeout(() => {
         reportPulse.value = false
       }, 1200)
-      if (!archives.some((item) => item.lessonId === activeTask.value.id)) {
-        archives.unshift({
-          id: Date.now() + 1,
-          lessonId: activeTask.value.id,
-          date: activeTask.value.date,
-          className: activeClass.value.name,
-          course: activeCourse.value.title,
-          works: counts.value.attend,
-          comments: counts.value.comments || counts.value.attend,
-          highlights: counts.value.highlights,
-          teacher: activeTask.value.teacher,
-          wheatStatus: trace.status,
-          cloudArchiveStatus: activeTask.value.cloudArchiveStatus
-        })
-      }
-      attendingRows.value.forEach((row) => {
-        const student = students.find((item) => item.id === row.studentId)
-        if (!student || archiveRecords.some((record) => record.lessonId === activeTask.value.id && record.studentId === row.studentId)) return
-        archiveRecords.unshift({
-          id: Date.now() + row.studentId,
-          lessonId: activeTask.value.id,
-          date: activeTask.value.date,
-          time: activeTask.value.time,
-          classId: activeClass.value.id,
-          className: activeClass.value.name,
-          teacher: activeTask.value.teacher,
-          course: activeCourse.value.title,
-          lessonType: activeTask.value.lessonType,
-          studentId: row.studentId,
-          studentName: student.name,
-          artwork: row.image,
-          feedback: row.comment,
-          homework: homework.value.content,
-          highlight: row.highlight,
-          highlightNote: row.highlightNote,
-          shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`,
-          collectionIds: [],
-          wheatStatus: trace.status,
-          storageTarget: cloudTargets.map((target) => target.label).join('、') || '系统作品档案'
-        })
-      })
+      writeLessonArchiveRecords(trace, cloudTargets.map((target) => target.label).join('、') || '系统作品档案')
     })
     return true
   }
@@ -1496,6 +1667,11 @@ export function useDeliveryWorkflow() {
     currentWarnings,
     archiveTargets,
     selectedArchiveTargets,
+    archiveChecklist,
+    archiveChecklistItems,
+    archiveChecklistProgress,
+    archiveChecklistReady,
+    archiveChecklistPending,
     parentShareUrl,
     studentShareUrlFor,
     qrText,
@@ -1534,6 +1710,11 @@ export function useDeliveryWorkflow() {
     revokeSharePage,
     getLessonWorkspace,
     isShareAccessible,
+    pushArchiveItem,
+    uploadDeliveryVideo,
+    skipDeliveryVideo,
+    archiveTeacherEffectImage,
+    generateWheatTraceTask,
     archiveAll,
     copyExport,
     copyStudentLink,

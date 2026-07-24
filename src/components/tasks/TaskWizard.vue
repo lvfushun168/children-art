@@ -479,60 +479,84 @@ const confirmStudentAndNext = () => {
         <div class="section-head">
           <div>
             <span>第 7 步</span>
-            <strong>完成归档留痕</strong>
+            <strong>归档交付清单</strong>
           </div>
-          <button class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">
-            执行归档
+          <button class="primary" :disabled="state.isProcessing || !state.archiveChecklistReady" @click="state.archiveAll">
+            完成本节归档交付
           </button>
         </div>
-        <div class="archive-close-panel">
-          <article class="archive-action-card">
-            <span>收口动作</span>
-            <strong>{{ state.activeTask.archived ? '本节课已完成归档' : '执行后，本节课将正式进入已完成' }}</strong>
-            <p>系统会保存作品档案，按选中的网盘通道同步资料，并生成小麦留痕待办。小麦仍需老师或教务回到小麦助教中人工处理。</p>
+        <section class="archive-checklist-panel">
+          <article class="archive-summary-card">
+            <div>
+              <span>收口进度</span>
+              <strong>{{ state.archiveChecklistProgress.done }}/{{ state.archiveChecklistProgress.total }} 已完成</strong>
+              <small>{{ state.activeTask.archived ? '本节课已完成归档交付' : '按清单逐项保存、推送、上传或生成，完成后本节课才正式闭环。' }}</small>
+            </div>
+            <div class="progress-track slim">
+              <i :style="{ width: `${state.archiveChecklistProgress.percent}%` }"></i>
+            </div>
             <div v-if="state.currentWarnings.length" class="archive-blocker">
               <strong>还有 {{ state.currentWarnings.length }} 项前置内容未完成</strong>
               <small>{{ state.currentWarnings.slice(0, 3).join('、') }}{{ state.currentWarnings.length > 3 ? '……' : '' }}</small>
             </div>
+            <div v-else-if="!state.archiveChecklistReady" class="archive-result-note">
+              <strong>待完成项</strong>
+              <small>{{ state.archiveChecklistPending.join('、') }}</small>
+            </div>
+            <div v-else class="archive-result-note">
+              <strong>归档交付清单已就绪</strong>
+              <small>可以完成本节课归档交付，并生成最终课次完成记录。</small>
+            </div>
           </article>
-          <article class="archive-target-card">
+
+          <section class="archive-checklist">
+            <article
+              v-for="item in state.archiveChecklistItems"
+              :key="item.key"
+              class="archive-check-row"
+              :class="{ done: ['已同步', '已上传', '已归档', '已生成', '已跳过'].includes(item.item.status), working: ['推送中', '生成中'].includes(item.item.status) }"
+            >
+              <div class="archive-check-mark">{{ ['已同步', '已上传', '已归档', '已生成', '已跳过'].includes(item.item.status) ? '✓' : '·' }}</div>
+              <div class="archive-check-copy">
+                <span>{{ item.title }}</span>
+                <strong>{{ item.item.status }}</strong>
+                <small>{{ item.desc }}</small>
+                <em v-if="item.item.detail">{{ item.item.detail }}</em>
+              </div>
+              <div class="archive-check-actions">
+                <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已同步' || item.item.status === '已跳过'" @click="state.pushArchiveItem(item.key)">{{ item.item.status === '已同步' ? '已同步' : item.action }}</button>
+                <template v-if="item.key === 'deliveryVideo'">
+                  <label class="secondary file-button archive-video-upload" :class="{ disabled: state.isProcessing }">上传视频<input type="file" accept="video/*" :disabled="state.isProcessing" @change="state.uploadDeliveryVideo" /></label>
+                  <button class="ghost" :disabled="state.isProcessing || item.item.status === '已跳过'" @click="state.skipDeliveryVideo">本节无需</button>
+                </template>
+                <button v-if="item.key === 'teacherEffectArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已归档' || item.item.status === '已跳过'" @click="state.archiveTeacherEffectImage">{{ item.item.status === '已归档' ? '已归档' : item.action }}</button>
+                <button v-if="item.key === 'wheatTrace'" class="secondary" :disabled="state.isProcessing || item.item.status === '已生成'" @click="state.generateWheatTraceTask">{{ item.item.status === '已生成' ? '已生成' : item.action }}</button>
+              </div>
+            </article>
+          </section>
+
+          <article class="archive-target-card compact-targets">
             <div class="mini-head">
               <div>
-                <span>归档目标</span>
-                <strong>选择本次要同步的存储通道</strong>
+                <span>网盘通道</span>
+                <strong>{{ state.enabledCloudProviders.length ? '百度网盘已配置' : '尚未启用网盘' }}</strong>
               </div>
               <button v-if="!state.enabledCloudProviders.length" class="ghost" @click="$emit('navigate', 'settings')">去配置网盘</button>
             </div>
-            <button
-              v-for="target in state.archiveTargets"
-              :key="target.id"
-              class="archive-target-row"
-              :class="{ selected: target.required || state.selectedArchiveTargets.includes(target.id), required: target.required }"
-              @click="state.toggleArchiveTarget(target)"
-            >
-              <input type="checkbox" :checked="target.required || state.selectedArchiveTargets.includes(target.id)" :disabled="target.required" readonly />
-              <span>
-                <strong>{{ target.label }}</strong>
-                <small>{{ target.description }}</small>
+            <div class="archive-target-summary">
+              <span v-for="provider in state.enabledCloudProviders" :key="provider.id" class="required">
+                {{ provider.name }} · {{ provider.tokenStatus || '已配置' }}
               </span>
-              <em>{{ target.status }}</em>
-            </button>
-            <div v-if="!state.enabledCloudProviders.length" class="archive-no-cloud">
-              <strong>尚未启用网盘通道</strong>
-              <small>可先只写入系统作品档案；启用百度网盘或其他网盘后，这里会出现可选同步目标。</small>
-            </div>
-            <div v-if="state.activeTask.archived" class="archive-result-note">
-              <strong>归档结果</strong>
-              <small>{{ state.counts.archived }} 条学生档案已生成 · 小麦留痕：{{ state.activeTask.wheatStatus }} · 网盘：{{ state.activeTask.cloudArchiveStatus || '未选择网盘' }}</small>
+              <span v-if="!state.enabledCloudProviders.length">未启用网盘，本节外部同步项可跳过</span>
             </div>
           </article>
-        </div>
+        </section>
       </section>
 
       <footer class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
         <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 4 && (state.counts.confirmed < state.counts.attend || state.counts.imageConfirmed < state.counts.attend)" @click="state.nextStep">下一步</button>
-        <button v-else class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">执行归档</button>
+        <button v-else class="primary" :disabled="state.isProcessing || !state.archiveChecklistReady" @click="state.archiveAll">完成归档交付</button>
       </footer>
     </template>
   </section>

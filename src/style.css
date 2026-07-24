@@ -2041,6 +2041,135 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.archive-checklist-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.archive-summary-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(77, 107, 95, 0.18);
+  border-radius: 10px;
+  background: #fffefa;
+}
+
+.archive-summary-card > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.archive-summary-card span,
+.archive-check-copy span {
+  color: #6d7a72;
+  font-size: 13px;
+}
+
+.archive-summary-card strong {
+  font-size: 22px;
+}
+
+.archive-checklist {
+  display: grid;
+  gap: 10px;
+}
+
+.archive-check-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(77, 107, 95, 0.16);
+  border-radius: 10px;
+  background: #fbfaf4;
+}
+
+.archive-check-row.done {
+  border-color: rgba(44, 96, 82, 0.28);
+  background: #edf3eb;
+}
+
+.archive-check-row.working {
+  border-color: rgba(201, 111, 62, 0.34);
+  background: #fff7ed;
+}
+
+.archive-check-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: #ece6d6;
+  color: #7a6a58;
+  font-weight: 800;
+}
+
+.archive-check-row.done .archive-check-mark {
+  background: #315d53;
+  color: #fffdf4;
+}
+
+.archive-check-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.archive-check-copy strong {
+  font-size: 16px;
+}
+
+.archive-check-copy small,
+.archive-check-copy em,
+.archive-target-summary span {
+  color: #697870;
+  font-style: normal;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.archive-check-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.archive-video-upload {
+  min-height: 38px;
+}
+
+.archive-video-upload.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.compact-targets {
+  padding: 14px;
+}
+
+.archive-target-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.archive-target-summary span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #f1eddf;
+  font-size: 12px;
+}
+
+.archive-target-summary span.required {
+  background: #edf3eb;
+  color: #315d53;
+}
+
 .material-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(220px, 1fr)) 150px;

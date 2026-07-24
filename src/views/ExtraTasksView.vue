@@ -68,7 +68,7 @@ const save = () => {
 </script>
 
 <template>
-  <PageHead eyebrow="任务归档" title="课外任务">
+  <PageHead title="学生课外任务">
     <div class="button-pair">
       <button class="secondary" @click="startEdit">编辑当前任务</button>
       <button class="primary" @click="startNew">新增课外任务</button>

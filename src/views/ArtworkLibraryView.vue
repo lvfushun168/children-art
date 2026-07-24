@@ -28,7 +28,7 @@ const save = () => {
 </script>
 
 <template>
-  <PageHead eyebrow="老师共享素材" title="范画库">
+  <PageHead  title="范画库">
     <button class="primary" @click="showUpload = !showUpload">{{ showUpload ? '取消上传' : '上传到范画库' }}</button>
   </PageHead>
 

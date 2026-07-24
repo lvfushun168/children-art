@@ -19,9 +19,9 @@ const mode = ref('detail')
 
 const config = computed(() => {
   const map = {
-    students: { eyebrow: '基础资料', title: '学生管理', action: '新增学生', empty: '暂无学生' },
-    classes: { eyebrow: '基础资料', title: '班级管理', action: '新增班级', empty: '暂无班级' },
-    courses: { eyebrow: '教研资料', title: '课程资料', action: '新增课程', empty: '暂无课程' }
+    students: { title: '学生管理', action: '新增学生', empty: '暂无学生' },
+    classes: { title: '班级管理', action: '新增班级', empty: '暂无班级' },
+    courses: { title: '课程资料', action: '新增课程', empty: '暂无课程' }
   }
   return map[props.entity]
 })

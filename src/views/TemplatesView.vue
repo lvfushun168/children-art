@@ -78,7 +78,7 @@ const save = () => {
 </script>
 
 <template>
-  <PageHead eyebrow="机构标准化" title="模板配置">
+  <PageHead  title="模板配置">
     <div class="button-pair">
       <button class="secondary" @click="startEdit">编辑当前模板</button>
       <button class="primary" @click="startNew">新增{{ activeLabel }}</button>

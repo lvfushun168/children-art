@@ -105,7 +105,7 @@ const publishCollection = () => {
 </script>
 
 <template>
-  <PageHead eyebrow="资产沉淀" title="作品档案" />
+  <PageHead title="学生作品档案" />
 
   <section class="archive-query-layout">
     <aside class="archive-filters panel">

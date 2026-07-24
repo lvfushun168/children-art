@@ -50,10 +50,7 @@ defineProps({
         <button class="secondary" @click="state.loginWithForm">模拟登录</button>
       </div>
 
-      <div class="notice-box">
-        <strong>开发约束</strong>
-        <small>登录后服务端必须返回用户角色、授权班级、可访问菜单和 token；前端列表筛选不能替代后端权限校验。</small>
-      </div>
+
     </section>
   </main>
 </template>

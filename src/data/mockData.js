@@ -5,8 +5,8 @@ export const navItems = [
   { id: 'courses', label: '范画库' },
   { id: 'imports', label: '数据导入' },
   { id: 'externalLinks', label: '外部课程' },
-  { id: 'templates', label: '模板配置' },
-  { id: 'archives', label: '作品档案' },
+  { id: 'templates', label: '配置中心' },
+  { id: 'archives', label: '档案中心' },
   { id: 'extraTasks', label: '课外任务' },
   { id: 'settings', label: '系统配置' }
 ]

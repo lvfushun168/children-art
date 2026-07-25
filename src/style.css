@@ -1325,6 +1325,11 @@ textarea {
   padding: 9px 10px;
 }
 
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-primary);
+}
+
 textarea {
   resize: vertical;
   line-height: 1.6;
@@ -3339,6 +3344,161 @@ textarea:focus {
   align-items: start;
 }
 
+.archive-home {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.archive-entry-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.28fr) minmax(280px, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  padding: 18px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: inherit;
+  text-align: left;
+}
+
+.archive-entry-card:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-primary-soft);
+}
+
+.archive-entry-card span {
+  display: grid;
+  gap: 4px;
+}
+
+.archive-entry-card strong {
+  font-size: 18px;
+}
+
+.archive-entry-card p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+.archive-entry-card em {
+  justify-self: end;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.archive-subpage-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.archive-subpage-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.archive-subpage-head span {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.archive-subpage-head strong {
+  font-size: 20px;
+}
+
+.archive-workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.archive-filter-bar {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.archive-filter-bar .section-head,
+.archive-filter-bar .archive-explain {
+  grid-column: 1 / -1;
+}
+
+.archive-center-shell {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.archive-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+
+.archive-tabs button {
+  display: grid;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.archive-tabs button.active {
+  border-color: var(--color-border-strong);
+  background: var(--color-primary-soft);
+  box-shadow: inset 0 -3px 0 var(--color-accent);
+}
+
+.archive-tabs small,
+.archive-stat-strip span,
+.archive-explain small,
+.lesson-archive-row small,
+.lesson-asset-grid small,
+.lesson-work-grid small,
+.lesson-status-grid small,
+.teacher-effect-preview small {
+  color: var(--color-muted);
+  font-weight: 800;
+}
+
+.archive-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.archive-stat-strip article,
+.archive-overview-grid article {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.archive-stat-strip strong,
+.archive-overview-grid strong {
+  font-size: 22px;
+}
+
 .external-link-layout {
   display: grid;
   grid-template-columns: 300px minmax(520px, 1fr) 320px;
@@ -3375,9 +3535,65 @@ textarea:focus {
 
 .archive-filters,
 .archive-results,
-.archive-detail {
+.archive-detail,
+.archive-drawer {
   display: grid;
   gap: 10px;
+}
+
+.archive-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px;
+  background: rgba(20, 31, 27, 0.28);
+}
+
+.archive-drawer {
+  width: min(620px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  align-content: start;
+  padding: 16px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 18px 48px rgba(20, 31, 27, 0.22);
+}
+
+.archive-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.archive-drawer-head div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.archive-drawer-head span {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.archive-drawer-head strong {
+  font-size: 18px;
+}
+
+.archive-explain {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
 }
 
 .archive-row {
@@ -3395,8 +3611,8 @@ textarea:focus {
 }
 
 .archive-row.picked {
-  border-color: color-mix(in srgb, var(--color-accent) 46%, transparent);
-  box-shadow: inset 3px 0 0 var(--color-accent);
+  border-color: var(--color-border-strong);
+  box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
 .archive-row.active {
@@ -3412,11 +3628,18 @@ textarea:focus {
 .archive-check {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px;
+  border: 1px solid var(--color-border-soft);
   border-radius: 8px;
-  background: var(--color-accent-soft);
+  background: var(--color-surface);
   font-weight: 900;
+}
+
+.archive-check input {
+  width: 16px;
+  min-width: 16px;
 }
 
 .archive-recent-panel,
@@ -3439,8 +3662,9 @@ textarea:focus {
   gap: 4px 10px;
   align-items: center;
   padding: 10px;
+  border: 1px solid var(--color-border-soft);
   border-radius: 8px;
-  background: var(--color-accent-soft);
+  background: var(--color-surface-muted);
 }
 
 .archive-selection-bar span {
@@ -3467,8 +3691,8 @@ textarea:focus {
   margin-top: 5px;
   padding: 3px 7px;
   border-radius: 999px;
-  background: var(--color-accent-muted);
-  color: var(--color-accent-strong);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   font-style: normal;
   font-weight: 900;
   font-size: 12px;
@@ -3513,7 +3737,7 @@ textarea:focus {
 }
 
 .archive-block.highlight {
-  background: var(--color-accent-soft);
+  background: var(--color-primary-soft);
 }
 
 .archive-collection-uses {
@@ -3557,6 +3781,115 @@ textarea:focus {
 
 .archive-link-row button {
   grid-row: span 2;
+}
+
+.lesson-archive-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: inherit;
+  text-align: left;
+}
+
+.lesson-archive-row.active {
+  border-color: var(--color-border-strong);
+  background: var(--color-primary-soft);
+}
+
+.lesson-archive-row > span,
+.lesson-archive-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.lesson-archive-row > div {
+  justify-items: end;
+}
+
+.lesson-archive-row em,
+.lesson-work-grid em {
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-style: normal;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.archive-overview-grid,
+.lesson-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.lesson-asset-grid,
+.lesson-work-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.lesson-work-grid.compact {
+  grid-template-columns: repeat(3, minmax(96px, 1fr));
+}
+
+.lesson-asset-grid article,
+.lesson-work-grid article,
+.lesson-status-grid article {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.lesson-work-grid article.missing {
+  border-style: dashed;
+  background: var(--color-surface-muted);
+}
+
+.lesson-asset-grid img,
+.lesson-work-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 7px;
+}
+
+.file-tile {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 92px;
+  border-radius: 7px;
+  background: var(--color-primary-soft);
+  color: var(--color-muted);
+  font-weight: 900;
+}
+
+.teacher-effect-preview {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+}
+
+.teacher-effect-preview img {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 8px;
 }
 
 .collection-copy-actions {
@@ -4025,6 +4358,10 @@ textarea:focus {
   .master-layout,
   .settings-layout,
   .archive-query-layout,
+  .archive-workspace-layout,
+  .archive-tabs,
+  .archive-stat-strip,
+  .archive-filter-bar,
   .external-link-layout,
   .extra-task-layout,
   .template-workbench,
@@ -4034,6 +4371,15 @@ textarea:focus {
   .material-strip,
   .material-gallery {
     grid-template-columns: 1fr;
+  }
+
+  .archive-drawer-backdrop {
+    padding: 0;
+  }
+
+  .archive-drawer {
+    width: 100%;
+    border-radius: 0;
   }
 
   .focus-layout.with-preview {
@@ -4102,6 +4448,10 @@ textarea:focus {
   .generate-flow-status,
   .setting-summary-grid,
   .batch-progress-grid,
+  .archive-overview-grid,
+  .lesson-status-grid,
+  .lesson-asset-grid,
+  .lesson-work-grid,
   .homework-editor,
   .publish-check-grid,
   .publish-defaults,
@@ -4201,8 +4551,23 @@ textarea:focus {
   .history-card,
   .archive-row,
   .archive-meta,
+  .lesson-archive-row,
+  .archive-entry-card,
   .image-review {
     grid-template-columns: 1fr;
+  }
+
+  .archive-entry-card em {
+    justify-self: start;
+  }
+
+  .archive-subpage-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lesson-archive-row > div {
+    justify-items: start;
   }
 
   .material-gallery article {

@@ -318,6 +318,153 @@ export function useDeliveryWorkflow() {
       return studentOk && classOk && teacherOk && dateOk && highlightOk
     })
   )
+  const lessonArchiveRecords = computed(() => {
+    const taskRecords = visibleTasks.value.map((task) => {
+      const workspace = ensureLessonWorkspace(task)
+      const klass = classes.find((item) => item.id === task.classId)
+      const course = courses.find((item) => item.id === task.courseId)
+      const trace = wheatTraces.find((item) => item.lessonId === task.id)
+      const savedWorks = archiveRecords.filter((record) => record.lessonId === task.id)
+      const studentWorks = (savedWorks.length ? savedWorks : workspace.studentDeliveries.filter((row) => row.attendance === '到课').map((row) => {
+        const student = students.find((item) => item.id === row.studentId)
+        return {
+          id: `${task.id}-${row.studentId}`,
+          lessonId: task.id,
+          studentId: row.studentId,
+          studentName: student?.name || '学生',
+          artwork: row.image,
+          feedback: row.comment,
+          highlight: row.highlight,
+          highlightNote: row.highlightNote,
+          shareReady: row.shareReady,
+          archived: row.archived,
+          imageMatched: row.imageMatched,
+          imageConfirmed: row.imageConfirmed
+        }
+      })).map((record) => ({
+        ...record,
+        imageMatched: record.imageMatched ?? Boolean(record.artwork),
+        imageConfirmed: record.imageConfirmed ?? Boolean(record.artwork),
+        shareReady: record.shareReady ?? Boolean(record.shareUrl),
+        archived: record.archived ?? task.archived
+      }))
+      const materialItems = (workspace.materials || []).map((material) => ({
+        ...material,
+        archiveRole: material.type === '课件' ? '备课课件' : material.type === '步骤图' ? '课堂步骤' : '课堂参考'
+      }))
+      return {
+        id: `task-${task.id}`,
+        source: 'task',
+        lessonId: task.id,
+        date: task.date,
+        time: task.time,
+        classId: task.classId,
+        className: klass?.name || '班级',
+        classType: klass?.classType || '固定班',
+        teacher: task.teacher,
+        course: course?.title || '课程主题',
+        lessonType: task.lessonType,
+        status: task.status,
+        progress: progressForTask(task),
+        materials: materialItems,
+        referenceMaterials: materialItems.filter((item) => item.type !== '课件'),
+        coursewares: materialItems.filter((item) => item.type === '课件'),
+        classroomMedia: materialItems.filter((item) => ['课堂照片', '课堂视频'].includes(item.type)),
+        studentWorks,
+        worksCount: studentWorks.filter((item) => item.imageMatched).length,
+        shareReadyCount: studentWorks.filter((item) => item.shareReady).length,
+        archivedCount: studentWorks.filter((item) => item.archived).length,
+        highlights: studentWorks.filter((item) => item.highlight).length,
+        wheatStatus: trace?.status || task.wheatStatus || '未生成',
+        cloudArchiveStatus: task.cloudArchiveStatus || '待推送',
+        teacherEffect: workspace.archiveChecklist?.teacherEffectArchive || createArchiveChecklist().teacherEffectArchive,
+        deliveryVideo: workspace.archiveChecklist?.deliveryVideo || createArchiveChecklist().deliveryVideo,
+        studentArchive: workspace.archiveChecklist?.studentCloudArchive || createArchiveChecklist().studentCloudArchive,
+        shareStatus: workspace.sharePage?.status || '草稿'
+      }
+    })
+
+    const historicalRecords = archives
+      .filter((archive) => !archive.lessonId || !taskRecords.some((record) => record.lessonId === archive.lessonId))
+      .map((archive) => {
+        const relatedWorks = archiveRecords.filter((record) =>
+          record.date === archive.date &&
+          record.className === archive.className &&
+          record.course === archive.course &&
+          record.teacher === archive.teacher
+        )
+        const firstWork = relatedWorks[0]
+        return {
+          id: `archive-${archive.id}`,
+          source: 'history',
+          lessonId: archive.lessonId || null,
+          date: archive.date,
+          time: firstWork?.time || '',
+          classId: firstWork?.classId || null,
+          className: archive.className,
+          classType: archive.classType || '固定班',
+          teacher: archive.teacher,
+          course: archive.course,
+          lessonType: firstWork?.lessonType || '课次归档',
+          status: '已完成',
+          progress: 100,
+          materials: [],
+          referenceMaterials: [],
+          coursewares: [],
+          classroomMedia: [],
+          studentWorks: relatedWorks.map((record) => ({
+            ...record,
+            imageMatched: Boolean(record.artwork),
+            imageConfirmed: Boolean(record.artwork),
+            shareReady: Boolean(record.shareUrl),
+            archived: true
+          })),
+          worksCount: archive.works || relatedWorks.length,
+          shareReadyCount: relatedWorks.filter((record) => record.shareUrl).length,
+          archivedCount: archive.works || relatedWorks.length,
+          highlights: archive.highlights || relatedWorks.filter((record) => record.highlight).length,
+          wheatStatus: archive.wheatStatus || '已人工处理',
+          cloudArchiveStatus: archive.cloudArchiveStatus || '历史归档',
+          teacherEffect: {
+            status: '已归档',
+            title: `${archive.date}《${archive.className}--${archive.course}》${archive.teacher}`,
+            imageCount: archive.works || relatedWorks.length,
+            detail: `${archive.teacher}历史课效图 · ${archive.className} · ${archive.course}`,
+            updatedAt: archive.date
+          },
+          deliveryVideo: { status: '已跳过', detail: '历史归档未记录交付视频' },
+          studentArchive: { status: '已同步', detail: '历史学生作品档案已归档' },
+          shareStatus: '已归档'
+        }
+      })
+
+    return [...taskRecords, ...historicalRecords]
+  })
+  const teacherEffectArchiveRecords = computed(() =>
+    lessonArchiveRecords.value
+      .filter((lesson) => lesson.teacherEffect?.status && lesson.teacherEffect.status !== '待生成')
+      .map((lesson) => ({
+        id: `effect-${lesson.id}`,
+        lessonId: lesson.lessonId,
+        date: lesson.date,
+        time: lesson.time,
+        teacher: lesson.teacher,
+        className: lesson.className,
+        classType: lesson.classType,
+        course: lesson.course,
+        title: lesson.teacherEffect.title || `${lesson.date}《${lesson.className}--${lesson.course}》${lesson.teacher} ${lesson.time}`,
+        status: lesson.teacherEffect.status,
+        imageCount: lesson.teacherEffect.imageCount || lesson.worksCount,
+        detail: lesson.teacherEffect.detail || '课效长图已生成',
+        cloudPath: lesson.teacherEffect.detail?.includes('教学资料归档') ? lesson.teacherEffect.detail : teacherEffectPathPreview.value,
+        cover: lesson.studentWorks.find((work) => work.artwork)?.artwork || lesson.referenceMaterials.find((material) => material.image)?.image || '',
+        sourceWorks: lesson.studentWorks,
+        sourceLesson: lesson
+      }))
+  )
+  const archiveCenterDates = computed(() => [
+    ...new Set([...archiveDates.value, ...lessonArchiveRecords.value.map((record) => record.date)].filter(Boolean))
+  ])
   const studentHistoryFor = (studentId) => archiveRecords.filter((record) => record.studentId === Number(studentId))
   const archiveCollectionsForRecord = (recordId) => archiveCollections.filter((collection) => collection.recordIds.includes(recordId))
   const createArchiveCollection = (payload) => {
@@ -1674,7 +1821,10 @@ export function useDeliveryWorkflow() {
     extraTaskArchives,
     archiveFilter,
     archiveDates,
+    archiveCenterDates,
     filteredArchiveRecords,
+    lessonArchiveRecords,
+    teacherEffectArchiveRecords,
     materials,
     referenceMaterials,
     coursewareMaterials,

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 
 const props = defineProps({
@@ -9,10 +9,24 @@ const props = defineProps({
   }
 })
 
+const archiveTabs = [
+  { id: 'studentWorks', label: '学生作品档案', hint: '学生成长线', desc: '按学生查看历史作品、课评、高光、作品集和后续 PDF 导出。' },
+  { id: 'lessons', label: '课堂资料档案', hint: '课次聚合视图', desc: '按一节课查看备课资料、课堂素材和学生作品概览。' },
+  { id: 'teacherEffects', label: '老师课效档案', hint: '老师课效长图', desc: '按老师沉淀课效长图和月度教学资料归档。' }
+]
+
+const activeTab = ref('home')
 const selectedId = ref(props.state.filteredArchiveRecords[0]?.id || null)
 const selectedRecordIds = ref([])
+const selectedLessonId = ref(props.state.lessonArchiveRecords[0]?.id || null)
+const selectedEffectId = ref(props.state.teacherEffectArchiveRecords[0]?.id || null)
 const showCollectionModal = ref(false)
+const showWorkDrawer = ref(false)
+const showLessonDrawer = ref(false)
+const showEffectDrawer = ref(false)
 const createdCollection = ref(null)
+const lessonFilter = reactive({ classId: 'all', teacher: 'all', date: 'all' })
+const effectFilter = reactive({ teacher: 'all', classId: 'all', date: 'all' })
 const collectionDraft = reactive({
   type: '学生成长作品集',
   title: '',
@@ -36,11 +50,53 @@ const selectedFilterStudent = computed(() =>
 )
 const visibleSelectedCount = computed(() => props.state.filteredArchiveRecords.filter((record) => selectedRecordIds.value.includes(record.id)).length)
 const allVisibleSelected = computed(() => props.state.filteredArchiveRecords.length > 0 && visibleSelectedCount.value === props.state.filteredArchiveRecords.length)
-const recentCollections = computed(() => props.state.archiveCollections.slice(0, 3))
 const canCreateStudentGrowth = computed(() =>
   Boolean(selectedFilterStudent.value && selectedRecords.value.length && selectedRecords.value.every((record) => record.studentId === selectedFilterStudent.value.id))
 )
 const canPublishCollection = computed(() => Boolean(canCreateStudentGrowth.value && collectionDraft.title && collectionDraft.target))
+
+const filteredLessonArchives = computed(() =>
+  props.state.lessonArchiveRecords.filter((lesson) => {
+    const classOk = lessonFilter.classId === 'all' || lesson.classId === Number(lessonFilter.classId)
+    const teacherOk = lessonFilter.teacher === 'all' || lesson.teacher === lessonFilter.teacher
+    const dateOk = lessonFilter.date === 'all' || lesson.date === lessonFilter.date
+    return classOk && teacherOk && dateOk
+  })
+)
+const selectedLesson = computed(() => filteredLessonArchives.value.find((lesson) => lesson.id === selectedLessonId.value) || filteredLessonArchives.value[0])
+const selectedLessonAssets = computed(() => selectedLesson.value?.materials || [])
+const selectedLessonWorks = computed(() => selectedLesson.value?.studentWorks || [])
+
+const filteredTeacherEffects = computed(() =>
+  props.state.teacherEffectArchiveRecords.filter((effect) => {
+    const classOk = effectFilter.classId === 'all' || effect.sourceLesson.classId === Number(effectFilter.classId)
+    const teacherOk = effectFilter.teacher === 'all' || effect.teacher === effectFilter.teacher
+    const dateOk = effectFilter.date === 'all' || effect.date === effectFilter.date
+    return classOk && teacherOk && dateOk
+  })
+)
+const selectedEffect = computed(() => filteredTeacherEffects.value.find((effect) => effect.id === selectedEffectId.value) || filteredTeacherEffects.value[0])
+
+const archiveStats = computed(() => ({
+  works: props.state.archiveRecords.length,
+  lessons: props.state.lessonArchiveRecords.length,
+  effects: props.state.teacherEffectArchiveRecords.length
+}))
+const activeArchive = computed(() => archiveTabs.find((tab) => tab.id === activeTab.value))
+
+const archiveCountFor = (id) => {
+  if (id === 'studentWorks') return `${archiveStats.value.works} 条学生作品`
+  if (id === 'lessons') return `${archiveStats.value.lessons} 节课堂档案`
+  return `${archiveStats.value.effects} 张课效长图`
+}
+
+watch(filteredLessonArchives, (records) => {
+  if (!records.some((record) => record.id === selectedLessonId.value)) selectedLessonId.value = records[0]?.id || null
+}, { immediate: true })
+
+watch(filteredTeacherEffects, (records) => {
+  if (!records.some((record) => record.id === selectedEffectId.value)) selectedEffectId.value = records[0]?.id || null
+}, { immediate: true })
 
 const selectFirstIfMissing = () => {
   if (!props.state.filteredArchiveRecords.some((record) => record.id === selectedId.value)) {
@@ -64,6 +120,21 @@ const toggleAllVisible = () => {
     return
   }
   selectedRecordIds.value = [...new Set([...selectedRecordIds.value, ...visibleIds])]
+}
+
+const openWorkDrawer = (record) => {
+  selectedId.value = record.id
+  showWorkDrawer.value = true
+}
+
+const openLessonDrawer = (lesson) => {
+  selectedLessonId.value = lesson.id
+  showLessonDrawer.value = true
+}
+
+const openEffectDrawer = (effect) => {
+  selectedEffectId.value = effect.id
+  showEffectDrawer.value = true
 }
 
 const openCollectionModal = () => {
@@ -102,16 +173,45 @@ const publishCollection = () => {
     recordIds: selectedRecordIds.value
   })
 }
+
+const assetMeta = (asset) => {
+  if (asset.fileName) return `${asset.fileName}${asset.fileExt ? ` · ${asset.fileExt.toUpperCase()}` : ''}`
+  return asset.visible ? '家长展示页可见' : '仅内部归档'
+}
 </script>
 
 <template>
-  <PageHead title="学生作品档案" />
+  <PageHead title="档案中心" />
 
-  <section class="archive-query-layout">
-    <aside class="archive-filters panel">
+  <section v-if="activeTab === 'home'" class="archive-home panel">
+    <button
+      v-for="tab in archiveTabs"
+      :key="tab.id"
+      class="archive-entry-card"
+      @click="activeTab = tab.id"
+    >
+      <span>
+        <strong>{{ tab.label }}</strong>
+        <small>{{ tab.hint }}</small>
+      </span>
+      <p>{{ tab.desc }}</p>
+      <em>{{ archiveCountFor(tab.id) }}</em>
+    </button>
+  </section>
+
+  <section v-else class="archive-subpage-head panel">
+    <button class="ghost" @click="activeTab = 'home'">返回档案中心</button>
+    <div>
+      <span>{{ activeArchive?.hint }}</span>
+      <strong>{{ activeArchive?.label }}</strong>
+    </div>
+  </section>
+
+  <section v-if="activeTab === 'studentWorks'" class="archive-workspace-layout">
+    <section class="archive-filter-bar panel">
       <div class="section-head">
         <div>
-          <span>查询条件</span>
+          <span>学生作品档案</span>
           <strong>{{ state.filteredArchiveRecords.length }} 条记录</strong>
         </div>
       </div>
@@ -149,15 +249,7 @@ const publishCollection = () => {
         <input v-model="state.archiveFilter.highlightOnly" type="checkbox" @change="selectFirstIfMissing" />
         <span>只看高光作品</span>
       </label>
-<!--      <section class="archive-recent-panel">-->
-<!--        <span>历史成长集</span>-->
-<!--        <div v-for="collection in recentCollections" :key="collection.id" class="archive-link-row">-->
-<!--          <strong>{{ collection.title }}</strong>-->
-<!--          <small>{{ collection.status }} · {{ collection.target }}</small>-->
-<!--          <button class="ghost" @click="state.copyArchiveCollectionLink(collection)">复发</button>-->
-<!--        </div>-->
-<!--      </section>-->
-    </aside>
+    </section>
 
     <section class="archive-results panel">
       <div class="section-head">
@@ -179,7 +271,7 @@ const publishCollection = () => {
         :key="record.id"
         class="archive-row"
         :class="{ active: selected?.id === record.id, picked: selectedRecordIds.includes(record.id) }"
-        @click="selectedId = record.id"
+        @click="openWorkDrawer(record)"
       >
         <label class="archive-pick" @click.stop>
           <input type="checkbox" :checked="selectedRecordIds.includes(record.id)" @change="toggleRecord(record)" />
@@ -197,13 +289,151 @@ const publishCollection = () => {
       </div>
     </section>
 
-    <aside class="archive-detail panel" v-if="selected">
+  </section>
+
+  <section v-if="activeTab === 'lessons'" class="archive-workspace-layout lesson-archive-layout">
+    <section class="archive-filter-bar panel">
       <div class="section-head">
+        <div>
+          <span>课堂资料档案</span>
+          <strong>{{ filteredLessonArchives.length }} 节课</strong>
+        </div>
+      </div>
+      <label>
+        班级
+        <select v-model="lessonFilter.classId">
+          <option value="all">全部班级</option>
+          <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
+        </select>
+      </label>
+      <label>
+        老师
+        <select v-model="lessonFilter.teacher">
+          <option value="all">全部老师</option>
+          <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
+            {{ teacher.name }}
+          </option>
+        </select>
+      </label>
+      <label>
+        日期
+        <select v-model="lessonFilter.date">
+          <option value="all">全部日期</option>
+          <option v-for="date in state.archiveCenterDates" :key="date">{{ date }}</option>
+        </select>
+      </label>
+      <div class="archive-explain">
+        <strong>课次聚合视图</strong>
+        <small>这里能查看一节课的备课资料、课堂素材和学生作品概览。</small>
+      </div>
+    </section>
+
+    <section class="archive-results panel">
+      <div class="section-head">
+        <div>
+          <span>课堂记录</span>
+          <strong>{{ filteredLessonArchives.length }} 节</strong>
+        </div>
+      </div>
+      <button
+        v-for="lesson in filteredLessonArchives"
+        :key="lesson.id"
+        class="lesson-archive-row"
+        :class="{ active: selectedLesson?.id === lesson.id }"
+        @click="openLessonDrawer(lesson)"
+      >
+        <span>
+          <strong>{{ lesson.date }} {{ lesson.time }} · {{ lesson.course }}</strong>
+          <small>{{ lesson.className }}（{{ lesson.classType }}） · {{ lesson.teacher }} · {{ lesson.lessonType }}</small>
+        </span>
+        <div>
+          <em>{{ lesson.materials.length }} 份资料</em>
+          <small>{{ lesson.worksCount }} 件作品 · {{ lesson.highlights }} 个高光</small>
+        </div>
+      </button>
+      <div v-if="!filteredLessonArchives.length" class="notice-box">
+        <small>没有符合条件的课堂档案。</small>
+      </div>
+    </section>
+
+  </section>
+
+  <section v-if="activeTab === 'teacherEffects'" class="archive-workspace-layout teacher-effect-layout">
+    <section class="archive-filter-bar panel">
+      <div class="section-head">
+        <div>
+          <span>老师课效档案</span>
+          <strong>{{ filteredTeacherEffects.length }} 张长图</strong>
+        </div>
+      </div>
+      <label>
+        老师
+        <select v-model="effectFilter.teacher">
+          <option value="all">全部老师</option>
+          <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
+            {{ teacher.name }}
+          </option>
+        </select>
+      </label>
+      <label>
+        班级
+        <select v-model="effectFilter.classId">
+          <option value="all">全部班级</option>
+          <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
+        </select>
+      </label>
+      <label>
+        日期
+        <select v-model="effectFilter.date">
+          <option value="all">全部日期</option>
+          <option v-for="date in state.archiveCenterDates" :key="date">{{ date }}</option>
+        </select>
+      </label>
+      <div class="archive-explain">
+        <strong>老师维度归档</strong>
+        <small>这里只承载课效长图和老师教学资料归档结果，不并入学生作品档案。</small>
+      </div>
+    </section>
+
+    <section class="archive-results panel">
+      <div class="section-head">
+        <div>
+          <span>课效长图</span>
+          <strong>{{ filteredTeacherEffects.length }} 条</strong>
+        </div>
+      </div>
+      <button
+        v-for="effect in filteredTeacherEffects"
+        :key="effect.id"
+        class="lesson-archive-row"
+        :class="{ active: selectedEffect?.id === effect.id }"
+        @click="openEffectDrawer(effect)"
+      >
+        <span>
+          <strong>{{ effect.title }}</strong>
+          <small>{{ effect.teacher }} · {{ effect.className }}（{{ effect.classType }}）</small>
+        </span>
+        <div>
+          <em>{{ effect.status }}</em>
+          <small>{{ effect.imageCount }} 张来源图</small>
+        </div>
+      </button>
+      <div v-if="!filteredTeacherEffects.length" class="notice-box">
+        <small>暂无符合条件的老师课效档案。</small>
+      </div>
+    </section>
+
+  </section>
+
+  <div v-if="showWorkDrawer && selected" class="archive-drawer-backdrop" @click.self="showWorkDrawer = false">
+    <aside class="archive-drawer" role="dialog" aria-modal="true" aria-label="作品归档详情">
+      <header class="archive-drawer-head">
         <div>
           <span>作品归档详情</span>
           <strong>{{ selected.studentName }} · {{ selected.course }}</strong>
         </div>
-      </div>
+        <button class="ghost" @click="showWorkDrawer = false">关闭</button>
+      </header>
       <img class="archive-main-image" :src="selected.artwork" :alt="selected.studentName" />
       <section class="archive-detail-group">
         <span>作品信息</span>
@@ -248,7 +478,100 @@ const publishCollection = () => {
         </div>
       </section>
     </aside>
-  </section>
+  </div>
+
+  <div v-if="showLessonDrawer && selectedLesson" class="archive-drawer-backdrop" @click.self="showLessonDrawer = false">
+    <aside class="archive-drawer lesson-archive-detail" role="dialog" aria-modal="true" aria-label="课堂完整档案">
+      <header class="archive-drawer-head">
+        <div>
+          <span>课堂完整档案</span>
+          <strong>{{ selectedLesson.className }} · {{ selectedLesson.course }}</strong>
+        </div>
+        <button class="ghost" @click="showLessonDrawer = false">关闭</button>
+      </header>
+
+      <section class="archive-overview-grid">
+        <article><span>学生作品</span><strong>{{ selectedLesson.worksCount }}/{{ selectedLesson.studentWorks.length }}</strong></article>
+        <article><span>资料文件</span><strong>{{ selectedLessonAssets.length }}</strong></article>
+        <article><span>高光作品</span><strong>{{ selectedLesson.highlights }}</strong></article>
+        <article><span>班级类型</span><strong>{{ selectedLesson.classType }}</strong></article>
+      </section>
+
+      <section class="archive-detail-group">
+        <span>课次信息</span>
+        <div class="archive-meta">
+          <span>{{ selectedLesson.date }} {{ selectedLesson.time || '未记录时间' }}</span>
+          <span>{{ selectedLesson.teacher }}</span>
+          <span>{{ selectedLesson.className }}（{{ selectedLesson.classType }}）</span>
+          <span>{{ selectedLesson.lessonType }}</span>
+        </div>
+      </section>
+
+      <section class="archive-detail-group">
+        <span>备课与课堂资料</span>
+        <div v-if="selectedLessonAssets.length" class="lesson-asset-grid">
+          <article v-for="asset in selectedLessonAssets" :key="asset.id">
+            <img v-if="asset.image" :src="asset.image" :alt="asset.title" />
+            <div v-else class="file-tile">{{ asset.fileExt || 'FILE' }}</div>
+            <span>{{ asset.type }} · {{ asset.archiveRole }}</span>
+            <strong>{{ asset.title }}</strong>
+            <small>{{ assetMeta(asset) }}</small>
+          </article>
+        </div>
+        <div v-else class="notice-box">
+          <small>这节课暂无课堂资料记录。</small>
+        </div>
+      </section>
+
+      <section class="archive-detail-group">
+        <span>学生作品概览</span>
+        <div class="lesson-work-grid">
+          <article v-for="work in selectedLessonWorks" :key="work.id || work.studentId" :class="{ missing: !work.imageMatched }">
+            <img v-if="work.artwork" :src="work.artwork" :alt="work.studentName" />
+            <div v-else class="file-tile">缺图</div>
+            <strong>{{ work.studentName }}</strong>
+            <small>{{ work.course || selectedLesson.course }}</small>
+            <em v-if="work.highlight">高光</em>
+          </article>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div v-if="showEffectDrawer && selectedEffect" class="archive-drawer-backdrop" @click.self="showEffectDrawer = false">
+    <aside class="archive-drawer" role="dialog" aria-modal="true" aria-label="课效长图详情">
+      <header class="archive-drawer-head">
+        <div>
+          <span>课效长图详情</span>
+          <strong>{{ selectedEffect.teacher }} · {{ selectedEffect.course }}</strong>
+        </div>
+        <button class="ghost" @click="showEffectDrawer = false">关闭</button>
+      </header>
+      <section class="teacher-effect-preview">
+        <div>
+          <strong>{{ selectedEffect.title }}</strong>
+          <small>{{ selectedEffect.detail }}</small>
+        </div>
+        <img v-if="selectedEffect.cover" :src="selectedEffect.cover" :alt="selectedEffect.title" />
+        <div v-else class="file-tile">长图</div>
+      </section>
+      <section class="archive-detail-group">
+        <span>归档信息</span>
+        <div class="archive-meta">
+          <span>{{ selectedEffect.date }} {{ selectedEffect.time || '' }}</span>
+          <span>{{ selectedEffect.className }}（{{ selectedEffect.classType }}）</span>
+          <span>{{ selectedEffect.teacher }}</span>
+          <span>{{ selectedEffect.status }}</span>
+        </div>
+      </section>
+      <section class="archive-detail-group">
+        <span>百度网盘路径</span>
+        <article class="archive-block">
+          <p>{{ selectedEffect.cloudPath }}</p>
+        </article>
+      </section>
+    </aside>
+  </div>
 
   <div v-if="showCollectionModal" class="modal-backdrop">
     <section class="import-modal lesson-modal">

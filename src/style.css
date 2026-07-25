@@ -950,7 +950,7 @@ h2 {
   gap: 8px;
 }
 
-.attendance-intro {
+.attendance-summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -961,14 +961,13 @@ h2 {
   background: var(--color-primary-soft);
 }
 
-.attendance-intro > div {
+.attendance-summary > div {
   display: flex;
   align-items: baseline;
   gap: 10px;
 }
 
-.attendance-intro span,
-.attendance-intro small,
+.attendance-summary span,
 .lesson-source-meta span,
 .lesson-source-meta small {
   color: var(--color-muted);
@@ -1090,7 +1089,7 @@ h2 {
 
 .student-work-person span,
 .student-work-person small,
-.work-absent-note,
+.work-absent-status,
 .work-empty {
   color: var(--color-muted);
   font-size: 13px;
@@ -1693,8 +1692,7 @@ textarea:focus {
 .stage-copy > small,
 .setting-summary-grid span,
 .setting-summary-grid small,
-.batch-progress-grid span,
-.batch-note {
+.batch-progress-grid span {
   color: var(--color-muted);
 }
 
@@ -1789,10 +1787,6 @@ textarea:focus {
   justify-self: center;
   min-width: 220px;
   min-height: 48px;
-}
-
-.batch-note {
-  text-align: center;
 }
 
 .share-content-stage,
@@ -2133,7 +2127,7 @@ textarea:focus {
 
 .archive-blocker,
 .archive-no-cloud,
-.archive-result-note {
+.archive-result-status {
   display: grid;
   gap: 5px;
   padding: 12px;
@@ -2143,7 +2137,7 @@ textarea:focus {
 }
 
 .archive-no-cloud,
-.archive-result-note {
+.archive-result-status {
   background: var(--color-primary-soft);
   color: var(--color-primary);
 }
@@ -2321,7 +2315,7 @@ textarea:focus {
   margin-bottom: 14px;
 }
 
-.material-intro {
+.material-summary {
   display: grid;
   gap: 5px;
   margin-bottom: 14px;
@@ -3296,10 +3290,6 @@ textarea:focus {
   box-shadow: inset 0 -3px 0 var(--color-primary);
 }
 
-.demo-import {
-  justify-self: center;
-}
-
 .import-done {
   display: grid;
   justify-items: center;
@@ -3431,8 +3421,7 @@ textarea:focus {
   align-items: end;
 }
 
-.archive-filter-bar .section-head,
-.archive-filter-bar .archive-explain {
+.archive-filter-bar .section-head {
   grid-column: 1 / -1;
 }
 
@@ -3468,7 +3457,6 @@ textarea:focus {
 
 .archive-tabs small,
 .archive-stat-strip span,
-.archive-explain small,
 .lesson-archive-row small,
 .lesson-asset-grid small,
 .lesson-work-grid small,
@@ -3586,14 +3574,6 @@ textarea:focus {
 
 .archive-drawer-head strong {
   font-size: 18px;
-}
-
-.archive-explain {
-  display: grid;
-  gap: 5px;
-  padding: 10px;
-  border-radius: 8px;
-  background: var(--color-primary-soft);
 }
 
 .archive-row {
@@ -4435,7 +4415,7 @@ textarea:focus {
 
   .today-hero,
   .focus-breadcrumb,
-  .attendance-intro {
+  .attendance-summary {
     align-items: stretch;
     flex-direction: column;
   }

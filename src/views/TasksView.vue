@@ -41,7 +41,6 @@ watch(() => props.openWorkspaceSignal, (signal) => {
         <span>今日课后</span>
         <h2 v-if="unfinishedTasks.length">还有 {{ unfinishedTasks.length }} 节课待交付</h2>
         <h2 v-else>今天的课后交付都完成了</h2>
-        <p>{{ unfinishedTasks.length ? '从最近一节课开始，系统会一步一步带你完成。' : '作品、课评和家长展示都已妥善归档。' }}</p>
       </div>
       <button v-if="nextTask" class="primary hero-action" @click="openTask(nextTask)">
         {{ state.progressForTask(nextTask) ? '继续处理' : '开始处理' }}

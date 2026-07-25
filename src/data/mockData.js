@@ -563,7 +563,7 @@ export const extraTaskArchives = [
     content: '请孩子和家长一起在家里找 3 个暖色物品，拍照后说一说它们让自己想到什么画面。',
     dueDate: '6月25日',
     status: '已发布',
-    note: '老师可随时发布给学生或家长，不绑定具体课次，仅用于课外练习归档。'
+    note: ''
   },
   {
     id: 2,
@@ -575,7 +575,7 @@ export const extraTaskArchives = [
     content: '家长可上传孩子在家完成的小鱼延伸作品，老师确认后归入学生课外作品档案。',
     dueDate: '6月28日',
     status: '待归档',
-    note: '可关联课次作为延伸练习，也可不关联课次；归档对象仍以学生为主。'
+    note: ''
   }
 ]
 

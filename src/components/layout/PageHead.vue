@@ -2,7 +2,7 @@
 defineProps({
   eyebrow: {
     type: String,
-    required: true
+    default: ''
   },
   title: {
     type: String,
@@ -14,7 +14,7 @@ defineProps({
 <template>
   <header class="page-head">
     <div>
-      <span>{{ eyebrow }}</span>
+      <span v-if="eyebrow">{{ eyebrow }}</span>
       <h1>{{ title }}</h1>
     </div>
     <slot />

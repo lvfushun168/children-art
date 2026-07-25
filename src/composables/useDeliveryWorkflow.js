@@ -105,10 +105,10 @@ export function useDeliveryWorkflow() {
   }
 
   const createArchiveChecklist = () => ({
-    studentCloudArchive: { status: '待推送', detail: '学生作品和学生照片按学生目录同步到百度网盘', updatedAt: '' },
-    deliveryVideo: { status: '待上传', detail: '可上传最终交付视频；本节无需视频时可跳过', fileName: '', fileMeta: '', updatedAt: '' },
-    teacherEffectArchive: { status: '待生成', detail: '生成本节课老师课效长图，并在后台同步到教学资料归档目录', title: '', imageCount: 0, updatedAt: '' },
-    wheatTrace: { status: '待生成', detail: '生成小麦留痕待办，后续仍需人工回小麦处理', traceId: null, updatedAt: '' }
+    studentCloudArchive: { status: '待推送', detail: '', updatedAt: '' },
+    deliveryVideo: { status: '待上传', detail: '', fileName: '', fileMeta: '', updatedAt: '' },
+    teacherEffectArchive: { status: '待生成', detail: '', title: '', imageCount: 0, updatedAt: '' },
+    wheatTrace: { status: '待生成', detail: '', traceId: null, updatedAt: '' }
   })
 
   const createLessonWorkspace = (task, useInitialSeed = false) => ({
@@ -170,7 +170,7 @@ export function useDeliveryWorkflow() {
         const saved = window.localStorage.getItem(`children-art-share-${task.id}`)
         if (saved) Object.assign(lessonWorkspaces[task.id].sharePage, JSON.parse(saved))
       } catch {
-        // 原型存储损坏时回退为本课次初始草稿，不影响其他课次。
+        // 存储损坏时回退为本课次初始草稿，不影响其他课次。
       }
     })
   }
@@ -281,21 +281,18 @@ export function useDeliveryWorkflow() {
     {
       id: 'system',
       label: '系统作品档案',
-      description: '保存作品、课评、高光、范画、课后任务和展示版本',
       required: true,
       status: '必选'
     },
     ...enabledCloudProviders.value.map((provider) => ({
       id: `cloud:${provider.id}`,
       label: provider.name,
-      description: `${provider.type} · ${cloudDriveSetting.value?.value?.directoryRule || '按课次目录归档'}`,
       required: false,
       status: provider.tokenStatus || '已配置'
     })),
     {
       id: 'wheat',
       label: '小麦留痕待办',
-      description: '生成待办，由老师或教务回小麦人工处理后再标记',
       required: true,
       status: activeTask.value.wheatStatus || '未生成'
     }
@@ -499,7 +496,7 @@ export function useDeliveryWorkflow() {
         showHighlight: payload.showHighlight !== false,
         showWatermark: payload.showWatermark !== false
       },
-      note: payload.note?.trim() || '由作品档案高光作品生成，可重复复制发送。'
+      note: payload.note?.trim() || ''
     }
     archiveCollections.unshift(collection)
     selectedRecords.forEach((record) => {
@@ -534,13 +531,13 @@ export function useDeliveryWorkflow() {
   }))
 
   const steps = computed(() => [
-    { title: '课次确认', hint: '核对课次信息和学生出勤', done: counts.value.attend ? 1 : 0, total: 1 },
-    { title: '课堂资料', hint: '上传范画、步骤图和课件', done: counts.value.classroomMaterialsDone, total: 1 },
-    { title: '上传作品', hint: '逐个学生上传至少 1 张作品', done: counts.value.matched, total: counts.value.attend },
-    { title: '课堂记录', hint: '逐个录入学生课堂表现', done: counts.value.records, total: counts.value.attend },
-    { title: '图文生成', hint: '图片处理、AI 课评和人工确认', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
-    { title: '家长展示', hint: '课后任务与学生分享链接', done: counts.value.shareReady, total: counts.value.attend },
-    { title: '归档留痕', hint: '保存档案并生成小麦待办', done: counts.value.archived, total: counts.value.attend }
+    { title: '课次确认', done: counts.value.attend ? 1 : 0, total: 1 },
+    { title: '课堂资料', done: counts.value.classroomMaterialsDone, total: 1 },
+    { title: '上传作品', done: counts.value.matched, total: counts.value.attend },
+    { title: '课堂记录', done: counts.value.records, total: counts.value.attend },
+    { title: '图文生成', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
+    { title: '家长展示', done: counts.value.shareReady, total: counts.value.attend },
+    { title: '归档留痕', done: counts.value.archived, total: counts.value.attend }
   ])
 
   const taskProgress = computed(() => {
@@ -603,7 +600,7 @@ export function useDeliveryWorkflow() {
     {
       key: 'studentCloudArchive',
       title: '学生作品与照片百度归档',
-      desc: studentArchivePathPreview.value,
+      meta: studentArchivePathPreview.value,
       action: '推送',
       required: true,
       item: archiveChecklist.value.studentCloudArchive
@@ -611,7 +608,7 @@ export function useDeliveryWorkflow() {
     {
       key: 'deliveryVideo',
       title: '交付视频',
-      desc: archiveChecklist.value.deliveryVideo.fileName || '上传最终交付视频，或标记本节无需视频。',
+      meta: archiveChecklist.value.deliveryVideo.fileName,
       action: '上传视频',
       required: true,
       item: archiveChecklist.value.deliveryVideo
@@ -619,7 +616,7 @@ export function useDeliveryWorkflow() {
     {
       key: 'teacherEffectArchive',
       title: '老师课效长图归档',
-      desc: archiveChecklist.value.teacherEffectArchive.title || `生成标题+图片纵向排列的课效长图，并同步到：${teacherEffectPathPreview.value}`,
+      meta: archiveChecklist.value.teacherEffectArchive.title || teacherEffectPathPreview.value,
       action: '生成并归档',
       required: true,
       item: archiveChecklist.value.teacherEffectArchive
@@ -627,7 +624,7 @@ export function useDeliveryWorkflow() {
     {
       key: 'wheatTrace',
       title: '小麦留痕待办',
-      desc: archiveChecklist.value.wheatTrace.traceId ? `待办 #${archiveChecklist.value.wheatTrace.traceId} · 回小麦人工处理` : '生成小麦留痕待办。',
+      meta: archiveChecklist.value.wheatTrace.traceId ? `待办 #${archiveChecklist.value.wheatTrace.traceId}` : '',
       action: '生成待办',
       required: true,
       item: archiveChecklist.value.wheatTrace
@@ -1771,7 +1768,7 @@ export function useDeliveryWorkflow() {
       content: payload.content || '',
       dueDate: payload.dueDate || '',
       status: payload.status || '待发布',
-      note: payload.note || '老师可随时发布给学生或家长，可不绑定具体课次；一期仅归档查询。'
+      note: payload.note || ''
     }
     extraTaskArchives.unshift(task)
     notify(`已新增课外任务：${task.title}`)

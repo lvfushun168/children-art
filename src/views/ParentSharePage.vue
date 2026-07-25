@@ -82,7 +82,6 @@ const tokenValid = computed(() => props.state.isShareAccessible(props.route))
       <footer class="parent-footer">
         <small>链接有效至 {{ snapshot.displayConfig.expiresAt }}</small>
         <small>{{ snapshot.displayConfig.accessPolicy }} · {{ snapshot.displayConfig.allowForward ? '允许转发' : '不建议转发' }}</small>
-        <small v-if="snapshot.displayConfig.showLessonType">课次类型仅为课后展示记录，不作为正式财务或课消依据。</small>
       </footer>
     </template>
   </main>

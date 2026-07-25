@@ -10,9 +10,9 @@ const props = defineProps({
 })
 
 const archiveTabs = [
-  { id: 'studentWorks', label: '学生作品档案', hint: '学生成长线', desc: '按学生查看历史作品、课评、高光、作品集和后续 PDF 导出。' },
-  { id: 'lessons', label: '课堂资料档案', hint: '课次聚合视图', desc: '按一节课查看备课资料、课堂素材和学生作品概览。' },
-  { id: 'teacherEffects', label: '老师课效档案', hint: '老师课效长图', desc: '按老师沉淀课效长图和月度教学资料归档。' }
+  { id: 'studentWorks', label: '学生作品档案' },
+  { id: 'lessons', label: '课堂资料档案' },
+  { id: 'teacherEffects', label: '老师课效档案' }
 ]
 
 const activeTab = ref('home')
@@ -146,7 +146,7 @@ const openCollectionModal = () => {
   collectionDraft.intro = `这是${first.studentName}这段时间在美术课上的高光作品记录。`
   collectionDraft.summary = ''
   collectionDraft.teacherMessage = '继续保持这份观察和表达的热情，期待下个阶段看到更多属于自己的画面。'
-  collectionDraft.note = '适合学期末私发给家长，展示孩子阶段成长。'
+  collectionDraft.note = ''
   collectionDraft.showDate = true
   collectionDraft.showCourse = true
   collectionDraft.showComment = false
@@ -192,9 +192,7 @@ const assetMeta = (asset) => {
     >
       <span>
         <strong>{{ tab.label }}</strong>
-        <small>{{ tab.hint }}</small>
       </span>
-      <p>{{ tab.desc }}</p>
       <em>{{ archiveCountFor(tab.id) }}</em>
     </button>
   </section>
@@ -202,7 +200,6 @@ const assetMeta = (asset) => {
   <section v-else class="archive-subpage-head panel">
     <button class="ghost" @click="activeTab = 'home'">返回档案中心</button>
     <div>
-      <span>{{ activeArchive?.hint }}</span>
       <strong>{{ activeArchive?.label }}</strong>
     </div>
   </section>
@@ -263,7 +260,6 @@ const assetMeta = (asset) => {
       </div>
       <div v-if="selectedRecordIds.length" class="archive-selection-bar">
         <strong>已选 {{ selectedRecordIds.length }} 件作品</strong>
-        <span>{{ selectedFilterStudent ? `可生成${selectedFilterStudent.name}的阶段成长作品集` : '先在左侧选择具体学生，再生成面向该家长的成长集' }}</span>
         <button v-if="canCreateStudentGrowth" class="primary" @click="openCollectionModal">生成{{ selectedFilterStudent.name }}的成长集</button>
       </div>
       <article
@@ -322,10 +318,6 @@ const assetMeta = (asset) => {
           <option v-for="date in state.archiveCenterDates" :key="date">{{ date }}</option>
         </select>
       </label>
-      <div class="archive-explain">
-        <strong>课次聚合视图</strong>
-        <small>这里能查看一节课的备课资料、课堂素材和学生作品概览。</small>
-      </div>
     </section>
 
     <section class="archive-results panel">
@@ -389,10 +381,6 @@ const assetMeta = (asset) => {
           <option v-for="date in state.archiveCenterDates" :key="date">{{ date }}</option>
         </select>
       </label>
-      <div class="archive-explain">
-        <strong>老师维度归档</strong>
-        <small>这里只承载课效长图和老师教学资料归档结果，不并入学生作品档案。</small>
-      </div>
     </section>
 
     <section class="archive-results panel">
@@ -415,7 +403,7 @@ const assetMeta = (asset) => {
         </span>
         <div>
           <em>{{ effect.status }}</em>
-          <small>{{ effect.imageCount }} 张来源图</small>
+          <small>{{ effect.imageCount }} 张图片</small>
         </div>
       </button>
       <div v-if="!filteredTeacherEffects.length" class="notice-box">
@@ -550,7 +538,6 @@ const assetMeta = (asset) => {
       <section class="teacher-effect-preview">
         <div>
           <strong>{{ selectedEffect.title }}</strong>
-          <small>{{ selectedEffect.detail }}</small>
         </div>
         <img v-if="selectedEffect.cover" :src="selectedEffect.cover" :alt="selectedEffect.title" />
         <div v-else class="file-tile">长图</div>
@@ -592,12 +579,11 @@ const assetMeta = (asset) => {
           <label>发送对象<input v-model="collectionDraft.target" /></label>
           <label class="wide">标题<input v-model="collectionDraft.title" /></label>
           <label class="wide">开场说明<textarea v-model="collectionDraft.intro" rows="3" /></label>
-          <label class="wide">成长总结<textarea v-model="collectionDraft.summary" rows="4" placeholder="可以手填，也可以先用 AI 生成后再微调。" /></label>
+          <label class="wide">成长总结<textarea v-model="collectionDraft.summary" rows="4" /></label>
           <label class="wide">老师寄语<textarea v-model="collectionDraft.teacherMessage" rows="3" /></label>
         </div>
         <div class="collection-copy-actions">
           <button class="ghost" @click="generateCollectionCopy">AI 生成说明</button>
-          <small>根据已选作品、高光说明、课程主题生成一版可编辑文案。</small>
         </div>
         <section class="collection-settings">
           <span>展示设置</span>
@@ -626,7 +612,7 @@ const assetMeta = (asset) => {
         <div class="archive-published-link">
           <strong>{{ createdCollection.title }}</strong>
           <p>{{ createdCollection.link }}</p>
-          <small>{{ createdCollection.note }}</small>
+          <small v-if="createdCollection.note">{{ createdCollection.note }}</small>
         </div>
         <div class="modal-actions">
           <button class="ghost" @click="state.copyArchiveCollectionLink(createdCollection)">复制链接</button>

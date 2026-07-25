@@ -142,7 +142,7 @@ const confirmStudentAndNext = () => {
           <b>{{ index + 1 }}</b>
           <span>
             <strong>{{ step.title }}</strong>
-            <small>{{ state.currentStep === index ? step.hint : (step.done === step.total && step.total > 0 ? '已完成' : `${step.done}/${step.total}`) }}</small>
+            <small>{{ step.done === step.total && step.total > 0 ? '已完成' : `${step.done}/${step.total}` }}</small>
           </span>
         </button>
       </nav>
@@ -156,14 +156,13 @@ const confirmStudentAndNext = () => {
         </div>
         <div v-if="state.activeTask.status === '异常'" class="lesson-warning">
           <strong>这节课的信息需要确认</strong>
-          <span>{{ state.activeTask.exceptionType || '数据异常' }} · {{ state.activeTask.exceptionReason || '请展开课次记录查看并处理' }}</span>
+          <span>{{ state.activeTask.exceptionType || '数据异常' }} · {{ state.activeTask.exceptionReason || '未填写原因' }}</span>
         </div>
-        <div class="attendance-intro">
+        <div class="attendance-summary">
           <div>
             <span>本班 {{ state.sessionStudents.length }} 名学生</span>
             <strong>{{ state.counts.attend }} 人到课</strong>
           </div>
-          <small>请确认本节实际出勤情况，修改后会自动保存。</small>
         </div>
         <div class="roster-table">
           <button
@@ -190,11 +189,10 @@ const confirmStudentAndNext = () => {
             <strong>上传本节课的课堂资料</strong>
           </div>
         </div>
-        <div class="material-intro">
+        <div class="material-summary">
           <strong>
-            {{ state.counts.classroomMaterials ? `已上传 ${state.counts.referenceMaterials} 张范画/步骤图，${state.counts.coursewares} 个课件` : state.materialsConfirmedEmpty ? '已确认本节无课堂资料' : '可上传范画、步骤图和课件' }}
+            {{ state.counts.classroomMaterials ? `已上传 ${state.counts.referenceMaterials} 张范画/步骤图，${state.counts.coursewares} 个课件` : state.materialsConfirmedEmpty ? '已确认本节无课堂资料' : '未上传课堂资料' }}
           </strong>
-          <small>范画和步骤图可选择是否展示给家长，课件默认仅内部归档。没有资料时，可直接确认本节无资料。</small>
         </div>
 
         <section class="classroom-materials-board">
@@ -225,7 +223,6 @@ const confirmStudentAndNext = () => {
               </article>
               <div v-if="!state.referenceMaterials.length" class="material-empty">
                 <strong>尚未上传范画或步骤图</strong>
-                <small>可上传本节课示范图，也可从范画库引用。</small>
               </div>
             </div>
           </article>
@@ -246,7 +243,6 @@ const confirmStudentAndNext = () => {
               </span>
               <div v-if="!state.coursewareMaterials.length" class="material-empty">
                 <strong>尚未上传课件</strong>
-                <small>支持 PPT、PDF、Word 或其他课堂资料文件。</small>
               </div>
             </div>
           </article>
@@ -255,7 +251,6 @@ const confirmStudentAndNext = () => {
             <button class="ghost" :class="{ selected: state.materialsConfirmedEmpty }" @click="state.confirmNoLessonMaterials">
               {{ state.materialsConfirmedEmpty ? '已确认本节无资料' : '本节无资料' }}
             </button>
-            <small>确认后可继续下一步；后续仍可回来补传资料。</small>
           </div>
         </section>
 
@@ -265,7 +260,7 @@ const confirmStudentAndNext = () => {
               <div>
                 <span>备课素材库</span>
                 <strong>从图库引用</strong>
-                <small>{{ state.artworkLibrary.length }} 项可用素材，引用后会加入本节课。</small>
+                <small>{{ state.artworkLibrary.length }} 项素材</small>
               </div>
               <button class="ghost" @click="showArtworkLibrary = false">关闭</button>
             </header>
@@ -297,7 +292,6 @@ const confirmStudentAndNext = () => {
           <div><span>本节到课</span><strong>{{ state.counts.attend }} 人</strong></div>
           <div><span>已上传</span><strong>{{ state.counts.matched }} 人</strong></div>
           <div><span>待上传</span><strong>{{ state.counts.attend - state.counts.matched }} 人</strong></div>
-          <small>每位到课学生至少上传 1 张作品，传错后可直接删除或替换。</small>
         </div>
         <div class="student-work-list">
           <article
@@ -317,7 +311,7 @@ const confirmStudentAndNext = () => {
               </button>
               <span v-if="!row.images?.length" class="work-empty">尚未上传作品</span>
             </div>
-            <div v-else class="work-absent-note">本节无需上传</div>
+            <div v-else class="work-absent-status">本节无需上传</div>
             <div class="student-work-action">
               <strong v-if="row.attendance === '到课'" :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${row.images?.length || 1} 张` : '待上传' }}</strong>
               <label v-if="row.attendance === '到课'" class="file-button add-work-button">{{ row.imageMatched ? '继续添加' : '上传作品' }}<input type="file" accept="image/*" multiple @change="state.updateImage($event, row)" /></label>
@@ -372,7 +366,6 @@ const confirmStudentAndNext = () => {
             课堂表现
             <textarea v-model="state.activeSessionStudent.record" rows="9" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" />
           </label>
-          <small>语音内容会直接添加到 {{ state.activeStudent.name }} 名下，不需要再次解析学生姓名。</small>
           <footer class="record-editor-actions">
             <button class="ghost" :disabled="currentRecordIndex <= 0" @click="moveRecordStudent(-1)">上一位</button>
             <button class="primary" @click="saveRecordAndNext">{{ currentRecordIndex < state.attendingRows.length - 1 ? '保存并下一位' : '保存记录' }}</button>
@@ -389,7 +382,7 @@ const confirmStudentAndNext = () => {
         </div>
 
         <div class="generate-flow-status">
-          <span :class="{ active: generateStage === 'settings', done: generateStage === 'review' }"><b>1</b><span><strong>生成设置</strong><small>批量生成全班图文</small></span></span>
+          <span :class="{ active: generateStage === 'settings', done: generateStage === 'review' }"><b>1</b><span><strong>生成设置</strong></span></span>
           <i></i>
           <span :class="{ active: generateStage === 'review' }"><b>2</b><span><strong>逐个确认</strong><small>{{ state.counts.confirmed }}/{{ state.counts.attend }} 已完成</small></span></span>
         </div>
@@ -404,7 +397,6 @@ const confirmStudentAndNext = () => {
                   {{ state.templates.image[index]?.name }} <b>×</b>
                 </button>
               </div>
-              <small v-else>将直接使用原图，不裁切、不美化、不加水印。</small>
             </article>
             <article>
               <span>家长课评</span>
@@ -433,7 +425,6 @@ const confirmStudentAndNext = () => {
               </div>
             </article>
           </div>
-          <div class="generation-action-summary">将处理 {{ state.counts.matched }} 个学生作品，并根据课堂记录生成 {{ state.counts.attend }} 条课评。</div>
           <div class="stage-actions"><button class="primary batch-main-action" :disabled="state.isProcessing" @click="runBatchGeneration">{{ state.isProcessing ? '正在生成…' : '生成全班图文' }}</button></div>
         </section>
 
@@ -467,7 +458,7 @@ const confirmStudentAndNext = () => {
               </div>
             </article>
             <article class="highlight-review-card">
-              <div><span>高光作品</span><strong>{{ state.activeSessionStudent.highlight ? '已标记为本节高光' : '普通作品' }}</strong><small>高光说明会随当前学生的家长展示页一起发布。</small></div>
+              <div><span>高光作品</span><strong>{{ state.activeSessionStudent.highlight ? '已标记为本节高光' : '普通作品' }}</strong></div>
               <label class="inline-check"><input type="checkbox" :checked="state.activeSessionStudent.highlight" @change="state.toggleHighlight(state.activeSessionStudent)" /><span>将当前学生作品标记为高光</span></label>
               <label v-if="state.activeSessionStudent.highlight">高光说明<textarea v-model="state.activeSessionStudent.highlightNote" rows="3" /></label>
             </article>
@@ -525,15 +516,14 @@ const confirmStudentAndNext = () => {
             </label>
           </article>
           <div class="share-expiry-setting">
-            <div><span>链接有效期</span><strong>{{ state.displayConfig.expiresInDays }} 天</strong><small>每位学生会生成一个独立访问凭证</small></div>
+            <div><span>链接有效期</span><strong>{{ state.displayConfig.expiresInDays }} 天</strong></div>
             <label>有效期（天）<input v-model.number="state.displayConfig.expiresInDays" type="number" min="1" /></label>
           </div>
           <details class="advanced-state content-settings" :open="showContentSettings" @toggle="showContentSettings = $event.target.open">
-            <summary>调整家长页展示内容 <span>默认展示范画、任务和高光说明</span></summary>
+            <summary>调整家长页展示内容</summary>
             <div class="switch-row"><label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示范画步骤</label><label><input v-model="state.displayConfig.showHomework" type="checkbox" /> 展示课后任务</label><label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label><label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label></div>
           </details>
           <button class="primary publish-main-action" :disabled="state.isProcessing || state.counts.confirmed !== state.counts.attend || state.counts.imageConfirmed !== state.counts.attend" @click="state.generateSharePages">{{ state.sharePage.publishedVersion ? '更新全班家长链接' : '生成全班家长链接' }}</button>
-          <small class="batch-note">将为 {{ state.counts.attend }} 名到课学生分别生成独立链接和二维码。</small>
 
           <section v-if="state.sharePage.status === '已发布'" class="student-share-list">
             <div class="section-head"><div><span>学生独立分享凭证</span><strong>{{ state.counts.shareReady }} 个链接已生成</strong></div></div>
@@ -562,7 +552,6 @@ const confirmStudentAndNext = () => {
             <div>
               <span>收口进度</span>
               <strong>{{ state.archiveChecklistProgress.done }}/{{ state.archiveChecklistProgress.total }} 已完成</strong>
-              <small>{{ state.activeTask.archived ? '本节课已完成归档交付' : '按清单逐项保存、推送、上传或生成，完成后本节课才正式闭环。' }}</small>
             </div>
             <div class="progress-track slim">
               <i :style="{ width: `${state.archiveChecklistProgress.percent}%` }"></i>
@@ -571,13 +560,12 @@ const confirmStudentAndNext = () => {
               <strong>还有 {{ state.currentWarnings.length }} 项前置内容未完成</strong>
               <small>{{ state.currentWarnings.slice(0, 3).join('、') }}{{ state.currentWarnings.length > 3 ? '……' : '' }}</small>
             </div>
-            <div v-else-if="!state.archiveChecklistReady" class="archive-result-note">
+            <div v-else-if="!state.archiveChecklistReady" class="archive-result-status">
               <strong>待完成项</strong>
               <small>{{ state.archiveChecklistPending.join('、') }}</small>
             </div>
-            <div v-else class="archive-result-note">
+            <div v-else class="archive-result-status">
               <strong>归档交付清单已就绪</strong>
-              <small>可以完成本节课归档交付，并生成最终课次完成记录。</small>
             </div>
           </article>
 
@@ -592,7 +580,7 @@ const confirmStudentAndNext = () => {
               <div class="archive-check-copy">
                 <span>{{ item.title }}</span>
                 <strong>{{ item.item.status }}</strong>
-                <small>{{ item.desc }}</small>
+                <small v-if="item.meta">{{ item.meta }}</small>
                 <em v-if="item.item.detail">{{ item.item.detail }}</em>
               </div>
               <div class="archive-check-actions">

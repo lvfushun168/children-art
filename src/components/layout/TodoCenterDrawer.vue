@@ -23,11 +23,11 @@ const importTodos = computed(() => props.state.importPreviewRows.filter((row) =>
 const cloudTodos = computed(() => props.state.visibleTasks.filter((task) => task.cloudArchiveStatus === '同步失败'))
 const totalCount = computed(() => pendingLessons.value.length + wheatTodos.value.length + importTodos.value.length + cloudTodos.value.length)
 const categories = computed(() => [
-  { id: 'all', label: '全部', count: totalCount.value, desc: '按优先级查看所有待办' },
-  { id: 'lessons', label: '今日课后', count: pendingLessons.value.length, desc: '未完成课后交付' },
-  { id: 'wheat', label: '小麦留痕', count: wheatTodos.value.length, desc: '需回小麦人工处理' },
-  { id: 'cloud', label: '网盘同步', count: cloudTodos.value.length, desc: '归档同步异常' },
-  { id: 'imports', label: '导入异常', count: importTodos.value.length, desc: '资料导入待修正' }
+  { id: 'all', label: '全部', count: totalCount.value },
+  { id: 'lessons', label: '今日课后', count: pendingLessons.value.length },
+  { id: 'wheat', label: '小麦留痕', count: wheatTodos.value.length },
+  { id: 'cloud', label: '网盘同步', count: cloudTodos.value.length },
+  { id: 'imports', label: '导入异常', count: importTodos.value.length }
 ])
 const showGroup = (id) => activeCategory.value === 'all' || activeCategory.value === id
 
@@ -63,10 +63,7 @@ const goTask = (task) => {
             :class="{ active: activeCategory === category.id }"
             @click="activeCategory = category.id"
           >
-            <span>
-              <strong>{{ category.label }}</strong>
-              <small>{{ category.desc }}</small>
-            </span>
+            <strong>{{ category.label }}</strong>
             <b>{{ category.count }}</b>
           </button>
         </nav>
@@ -107,7 +104,6 @@ const goTask = (task) => {
             <article v-for="task in cloudTodos" :key="task.id" class="todo-row static">
               <div>
                 <strong>{{ klassName(task) }} · {{ courseName(task) }}</strong>
-                <small>网盘归档同步失败，需稍后重试或检查网盘配置。</small>
               </div>
               <em>同步失败</em>
             </article>

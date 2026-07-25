@@ -30,7 +30,6 @@ const changeLesson = (action) => {
       <div class="lesson-source-meta">
         <span>数据来源</span>
         <strong>{{ state.activeTask.importedFrom }}</strong>
-        <small>旁路导入记录，不代表与小麦实时同步</small>
       </div>
       <label v-if="['待处理', '处理中'].includes(state.activeTask.status)">
         异常类型
@@ -60,7 +59,6 @@ const changeLesson = (action) => {
         <strong>{{ state.sharePage.status }} · V{{ state.sharePage.status === '草稿' ? state.sharePage.draftVersion : state.sharePage.publishedVersion }}</strong>
       </div>
       <span>已发布版本：{{ state.sharePage.publishedVersion || '无' }}</span>
-      <small v-if="state.sharePage.status === '草稿' && state.sharePage.publishedSnapshot">草稿修改不影响家长继续访问 V{{ state.sharePage.publishedVersion }}</small>
       <label>
         状态变更说明
         <input v-model="shareReason" placeholder="新草稿或撤销原因" />

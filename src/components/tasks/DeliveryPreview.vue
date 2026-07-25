@@ -106,7 +106,7 @@ defineEmits(['copy-export'])
       <small v-if="displayConfig.showLessonType">
         {{ activeTask.lessonType }} · 本信息仅为课后展示记录，不作为正式财务或课消依据
       </small>
-      <p>{{ activeSessionStudent.comment || '课评生成后会在这里预览。' }}</p>
+      <p>{{ activeSessionStudent.comment || '暂无课评' }}</p>
       <div v-if="displayConfig.showHighlight && activeSessionStudent.highlight" class="highlight-note">
         <strong>高光作品</strong>
         <small>{{ activeSessionStudent.highlightNote }}</small>

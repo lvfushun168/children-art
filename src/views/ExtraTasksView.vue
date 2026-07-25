@@ -28,7 +28,7 @@ const blankDraft = () => ({
   content: '',
   dueDate: '',
   status: '待发布',
-  note: '老师可随时发布给学生或家长，可不绑定具体课次；一期仅归档查询。'
+  note: ''
 })
 
 const draft = ref(blankDraft())

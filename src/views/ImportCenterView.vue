@@ -47,11 +47,6 @@ const handleFile = (event) => {
   mode.value = 'mapping'
 }
 
-const loadDemo = () => {
-  fileName.value = dataType.value === '学生名单' ? '小麦学员名单-20260621.xlsx' : '小麦班级课表-20260621.xlsx'
-  mode.value = 'mapping'
-}
-
 const confirmImport = () => {
   props.state.applyImportRows()
   mode.value = 'done'
@@ -81,7 +76,6 @@ const mappingKey = (column) => {
       </div>
       <div v-if="latestBatch.failed" class="import-attention">
         <strong>{{ latestBatch.failed }} 条需要确认</strong>
-        <span>不会影响已经成功写入的数据</span>
         <button class="secondary" @click="dataType = '综合课表'; mode = 'preview'">继续处理</button>
       </div>
       <div v-else class="import-complete">✓ 已全部完成</div>
@@ -91,7 +85,6 @@ const mappingKey = (column) => {
       <div>
         <span>导入新的数据</span>
         <strong>从小麦或整理好的表格更新系统资料</strong>
-        <small>一个文件可以同时识别学生、班级、课程和课次，无需分别进入多个页面。</small>
       </div>
       <button class="primary" @click="startImport">选择文件</button>
     </section>
@@ -117,28 +110,23 @@ const mappingKey = (column) => {
       <div class="import-step-copy">
         <span>第一步</span>
         <h2>这次要导入什么？</h2>
-        <p>如果文件里同时包含学生和课表，选择“综合课表”即可。</p>
       </div>
       <div class="import-type-picker">
         <button v-for="type in ['综合课表', '学生名单', '班级课表']" :key="type" :class="{ selected: dataType === type }" @click="dataType = type">
           <strong>{{ type }}</strong>
-          <small>{{ type === '综合课表' ? '同时更新学生、班级和课次' : type === '学生名单' ? '新增或更新学生及所属班级' : '新增或更新班级安排和上课时间' }}</small>
         </button>
       </div>
       <label>数据来源<select v-model="source"><option>小麦 Excel 导出</option><option>小麦课表整理表</option><option>手工维护表格</option></select></label>
       <label class="upload-zone">
         <strong>把 Excel 文件放到这里</strong>
-        <small>选择后先预览，不会直接修改现有资料</small>
         <input type="file" accept=".xlsx,.xls,.csv" @change="handleFile" />
       </label>
-      <button class="secondary demo-import" @click="loadDemo">使用示例文件继续</button>
     </section>
 
     <section v-if="mode === 'mapping'" class="import-focus-step">
       <div class="import-step-copy">
         <span>第二步</span>
         <h2>系统已经识别了主要字段</h2>
-        <p>通常无需调整；只有表头名称特殊时才需要重新选择。</p>
       </div>
       <div class="file-pill"><strong>{{ fileName }}</strong><small>{{ dataType }} · {{ source }}</small></div>
       <div class="mapping-grid">
@@ -153,7 +141,6 @@ const mappingKey = (column) => {
       <div class="import-step-copy">
         <span>最后一步</span>
         <h2>{{ warningRows.length ? `有 ${warningRows.length} 条数据需要留意` : '数据已经可以导入' }}</h2>
-        <p>有问题的数据会被跳过，不会覆盖现有的正确资料。</p>
       </div>
       <div class="import-summary"><article><span>本次识别</span><strong>{{ rows.length }}</strong></article><article><span>可以导入</span><strong>{{ validRows.length }}</strong></article><article><span>暂不导入</span><strong>{{ warningRows.length }}</strong></article></div>
       <div class="preview-table">
@@ -164,7 +151,7 @@ const mappingKey = (column) => {
     </section>
 
     <section v-if="mode === 'done'" class="import-done">
-      <span>✓</span><h2>导入完成</h2><p>{{ validRows.length }} 条资料已经更新，{{ warningRows.length }} 条问题数据已保留，稍后可以继续处理。</p><button class="primary" @click="mode = 'home'">返回数据导入</button>
+      <span>✓</span><h2>导入完成</h2><p>{{ validRows.length }} 条资料已经更新，{{ warningRows.length }} 条问题数据已保留。</p><button class="primary" @click="mode = 'home'">返回数据导入</button>
     </section>
   </section>
 </template>

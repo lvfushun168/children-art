@@ -115,6 +115,7 @@ export function useDeliveryWorkflow() {
     lessonId: task.id,
     studentDeliveries: createStudentDeliveries(task, useInitialSeed),
     materials: clone(lessonMaterialSeed).map((material) => ({ ...material, lessonId: task.id })),
+    materialsConfirmedEmpty: false,
     homework: { ...clone(homeworkSeed), lessonId: task.id },
     displayConfig: { ...clone(displayConfigSeed), lessonId: task.id },
     bulkRecord: useInitialSeed ? initialBulkRecord : '',
@@ -177,6 +178,12 @@ export function useDeliveryWorkflow() {
   const activeWorkspace = computed(() => ensureLessonWorkspace(activeTask.value))
   const sessionStudents = computed(() => activeWorkspace.value.studentDeliveries)
   const materials = computed(() => activeWorkspace.value.materials)
+  const referenceMaterials = computed(() => materials.value.filter((item) => item.type !== '课件'))
+  const coursewareMaterials = computed(() => materials.value.filter((item) => item.type === '课件'))
+  const materialsConfirmedEmpty = computed({
+    get: () => Boolean(activeWorkspace.value.materialsConfirmedEmpty),
+    set: (value) => { activeWorkspace.value.materialsConfirmedEmpty = Boolean(value) }
+  })
   const homework = computed(() => activeWorkspace.value.homework)
   const displayConfig = computed(() => activeWorkspace.value.displayConfig)
   const sharePage = computed(() => activeWorkspace.value.sharePage)
@@ -371,13 +378,17 @@ export function useDeliveryWorkflow() {
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
+    referenceMaterials: referenceMaterials.value.length,
+    coursewares: coursewareMaterials.value.length,
+    classroomMaterials: materials.value.length,
+    classroomMaterialsDone: materials.value.length || materialsConfirmedEmpty.value ? 1 : 0,
     artworks: materials.value.filter((item) => item.type === '范画').length,
     visibleMaterials: materials.value.filter((item) => item.visible).length
   }))
 
   const steps = computed(() => [
     { title: '课次确认', hint: '核对课次信息和学生出勤', done: counts.value.attend ? 1 : 0, total: 1 },
-    { title: '上传范画', hint: '至少上传 1 张本节范画', done: counts.value.artworks ? 1 : 0, total: 1 },
+    { title: '课堂资料', hint: '上传范画、步骤图和课件', done: counts.value.classroomMaterialsDone, total: 1 },
     { title: '上传作品', hint: '逐个学生上传至少 1 张作品', done: counts.value.matched, total: counts.value.attend },
     { title: '课堂记录', hint: '逐个录入学生课堂表现', done: counts.value.records, total: counts.value.attend },
     { title: '图文生成', hint: '图片处理、AI 课评和人工确认', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
@@ -389,7 +400,7 @@ export function useDeliveryWorkflow() {
     const total = counts.value.attend * 7 || 1
     const done =
       counts.value.attend +
-      (counts.value.artworks ? counts.value.attend : 0) +
+      (counts.value.classroomMaterialsDone ? counts.value.attend : 0) +
       counts.value.matched +
       counts.value.records +
       Math.min(counts.value.processed, counts.value.confirmed) +
@@ -405,7 +416,7 @@ export function useDeliveryWorkflow() {
     if (!rows.length) return 0
     const completed =
       rows.length +
-      (workspace.materials.some((item) => item.type === '范画') ? rows.length : 0) +
+      (workspace.materials.length || workspace.materialsConfirmedEmpty ? rows.length : 0) +
       rows.filter((row) => row.imageMatched).length +
       rows.filter((row) => row.record).length +
       Math.min(rows.filter((row) => row.processed).length, rows.filter((row) => row.confirmed).length) +
@@ -418,7 +429,7 @@ export function useDeliveryWorkflow() {
 
   const currentWarnings = computed(() => {
     const warnings = []
-    if (!materials.value.some((item) => item.type === '范画')) warnings.push('本节课至少需要上传 1 张范画')
+    if (!materials.value.length && !materialsConfirmedEmpty.value) warnings.push('课堂资料待上传或确认无资料')
     if (homework.value.visible && !homework.value.content.trim()) warnings.push('课后任务内容为空')
     attendingRows.value.forEach((row) => {
       const student = students.find((item) => item.id === row.studentId)
@@ -694,11 +705,41 @@ export function useDeliveryWorkflow() {
   }
 
   const uploadLessonMaterial = (event, type = '范画') => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    materials.value.push({ id: Date.now(), lessonId: activeTaskId.value, type, title: file.name.replace(/\.[^.]+$/, ''), image: URL.createObjectURL(file), visible: true, libraryId: null })
+    const files = [...(event.target.files || [])]
+    if (!files.length) return
+    files.forEach((file, index) => {
+      const url = URL.createObjectURL(file)
+      const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : ''
+      materials.value.push({
+        id: Date.now() + index,
+        lessonId: activeTaskId.value,
+        type,
+        title: type === '课件' ? file.name : file.name.replace(/\.[^.]+$/, ''),
+        image: type === '课件' ? '' : url,
+        fileUrl: url,
+        fileName: file.name,
+        fileExt: extension,
+        fileSize: file.size,
+        visible: type !== '课件',
+        libraryId: null
+      })
+    })
+    materialsConfirmedEmpty.value = false
     event.target.value = ''
-    notify(`已上传${type}：${file.name}`)
+    notify(`已上传 ${files.length} 个${type}`)
+  }
+
+  const removeLessonMaterial = (material) => {
+    const index = materials.value.findIndex((item) => item.id === material.id)
+    if (index < 0) return
+    materials.value.splice(index, 1)
+    if (!materials.value.length) materialsConfirmedEmpty.value = false
+    notify(`已删除${material.title}`)
+  }
+
+  const confirmNoLessonMaterials = () => {
+    materialsConfirmedEmpty.value = !materialsConfirmedEmpty.value
+    notify(materialsConfirmedEmpty.value ? '已确认本节无课堂资料' : '已取消无资料确认')
   }
 
   const useArtworkFromLibrary = (item) => {
@@ -709,14 +750,6 @@ export function useDeliveryWorkflow() {
     materials.value.push({ id: Date.now(), lessonId: activeTaskId.value, type: item.type, title: item.title, image: item.image, visible: true, libraryId: item.id })
     item.usage += 1
     notify(`已从范画库选择：${item.title}`)
-  }
-
-  const saveMaterialToLibrary = (material) => {
-    if (material.libraryId) return notify('这项素材已经在范画库中')
-    const item = { id: nextId(artworkLibrary), type: material.type, title: material.title, theme: activeCourse.value.title, age: activeCourse.value.age, uploader: currentUser.value.name, usage: 1, image: material.image }
-    artworkLibrary.unshift(item)
-    material.libraryId = item.id
-    notify(`已保存到范画库：${material.title}`)
   }
 
   const addArtworkLibraryItem = (payload) => {
@@ -1643,6 +1676,9 @@ export function useDeliveryWorkflow() {
     archiveDates,
     filteredArchiveRecords,
     materials,
+    referenceMaterials,
+    coursewareMaterials,
+    materialsConfirmedEmpty,
     homework,
     displayConfig,
     externalLinks,
@@ -1720,8 +1756,9 @@ export function useDeliveryWorkflow() {
     toggleMaterialVisible,
     addMaterial,
     uploadLessonMaterial,
+    removeLessonMaterial,
+    confirmNoLessonMaterials,
     useArtworkFromLibrary,
-    saveMaterialToLibrary,
     addArtworkLibraryItem,
     chooseImageTemplate,
     removeImageTemplate,

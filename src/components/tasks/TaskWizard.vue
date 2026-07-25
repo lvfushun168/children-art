@@ -187,42 +187,103 @@ const confirmStudentAndNext = () => {
         <div class="section-head">
           <div>
             <span>第 2 步</span>
-            <strong>上传本节课的范画</strong>
-          </div>
-          <div class="button-pair">
-            <label class="file-button material-upload-button">上传范画<input type="file" accept="image/*" @change="state.uploadLessonMaterial($event, '范画')" /></label>
-            <button class="secondary" @click="showArtworkLibrary = !showArtworkLibrary">{{ showArtworkLibrary ? '收起范画库' : '从范画库选择' }}</button>
+            <strong>上传本节课的课堂资料</strong>
           </div>
         </div>
         <div class="material-intro">
-          <strong>{{ state.counts.artworks ? `已上传 ${state.counts.artworks} 张范画` : '请至少上传 1 张范画' }}</strong>
-          <small>步骤图为可选内容；范画和步骤图都可以决定是否展示给家长。</small>
+          <strong>
+            {{ state.counts.classroomMaterials ? `已上传 ${state.counts.referenceMaterials} 张范画/步骤图，${state.counts.coursewares} 个课件` : state.materialsConfirmedEmpty ? '已确认本节无课堂资料' : '可上传范画、步骤图和课件' }}
+          </strong>
+          <small>范画和步骤图可选择是否展示给家长，课件默认仅内部归档。没有资料时，可直接确认本节无资料。</small>
         </div>
-        <section v-if="showArtworkLibrary" class="lesson-library-picker">
-          <div class="mini-head"><div><span>老师共享范画库</span><strong>选择后会复制到本节课</strong></div><small>{{ state.artworkLibrary.length }} 项可用素材</small></div>
-          <div class="library-picker-grid">
-            <article v-for="item in state.artworkLibrary" :key="item.id">
-              <img :src="item.image" :alt="item.title" />
-              <div><span>{{ item.type }} · {{ item.theme }}</span><strong>{{ item.title }}</strong><small>{{ item.uploader }} · 已使用 {{ item.usage }} 次</small></div>
-              <button class="ghost" @click="state.useArtworkFromLibrary(item)">选择</button>
-            </article>
-          </div>
-        </section>
-        <div class="material-gallery">
-          <article v-for="material in state.materials" :key="material.id" :class="{ hidden: !material.visible }">
-            <img :src="material.image" :alt="material.title" />
-            <div>
-              <span>{{ material.type }}</span>
-              <strong>{{ material.title }}</strong>
-              <small>{{ material.visible ? '家长展示页可见' : '仅保存到内部档案' }}</small>
-            </div>
-            <div class="material-card-actions">
-              <button class="ghost" @click="state.toggleMaterialVisible(material)">{{ material.visible ? '设为不展示' : '展示给家长' }}</button>
-              <button v-if="!material.libraryId" class="ghost" @click="state.saveMaterialToLibrary(material)">保存到范画库</button>
+
+        <section class="classroom-materials-board">
+          <article class="material-lane">
+            <header>
+              <div>
+                <span>范画步骤</span>
+                <strong>{{ state.counts.referenceMaterials }} 张图片</strong>
+              </div>
+              <div class="button-pair">
+                <label class="file-button material-upload-button">上传图片<input type="file" accept="image/*" multiple @change="state.uploadLessonMaterial($event, '范画')" /></label>
+                <button class="secondary" @click="showArtworkLibrary = true">从图库引用</button>
+              </div>
+            </header>
+
+            <div class="material-gallery compact">
+              <article v-for="material in state.referenceMaterials" :key="material.id" :class="{ hidden: !material.visible }">
+                <img :src="material.image" :alt="material.title" />
+                <div>
+                  <span>{{ material.type }}</span>
+                  <strong>{{ material.title }}</strong>
+                  <small>{{ material.visible ? '家长展示页可见' : '仅保存到内部档案' }}</small>
+                </div>
+                <div class="material-card-actions">
+                  <button class="ghost" @click="state.toggleMaterialVisible(material)">{{ material.visible ? '设为不展示' : '展示给家长' }}</button>
+                  <button class="ghost danger-action" @click="state.removeLessonMaterial(material)">删除</button>
+                </div>
+              </article>
+              <div v-if="!state.referenceMaterials.length" class="material-empty">
+                <strong>尚未上传范画或步骤图</strong>
+                <small>可上传本节课示范图，也可从范画库引用。</small>
+              </div>
             </div>
           </article>
+
+          <article class="material-lane">
+            <header>
+              <div>
+                <span>课件</span>
+                <strong>{{ state.counts.coursewares }} 个文件</strong>
+              </div>
+              <label class="file-button material-upload-button">上传课件<input type="file" multiple @change="state.uploadLessonMaterial($event, '课件')" /></label>
+            </header>
+            <div class="courseware-list">
+              <span v-for="material in state.coursewareMaterials" :key="material.id" class="courseware-chip">
+                <strong>{{ material.title }}</strong>
+                <small>{{ material.fileExt ? material.fileExt.toUpperCase() : '文件' }}</small>
+                <button class="ghost" @click="state.removeLessonMaterial(material)">删除</button>
+              </span>
+              <div v-if="!state.coursewareMaterials.length" class="material-empty">
+                <strong>尚未上传课件</strong>
+                <small>支持 PPT、PDF、Word 或其他课堂资料文件。</small>
+              </div>
+            </div>
+          </article>
+
+          <div v-if="!state.counts.classroomMaterials" class="no-material-confirm">
+            <button class="ghost" :class="{ selected: state.materialsConfirmedEmpty }" @click="state.confirmNoLessonMaterials">
+              {{ state.materialsConfirmedEmpty ? '已确认本节无资料' : '本节无资料' }}
+            </button>
+            <small>确认后可继续下一步；后续仍可回来补传资料。</small>
+          </div>
+        </section>
+
+        <div v-if="showArtworkLibrary" class="drawer-backdrop" @click.self="showArtworkLibrary = false">
+          <aside class="library-drawer">
+            <header class="drawer-head">
+              <div>
+                <span>备课素材库</span>
+                <strong>从图库引用</strong>
+                <small>{{ state.artworkLibrary.length }} 项可用素材，引用后会加入本节课。</small>
+              </div>
+              <button class="ghost" @click="showArtworkLibrary = false">关闭</button>
+            </header>
+            <section class="library-drawer-list">
+              <article v-for="item in state.artworkLibrary" :key="item.id" :class="{ selected: state.materials.some((material) => material.libraryId === item.id) }">
+                <img :src="item.image" :alt="item.title" />
+                <div>
+                  <span>{{ item.type }} · {{ item.theme }}</span>
+                  <strong>{{ item.title }}</strong>
+                  <small>{{ item.uploader }} · 已使用 {{ item.usage }} 次</small>
+                </div>
+                <button class="secondary" :disabled="state.materials.some((material) => material.libraryId === item.id)" @click="state.useArtworkFromLibrary(item)">
+                  {{ state.materials.some((material) => material.libraryId === item.id) ? '已引用' : '引用' }}
+                </button>
+              </article>
+            </section>
+          </aside>
         </div>
-        <label class="file-button optional-step-upload">＋ 可选：上传步骤图<input type="file" accept="image/*" @change="state.uploadLessonMaterial($event, '步骤图')" /></label>
       </section>
 
       <section v-if="state.currentStep === 2" class="step-panel">

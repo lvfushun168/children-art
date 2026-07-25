@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, proxyRefs, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, proxyRefs, ref, watch } from 'vue'
 import SidebarNav from './components/layout/SidebarNav.vue'
 import TodoCenterDrawer from './components/layout/TodoCenterDrawer.vue'
 import UserMenu from './components/layout/UserMenu.vue'
@@ -22,6 +22,13 @@ const activeImportType = ref('综合课表')
 const showTodoCenter = ref(false)
 const openWorkspaceSignal = ref(0)
 const state = proxyRefs(useDeliveryWorkflow())
+const themeOptions = [
+  { id: 'studio', label: '画室温润' },
+  { id: 'day', label: '清爽日间' },
+  { id: 'night', label: '低照度夜间' }
+]
+const savedTheme = typeof window !== 'undefined' ? window.localStorage.getItem('children-art-theme') : ''
+const activeTheme = ref(themeOptions.some((theme) => theme.id === savedTheme) ? savedTheme : 'studio')
 
 const filteredNavItems = computed(() => navItems.filter((item) => !state.visibleNavItems.includes(item.id)))
 const pendingCount = computed(() => state.visibleTasks.filter((task) => task.status !== '已完成').length)
@@ -49,8 +56,22 @@ const selectTodoTask = (task) => {
   openWorkspaceSignal.value += 1
 }
 
-onMounted(() => window.addEventListener('hashchange', updateRouteHash))
+const applyTheme = (theme) => {
+  if (typeof document === 'undefined') return
+  document.documentElement.dataset.theme = theme
+  document.documentElement.style.colorScheme = theme === 'night' ? 'dark' : 'light'
+}
+
+onMounted(() => {
+  applyTheme(activeTheme.value)
+  window.addEventListener('hashchange', updateRouteHash)
+})
 onBeforeUnmount(() => window.removeEventListener('hashchange', updateRouteHash))
+
+watch(activeTheme, (theme) => {
+  applyTheme(theme)
+  if (typeof window !== 'undefined') window.localStorage.setItem('children-art-theme', theme)
+}, { immediate: true })
 
 const shareRoute = computed(() => {
   const studentMatch = routeHash.value.match(/^#\/share\/student\/(\d+)\/(\d+)(?:\?token=([^&]+))?/)
@@ -91,6 +112,9 @@ const shareRoute = computed(() => {
         :current-user="state.currentUser"
         :permission-summary="state.permissionSummary"
         :teachers="state.teachers"
+        :theme-options="themeOptions"
+        :active-theme="activeTheme"
+        @update-theme="activeTheme = $event"
         @switch-user="state.loginAs"
         @logout="state.logout"
       />

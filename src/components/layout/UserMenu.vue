@@ -13,10 +13,18 @@ defineProps({
   teachers: {
     type: Array,
     required: true
+  },
+  themeOptions: {
+    type: Array,
+    required: true
+  },
+  activeTheme: {
+    type: String,
+    required: true
   }
 })
 
-defineEmits(['switchUser', 'logout'])
+defineEmits(['switchUser', 'logout', 'updateTheme'])
 
 const open = ref(false)
 </script>
@@ -44,10 +52,19 @@ const open = ref(false)
       </div>
 
       <label>
-        演示切换账号
+        切换账号
         <select :value="currentUser.id" @change="$emit('switchUser', Number($event.target.value))">
           <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
             {{ teacher.name }} · {{ teacher.role }}
+          </option>
+        </select>
+      </label>
+
+      <label>
+        界面主题
+        <select :value="activeTheme" @change="$emit('updateTheme', $event.target.value)">
+          <option v-for="theme in themeOptions" :key="theme.id" :value="theme.id">
+            {{ theme.label }}
           </option>
         </select>
       </label>

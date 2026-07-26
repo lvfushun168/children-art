@@ -148,21 +148,5 @@ const save = () => {
         <label class="wide">归档备注<textarea v-model="draft.note" rows="4" /></label>
       </div>
     </section>
-
-    <aside class="panel">
-      <div class="section-head">
-        <div>
-          <span>任务预览</span>
-        </div>
-      </div>
-
-      <div class="link-preview" v-if="selected">
-        <strong>{{ selected.title }}</strong>
-        <span>{{ selected.taskType }} · {{ selected.owner }} · {{ selected.status }}</span>
-        <small>{{ selected.relatedLesson }}</small>
-        <p>{{ selected.content }}</p>
-        <em>{{ selected.note }}</em>
-      </div>
-    </aside>
   </section>
 </template>

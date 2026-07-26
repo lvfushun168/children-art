@@ -137,20 +137,5 @@ const save = () => {
         </label>
       </div>
     </section>
-
-    <aside class="panel">
-      <div class="section-head">
-        <div>
-          <span>引用预览</span>
-        </div>
-      </div>
-      <div class="link-preview" v-if="selected">
-        <strong>{{ selected.title }}</strong>
-        <span>{{ selected.platform }} · {{ selected.status }}</span>
-        <small>{{ selected.url }}</small>
-        <p>{{ selected.note }}</p>
-        <em>{{ courseNames(selected.courseIds) }}</em>
-      </div>
-    </aside>
   </section>
 </template>

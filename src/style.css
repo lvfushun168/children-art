@@ -3653,14 +3653,14 @@ textarea:focus {
 
 .external-link-layout {
   display: grid;
-  grid-template-columns: 300px minmax(520px, 1fr) 320px;
+  grid-template-columns: 300px minmax(520px, 1fr);
   gap: 14px;
   align-items: start;
 }
 
 .extra-task-layout {
   display: grid;
-  grid-template-columns: 300px minmax(520px, 1fr) 320px;
+  grid-template-columns: 300px minmax(520px, 1fr);
   gap: 14px;
   align-items: start;
 }

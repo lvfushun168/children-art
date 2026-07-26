@@ -212,7 +212,6 @@ export const externalLinks = [
 
 export const templates = {
   image: [
-    { name: '不套模板/保留原图', ratio: '原比例', brightness: '不调整', watermark: '不加水印', border: '无边框', crop: '不裁切', quality: '原图', status: '启用' },
     { name: '家长展示标准版', ratio: '4:5', brightness: '+15%', watermark: '右下角校区水印', border: '米白作品框', crop: '居中裁切', quality: '高清', status: '启用' },
     { name: '内部归档版', ratio: '1:1', brightness: '+10%', watermark: '课程名+老师名', border: '无边框', crop: '主体居中', quality: '标准', status: '启用' },
     { name: '作品档案版', ratio: '原比例', brightness: '不调整', watermark: '隐藏水印', border: '原图保留', crop: '不裁切', quality: '原图', status: '启用' }

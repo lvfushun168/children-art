@@ -527,8 +527,8 @@ const updateCommentTemplate = (index) => {
           <article class="extension-resource-panel">
             <div class="mini-head">
               <div>
-                <span>延伸资源（可选）</span>
-                <strong>{{ state.selectedExternalLinks.length ? `已选 ${state.selectedExternalLinks.length} 个资源` : '本次不关联在线课程' }}</strong>
+                <span>在线课程（可选）</span>
+                <strong>{{ state.selectedExternalLinks.length ? `已选 ${state.selectedExternalLinks.length} 个资源` : '未关联在线课程' }}</strong>
               </div>
               <button class="ghost" @click="showResourceDrawer = true">选择资源</button>
             </div>
@@ -537,7 +537,6 @@ const updateCommentTemplate = (index) => {
                 <strong>{{ link.title }}</strong>
                 <span>×</span>
               </button>
-              <span v-if="!state.selectedExternalLinks.length" class="resource-empty">没有选择延伸资源，家长页只展示课后任务本身。</span>
             </div>
           </article>
           <div class="share-expiry-setting">
@@ -545,10 +544,9 @@ const updateCommentTemplate = (index) => {
             <label>有效期（天）<input v-model.number="state.displayConfig.expiresInDays" type="number" min="1" /></label>
           </div>
           <details class="advanced-state content-settings" :open="showContentSettings" @toggle="showContentSettings = $event.target.open">
-            <summary>调整家长页展示内容</summary>
+            <summary>调整家长页展示内容🔽</summary>
             <div class="switch-row"><label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示范画步骤</label><label><input v-model="state.displayConfig.showHomework" type="checkbox" /> 展示课后任务</label><label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label><label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label></div>
           </details>
-          <p class="share-step-note">本步骤只配置课后任务和家长页展示内容。展示页快照发布、学生访问凭证生成与企业微信推送，将在第 7 步「归档留痕」时统一执行；链接与二维码随触达记录留档。</p>
         </section>
 
         <div v-if="showResourceDrawer" class="drawer-backdrop" @click.self="showResourceDrawer = false">

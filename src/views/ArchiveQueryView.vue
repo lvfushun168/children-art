@@ -114,6 +114,30 @@ const archiveStats = computed(() => ({
   effects: props.state.teacherEffectArchiveRecords.length
 }))
 const activeArchive = computed(() => archiveTabs.find((tab) => tab.id === activeTab.value))
+const teacherFilterOptions = computed(() => [
+  { label: '全部老师', value: 'all' },
+  ...props.state.teachers.filter((item) => item.role === '老师').map((teacher) => ({ label: teacher.name, value: teacher.name }))
+])
+const classFilterOptions = computed(() => [
+  { label: '全部班级', value: 'all' },
+  ...props.state.classes.map((klass) => ({ label: klass.name, value: klass.id }))
+])
+const studentFilterOptions = computed(() => [
+  { label: '全部学生', value: 'all' },
+  ...props.state.students.map((student) => ({ label: student.name, value: student.id }))
+])
+const frameStatusOptions = [
+  { label: '全部状态', value: 'all' },
+  { label: '已装裱', value: 'framed' },
+  { label: '未装裱', value: 'unframed' }
+]
+const framerOptions = computed(() => [
+  { label: '请选择', value: '' },
+  ...props.state.teachers
+    .filter((item) => item.status === '启用')
+    .map((staff) => ({ label: `${staff.name} · ${staff.role}`, value: `staff:${staff.id}` })),
+  { label: '其他人员或外部机构', value: 'external' }
+])
 
 const archiveCountFor = (id) => {
   if (id === 'studentWorks') return `${archiveStats.value.works} 条学生作品`
@@ -345,34 +369,19 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div class="archive-filter-fields student-work-filter-fields">
         <label>
           学生
-          <select v-model="state.archiveFilter.studentId" @change="selectFirstIfMissing">
-            <option value="all">全部学生</option>
-            <option v-for="student in state.students" :key="student.id" :value="student.id">{{ student.name }}</option>
-          </select>
+          <AdaptiveSelect v-model="state.archiveFilter.studentId" :options="studentFilterOptions" @change="selectFirstIfMissing" />
         </label>
         <label>
           班级
-          <select v-model="state.archiveFilter.classId" @change="selectFirstIfMissing">
-            <option value="all">全部班级</option>
-            <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
-          </select>
+          <AdaptiveSelect v-model="state.archiveFilter.classId" :options="classFilterOptions" @change="selectFirstIfMissing" />
         </label>
         <label>
           老师
-          <select v-model="state.archiveFilter.teacher" @change="selectFirstIfMissing">
-            <option value="all">全部老师</option>
-            <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
-              {{ teacher.name }}
-            </option>
-          </select>
+          <AdaptiveSelect v-model="state.archiveFilter.teacher" :options="teacherFilterOptions" @change="selectFirstIfMissing" />
         </label>
         <label>
           装裱状态
-          <select v-model="state.archiveFilter.frameStatus" @change="selectFirstIfMissing">
-            <option value="all">全部状态</option>
-            <option value="framed">已装裱</option>
-            <option value="unframed">未装裱</option>
-          </select>
+          <AdaptiveSelect v-model="state.archiveFilter.frameStatus" :options="frameStatusOptions" @change="selectFirstIfMissing" />
         </label>
         <label class="archive-check">
           <input v-model="state.archiveFilter.highlightOnly" type="checkbox" @change="selectFirstIfMissing" />
@@ -437,19 +446,11 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div class="archive-filter-fields compact-archive-filter-fields">
         <label>
           班级
-          <select v-model="lessonFilter.classId">
-            <option value="all">全部班级</option>
-            <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
-          </select>
+          <AdaptiveSelect v-model="lessonFilter.classId" :options="classFilterOptions" />
         </label>
         <label>
           老师
-          <select v-model="lessonFilter.teacher">
-            <option value="all">全部老师</option>
-            <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
-              {{ teacher.name }}
-            </option>
-          </select>
+          <AdaptiveSelect v-model="lessonFilter.teacher" :options="teacherFilterOptions" />
         </label>
       </div>
       <DateRangeFilter
@@ -499,19 +500,11 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div class="archive-filter-fields compact-archive-filter-fields">
         <label>
           老师
-          <select v-model="effectFilter.teacher">
-            <option value="all">全部老师</option>
-            <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
-              {{ teacher.name }}
-            </option>
-          </select>
+          <AdaptiveSelect v-model="effectFilter.teacher" :options="teacherFilterOptions" />
         </label>
         <label>
           班级
-          <select v-model="effectFilter.classId">
-            <option value="all">全部班级</option>
-            <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
-          </select>
+          <AdaptiveSelect v-model="effectFilter.classId" :options="classFilterOptions" />
         </label>
       </div>
       <DateRangeFilter
@@ -606,13 +599,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
             <label>装裱费用（元）<input v-model="workDraft.frameFee" type="number" min="0" step="0.01" /></label>
             <label class="wide">
               装裱人
-              <select v-model="workDraft.framerKey">
-                <option value="">请选择</option>
-                <option v-for="staff in state.teachers.filter((item) => item.status === '启用')" :key="staff.id" :value="`staff:${staff.id}`">
-                  {{ staff.name }} · {{ staff.role }}
-                </option>
-                <option value="external">其他人员或外部机构</option>
-              </select>
+              <AdaptiveSelect v-model="workDraft.framerKey" :options="framerOptions" />
             </label>
             <label v-if="workDraft.framerKey === 'external'" class="wide">
               外部装裱人或机构

@@ -36,7 +36,7 @@ const save = () => {
     <div class="section-head"><div><span>共享给校区老师</span><strong>上传一张可复用的范画</strong></div></div>
     <div class="form-grid">
       <label>名称<input v-model="draft.title" placeholder="例如：向日葵完整范画" /></label>
-      <label>类型<select v-model="draft.type"><option>范画</option><option>步骤图</option></select></label>
+      <label>类型<AdaptiveSelect v-model="draft.type" :options="['范画', '步骤图']" /></label>
       <label>主题<input v-model="draft.theme" placeholder="例如：花卉植物" /></label>
       <label>适用年龄<input v-model="draft.age" /></label>
       <label class="wide file-button library-file">选择图片<input type="file" accept="image/*" @change="handleImage" /></label>

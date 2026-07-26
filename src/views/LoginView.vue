@@ -1,10 +1,15 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   state: {
     type: Object,
     required: true
   }
 })
+
+const phoneOptions = computed(() => props.state.teachers.map((teacher) => teacher.phone))
+const roleOptions = ['老师', '管理员']
 </script>
 
 <template>
@@ -33,16 +38,11 @@ defineProps({
       <div class="manual-login">
         <label>
           手机号
-          <select v-model="state.loginForm.phone">
-            <option v-for="teacher in state.teachers" :key="teacher.id">{{ teacher.phone }}</option>
-          </select>
+          <AdaptiveSelect v-model="state.loginForm.phone" :options="phoneOptions" />
         </label>
         <label>
           角色
-          <select v-model="state.loginForm.role">
-            <option>老师</option>
-            <option>管理员</option>
-          </select>
+          <AdaptiveSelect v-model="state.loginForm.role" :options="roleOptions" />
         </label>
         <button class="secondary" @click="state.loginWithForm">登录</button>
       </div>

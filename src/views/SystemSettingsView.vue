@@ -161,7 +161,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <div v-else class="cloud-setting-panel">
         <div class="form-grid">
           <label>配置名称<input v-model="draft.name" /></label>
-          <label>状态<select v-model="draft.status"><option>已启用</option><option>停用</option><option>待配置</option></select></label>
+          <label>状态<AdaptiveSelect v-model="draft.status" :options="['已启用', '停用', '待配置']" /></label>
           <label class="wide">默认归档目录规则<input v-model="draft.value.directoryRule" /></label>
         </div>
         <div class="section-head compact">
@@ -174,8 +174,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <article v-for="provider in draft.value.providers" :key="provider.id" class="cloud-provider-card">
           <div class="cloud-provider-head">
             <label>网盘名称<input v-model="provider.name" /></label>
-            <label>网盘类型<select v-model="provider.type"><option v-for="type in providerTypes" :key="type">{{ type }}</option></select></label>
-            <label>授权方式<select v-model="provider.authType"><option v-for="type in authTypes" :key="type">{{ type }}</option></select></label>
+            <label>网盘类型<AdaptiveSelect v-model="provider.type" :options="providerTypes" /></label>
+            <label>授权方式<AdaptiveSelect v-model="provider.authType" :options="authTypes" /></label>
           </div>
           <div class="form-grid">
             <label class="wide">接口地址<input v-model="provider.endpoint" placeholder="https://..." /></label>
@@ -201,14 +201,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <div v-for="teacher in state.teachers" :key="teacher.id" class="teacher-row">
         <input v-model="teacher.name" />
         <input v-model="teacher.phone" />
-        <select v-model="teacher.role">
-          <option>老师</option>
-          <option>管理员</option>
-        </select>
-        <select v-model="teacher.status">
-          <option>启用</option>
-          <option>停用</option>
-        </select>
+        <AdaptiveSelect v-model="teacher.role" :options="['老师', '管理员']" />
+        <AdaptiveSelect v-model="teacher.status" :options="['启用', '停用']" />
         <div class="permission-picker">
           <strong>{{ teacher.role === '管理员' ? '全部班级' : '授权班级' }}</strong>
           <label v-for="klass in state.classes" :key="klass.id" class="inline-check">
@@ -225,10 +219,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <div class="teacher-row new">
         <input v-model="newTeacher.name" placeholder="姓名" />
         <input v-model="newTeacher.phone" placeholder="手机号" />
-        <select v-model="newTeacher.role">
-          <option>老师</option>
-          <option>管理员</option>
-        </select>
+        <AdaptiveSelect v-model="newTeacher.role" :options="['老师', '管理员']" />
         <button class="primary" @click="addTeacher">新增</button>
       </div>
     </aside>

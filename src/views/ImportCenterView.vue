@@ -116,7 +116,7 @@ const mappingKey = (column) => {
           <strong>{{ type }}</strong>
         </button>
       </div>
-      <label>数据来源<select v-model="source"><option>小麦 Excel 导出</option><option>小麦课表整理表</option><option>手工维护表格</option></select></label>
+      <label>数据来源<AdaptiveSelect v-model="source" :options="['小麦 Excel 导出', '小麦课表整理表', '手工维护表格']" /></label>
       <label class="upload-zone">
         <strong>把 Excel 文件放到这里</strong>
         <input type="file" accept=".xlsx,.xls,.csv" @change="handleFile" />
@@ -131,7 +131,7 @@ const mappingKey = (column) => {
       <div class="file-pill"><strong>{{ fileName }}</strong><small>{{ dataType }} · {{ source }}</small></div>
       <div class="mapping-grid">
         <label v-for="column in columns" :key="column">系统字段：{{ column }}
-          <select v-model="fieldMapping[mappingKey(column)]"><option>{{ column }}</option><option>学生姓名</option><option>班级名称</option><option>任课老师</option><option>上课时间</option><option>课程主题</option></select>
+          <AdaptiveSelect v-model="fieldMapping[mappingKey(column)]" :options="[column, '学生姓名', '班级名称', '任课老师', '上课时间', '课程主题']" />
         </label>
       </div>
       <footer class="modal-actions"><button class="ghost" @click="mode = 'upload'">重新选择</button><button class="primary" @click="mode = 'preview'">查看导入结果</button></footer>

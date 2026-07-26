@@ -31,6 +31,9 @@ const props = defineProps({
 const emit = defineEmits(['select-task', 'add-lesson'])
 
 const showLessonDialog = ref(false)
+const lessonTypeOptions = ['收费课', '免费课', '体验课']
+const statusOptions = ['待处理', '处理中', '异常']
+const importSourceOptions = ['手动补录', '小麦课表复制', '小麦 Excel 导入']
 const lessonDraft = ref({
   dateValue: '2026-06-21',
   time: '20:10',
@@ -43,6 +46,11 @@ const lessonDraft = ref({
 })
 
 const selectedClass = computed(() => props.classes.find((item) => item.id === Number(lessonDraft.value.classId)))
+const classOptions = computed(() => props.classes.map((klass) => ({ label: klass.name, value: klass.id })))
+const teacherOptions = computed(() =>
+  props.teachers.filter((item) => item.role === '老师').map((teacher) => ({ label: teacher.name, value: teacher.id }))
+)
+const courseOptions = computed(() => props.courses.map((course) => ({ label: course.title, value: course.id })))
 
 watch(
   () => lessonDraft.value.classId,
@@ -100,47 +108,27 @@ const saveLesson = () => {
           <label>时间<input v-model="lessonDraft.time" /></label>
           <label>
             班级
-            <select v-model.number="lessonDraft.classId">
-              <option v-for="klass in classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
-            </select>
+            <AdaptiveSelect v-model="lessonDraft.classId" :options="classOptions" />
           </label>
           <label>
             任课老师
-            <select v-model.number="lessonDraft.teacherId">
-              <option v-for="teacher in teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.id">
-                {{ teacher.name }}
-              </option>
-            </select>
+            <AdaptiveSelect v-model="lessonDraft.teacherId" :options="teacherOptions" />
           </label>
           <label>
             课程主题
-            <select v-model.number="lessonDraft.courseId">
-              <option v-for="course in courses" :key="course.id" :value="course.id">{{ course.title }}</option>
-            </select>
+            <AdaptiveSelect v-model="lessonDraft.courseId" :options="courseOptions" />
           </label>
           <label>
             课次类型
-            <select v-model="lessonDraft.lessonType">
-              <option>收费课</option>
-              <option>免费课</option>
-              <option>体验课</option>
-            </select>
+            <AdaptiveSelect v-model="lessonDraft.lessonType" :options="lessonTypeOptions" />
           </label>
           <label>
             初始状态
-            <select v-model="lessonDraft.status">
-              <option>待处理</option>
-              <option>处理中</option>
-              <option>异常</option>
-            </select>
+            <AdaptiveSelect v-model="lessonDraft.status" :options="statusOptions" />
           </label>
           <label>
             数据来源
-            <select v-model="lessonDraft.importedFrom">
-              <option>手动补录</option>
-              <option>小麦课表复制</option>
-              <option>小麦 Excel 导入</option>
-            </select>
+            <AdaptiveSelect v-model="lessonDraft.importedFrom" :options="importSourceOptions" />
           </label>
         </div>
 

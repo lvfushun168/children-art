@@ -198,7 +198,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <div v-if="activeType === 'comment'" class="form-grid">
         <label>模板名称<input v-model="draft.name" /></label>
-        <label>状态<select v-model="draft.status"><option>启用</option><option>停用</option></select></label>
+        <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
         <label>语气风格<input v-model="draft.tone" /></label>
         <label>字数范围<input v-model="draft.length" /></label>
         <label class="wide">结构规则<textarea v-model="draft.structure" rows="3" /></label>
@@ -208,7 +208,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <div v-if="activeType === 'image'" class="form-grid">
         <label>模板名称<input v-model="draft.name" /></label>
-        <label>状态<select v-model="draft.status"><option>启用</option><option>停用</option></select></label>
+        <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
         <label>图片比例<input v-model="draft.ratio" /></label>
         <label>亮度调整<input v-model="draft.brightness" /></label>
         <label>水印规则<input v-model="draft.watermark" /></label>
@@ -219,8 +219,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <div v-if="activeType === 'prompt'" class="form-grid">
         <label>模板名称<input v-model="draft.name" /></label>
-        <label>状态<select v-model="draft.status"><option>启用</option><option>停用</option></select></label>
-        <label>使用场景<select v-model="draft.scene"><option>feedback</option><option>image</option><option>homework</option></select></label>
+        <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
+        <label>使用场景<AdaptiveSelect v-model="draft.scene" :options="['feedback', 'image', 'homework']" /></label>
         <label>上下文模型<input v-model="draft.model" /></label>
         <label>Temperature<input v-model.number="draft.temperature" type="number" step="0.1" /></label>
         <label>Max Tokens<input v-model.number="draft.maxTokens" type="number" /></label>
@@ -230,7 +230,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <div v-if="activeType === 'watermark'" class="form-grid">
         <label>配置名称<input v-model="draft.name" /></label>
-        <label>状态<select v-model="draft.status"><option>启用</option><option>停用</option><option>可选</option></select></label>
+        <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用', '可选']" /></label>
         <label class="wide">水印内容<input v-model="draft.value" /></label>
         <label>位置<input v-model="draft.position" /></label>
         <label>透明度<input v-model="draft.opacity" /></label>

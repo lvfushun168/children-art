@@ -18,6 +18,7 @@ const showAllCourses = ref(false)
 const showContentSettings = ref(false)
 const showArtworkLibrary = ref(false)
 const workPreview = ref(null)
+const attendanceOptions = ['到课', '请假', '旷课']
 const currentRecordIndex = computed(() => props.state.attendingRows.findIndex((row) => row.studentId === props.state.activeStudentId))
 const currentReviewIndex = computed(() => props.state.attendingRows.findIndex((row) => row.studentId === props.state.activeStudentId))
 
@@ -161,11 +162,12 @@ const confirmStudentAndNext = () => {
           >
             <strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong>
             <span>{{ state.students.find((item) => item.id === row.studentId).parent }}</span>
-            <select :value="row.attendance" @change="state.setAttendance(row, $event.target.value)" @click.stop>
-              <option>到课</option>
-              <option>请假</option>
-              <option>旷课</option>
-            </select>
+            <AdaptiveSelect
+              :model-value="row.attendance"
+              :options="attendanceOptions"
+              @update:model-value="state.setAttendance(row, $event)"
+              @click.stop
+            />
           </button>
         </div>
       </section>

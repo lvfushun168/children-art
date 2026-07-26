@@ -160,37 +160,20 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <label>任务标题<input v-model="draft.title" /></label>
         <label>
           任务类型
-          <select v-model="draft.taskType">
-            <option>学生课外任务</option>
-            <option>亲子观察任务</option>
-            <option>学生课外作品</option>
-            <option>材料准备提醒</option>
-            <option>其他</option>
-          </select>
+          <AdaptiveSelect v-model="draft.taskType" :options="['学生课外任务', '亲子观察任务', '学生课外作品', '材料准备提醒', '其他']" />
         </label>
         <label>
           发布老师
-          <select v-model="draft.owner">
-            <option v-for="teacher in state.teachers" :key="teacher.id">{{ teacher.name }}</option>
-          </select>
+          <AdaptiveSelect v-model="draft.owner" :options="state.teachers.map((teacher) => teacher.name)" />
         </label>
         <label>
           关联课次
-          <select v-model="draft.relatedLessonId">
-            <option value="">无归属课次</option>
-            <option v-for="lesson in lessonOptions" :key="lesson.id" :value="lesson.id">{{ lesson.label }}</option>
-          </select>
+          <AdaptiveSelect v-model="draft.relatedLessonId" :options="[{ label: '无归属课次', value: '' }, ...lessonOptions.map((lesson) => ({ label: lesson.label, value: lesson.id }))]" />
         </label>
         <label>预计完成<input v-model="draft.dueDate" /></label>
         <label>
           状态
-          <select v-model="draft.status">
-            <option>待发布</option>
-            <option>已发布</option>
-            <option>待归档</option>
-            <option>已归档</option>
-            <option>异常</option>
-          </select>
+          <AdaptiveSelect v-model="draft.status" :options="['待发布', '已发布', '待归档', '已归档', '异常']" />
         </label>
         <label class="wide">任务内容<textarea v-model="draft.content" rows="5" /></label>
         <label class="wide">归档备注<textarea v-model="draft.note" rows="4" /></label>

@@ -157,21 +157,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <div class="form-grid">
         <label>标题<input v-model="draft.title" /></label>
-        <label>
-          状态
-          <select v-model="draft.status">
-            <option>启用</option>
-            <option>停用</option>
-          </select>
-        </label>
+        <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
         <label>
           平台
-          <select v-model="draft.platform">
-            <option>创客匠人</option>
-            <option>通用链接</option>
-            <option>网盘资料</option>
-            <option>其他平台</option>
-          </select>
+          <AdaptiveSelect v-model="draft.platform" :options="['创客匠人', '通用链接', '网盘资料', '其他平台']" />
         </label>
         <label class="wide">链接地址<input v-model="draft.url" /></label>
         <label class="wide">备注<textarea v-model="draft.note" rows="4" /></label>

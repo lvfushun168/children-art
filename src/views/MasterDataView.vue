@@ -242,20 +242,13 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <label>年龄<input v-model="draft.age" type="number" /></label>
           <label>
             所属班级
-            <select v-model.number="draft.classId">
-              <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
-            </select>
+            <AdaptiveSelect v-model="draft.classId" :options="state.classes.map((klass) => ({ label: klass.name, value: klass.id }))" />
           </label>
           <label>家长称呼<input v-model="draft.parent" /></label>
           <label>家长电话<input v-model="draft.phone" /></label>
           <label>
             状态
-            <select v-model="draft.status">
-              <option>在读</option>
-              <option>停课</option>
-              <option>请假</option>
-              <option>退费</option>
-            </select>
+            <AdaptiveSelect v-model="draft.status" :options="['在读', '停课', '请假', '退费']" />
           </label>
           <label class="wide">备注<textarea v-model="draft.note" rows="5" /></label>
         </div>
@@ -267,24 +260,15 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <label>上课时间<input v-model="draft.time" /></label>
           <label>
             任课老师
-            <select v-model.number="draft.teacherId">
-              <option v-for="teacher in state.teachers" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
-            </select>
+            <AdaptiveSelect v-model="draft.teacherId" :options="state.teachers.map((teacher) => ({ label: teacher.name, value: teacher.id }))" />
           </label>
           <label>
             默认课程
-            <select v-model.number="draft.courseId">
-              <option v-for="course in state.courses" :key="course.id" :value="course.id">{{ course.title }}</option>
-            </select>
+            <AdaptiveSelect v-model="draft.courseId" :options="state.courses.map((course) => ({ label: course.title, value: course.id }))" />
           </label>
           <label>
             状态
-            <select v-model="draft.status">
-              <option>筹备中</option>
-              <option>开班中</option>
-              <option>停课</option>
-              <option>结课</option>
-            </select>
+            <AdaptiveSelect v-model="draft.status" :options="['筹备中', '开班中', '停课', '结课']" />
           </label>
           <label class="wide">家长群<input v-model="draft.group" /></label>
         </div>
@@ -305,15 +289,11 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <label>材料<input v-model="draft.materials" /></label>
           <label>
             课评模板
-            <select v-model="draft.commentTemplate">
-              <option v-for="template in state.templates.comment" :key="template.name">{{ template.name }}</option>
-            </select>
+            <AdaptiveSelect v-model="draft.commentTemplate" :options="state.templates.comment.map((template) => template.name)" />
           </label>
           <label>
             图片模板
-            <select v-model="draft.imageTemplate">
-              <option v-for="template in state.templates.image" :key="template.name">{{ template.name }}</option>
-            </select>
+            <AdaptiveSelect v-model="draft.imageTemplate" :options="state.templates.image.map((template) => template.name)" />
           </label>
           <label class="wide">教学目标<textarea v-model="draft.goal" rows="3" /></label>
           <label class="wide">AI 参考材料和特殊话术<textarea v-model="draft.reference" rows="5" /></label>

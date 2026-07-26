@@ -8,6 +8,7 @@ const props = defineProps({
 const lessonReason = ref('')
 const exceptionType = ref('数据异常')
 const shareReason = ref('调整展示内容')
+const exceptionTypeOptions = ['数据异常', '素材缺失', '权限异常', '外部服务异常']
 
 watch(() => props.state.activeTask.id, () => {
   lessonReason.value = ''
@@ -33,12 +34,7 @@ const changeLesson = (action) => {
       </div>
       <label v-if="['待处理', '处理中'].includes(state.activeTask.status)">
         异常类型
-        <select v-model="exceptionType">
-          <option>数据异常</option>
-          <option>素材缺失</option>
-          <option>权限异常</option>
-          <option>外部服务异常</option>
-        </select>
+        <AdaptiveSelect v-model="exceptionType" :options="exceptionTypeOptions" />
       </label>
       <label>
         变更原因

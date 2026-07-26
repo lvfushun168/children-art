@@ -25,6 +25,7 @@ import {
   teachers as teacherSeed,
   wheatTraces as wheatTraceSeed
 } from '../data/mockData'
+import { usePortfolioStudio } from './usePortfolioStudio'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -2055,7 +2056,23 @@ export function useDeliveryWorkflow() {
     if (currentStep.value > 0) currentStep.value -= 1
   }
 
+  // 制作中心（作品集 / 成长手册）与作品档案共用同一份归档数据
+  const portfolioStudio = usePortfolioStudio({
+    archiveRecords,
+    students,
+    classes,
+    school,
+    currentUser,
+    isAdmin,
+    authorizedClassIds,
+    canEditArchiveRecord,
+    createArchiveCollection,
+    notify,
+    nowText
+  })
+
   return {
+    ...portfolioStudio,
     school,
     artworkLibrary,
     teachers,

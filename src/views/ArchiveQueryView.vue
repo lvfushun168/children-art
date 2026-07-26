@@ -14,7 +14,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['backToGroup'])
+const emit = defineEmits(['backToGroup', 'createPortfolio'])
 
 const archiveTabs = [
   { id: 'studentWorks', label: '学生作品档案' },
@@ -27,11 +27,9 @@ const selectedId = ref(props.state.filteredArchiveRecords[0]?.id || null)
 const selectedRecordIds = ref([])
 const selectedLessonId = ref(props.state.lessonArchiveRecords[0]?.id || null)
 const selectedEffectId = ref(props.state.teacherEffectArchiveRecords[0]?.id || null)
-const showCollectionModal = ref(false)
 const showWorkDrawer = ref(false)
 const showLessonDrawer = ref(false)
 const showEffectDrawer = ref(false)
-const createdCollection = ref(null)
 const isEditingWork = ref(false)
 const workEditError = ref('')
 const initialWorkDraft = ref('')
@@ -53,36 +51,19 @@ const workDraft = reactive({
   frameNote: '',
   changeReason: ''
 })
-const collectionDraft = reactive({
-  type: '学生成长作品集',
-  title: '',
-  target: '',
-  intro: '',
-  summary: '',
-  teacherMessage: '',
-  note: '',
-  showDate: true,
-  showCourse: true,
-  showComment: false,
-  showHighlight: true,
-  showWatermark: true
-})
-
 const selected = computed(() => props.state.filteredArchiveRecords.find((record) => record.id === selectedId.value) || props.state.filteredArchiveRecords[0])
 const selectedRecords = computed(() => selectedRecordIds.value.map((id) => props.state.archiveRecords.find((record) => record.id === id)).filter(Boolean))
 const selectedCollections = computed(() => (selected.value ? props.state.archiveCollectionsForRecord(selected.value.id) : []))
 const selectedWorkLogs = computed(() => (selected.value ? props.state.archiveEditLogsForRecord(selected.value.id) : []))
 const canEditSelectedWork = computed(() => props.state.canEditArchiveRecord(selected.value))
 const hasUnsavedWorkChanges = computed(() => isEditingWork.value && JSON.stringify(workDraft) !== initialWorkDraft.value)
-const selectedFilterStudent = computed(() =>
-  props.state.archiveFilter.studentId === 'all' ? null : props.state.students.find((student) => student.id === Number(props.state.archiveFilter.studentId))
-)
 const visibleSelectedCount = computed(() => props.state.filteredArchiveRecords.filter((record) => selectedRecordIds.value.includes(record.id)).length)
 const allVisibleSelected = computed(() => props.state.filteredArchiveRecords.length > 0 && visibleSelectedCount.value === props.state.filteredArchiveRecords.length)
-const canCreateStudentGrowth = computed(() =>
-  Boolean(selectedFilterStudent.value && selectedRecords.value.length && selectedRecords.value.every((record) => record.studentId === selectedFilterStudent.value.id))
-)
-const canPublishCollection = computed(() => Boolean(canCreateStudentGrowth.value && collectionDraft.title && collectionDraft.target))
+// 勾选的作品全部属于同一个学生时，制作中心可以直接按学生建成长手册
+const singleStudentSelection = computed(() => {
+  const ids = [...new Set(selectedRecords.value.map((record) => record.studentId))]
+  return ids.length === 1 ? props.state.students.find((student) => student.id === ids[0]) : null
+})
 const isWithinDateRange = (value, start, end) =>
   Boolean(value && (!start || value >= start) && (!end || value <= end))
 
@@ -287,40 +268,12 @@ const openEffectDrawer = (effect) => {
   showEffectDrawer.value = true
 }
 
-const openCollectionModal = () => {
-  if (!canCreateStudentGrowth.value) return
-  const first = selectedRecords.value[0]
-  collectionDraft.type = '学生成长作品集'
-  collectionDraft.title = `${first.studentName} · 高光成长作品集`
-  collectionDraft.target = `${first.studentName}家长`
-  collectionDraft.intro = `这是${first.studentName}这段时间在美术课上的高光作品记录。`
-  collectionDraft.summary = ''
-  collectionDraft.teacherMessage = '继续保持这份观察和表达的热情，期待下个阶段看到更多属于自己的画面。'
-  collectionDraft.note = ''
-  collectionDraft.showDate = true
-  collectionDraft.showCourse = true
-  collectionDraft.showComment = false
-  collectionDraft.showHighlight = true
-  collectionDraft.showWatermark = true
-  createdCollection.value = null
-  showCollectionModal.value = true
-}
-
-const generateCollectionCopy = () => {
+// 作品集与成长手册统一由制作中心生产，这里只负责把选料结果带过去
+const sendSelectionToProduction = () => {
   if (!selectedRecords.value.length) return
-  const first = selectedRecords.value[0]
-  const courses = [...new Set(selectedRecords.value.map((record) => record.course))]
-  const highlights = selectedRecords.value.map((record) => record.highlightNote).filter(Boolean)
-  collectionDraft.intro = `${first.studentName}这段时间完成了 ${selectedRecords.value.length} 件值得记录的作品，老师把其中最能体现成长变化的部分整理成这份作品集。`
-  collectionDraft.summary = `从${courses.join('、')}等主题中可以看到，${first.studentName}在画面组织、色彩表达和细节完整度上都有持续积累。${highlights[0] || '作品中保留了清晰的课堂目标和个人表达。'}`
-  collectionDraft.teacherMessage = '谢谢家长一直配合课堂后的观察和鼓励，接下来我们会继续关注画面层次、表达完整度和孩子自己的创作想法。'
-}
-
-const publishCollection = () => {
-  if (!canPublishCollection.value) return
-  createdCollection.value = props.state.createArchiveCollection({
-    ...collectionDraft,
-    recordIds: selectedRecordIds.value
+  emit('createPortfolio', {
+    recordIds: [...selectedRecordIds.value],
+    studentId: singleStudentSelection.value?.id || null
   })
 }
 
@@ -407,7 +360,9 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       </div>
       <div v-if="selectedRecordIds.length" class="archive-selection-bar">
         <strong>已选 {{ selectedRecordIds.length }} 件作品</strong>
-        <button v-if="canCreateStudentGrowth" class="primary" @click="openCollectionModal">生成{{ selectedFilterStudent.name }}的成长集</button>
+        <button class="primary" @click="sendSelectionToProduction">
+          {{ singleStudentSelection ? `去制作中心为${singleStudentSelection.name}成册` : '去制作中心成册' }}
+        </button>
       </div>
       <article
         v-for="record in state.filteredArchiveRecords"
@@ -796,65 +751,4 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
     </aside>
   </div>
 
-  <div v-if="showCollectionModal" class="modal-backdrop">
-    <section class="import-modal lesson-modal">
-      <div class="modal-head">
-        <div>
-          <span>作品集发布</span>
-          <strong>{{ createdCollection ? '链接已生成' : `已选 ${selectedRecords.length} 件作品` }}</strong>
-        </div>
-        <button class="ghost" @click="showCollectionModal = false">关闭</button>
-      </div>
-      <template v-if="!createdCollection">
-        <section class="collection-context">
-          <span>作品集对象</span>
-          <strong>{{ selectedFilterStudent?.name }} · {{ selectedRecords.length }} 件作品</strong>
-          <small>{{ selectedRecords[0]?.className }} · {{ collectionDraft.target }}</small>
-        </section>
-        <div class="form-grid">
-          <label>发送对象<input v-model="collectionDraft.target" /></label>
-          <label class="wide">标题<input v-model="collectionDraft.title" /></label>
-          <label class="wide">开场说明<textarea v-model="collectionDraft.intro" rows="3" /></label>
-          <label class="wide">成长总结<textarea v-model="collectionDraft.summary" rows="4" /></label>
-          <label class="wide">老师寄语<textarea v-model="collectionDraft.teacherMessage" rows="3" /></label>
-        </div>
-        <div class="collection-copy-actions">
-          <button class="ghost" @click="generateCollectionCopy">AI 生成说明</button>
-        </div>
-        <section class="collection-settings">
-          <span>展示设置</span>
-          <label><input v-model="collectionDraft.showDate" type="checkbox" /> 展示课程日期</label>
-          <label><input v-model="collectionDraft.showCourse" type="checkbox" /> 展示课程主题</label>
-          <label><input v-model="collectionDraft.showHighlight" type="checkbox" /> 展示高光说明</label>
-          <label><input v-model="collectionDraft.showComment" type="checkbox" /> 展示原课评</label>
-          <label><input v-model="collectionDraft.showWatermark" type="checkbox" /> 展示机构水印</label>
-        </section>
-        <section class="collection-preview-list">
-          <article v-for="record in selectedRecords" :key="record.id">
-            <img :src="record.artwork" :alt="record.studentName" />
-            <div>
-              <strong>{{ record.studentName }} · {{ record.course }}</strong>
-              <small>{{ record.date }} · {{ record.className }}</small>
-              <p>{{ record.highlightNote || record.feedback }}</p>
-            </div>
-          </article>
-        </section>
-        <div class="modal-actions">
-          <button class="ghost" @click="showCollectionModal = false">取消</button>
-          <button class="primary" :disabled="!canPublishCollection" @click="publishCollection">预览通过，发布链接</button>
-        </div>
-      </template>
-      <template v-else>
-        <div class="archive-published-link">
-          <strong>{{ createdCollection.title }}</strong>
-          <p>{{ createdCollection.link }}</p>
-          <small v-if="createdCollection.note">{{ createdCollection.note }}</small>
-        </div>
-        <div class="modal-actions">
-          <button class="ghost" @click="state.copyArchiveCollectionLink(createdCollection)">复制链接</button>
-          <button class="primary" @click="showCollectionModal = false">完成</button>
-        </div>
-      </template>
-    </section>
-  </div>
 </template>

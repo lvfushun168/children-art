@@ -14,6 +14,7 @@ import LoginView from './views/LoginView.vue'
 import MasterDataView from './views/MasterDataView.vue'
 import ModuleHubView from './views/ModuleHubView.vue'
 import ParentSharePage from './views/ParentSharePage.vue'
+import ProductionCenterView from './views/ProductionCenterView.vue'
 import SystemSettingsView from './views/SystemSettingsView.vue'
 import TasksView from './views/TasksView.vue'
 import TemplatesView from './views/TemplatesView.vue'
@@ -47,7 +48,7 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['tasks', 'archives', 'students', 'classes', 'externalLinks', 'extraTasks', 'templates', 'settings'])
+const navIdsWithLocalBack = new Set(['tasks', 'production', 'archives', 'students', 'classes', 'externalLinks', 'extraTasks', 'templates', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || mobileLevel.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
 const mobileGroupEntries = computed(() =>
@@ -97,6 +98,11 @@ const handleNavigate = (target) => {
     return
   }
   openNav(target)
+}
+const productionHandoff = ref(null)
+const openProductionCenter = (payload) => {
+  productionHandoff.value = payload
+  openNav('production')
 }
 const selectTodoTask = (task) => {
   state.selectTask(task)
@@ -209,6 +215,15 @@ const shareRoute = computed(() => {
 
       <TasksView v-if="showActivePage && activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @navigate="handleNavigate" />
 
+      <ProductionCenterView
+        v-if="showActivePage && activeNav === 'production'"
+        :state="state"
+        :group-label="activeGroup?.label"
+        :handoff="productionHandoff"
+        @back-to-group="returnToGroup"
+        @handoff-consumed="productionHandoff = null"
+      />
+
       <MasterDataView v-if="showActivePage && activeNav === 'students'" :state="state" entity="students" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-import="openImportCenter('学生名单')" />
 
       <MasterDataView v-if="showActivePage && activeNav === 'classes'" :state="state" entity="classes" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-import="openImportCenter('综合课表')" />
@@ -221,7 +236,7 @@ const shareRoute = computed(() => {
 
       <TemplatesView v-if="showActivePage && activeNav === 'templates'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
-      <ArchiveQueryView v-if="showActivePage && activeNav === 'archives'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
+      <ArchiveQueryView v-if="showActivePage && activeNav === 'archives'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @create-portfolio="openProductionCenter" />
 
       <ExtraTasksView v-if="showActivePage && activeNav === 'extraTasks'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 

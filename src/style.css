@@ -4348,12 +4348,6 @@ textarea:focus,
 
 .archive-recent-panel > span,
 .archive-detail-group > span,
-.collection-settings > span {
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 900;
-}
-
 .archive-selection-bar {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -4623,25 +4617,6 @@ textarea:focus,
   gap: 8px;
 }
 
-.collection-context {
-  display: grid;
-  gap: 4px;
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--color-primary-soft);
-}
-
-.collection-context span {
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.collection-context small {
-  color: var(--color-muted);
-  font-weight: 800;
-}
-
 .archive-link-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -4768,89 +4743,6 @@ textarea:focus,
   max-height: 260px;
   object-fit: cover;
   border-radius: 8px;
-}
-
-.collection-copy-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px;
-  border-radius: 8px;
-  background: var(--color-primary-soft);
-}
-
-.collection-copy-actions small {
-  color: var(--color-muted);
-  font-weight: 800;
-}
-
-.collection-settings {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
-  gap: 8px;
-  padding: 10px;
-  border-radius: 8px;
-  background: var(--color-surface-muted);
-}
-
-.collection-settings > span {
-  grid-column: 1 / -1;
-}
-
-.collection-settings label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  border-radius: 8px;
-  background: var(--color-surface);
-  font-weight: 800;
-}
-
-.collection-preview-list {
-  display: grid;
-  gap: 10px;
-  max-height: 300px;
-  overflow: auto;
-}
-
-.collection-preview-list article {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: 10px;
-  align-items: start;
-  padding: 10px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 8px;
-  background: var(--color-surface);
-}
-
-.collection-preview-list img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  border-radius: 7px;
-}
-
-.collection-preview-list p {
-  margin: 6px 0 0;
-  color: var(--color-muted);
-  line-height: 1.5;
-}
-
-.archive-published-link {
-  display: grid;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 8px;
-  background: var(--color-primary-soft);
-}
-
-.archive-published-link p {
-  margin: 0;
-  word-break: break-all;
-  font-weight: 900;
 }
 
 .student-history {
@@ -5212,6 +5104,1077 @@ textarea:focus,
   color: var(--color-muted);
 }
 
+/* ---------- 制作中心 · 项目列表 ---------- */
+
+.production-stepper {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.pf-studio-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.pf-studio-meta {
+  display: grid;
+  gap: 3px;
+  justify-items: end;
+  align-self: center;
+  text-align: right;
+}
+
+.pf-studio-meta span {
+  font-weight: 900;
+}
+
+.pf-studio-meta small {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pf-stat-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.pf-list-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 8px;
+}
+
+.pf-list-tabs button {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-weight: 800;
+}
+
+.pf-list-tabs button.active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  box-shadow: inset 0 -3px 0 var(--color-primary);
+}
+
+.pf-project-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 230px;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 9px;
+  padding: 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.pf-project-main {
+  display: block;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.pf-project-main span {
+  display: grid;
+  gap: 3px;
+}
+
+.pf-project-main strong {
+  font-size: 16px;
+}
+
+.pf-project-main small {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pf-project-main em {
+  color: var(--color-primary);
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pf-project-side {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.pf-project-side small {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.pf-project-side button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.pf-status-tag {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--color-status-muted-bg);
+  color: var(--color-status-muted-text);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pf-status-tag.done {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.pf-export-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.pf-export-row > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pf-export-row small {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pf-export-row em {
+  color: var(--color-muted);
+  font-style: normal;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.pf-export-row > div {
+  display: grid;
+  gap: 5px;
+  justify-items: end;
+  align-content: start;
+  text-align: right;
+}
+
+/* ---------- 第 1 步：选料 ---------- */
+
+.pf-pool-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 10px;
+}
+
+.pf-pool-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.pf-pool-head span {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pf-source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  gap: 10px;
+}
+
+.pf-source-card {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 8px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: inherit;
+  text-align: left;
+}
+
+.pf-source-card.picked {
+  border-color: var(--color-border-strong);
+  background: var(--color-primary-soft);
+}
+
+.pf-source-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.pf-source-card strong {
+  font-size: 13px;
+}
+
+.pf-source-card small {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.pf-source-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.pf-source-tags em {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.pf-source-tags em.framed-tag {
+  background: var(--color-highlight-soft);
+}
+
+.pf-source-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+  font-size: 13px;
+  font-weight: 900;
+  opacity: 0;
+}
+
+.pf-source-card.picked .pf-source-check {
+  opacity: 1;
+}
+
+/* ---------- 第 2 步：套版 ---------- */
+
+.pf-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.pf-template-card {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 13px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: inherit;
+  text-align: left;
+}
+
+.pf-template-card.selected {
+  border-color: var(--color-border-strong);
+  background: var(--color-primary-soft);
+}
+
+.pf-template-card small {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pf-template-card em {
+  color: var(--color-primary);
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pf-setting-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.pf-setting-grid article {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.pf-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pf-choice-row button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pf-choice-row button.selected {
+  border-color: var(--color-border-strong);
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+}
+
+.pf-copy-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+}
+
+/* ---------- 第 3 步：微调 ---------- */
+
+.pf-studio-layout {
+  display: grid;
+  grid-template-columns: 152px minmax(0, 1fr) 322px;
+  gap: 12px;
+  align-items: start;
+}
+
+.pf-page-rail {
+  position: sticky;
+  top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.pf-page-rail > * {
+  min-width: 0;
+}
+
+.pf-thumb-list {
+  display: grid;
+  gap: 8px;
+  max-height: 62vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.pf-thumb .pf-page {
+  max-width: 98px;
+  margin: 0 auto;
+}
+
+.pf-thumb {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 7px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.pf-thumb.active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+
+.pf-thumb.error {
+  border-color: var(--color-danger);
+}
+
+.pf-thumb.warn {
+  border-color: var(--color-accent);
+}
+
+.pf-thumb-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pf-thumb-label strong {
+  font-size: 12px;
+}
+
+.pf-thumb-label small {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.pf-thumb-label i {
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--color-accent);
+}
+
+.pf-thumb-label i.error {
+  background: var(--color-danger);
+}
+
+.pf-rail-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.pf-rail-actions .button-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.pf-rail-actions .pf-insert-pair {
+  grid-template-columns: 1fr;
+}
+
+.pf-rail-actions button {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.pf-canvas-area {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pf-canvas-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.pf-view-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.pf-view-toggle button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--color-surface-muted);
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pf-view-toggle button.selected {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.pf-canvas-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 420px);
+  gap: 14px;
+  justify-content: center;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.pf-canvas-stage.spread {
+  grid-template-columns: repeat(2, minmax(0, 300px));
+  align-items: start;
+}
+
+.pf-canvas-slot {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pf-canvas-slot > small {
+  color: var(--color-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.pf-layout-candidates {
+  display: grid;
+  gap: 8px;
+}
+
+.pf-candidate-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 94px;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.pf-candidate {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 5px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 7px;
+  background: var(--color-surface);
+  color: inherit;
+}
+
+.pf-candidate.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.pf-candidate small {
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.pf-material-pool {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.pf-pool-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 76px;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.pf-pool-item {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 7px;
+  background: var(--color-surface);
+  color: inherit;
+  cursor: grab;
+}
+
+.pf-pool-item img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.pf-pool-item small {
+  font-size: 11px;
+  text-align: center;
+}
+
+.pf-pool-item.used {
+  opacity: 0.5;
+}
+
+.pf-pool-item em {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-surface-warm);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+/* ---------- 检查器 ---------- */
+
+.pf-inspector {
+  position: sticky;
+  top: 14px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.pf-inspector-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.pf-inspector-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.pf-inspector-head span {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pf-inspector-head button {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.pf-inspector-group {
+  display: grid;
+  gap: 8px;
+}
+
+.pf-inspector-group textarea {
+  min-height: 120px;
+}
+
+.pf-inspector-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pf-inspector-note.missing {
+  color: var(--color-accent-strong);
+}
+
+.pf-inspector-note em {
+  font-style: normal;
+  font-weight: 800;
+}
+
+.pf-inspector-tag {
+  align-self: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.pf-record-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
+  gap: 6px;
+}
+
+.pf-record-chip {
+  display: grid;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: inherit;
+}
+
+.pf-record-chip img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.pf-record-chip small {
+  font-size: 10px;
+  text-align: center;
+}
+
+.pf-record-chip.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.pf-crop-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.pf-crop-controls label {
+  display: grid;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pf-crop-controls em {
+  color: var(--color-primary);
+  font-style: normal;
+}
+
+.pf-issue-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: var(--color-status-muted-bg);
+}
+
+.pf-issue-row > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pf-issue-row strong {
+  font-size: 13px;
+}
+
+.pf-issue-row small {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.pf-issue-row button {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pf-issue-row.error {
+  background: var(--color-status-danger-bg);
+}
+
+.pf-issue-row.error strong {
+  color: var(--color-danger);
+}
+
+.pf-issue-row.warn {
+  background: var(--color-status-warning-bg);
+}
+
+.pf-issue-row.warn strong {
+  color: var(--color-accent-strong);
+}
+
+/* ---------- 第 4 步：导出 ---------- */
+
+.pf-export-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+
+.pf-export-panel .archive-summary-card {
+  display: grid;
+  gap: 8px;
+}
+
+.pf-export-actions {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+}
+
+.pf-export-buttons {
+  display: grid;
+  gap: 8px;
+}
+
+.pf-link-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 7px;
+  background: var(--color-surface);
+}
+
+.pf-link-row div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pf-link-row small {
+  color: var(--color-muted);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.pf-batch-preview {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.pf-batch-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pf-batch-rows span {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pf-batch-rows span.empty {
+  background: var(--color-status-warning-bg);
+  color: var(--color-accent-strong);
+}
+
+/* ---------- 页面渲染引擎（缩略图与画布共用同一份版式） ---------- */
+
+.pf-page {
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #fffdf8;
+  color: #2b2622;
+  box-shadow: 0 6px 18px rgba(16, 23, 57, 0.14);
+}
+
+.pf-theme-warm {
+  background: #fdf6ea;
+  color: #4a3626;
+}
+
+.pf-theme-plain {
+  background: #ffffff;
+  color: #22252c;
+}
+
+.pf-theme-ink {
+  background: #1d2a3a;
+  color: #eef3f8;
+}
+
+.pf-page-blank {
+  background-image: repeating-linear-gradient(45deg, rgba(120, 120, 120, 0.06) 0 6px, transparent 6px 12px);
+}
+
+.pf-slot {
+  position: absolute;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+}
+
+.pf-page-editable .pf-slot {
+  outline: 1px dashed rgba(0, 0, 0, 0.14);
+  outline-offset: 1px;
+  cursor: pointer;
+}
+
+.pf-page-editable.pf-theme-ink .pf-slot {
+  outline-color: rgba(255, 255, 255, 0.2);
+}
+
+.pf-page-editable .pf-slot:not(:disabled):hover {
+  outline-color: var(--color-primary);
+  transform: none;
+}
+
+.pf-page-editable .pf-slot.selected {
+  outline: 2px solid var(--color-primary);
+}
+
+.pf-slot-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pf-text {
+  display: block;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.pf-empty-slot {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: rgba(120, 120, 120, 0.12);
+  color: rgba(80, 80, 80, 0.55);
+  font-size: 2.4cqw;
+  font-weight: 800;
+}
+
+.pf-theme-ink .pf-empty-slot {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.pf-role-title {
+  font-size: 4.6cqw;
+  font-weight: 900;
+  line-height: 1.24;
+}
+
+.pf-role-subtitle {
+  font-size: 3cqw;
+  font-weight: 700;
+  line-height: 1.3;
+  opacity: 0.82;
+}
+
+.pf-role-body {
+  font-size: 2.5cqw;
+  line-height: 1.55;
+}
+
+.pf-role-meta {
+  font-size: 2.2cqw;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+.pf-role-caption {
+  font-size: 2.1cqw;
+  font-weight: 700;
+  line-height: 1.35;
+  opacity: 0.84;
+}
+
+.pf-role-footer {
+  font-size: 2.1cqw;
+  opacity: 0.66;
+}
+
+.pf-style-band {
+  padding: 0.9cqw 1.4cqw;
+  border-radius: 1cqw;
+  background: rgba(255, 253, 248, 0.88);
+  color: #22252c;
+}
+
+.pf-theme-ink .pf-style-band {
+  background: rgba(16, 26, 38, 0.8);
+  color: #f2f6fa;
+}
+
+.pf-watermark {
+  position: absolute;
+  right: 2.6cqw;
+  bottom: 2.2cqw;
+  font-size: 1.9cqw;
+  font-weight: 700;
+  opacity: 0.42;
+}
+
+.pf-folio {
+  position: absolute;
+  bottom: 1.2cqw;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.9cqw;
+  opacity: 0.5;
+}
+
+@media (max-width: 1240px) {
+  .pf-studio-layout {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+
+  .pf-inspector {
+    position: static;
+    grid-column: 1 / -1;
+    max-height: none;
+  }
+
+  .pf-export-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .pf-studio-layout,
+  .pf-setting-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pf-page-rail {
+    position: static;
+  }
+
+  .pf-thumb-list {
+    grid-auto-flow: column;
+    grid-auto-columns: 92px;
+    grid-template-columns: none;
+    max-height: none;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .pf-canvas-stage.spread {
+    grid-template-columns: minmax(0, 340px);
+  }
+
+  .pf-project-row,
+  .pf-export-row {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .pf-export-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pf-project-side,
+  .pf-export-row > div {
+    grid-column: 1 / -1;
+    justify-items: start;
+    text-align: left;
+  }
+}
+
 @media (max-width: 1380px) {
   .task-layout {
     grid-template-columns: 280px 1fr;
@@ -5456,8 +6419,7 @@ textarea:focus,
   .publish-check-grid,
   .publish-defaults,
   .publish-settings,
-  .publish-result,
-  .collection-settings {
+  .publish-result {
     grid-template-columns: 1fr;
   }
 

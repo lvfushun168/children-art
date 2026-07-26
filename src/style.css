@@ -585,6 +585,52 @@ label {
   background: var(--color-primary-soft);
 }
 
+.user-option-group {
+  display: grid;
+  gap: 7px;
+}
+
+.user-option-group > span {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.user-option-group button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+  color: var(--color-heading);
+  text-align: left;
+}
+
+.user-option-group.compact button {
+  grid-template-columns: 1fr;
+}
+
+.user-option-group button.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+}
+
+.user-option-group button.selected small {
+  color: color-mix(in srgb, var(--color-surface-warm) 78%, transparent);
+}
+
+.user-option-group strong,
+.user-option-group small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .toast {
   position: fixed;
   top: 18px;
@@ -4995,6 +5041,8 @@ textarea:focus {
 
   .mobile-app-content .user-popover {
     width: min(320px, calc(100vw - 24px));
+    max-height: calc(100vh - 92px);
+    overflow: auto;
   }
 
   .parent-h5 {

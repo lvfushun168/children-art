@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 defineProps({
   currentUser: {
@@ -8,10 +8,6 @@ defineProps({
   },
   permissionSummary: {
     type: Object,
-    required: true
-  },
-  teachers: {
-    type: Array,
     required: true
   },
   themeOptions: {
@@ -24,13 +20,33 @@ defineProps({
   }
 })
 
-defineEmits(['switchUser', 'logout', 'updateTheme'])
+defineEmits(['logout', 'updateTheme'])
 
 const open = ref(false)
+const menuRef = ref(null)
+
+const closeFromOutside = (event) => {
+  if (!open.value || menuRef.value?.contains(event.target)) return
+  open.value = false
+}
+
+const closeFromKeyboard = (event) => {
+  if (event.key === 'Escape') open.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', closeFromOutside)
+  document.addEventListener('keydown', closeFromKeyboard)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', closeFromOutside)
+  document.removeEventListener('keydown', closeFromKeyboard)
+})
 </script>
 
 <template>
-  <div class="user-menu">
+  <div ref="menuRef" class="user-menu">
     <button class="user-trigger" @click="open = !open">
       <span>{{ currentUser.name.slice(0, 1) }}</span>
       <strong>{{ currentUser.name }}</strong>
@@ -51,23 +67,18 @@ const open = ref(false)
         <strong>{{ permissionSummary.visibleClasses.join('、') || '全部班级' }}</strong>
       </div>
 
-      <label>
-        切换账号
-        <select :value="currentUser.id" @change="$emit('switchUser', Number($event.target.value))">
-          <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
-            {{ teacher.name }} · {{ teacher.role }}
-          </option>
-        </select>
-      </label>
-
-      <label>
-        界面主题
-        <select :value="activeTheme" @change="$emit('updateTheme', $event.target.value)">
-          <option v-for="theme in themeOptions" :key="theme.id" :value="theme.id">
-            {{ theme.label }}
-          </option>
-        </select>
-      </label>
+      <section class="user-option-group compact">
+        <span>界面主题</span>
+        <button
+          v-for="theme in themeOptions"
+          :key="theme.id"
+          type="button"
+          :class="{ selected: activeTheme === theme.id }"
+          @click="$emit('updateTheme', theme.id)"
+        >
+          <strong>{{ theme.label }}</strong>
+        </button>
+      </section>
 
       <button class="ghost" @click="$emit('logout')">退出登录</button>
     </section>

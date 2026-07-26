@@ -29,7 +29,7 @@ const state = proxyRefs(useDeliveryWorkflow())
 const themeOptions = [
   { id: 'studio', label: '深海奶白' },
   { id: 'day', label: '清爽日间' },
-  { id: 'night', label: '低照度夜间' }
+  { id: 'night', label: '翡翠夜间' }
 ]
 const savedTheme = typeof window !== 'undefined' ? window.localStorage.getItem('children-art-theme') : ''
 const activeTheme = ref(themeOptions.some((theme) => theme.id === savedTheme) ? savedTheme : 'studio')
@@ -184,11 +184,9 @@ const shareRoute = computed(() => {
       <UserMenu
         :current-user="state.currentUser"
         :permission-summary="state.permissionSummary"
-        :teachers="state.teachers"
         :theme-options="themeOptions"
         :active-theme="activeTheme"
         @update-theme="activeTheme = $event"
-        @switch-user="state.loginAs"
         @logout="state.logout"
       />
 

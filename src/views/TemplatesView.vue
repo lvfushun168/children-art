@@ -30,7 +30,7 @@ const blankDraft = () => {
     comment: { name: '', tone: '', length: '60-80字', structure: '', taboo: '', sample: '', status: '启用' },
     image: { name: '', ratio: '4:5', brightness: '+10%', watermark: '', border: '', crop: '', quality: '高清', status: '启用' },
     prompt: { name: '', model: '', scene: 'feedback', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' },
-    watermark: { name: '', value: '', position: '右下角', opacity: '80%', font: '', color: '#315d53', status: '启用' }
+    watermark: { name: '', value: '', position: '右下角', opacity: '80%', font: '', color: '#0018A8', status: '启用' }
   }
   return map[activeType.value]
 }

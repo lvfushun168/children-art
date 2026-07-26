@@ -1844,7 +1844,7 @@ export function useDeliveryWorkflow() {
       image: { ratio: '4:5', brightness: '+10%', watermark: '右下角校区水印', border: '米白作品框', crop: '居中裁切', quality: '高清', status: '启用' },
       comment: { tone: '温暖自然', length: '60-80字', structure: '亮点、建议、鼓励', taboo: '不夸大、不排名', sample: '', status: '启用' },
       prompt: { model: '学生记录 + 课程参考 + 模板规则', scene: 'feedback', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' },
-      watermark: { value: school.watermark, position: '右下角', opacity: '80%', font: '授权字体', color: '#315d53', status: '启用' }
+      watermark: { value: school.watermark, position: '右下角', opacity: '80%', font: '授权字体', color: '#0018A8', status: '启用' }
     }
     const template = { name: payload.name || '新模板', ...defaults[type], ...payload }
     templates[type].push(template)

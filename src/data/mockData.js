@@ -193,8 +193,8 @@ export const templates = {
     { name: '作品美化提示词', model: '保留原作笔触，轻微提亮和裁切', scene: 'image', systemPrompt: '保留儿童原作笔触，不重绘主体，仅做轻微校正。', userPrompt: '按 {{imageTemplate}} 处理作品，输出处理图供老师确认。', temperature: 0.3, maxTokens: 120, status: '启用' }
   ],
   watermark: [
-    { name: '校区基础水印', value: school.watermark, position: '右下角', opacity: '84%', font: '授权字体-常规', color: '#315d53', status: '启用' },
-    { name: '课程名水印', value: '课程主题 + 老师名', position: '左下角', opacity: '72%', font: '系统默认', color: '#26312f', status: '可选' }
+    { name: '校区基础水印', value: school.watermark, position: '右下角', opacity: '84%', font: '授权字体-常规', color: '#0018A8', status: '启用' },
+    { name: '课程名水印', value: '课程主题 + 老师名', position: '左下角', opacity: '72%', font: '系统默认', color: '#171A22', status: '可选' }
   ]
 }
 

@@ -105,21 +105,9 @@ const confirmStudentAndNext = () => {
         <span>{{ state.activeTask.date }} · {{ state.activeTask.time }} · {{ state.activeTask.lessonType }}</span>
         <h2>{{ state.activeClass.name }} · {{ state.activeCourse.title }}</h2>
       </div>
-      <div class="lesson-status">
-        <span>当前课次进度</span>
-        <strong>{{ state.taskProgress }}%</strong>
-        <div class="progress-track slim">
-          <i :style="{ width: `${state.taskProgress}%` }"></i>
-        </div>
-        <small>{{ state.steps.filter((step) => step.done === step.total && step.total > 0).length }}/{{ state.steps.length }} 步完成</small>
-      </div>
-      <button class="ghost" @click="state.showReport = !state.showReport">{{ state.showReport ? '继续编辑' : '查看报告' }}</button>
+
     </header>
 
-    <details class="advanced-state">
-      <summary>课次状态与发布记录 <span>{{ state.activeTask.status }} · {{ state.sharePage.status }}</span></summary>
-      <StateControlPanel :state="state" />
-    </details>
 
     <TaskReport
       v-if="state.showReport"

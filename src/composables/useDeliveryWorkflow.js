@@ -28,6 +28,15 @@ import {
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const displayDateFromValue = (value) => {
+  if (!value) return ''
+  const [, month, day] = value.split('-').map(Number)
+  return `${month}月${day}日`
+}
+const isWithinDateRange = (value, start, end) => {
+  if (!value) return !start && !end
+  return (!start || value >= start) && (!end || value <= end)
+}
 
 export function useDeliveryWorkflow() {
   const school = reactive(clone(schoolSeed))
@@ -49,6 +58,7 @@ export function useDeliveryWorkflow() {
   const importPreviewRows = reactive(clone(importPreviewSeed))
   const settings = reactive(clone(settingSeed))
   const statusChangeLogs = reactive([])
+  const archiveEditLogs = reactive([])
 
   const activeTaskId = ref(1)
   const copied = ref(false)
@@ -301,18 +311,23 @@ export function useDeliveryWorkflow() {
     studentId: 'all',
     classId: 'all',
     teacher: 'all',
-    date: 'all',
-    highlightOnly: false
+    dateStart: '',
+    dateEnd: '',
+    highlightOnly: false,
+    frameStatus: 'all'
   })
-  const archiveDates = computed(() => [...new Set(archiveRecords.map((record) => record.date))])
   const filteredArchiveRecords = computed(() =>
     archiveRecords.filter((record) => {
       const studentOk = archiveFilter.studentId === 'all' || record.studentId === Number(archiveFilter.studentId)
       const classOk = archiveFilter.classId === 'all' || record.classId === Number(archiveFilter.classId)
       const teacherOk = archiveFilter.teacher === 'all' || record.teacher === archiveFilter.teacher
-      const dateOk = archiveFilter.date === 'all' || record.date === archiveFilter.date
+      const dateOk = isWithinDateRange(record.dateValue, archiveFilter.dateStart, archiveFilter.dateEnd)
       const highlightOk = !archiveFilter.highlightOnly || record.highlight
-      return studentOk && classOk && teacherOk && dateOk && highlightOk
+      const frameOk =
+        archiveFilter.frameStatus === 'all' ||
+        (archiveFilter.frameStatus === 'framed' && record.framed) ||
+        (archiveFilter.frameStatus === 'unframed' && !record.framed)
+      return studentOk && classOk && teacherOk && dateOk && highlightOk && frameOk
     })
   )
   const lessonArchiveRecords = computed(() => {
@@ -354,6 +369,7 @@ export function useDeliveryWorkflow() {
         source: 'task',
         lessonId: task.id,
         date: task.date,
+        dateValue: task.dateValue,
         time: task.time,
         classId: task.classId,
         className: klass?.name || '班级',
@@ -396,6 +412,7 @@ export function useDeliveryWorkflow() {
           source: 'history',
           lessonId: archive.lessonId || null,
           date: archive.date,
+          dateValue: archive.dateValue || firstWork?.dateValue || '',
           time: firstWork?.time || '',
           classId: firstWork?.classId || null,
           className: archive.className,
@@ -444,6 +461,7 @@ export function useDeliveryWorkflow() {
         id: `effect-${lesson.id}`,
         lessonId: lesson.lessonId,
         date: lesson.date,
+        dateValue: lesson.dateValue,
         time: lesson.time,
         teacher: lesson.teacher,
         className: lesson.className,
@@ -459,11 +477,82 @@ export function useDeliveryWorkflow() {
         sourceLesson: lesson
       }))
   )
-  const archiveCenterDates = computed(() => [
-    ...new Set([...archiveDates.value, ...lessonArchiveRecords.value.map((record) => record.date)].filter(Boolean))
-  ])
   const studentHistoryFor = (studentId) => archiveRecords.filter((record) => record.studentId === Number(studentId))
   const archiveCollectionsForRecord = (recordId) => archiveCollections.filter((collection) => collection.recordIds.includes(recordId))
+  const archiveEditLogsForRecord = (recordId) => archiveEditLogs.filter((log) => log.recordId === recordId)
+  const canEditArchiveRecord = (record) => Boolean(
+    record &&
+    (isAdmin.value || record.teacher === currentUser.value?.name || authorizedClassIds.value.includes(record.classId))
+  )
+  const archiveFieldLabels = {
+    title: '作品标题',
+    description: '作品说明',
+    tags: '标签',
+    note: '档案备注',
+    highlight: '高光状态',
+    highlightNote: '高光说明',
+    framed: '装裱状态',
+    framedAt: '装裱日期',
+    frameFee: '装裱费用',
+    framerName: '装裱人',
+    frameNote: '装裱备注'
+  }
+  const archiveValueText = (key, value) => {
+    if (key === 'highlight' || key === 'framed') return value ? '是' : '否'
+    if (key === 'tags') return (value || []).join('、') || '无'
+    if (key === 'frameFee') return `¥${Number(value || 0).toFixed(2)}`
+    return value === '' || value === null || value === undefined ? '空' : String(value)
+  }
+  const updateArchiveRecord = (recordId, payload) => {
+    const record = archiveRecords.find((item) => item.id === recordId)
+    if (!record || !canEditArchiveRecord(record)) {
+      notify('无权限编辑该作品档案')
+      return null
+    }
+
+    const next = {
+      title: payload.title?.trim() || '',
+      description: payload.description?.trim() || '',
+      tags: [...new Set((payload.tags || []).map((tag) => tag.trim()).filter(Boolean))],
+      note: payload.note?.trim() || '',
+      highlight: Boolean(payload.highlight),
+      highlightNote: payload.highlight ? payload.highlightNote?.trim() || '' : '',
+      framed: Boolean(payload.framed),
+      framedAt: payload.framedAt || '',
+      frameFee: Number(payload.frameFee || 0),
+      framerId: payload.framerId || null,
+      framerName: payload.framerName?.trim() || '',
+      frameNote: payload.frameNote?.trim() || ''
+    }
+    const trackedKeys = Object.keys(archiveFieldLabels)
+    const changes = trackedKeys
+      .filter((key) => JSON.stringify(record[key] ?? (key === 'tags' ? [] : '')) !== JSON.stringify(next[key]))
+      .map((key) => ({
+        field: key,
+        label: archiveFieldLabels[key],
+        before: archiveValueText(key, record[key]),
+        after: archiveValueText(key, next[key])
+      }))
+
+    if (!changes.length) {
+      notify('作品档案没有需要保存的修改')
+      return record
+    }
+
+    const updatedAt = nowText()
+    const updatedBy = currentUser.value?.name || '未登录用户'
+    Object.assign(record, next, { updatedAt, updatedBy })
+    archiveEditLogs.unshift({
+      id: nextId(archiveEditLogs),
+      recordId,
+      operator: updatedBy,
+      time: updatedAt,
+      reason: payload.changeReason?.trim() || '编辑作品档案',
+      changes
+    })
+    notify(`已保存作品档案：${record.title}`)
+    return record
+  }
   const createArchiveCollection = (payload) => {
     const selectedRecords = payload.recordIds
       .map((id) => archiveRecords.find((record) => record.id === id))
@@ -1294,6 +1383,7 @@ export function useDeliveryWorkflow() {
     const summaryPayload = {
       lessonId: activeTask.value.id,
       date: activeTask.value.date,
+      dateValue: activeTask.value.dateValue,
       className: activeClass.value.name,
       course: activeCourse.value.title,
       works: counts.value.attend,
@@ -1312,6 +1402,7 @@ export function useDeliveryWorkflow() {
       const payload = {
         lessonId: activeTask.value.id,
         date: activeTask.value.date,
+        dateValue: activeTask.value.dateValue,
         time: activeTask.value.time,
         classId: activeClass.value.id,
         className: activeClass.value.name,
@@ -1321,10 +1412,22 @@ export function useDeliveryWorkflow() {
         studentId: row.studentId,
         studentName: student.name,
         artwork: row.image,
+        title: existing?.title || `${student.name}的${activeCourse.value.title}`,
+        description: existing?.description || '',
+        tags: existing?.tags || [],
+        note: existing?.note || '',
         feedback: row.comment,
         homework: homework.value.content,
-        highlight: row.highlight,
-        highlightNote: row.highlightNote,
+        highlight: existing?.highlight ?? row.highlight,
+        highlightNote: existing?.highlightNote ?? row.highlightNote,
+        framed: existing?.framed || false,
+        framedAt: existing?.framedAt || '',
+        frameFee: existing?.frameFee || 0,
+        framerId: existing?.framerId || null,
+        framerName: existing?.framerName || '',
+        frameNote: existing?.frameNote || '',
+        updatedBy: existing?.updatedBy || '',
+        updatedAt: existing?.updatedAt || '',
         shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`,
         collectionIds: existing?.collectionIds || [],
         wheatStatus,
@@ -1534,7 +1637,8 @@ export function useDeliveryWorkflow() {
     const teacher = teachers.find((item) => item.id === Number(payload.teacherId))
     const lesson = {
       id: nextId(tasks),
-      date: payload.date || '6月21日',
+      date: payload.date || displayDateFromValue(payload.dateValue) || '6月21日',
+      dateValue: payload.dateValue || '2026-06-21',
       time: payload.time || '17:40',
       classId: klass?.id || classes[0]?.id,
       courseId: course?.id || courses[0]?.id,
@@ -1809,6 +1913,7 @@ export function useDeliveryWorkflow() {
     activeWorkspace,
     sharePage,
     statusChangeLogs,
+    archiveEditLogs,
     lessonStatusLogs,
     sessionStudents,
     archives,
@@ -1817,8 +1922,6 @@ export function useDeliveryWorkflow() {
     aiCallLogs,
     extraTaskArchives,
     archiveFilter,
-    archiveDates,
-    archiveCenterDates,
     filteredArchiveRecords,
     lessonArchiveRecords,
     teacherEffectArchiveRecords,
@@ -1874,6 +1977,9 @@ export function useDeliveryWorkflow() {
     permissionSummary,
     studentHistoryFor,
     archiveCollectionsForRecord,
+    archiveEditLogsForRecord,
+    canEditArchiveRecord,
+    updateArchiveRecord,
     createArchiveCollection,
     copyArchiveCollectionLink,
     importStats,

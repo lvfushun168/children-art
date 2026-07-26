@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
+import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
 
 const props = defineProps({
   state: {
@@ -25,8 +26,27 @@ const showWorkDrawer = ref(false)
 const showLessonDrawer = ref(false)
 const showEffectDrawer = ref(false)
 const createdCollection = ref(null)
-const lessonFilter = reactive({ classId: 'all', teacher: 'all', date: 'all' })
-const effectFilter = reactive({ teacher: 'all', classId: 'all', date: 'all' })
+const isEditingWork = ref(false)
+const workEditError = ref('')
+const initialWorkDraft = ref('')
+const wasFramed = ref(false)
+const lessonFilter = reactive({ classId: 'all', teacher: 'all', dateStart: '', dateEnd: '' })
+const effectFilter = reactive({ teacher: 'all', classId: 'all', dateStart: '', dateEnd: '' })
+const workDraft = reactive({
+  title: '',
+  description: '',
+  tagsText: '',
+  note: '',
+  highlight: false,
+  highlightNote: '',
+  framed: false,
+  framedAt: '',
+  frameFee: 0,
+  framerKey: '',
+  externalFramerName: '',
+  frameNote: '',
+  changeReason: ''
+})
 const collectionDraft = reactive({
   type: '学生成长作品集',
   title: '',
@@ -45,6 +65,9 @@ const collectionDraft = reactive({
 const selected = computed(() => props.state.filteredArchiveRecords.find((record) => record.id === selectedId.value) || props.state.filteredArchiveRecords[0])
 const selectedRecords = computed(() => selectedRecordIds.value.map((id) => props.state.archiveRecords.find((record) => record.id === id)).filter(Boolean))
 const selectedCollections = computed(() => (selected.value ? props.state.archiveCollectionsForRecord(selected.value.id) : []))
+const selectedWorkLogs = computed(() => (selected.value ? props.state.archiveEditLogsForRecord(selected.value.id) : []))
+const canEditSelectedWork = computed(() => props.state.canEditArchiveRecord(selected.value))
+const hasUnsavedWorkChanges = computed(() => isEditingWork.value && JSON.stringify(workDraft) !== initialWorkDraft.value)
 const selectedFilterStudent = computed(() =>
   props.state.archiveFilter.studentId === 'all' ? null : props.state.students.find((student) => student.id === Number(props.state.archiveFilter.studentId))
 )
@@ -54,12 +77,14 @@ const canCreateStudentGrowth = computed(() =>
   Boolean(selectedFilterStudent.value && selectedRecords.value.length && selectedRecords.value.every((record) => record.studentId === selectedFilterStudent.value.id))
 )
 const canPublishCollection = computed(() => Boolean(canCreateStudentGrowth.value && collectionDraft.title && collectionDraft.target))
+const isWithinDateRange = (value, start, end) =>
+  Boolean(value && (!start || value >= start) && (!end || value <= end))
 
 const filteredLessonArchives = computed(() =>
   props.state.lessonArchiveRecords.filter((lesson) => {
     const classOk = lessonFilter.classId === 'all' || lesson.classId === Number(lessonFilter.classId)
     const teacherOk = lessonFilter.teacher === 'all' || lesson.teacher === lessonFilter.teacher
-    const dateOk = lessonFilter.date === 'all' || lesson.date === lessonFilter.date
+    const dateOk = isWithinDateRange(lesson.dateValue, lessonFilter.dateStart, lessonFilter.dateEnd)
     return classOk && teacherOk && dateOk
   })
 )
@@ -71,7 +96,7 @@ const filteredTeacherEffects = computed(() =>
   props.state.teacherEffectArchiveRecords.filter((effect) => {
     const classOk = effectFilter.classId === 'all' || effect.sourceLesson.classId === Number(effectFilter.classId)
     const teacherOk = effectFilter.teacher === 'all' || effect.teacher === effectFilter.teacher
-    const dateOk = effectFilter.date === 'all' || effect.date === effectFilter.date
+    const dateOk = isWithinDateRange(effect.dateValue, effectFilter.dateStart, effectFilter.dateEnd)
     return classOk && teacherOk && dateOk
   })
 )
@@ -124,7 +149,102 @@ const toggleAllVisible = () => {
 
 const openWorkDrawer = (record) => {
   selectedId.value = record.id
+  isEditingWork.value = false
+  workEditError.value = ''
   showWorkDrawer.value = true
+}
+
+const loadWorkDraft = () => {
+  if (!selected.value) return
+  const record = selected.value
+  Object.assign(workDraft, {
+    title: record.title || `${record.studentName}的${record.course}`,
+    description: record.description || '',
+    tagsText: (record.tags || []).join('、'),
+    note: record.note || '',
+    highlight: Boolean(record.highlight),
+    highlightNote: record.highlightNote || '',
+    framed: Boolean(record.framed),
+    framedAt: record.framedAt || '',
+    frameFee: record.frameFee ?? 0,
+    framerKey: record.framerId ? `staff:${record.framerId}` : record.framerName ? 'external' : '',
+    externalFramerName: record.framerId ? '' : record.framerName || '',
+    frameNote: record.frameNote || '',
+    changeReason: ''
+  })
+  wasFramed.value = Boolean(record.framed)
+  initialWorkDraft.value = JSON.stringify(workDraft)
+  workEditError.value = ''
+}
+
+const startWorkEdit = () => {
+  if (!canEditSelectedWork.value) return
+  loadWorkDraft()
+  isEditingWork.value = true
+}
+
+const cancelWorkEdit = () => {
+  if (hasUnsavedWorkChanges.value && !window.confirm('尚有未保存的修改，确定放弃吗？')) return
+  isEditingWork.value = false
+  workEditError.value = ''
+}
+
+const closeWorkDrawer = () => {
+  if (hasUnsavedWorkChanges.value && !window.confirm('尚有未保存的修改，确定关闭吗？')) return
+  isEditingWork.value = false
+  workEditError.value = ''
+  showWorkDrawer.value = false
+}
+
+const saveWorkEdit = () => {
+  workEditError.value = ''
+  if (!workDraft.title.trim()) {
+    workEditError.value = '请填写作品标题。'
+    return
+  }
+  if (workDraft.framed) {
+    if (!workDraft.framedAt) {
+      workEditError.value = '请填写装裱日期。'
+      return
+    }
+    if (workDraft.frameFee === '' || Number(workDraft.frameFee) < 0) {
+      workEditError.value = '请填写有效的装裱费用，费用可以为 0。'
+      return
+    }
+    if (!workDraft.framerKey) {
+      workEditError.value = '请选择装裱人。'
+      return
+    }
+    if (workDraft.framerKey === 'external' && !workDraft.externalFramerName.trim()) {
+      workEditError.value = '请填写外部装裱人或机构名称。'
+      return
+    }
+  }
+  if (wasFramed.value && !workDraft.framed && !workDraft.changeReason.trim()) {
+    workEditError.value = '取消既有装裱状态时必须填写更正原因。'
+    return
+  }
+
+  const staffId = workDraft.framerKey.startsWith('staff:') ? Number(workDraft.framerKey.split(':')[1]) : null
+  const staff = props.state.teachers.find((item) => item.id === staffId)
+  const saved = props.state.updateArchiveRecord(selected.value.id, {
+    title: workDraft.title,
+    description: workDraft.description,
+    tags: workDraft.tagsText.split(/[，,、]/),
+    note: workDraft.note,
+    highlight: workDraft.highlight,
+    highlightNote: workDraft.highlightNote,
+    framed: workDraft.framed,
+    framedAt: workDraft.framedAt,
+    frameFee: workDraft.frameFee,
+    framerId: staffId,
+    framerName: staff?.name || workDraft.externalFramerName,
+    frameNote: workDraft.frameNote,
+    changeReason: workDraft.changeReason
+  })
+  if (!saved) return
+  isEditingWork.value = false
+  initialWorkDraft.value = ''
 }
 
 const openLessonDrawer = (lesson) => {
@@ -178,6 +298,8 @@ const assetMeta = (asset) => {
   if (asset.fileName) return `${asset.fileName}${asset.fileExt ? ` · ${asset.fileExt.toUpperCase()}` : ''}`
   return asset.visible ? '家长展示页可见' : '仅内部归档'
 }
+
+const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
 </script>
 
 <template>
@@ -212,40 +334,48 @@ const assetMeta = (asset) => {
           <strong>{{ state.filteredArchiveRecords.length }} 条记录</strong>
         </div>
       </div>
-      <label>
-        学生
-        <select v-model="state.archiveFilter.studentId" @change="selectFirstIfMissing">
-          <option value="all">全部学生</option>
-          <option v-for="student in state.students" :key="student.id" :value="student.id">{{ student.name }}</option>
-        </select>
-      </label>
-      <label>
-        班级
-        <select v-model="state.archiveFilter.classId" @change="selectFirstIfMissing">
-          <option value="all">全部班级</option>
-          <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
-        </select>
-      </label>
-      <label>
-        老师
-        <select v-model="state.archiveFilter.teacher" @change="selectFirstIfMissing">
-          <option value="all">全部老师</option>
-          <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
-            {{ teacher.name }}
-          </option>
-        </select>
-      </label>
-      <label>
-        日期
-        <select v-model="state.archiveFilter.date" @change="selectFirstIfMissing">
-          <option value="all">全部日期</option>
-          <option v-for="date in state.archiveDates" :key="date">{{ date }}</option>
-        </select>
-      </label>
-      <label class="archive-check">
-        <input v-model="state.archiveFilter.highlightOnly" type="checkbox" @change="selectFirstIfMissing" />
-        <span>只看高光作品</span>
-      </label>
+      <div class="archive-filter-fields student-work-filter-fields">
+        <label>
+          学生
+          <select v-model="state.archiveFilter.studentId" @change="selectFirstIfMissing">
+            <option value="all">全部学生</option>
+            <option v-for="student in state.students" :key="student.id" :value="student.id">{{ student.name }}</option>
+          </select>
+        </label>
+        <label>
+          班级
+          <select v-model="state.archiveFilter.classId" @change="selectFirstIfMissing">
+            <option value="all">全部班级</option>
+            <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
+          </select>
+        </label>
+        <label>
+          老师
+          <select v-model="state.archiveFilter.teacher" @change="selectFirstIfMissing">
+            <option value="all">全部老师</option>
+            <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
+              {{ teacher.name }}
+            </option>
+          </select>
+        </label>
+        <label>
+          装裱状态
+          <select v-model="state.archiveFilter.frameStatus" @change="selectFirstIfMissing">
+            <option value="all">全部状态</option>
+            <option value="framed">已装裱</option>
+            <option value="unframed">未装裱</option>
+          </select>
+        </label>
+        <label class="archive-check">
+          <input v-model="state.archiveFilter.highlightOnly" type="checkbox" @change="selectFirstIfMissing" />
+          <span>只看高光作品</span>
+        </label>
+      </div>
+      <DateRangeFilter
+        v-model:start="state.archiveFilter.dateStart"
+        v-model:end="state.archiveFilter.dateEnd"
+        @change="selectFirstIfMissing"
+      />
     </section>
 
     <section class="archive-results panel">
@@ -274,9 +404,10 @@ const assetMeta = (asset) => {
         </label>
         <img :src="record.artwork" :alt="record.studentName" />
         <span>
-          <strong>{{ record.studentName }} · {{ record.course }}</strong>
+          <strong>{{ record.title || `${record.studentName} · ${record.course}` }}</strong>
           <small>{{ record.date }} {{ record.time }} · {{ record.className }} · {{ record.teacher }}</small>
           <em v-if="record.highlight">高光作品</em>
+          <em v-if="record.framed" class="framed-tag">已装裱</em>
           <em v-if="record.collectionIds?.length" class="collection-tag">已入选作品集</em>
         </span>
       </article>
@@ -295,29 +426,28 @@ const assetMeta = (asset) => {
           <strong>{{ filteredLessonArchives.length }} 节课</strong>
         </div>
       </div>
-      <label>
-        班级
-        <select v-model="lessonFilter.classId">
-          <option value="all">全部班级</option>
-          <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
-        </select>
-      </label>
-      <label>
-        老师
-        <select v-model="lessonFilter.teacher">
-          <option value="all">全部老师</option>
-          <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
-            {{ teacher.name }}
-          </option>
-        </select>
-      </label>
-      <label>
-        日期
-        <select v-model="lessonFilter.date">
-          <option value="all">全部日期</option>
-          <option v-for="date in state.archiveCenterDates" :key="date">{{ date }}</option>
-        </select>
-      </label>
+      <div class="archive-filter-fields compact-archive-filter-fields">
+        <label>
+          班级
+          <select v-model="lessonFilter.classId">
+            <option value="all">全部班级</option>
+            <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
+          </select>
+        </label>
+        <label>
+          老师
+          <select v-model="lessonFilter.teacher">
+            <option value="all">全部老师</option>
+            <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
+              {{ teacher.name }}
+            </option>
+          </select>
+        </label>
+      </div>
+      <DateRangeFilter
+        v-model:start="lessonFilter.dateStart"
+        v-model:end="lessonFilter.dateEnd"
+      />
     </section>
 
     <section class="archive-results panel">
@@ -358,29 +488,28 @@ const assetMeta = (asset) => {
           <strong>{{ filteredTeacherEffects.length }} 张长图</strong>
         </div>
       </div>
-      <label>
-        老师
-        <select v-model="effectFilter.teacher">
-          <option value="all">全部老师</option>
-          <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
-            {{ teacher.name }}
-          </option>
-        </select>
-      </label>
-      <label>
-        班级
-        <select v-model="effectFilter.classId">
-          <option value="all">全部班级</option>
-          <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
-        </select>
-      </label>
-      <label>
-        日期
-        <select v-model="effectFilter.date">
-          <option value="all">全部日期</option>
-          <option v-for="date in state.archiveCenterDates" :key="date">{{ date }}</option>
-        </select>
-      </label>
+      <div class="archive-filter-fields compact-archive-filter-fields">
+        <label>
+          老师
+          <select v-model="effectFilter.teacher">
+            <option value="all">全部老师</option>
+            <option v-for="teacher in state.teachers.filter((item) => item.role === '老师')" :key="teacher.id" :value="teacher.name">
+              {{ teacher.name }}
+            </option>
+          </select>
+        </label>
+        <label>
+          班级
+          <select v-model="effectFilter.classId">
+            <option value="all">全部班级</option>
+            <option v-for="klass in state.classes" :key="klass.id" :value="klass.id">{{ klass.name }}</option>
+          </select>
+        </label>
+      </div>
+      <DateRangeFilter
+        v-model:start="effectFilter.dateStart"
+        v-model:end="effectFilter.dateEnd"
+      />
     </section>
 
     <section class="archive-results panel">
@@ -413,27 +542,113 @@ const assetMeta = (asset) => {
 
   </section>
 
-  <div v-if="showWorkDrawer && selected" class="archive-drawer-backdrop" @click.self="showWorkDrawer = false">
+  <div v-if="showWorkDrawer && selected" class="archive-drawer-backdrop" @click.self="closeWorkDrawer">
     <aside class="archive-drawer" role="dialog" aria-modal="true" aria-label="作品归档详情">
       <header class="archive-drawer-head">
         <div>
-          <span>作品归档详情</span>
-          <strong>{{ selected.studentName }} · {{ selected.course }}</strong>
+          <span>{{ isEditingWork ? '编辑作品档案' : '作品归档详情' }}</span>
+          <strong>{{ selected.title || `${selected.studentName} · ${selected.course}` }}</strong>
         </div>
-        <button class="ghost" @click="showWorkDrawer = false">关闭</button>
+        <div class="archive-drawer-actions">
+          <button v-if="!isEditingWork && canEditSelectedWork" class="primary" @click="startWorkEdit">编辑</button>
+          <button class="ghost" @click="closeWorkDrawer">关闭</button>
+        </div>
       </header>
-      <img class="archive-main-image" :src="selected.artwork" :alt="selected.studentName" />
+      <figure class="archive-image-readonly">
+        <img class="archive-main-image" :src="selected.artwork" :alt="selected.studentName" />
+        <figcaption>归档原图 · 只读</figcaption>
+      </figure>
       <section class="archive-detail-group">
-        <span>作品信息</span>
+        <span>课次信息</span>
         <div class="archive-meta">
-          <span>{{ selected.date }} {{ selected.time }}</span>
-          <span>{{ selected.className }}</span>
-          <span>{{ selected.teacher }}</span>
-          <span>{{ selected.lessonType }}</span>
+          <span><small>学生</small><strong>{{ selected.studentName }}</strong></span>
+          <span><small>课程</small><strong>{{ selected.course }}</strong></span>
+          <span><small>上课时间</small><strong>{{ selected.date }} {{ selected.time }}</strong></span>
+          <span><small>班级</small><strong>{{ selected.className }}</strong></span>
+          <span><small>任课老师</small><strong>{{ selected.teacher }}</strong></span>
+          <span><small>课次类型</small><strong>{{ selected.lessonType }}</strong></span>
         </div>
       </section>
+      <template v-if="isEditingWork">
+        <section class="archive-detail-group archive-edit-section">
+          <span>作品档案信息</span>
+          <div class="form-grid archive-edit-grid">
+            <label class="wide">作品标题<input v-model="workDraft.title" /></label>
+            <label class="wide">作品说明<textarea v-model="workDraft.description" rows="3" /></label>
+            <label class="wide">标签<input v-model="workDraft.tagsText" placeholder="使用逗号或顿号分隔" /></label>
+            <label class="wide">档案备注<textarea v-model="workDraft.note" rows="3" /></label>
+          </div>
+        </section>
+        <section class="archive-detail-group archive-edit-section">
+          <span>高光信息</span>
+          <label class="archive-toggle-row">
+            <input v-model="workDraft.highlight" type="checkbox" />
+            <span>标记为高光作品</span>
+          </label>
+          <label v-if="workDraft.highlight">高光说明<textarea v-model="workDraft.highlightNote" rows="3" /></label>
+        </section>
+        <section class="archive-detail-group archive-edit-section">
+          <span>装裱信息</span>
+          <label class="archive-toggle-row">
+            <input v-model="workDraft.framed" type="checkbox" />
+            <span>作品已装裱</span>
+          </label>
+          <div v-if="workDraft.framed" class="form-grid archive-edit-grid">
+            <label>装裱日期<input v-model="workDraft.framedAt" type="date" /></label>
+            <label>装裱费用（元）<input v-model="workDraft.frameFee" type="number" min="0" step="0.01" /></label>
+            <label class="wide">
+              装裱人
+              <select v-model="workDraft.framerKey">
+                <option value="">请选择</option>
+                <option v-for="staff in state.teachers.filter((item) => item.status === '启用')" :key="staff.id" :value="`staff:${staff.id}`">
+                  {{ staff.name }} · {{ staff.role }}
+                </option>
+                <option value="external">其他人员或外部机构</option>
+              </select>
+            </label>
+            <label v-if="workDraft.framerKey === 'external'" class="wide">
+              外部装裱人或机构
+              <input v-model="workDraft.externalFramerName" />
+            </label>
+            <label class="wide">装裱备注<textarea v-model="workDraft.frameNote" rows="3" /></label>
+          </div>
+          <label v-if="wasFramed && !workDraft.framed" class="archive-correction-reason">
+            更正原因
+            <textarea v-model="workDraft.changeReason" rows="3" placeholder="请说明取消既有装裱状态的原因" />
+          </label>
+        </section>
+      </template>
+      <template v-else>
+        <section class="archive-detail-group">
+          <span>作品档案信息</span>
+          <article class="archive-block">
+            <strong>{{ selected.title || `${selected.studentName}的${selected.course}` }}</strong>
+            <p>{{ selected.description || '暂无作品说明。' }}</p>
+            <div v-if="selected.tags?.length" class="archive-tag-list">
+              <em v-for="tag in selected.tags" :key="tag">{{ tag }}</em>
+            </div>
+            <small v-if="selected.note">备注：{{ selected.note }}</small>
+          </article>
+        </section>
+        <section class="archive-detail-group">
+          <span>装裱信息</span>
+          <article v-if="selected.framed" class="archive-block framed">
+            <strong>已装裱</strong>
+            <div class="archive-frame-summary">
+              <span><small>装裱日期</small><strong>{{ selected.framedAt }}</strong></span>
+              <span><small>装裱费用</small><strong>{{ formatFrameFee(selected.frameFee) }}</strong></span>
+              <span><small>装裱人</small><strong>{{ selected.framerName }}</strong></span>
+            </div>
+            <p v-if="selected.frameNote">{{ selected.frameNote }}</p>
+          </article>
+          <article v-else class="archive-block">
+            <strong>未装裱</strong>
+            <p>当前作品没有装裱记录。</p>
+          </article>
+        </section>
+      </template>
       <section class="archive-detail-group">
-        <span>本次交付内容</span>
+        <span>本次交付内容 · 只读</span>
         <article class="archive-block">
           <strong>课评</strong>
           <p>{{ selected.feedback }}</p>
@@ -447,7 +662,7 @@ const assetMeta = (asset) => {
           <p>{{ selected.shareUrl }}</p>
         </article>
       </section>
-      <section class="archive-detail-group">
+      <section v-if="!isEditingWork" class="archive-detail-group">
         <span>高光与复用</span>
         <article v-if="selected.highlight" class="archive-block highlight">
           <strong>高光说明</strong>
@@ -465,6 +680,32 @@ const assetMeta = (asset) => {
           </div>
         </div>
       </section>
+      <section v-if="!isEditingWork && (selected.updatedAt || selectedWorkLogs.length)" class="archive-detail-group">
+        <span>变更记录</span>
+        <article v-if="selected.updatedAt" class="archive-update-summary">
+          <strong>最近更新</strong>
+          <small>{{ selected.updatedBy }} · {{ selected.updatedAt }}</small>
+        </article>
+        <details v-if="selectedWorkLogs.length" class="archive-history">
+          <summary>查看全部 {{ selectedWorkLogs.length }} 次修改</summary>
+          <article v-for="log in selectedWorkLogs" :key="log.id">
+            <header>
+              <strong>{{ log.operator }}</strong>
+              <small>{{ log.time }} · {{ log.reason }}</small>
+            </header>
+            <p v-for="change in log.changes" :key="change.field">
+              {{ change.label }}：{{ change.before }} → {{ change.after }}
+            </p>
+          </article>
+        </details>
+      </section>
+      <footer v-if="isEditingWork" class="archive-edit-actions">
+        <p v-if="workEditError">{{ workEditError }}</p>
+        <div>
+          <button class="ghost" @click="cancelWorkEdit">取消</button>
+          <button class="primary" @click="saveWorkEdit">保存修改</button>
+        </div>
+      </footer>
     </aside>
   </div>
 

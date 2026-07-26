@@ -32,7 +32,7 @@ const emit = defineEmits(['select-task', 'add-lesson'])
 
 const showLessonDialog = ref(false)
 const lessonDraft = ref({
-  date: '6月21日',
+  dateValue: '2026-06-21',
   time: '20:10',
   classId: props.classes[0]?.id,
   teacherId: props.teachers.find((item) => item.role === '老师')?.id,
@@ -96,7 +96,7 @@ const saveLesson = () => {
         </header>
 
         <div class="form-grid">
-          <label>日期<input v-model="lessonDraft.date" /></label>
+          <label>日期<input v-model="lessonDraft.dateValue" type="date" /></label>
           <label>时间<input v-model="lessonDraft.time" /></label>
           <label>
             班级

@@ -23,7 +23,7 @@ const showTodoCenter = ref(false)
 const openWorkspaceSignal = ref(0)
 const state = proxyRefs(useDeliveryWorkflow())
 const themeOptions = [
-  { id: 'studio', label: '画室温润' },
+  { id: 'studio', label: '深海奶白' },
   { id: 'day', label: '清爽日间' },
   { id: 'night', label: '低照度夜间' }
 ]

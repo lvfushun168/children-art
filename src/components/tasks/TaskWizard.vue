@@ -505,7 +505,7 @@ const confirmStudentAndNext = () => {
             </label>
           </article>
           <article class="recommended-courses">
-            <div class="mini-head"><div><span>推荐延伸课程</span><strong>已根据“{{ state.activeCourse.title }}”自动匹配</strong></div><button class="ghost" @click="showAllCourses = !showAllCourses">{{ showAllCourses ? '只看推荐' : '查看更多课程' }}</button></div>
+            <div class="mini-head"><div><span>关联在线课程</span><strong>已根据“{{ state.activeCourse.title }}”自动匹配</strong></div><button class="ghost" @click="showAllCourses = !showAllCourses">{{ showAllCourses ? '只看推荐' : '查看更多课程' }}</button></div>
             <label v-for="link in state.externalLinks.filter((link) => showAllCourses || link.courseIds.includes(state.activeCourse.id))" :key="link.id" class="course-choice">
               <input
                 type="checkbox"

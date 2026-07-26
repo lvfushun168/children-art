@@ -47,7 +47,7 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['tasks', 'archives', 'students', 'classes'])
+const navIdsWithLocalBack = new Set(['tasks', 'archives', 'students', 'classes', 'externalLinks', 'extraTasks', 'templates', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || mobileLevel.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
 const mobileGroupEntries = computed(() =>
@@ -219,15 +219,15 @@ const shareRoute = computed(() => {
 
       <ImportCenterView v-if="showActivePage && activeNav === 'imports'" :state="state" :initial-type="activeImportType" />
 
-      <ExternalLinksView v-if="showActivePage && activeNav === 'externalLinks'" :state="state" />
+      <ExternalLinksView v-if="showActivePage && activeNav === 'externalLinks'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
-      <TemplatesView v-if="showActivePage && activeNav === 'templates'" :state="state" />
+      <TemplatesView v-if="showActivePage && activeNav === 'templates'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ArchiveQueryView v-if="showActivePage && activeNav === 'archives'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
-      <ExtraTasksView v-if="showActivePage && activeNav === 'extraTasks'" :state="state" />
+      <ExtraTasksView v-if="showActivePage && activeNav === 'extraTasks'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
-      <SystemSettingsView v-if="showActivePage && activeNav === 'settings' && state.isAdmin" :state="state" />
+      <SystemSettingsView v-if="showActivePage && activeNav === 'settings' && state.isAdmin" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
     </section>
   </main>
 </template>

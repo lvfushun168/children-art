@@ -1,15 +1,23 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 
 const props = defineProps({
   state: {
     type: Object,
     required: true
+  },
+  groupLabel: {
+    type: String,
+    default: ''
   }
 })
+defineEmits(['backToGroup'])
 
 const selectedId = ref(props.state.settings[0]?.id || null)
+const isMobileFlow = ref(false)
+const mobileStage = ref('list')
+let cleanupMobileMedia = () => {}
 const selected = () => props.state.settings.find((item) => item.id === selectedId.value)
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const draft = ref(clone(selected() || {}))
@@ -17,6 +25,7 @@ const draft = ref(clone(selected() || {}))
 const selectSetting = (setting) => {
   selectedId.value = setting.id
   draft.value = clone(setting)
+  if (isMobileFlow.value) mobileStage.value = 'detail'
 }
 
 const save = () => {
@@ -66,15 +75,55 @@ const toggleTeacherClass = (teacher, classId) => {
     ? teacher.classes.filter((id) => id !== classId)
     : [...teacher.classes, classId]
 }
+
+const openAccounts = () => {
+  mobileStage.value = 'accounts'
+}
+
+const returnToList = () => {
+  draft.value = clone(selected() || {})
+  mobileStage.value = 'list'
+}
+
+onMounted(() => {
+  const media = window.matchMedia('(max-width: 680px)')
+  const syncMobile = () => {
+    isMobileFlow.value = media.matches
+    if (media.matches) mobileStage.value = 'list'
+  }
+  syncMobile()
+  media.addEventListener('change', syncMobile)
+  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
+})
+
+onBeforeUnmount(() => cleanupMobileMedia())
 </script>
 
 <template>
+  <button
+    v-if="groupLabel && (!isMobileFlow || mobileStage === 'list')"
+    class="module-back-link"
+    type="button"
+    @click="$emit('backToGroup')"
+  >
+    ← 返回{{ groupLabel }}
+  </button>
+
+  <button
+    v-if="isMobileFlow && mobileStage !== 'list'"
+    class="module-back-link"
+    type="button"
+    @click="returnToList"
+  >
+    ← 返回配置列表
+  </button>
+
   <PageHead eyebrow="后台配置" title="系统配置">
-    <button class="primary" @click="save">保存当前配置</button>
+    <button v-if="!isMobileFlow || mobileStage === 'detail'" class="primary" @click="save">保存当前配置</button>
   </PageHead>
 
-  <section class="settings-layout">
-    <aside class="panel master-list">
+  <section class="settings-layout" :class="`mobile-settings-stage-${mobileStage}`">
+    <aside v-show="!isMobileFlow || mobileStage === 'list'" class="panel master-list">
       <div class="section-head">
         <div>
           <span>配置项</span>
@@ -91,9 +140,13 @@ const toggleTeacherClass = (teacher, classId) => {
         <strong>{{ setting.name }}</strong>
         <span>{{ setting.status }}</span>
       </button>
+      <button v-if="isMobileFlow" class="master-row" @click="openAccounts">
+        <strong>账号、角色与授权</strong>
+        <span>{{ state.teachers.length }} 个账号</span>
+      </button>
     </aside>
 
-    <section class="panel">
+    <section v-show="!isMobileFlow || mobileStage === 'detail'" class="panel">
       <div class="section-head">
         <div>
           <span>配置详情</span>
@@ -138,7 +191,7 @@ const toggleTeacherClass = (teacher, classId) => {
       </div>
     </section>
 
-    <aside class="panel">
+    <aside v-show="!isMobileFlow || mobileStage === 'accounts'" class="panel">
       <div class="section-head">
         <div>
           <span>账号、角色与授权</span>

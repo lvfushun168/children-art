@@ -1,16 +1,24 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 
 const props = defineProps({
   state: {
     type: Object,
     required: true
+  },
+  groupLabel: {
+    type: String,
+    default: ''
   }
 })
+defineEmits(['backToGroup'])
 
 const selectedId = ref(props.state.extraTaskArchives[0]?.id || null)
 const mode = ref('detail')
+const isMobileFlow = ref(false)
+const mobileShowingDetail = ref(false)
+let cleanupMobileMedia = () => {}
 const selected = computed(() => props.state.extraTaskArchives.find((task) => task.id === selectedId.value) || props.state.extraTaskArchives[0])
 
 const lessonOptions = computed(() =>
@@ -45,11 +53,13 @@ const selectTask = (task) => {
   selectedId.value = task.id
   mode.value = 'detail'
   resetDraft()
+  if (isMobileFlow.value) mobileShowingDetail.value = true
 }
 
 const startNew = () => {
   mode.value = 'new'
   draft.value = blankDraft()
+  if (isMobileFlow.value) mobileShowingDetail.value = true
 }
 
 const startEdit = () => {
@@ -63,11 +73,49 @@ const save = () => {
     : props.state.updateExtraTask(selected.value.id, draft.value)
   selectedId.value = saved.id
   mode.value = 'detail'
+  if (isMobileFlow.value) mobileShowingDetail.value = true
   resetDraft()
 }
+
+const returnToList = () => {
+  mode.value = 'detail'
+  resetDraft()
+  mobileShowingDetail.value = false
+}
+
+onMounted(() => {
+  const media = window.matchMedia('(max-width: 680px)')
+  const syncMobile = () => {
+    isMobileFlow.value = media.matches
+    if (media.matches) mobileShowingDetail.value = false
+  }
+  syncMobile()
+  media.addEventListener('change', syncMobile)
+  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
+})
+
+onBeforeUnmount(() => cleanupMobileMedia())
 </script>
 
 <template>
+  <button
+    v-if="groupLabel && (!isMobileFlow || !mobileShowingDetail)"
+    class="module-back-link"
+    type="button"
+    @click="$emit('backToGroup')"
+  >
+    ← 返回{{ groupLabel }}
+  </button>
+
+  <button
+    v-if="isMobileFlow && mobileShowingDetail"
+    class="module-back-link"
+    type="button"
+    @click="returnToList"
+  >
+    ← 返回列表
+  </button>
+
   <PageHead title="学生课外任务">
     <div class="button-pair">
       <button class="secondary" @click="startEdit">编辑当前任务</button>
@@ -75,8 +123,8 @@ const save = () => {
     </div>
   </PageHead>
 
-  <section class="extra-task-layout">
-    <aside class="panel master-list">
+  <section class="extra-task-layout" :class="{ 'mobile-detail-open': isMobileFlow && mobileShowingDetail }">
+    <aside v-show="!isMobileFlow || !mobileShowingDetail" class="panel master-list">
       <div class="section-head">
         <div>
           <span>任务列表</span>
@@ -96,7 +144,7 @@ const save = () => {
       </button>
     </aside>
 
-    <section class="panel">
+    <section v-show="!isMobileFlow || mobileShowingDetail" class="panel">
       <div class="section-head">
         <div>
           <span>{{ mode === 'new' ? '新增' : mode === 'edit' ? '编辑' : '详情' }}</span>

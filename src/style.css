@@ -4863,6 +4863,13 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .external-link-layout.mobile-detail-open,
+  .extra-task-layout.mobile-detail-open,
+  .template-workbench[class*="mobile-template-stage-"],
+  .settings-layout[class*="mobile-settings-stage-"] {
+    grid-template-columns: 1fr;
+  }
+
   .nav-summary {
     grid-template-columns: 1fr auto;
     align-items: center;

@@ -1,13 +1,18 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 
 const props = defineProps({
   state: {
     type: Object,
     required: true
+  },
+  groupLabel: {
+    type: String,
+    default: ''
   }
 })
+defineEmits(['backToGroup'])
 
 const types = [
   { id: 'comment', label: '课评模板' },
@@ -20,6 +25,9 @@ const activeType = ref('comment')
 const selectedIndex = ref(0)
 const mode = ref('detail')
 const draft = ref({})
+const isMobileFlow = ref(false)
+const mobileStage = ref('types')
+let cleanupMobileMedia = () => {}
 
 const list = computed(() => props.state.templates[activeType.value] || [])
 const selected = computed(() => list.value[selectedIndex.value] || list.value[0] || null)
@@ -49,17 +57,20 @@ watch([activeType, selectedIndex], () => {
 const selectType = (type) => {
   activeType.value = type
   selectedIndex.value = 0
+  if (isMobileFlow.value) mobileStage.value = 'list'
 }
 
 const selectTemplate = (index) => {
   selectedIndex.value = index
   mode.value = 'detail'
   resetDraft()
+  if (isMobileFlow.value) mobileStage.value = 'detail'
 }
 
 const startNew = () => {
   mode.value = 'new'
   draft.value = blankDraft()
+  if (isMobileFlow.value) mobileStage.value = 'detail'
 }
 
 const startEdit = () => {
@@ -73,20 +84,73 @@ const save = () => {
     : props.state.updateTemplate(activeType.value, selectedIndex.value, draft.value)
   if (mode.value === 'new') selectedIndex.value = list.value.indexOf(saved)
   mode.value = 'detail'
+  if (isMobileFlow.value) mobileStage.value = 'detail'
   resetDraft()
 }
+
+const returnToTypes = () => {
+  mode.value = 'detail'
+  resetDraft()
+  mobileStage.value = 'types'
+}
+
+const returnToList = () => {
+  mode.value = 'detail'
+  resetDraft()
+  mobileStage.value = 'list'
+}
+
+onMounted(() => {
+  const media = window.matchMedia('(max-width: 680px)')
+  const syncMobile = () => {
+    isMobileFlow.value = media.matches
+    if (media.matches) mobileStage.value = 'types'
+  }
+  syncMobile()
+  media.addEventListener('change', syncMobile)
+  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
+})
+
+onBeforeUnmount(() => cleanupMobileMedia())
 </script>
 
 <template>
+  <button
+    v-if="groupLabel && (!isMobileFlow || mobileStage === 'types')"
+    class="module-back-link"
+    type="button"
+    @click="$emit('backToGroup')"
+  >
+    ← 返回{{ groupLabel }}
+  </button>
+
+  <button
+    v-if="isMobileFlow && mobileStage === 'list'"
+    class="module-back-link"
+    type="button"
+    @click="returnToTypes"
+  >
+    ← 返回模板类型
+  </button>
+
+  <button
+    v-if="isMobileFlow && mobileStage === 'detail'"
+    class="module-back-link"
+    type="button"
+    @click="returnToList"
+  >
+    ← 返回模板列表
+  </button>
+
   <PageHead  title="模板配置">
-    <div class="button-pair">
+    <div v-if="!isMobileFlow || mobileStage !== 'types'" class="button-pair">
       <button class="secondary" @click="startEdit">编辑当前模板</button>
       <button class="primary" @click="startNew">新增{{ activeLabel }}</button>
     </div>
   </PageHead>
 
-  <section class="template-workbench">
-    <aside class="panel template-type-list">
+  <section class="template-workbench" :class="`mobile-template-stage-${mobileStage}`">
+    <aside v-show="!isMobileFlow || mobileStage === 'types'" class="panel template-type-list">
       <button
         v-for="type in types"
         :key="type.id"
@@ -98,7 +162,7 @@ const save = () => {
       </button>
     </aside>
 
-    <aside class="panel template-list">
+    <aside v-show="!isMobileFlow || mobileStage === 'list'" class="panel template-list">
       <div class="section-head">
         <div>
           <span>{{ activeLabel }}</span>
@@ -120,7 +184,7 @@ const save = () => {
       </button>
     </aside>
 
-    <section class="panel template-editor">
+    <section v-show="!isMobileFlow || mobileStage === 'detail'" class="panel template-editor">
       <div class="section-head">
         <div>
           <span>{{ mode === 'new' ? '新增' : mode === 'edit' ? '编辑' : '详情' }}</span>

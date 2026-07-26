@@ -5301,4 +5301,310 @@ textarea:focus,
     align-items: stretch;
     flex-direction: column;
   }
+
+  .app-shell-mobile .module-back-link,
+  .app-shell-mobile .back-link {
+    min-height: 38px;
+    max-width: calc(100vw - 150px);
+    margin-bottom: 12px;
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+
+  .app-shell-mobile .focus-breadcrumb {
+    min-height: 46px;
+    margin-bottom: 8px;
+    padding-right: 112px;
+  }
+
+  .app-shell-mobile .today-hero {
+    min-height: auto;
+    padding: 18px;
+    border-radius: 10px;
+    box-shadow: none;
+  }
+
+  .app-shell-mobile .today-hero h2 {
+    font-size: 23px;
+    line-height: 1.25;
+  }
+
+  .app-shell-mobile .hero-action {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-shell-mobile .today-summary article {
+    padding: 12px 14px;
+    border-radius: 8px;
+  }
+
+  .app-shell-mobile .task-list.panel {
+    padding: 12px;
+  }
+
+  .app-shell-mobile .task-card {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .app-shell-mobile .task-card .time,
+  .app-shell-mobile .task-card em {
+    justify-self: start;
+  }
+
+  .app-shell-mobile .lesson-modal {
+    width: min(100%, calc(100vw - 20px));
+    max-height: calc(100vh - 20px);
+    overflow: auto;
+  }
+
+  .app-shell-mobile .wizard.panel {
+    padding: 14px;
+    border-radius: 0;
+  }
+
+  .app-shell-mobile .wizard-head {
+    min-height: 54px;
+    padding-right: 106px;
+  }
+
+  .app-shell-mobile .wizard-head h2 {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+
+  .app-shell-mobile .wizard-head span {
+    font-size: 13px;
+  }
+
+  .app-shell-mobile .stepper {
+    display: grid;
+    grid-auto-columns: minmax(104px, 42vw);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    gap: 8px;
+    margin: 4px -14px 18px;
+    padding: 0 14px 8px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--color-border-soft);
+    scroll-snap-type: x proximity;
+  }
+
+  .app-shell-mobile .stepper button {
+    grid-template-columns: 28px minmax(0, 1fr);
+    min-height: 58px;
+    padding: 8px;
+    border: 1px solid var(--color-border-soft);
+    border-radius: 8px;
+    background: var(--color-surface);
+    scroll-snap-align: start;
+  }
+
+  .app-shell-mobile .stepper button.active {
+    border-color: color-mix(in srgb, var(--color-primary) 34%, transparent);
+    background: var(--color-primary-soft);
+    box-shadow: inset 0 -3px 0 var(--color-primary);
+  }
+
+  .app-shell-mobile .stepper b {
+    width: 28px;
+    height: 28px;
+  }
+
+  .app-shell-mobile .stepper strong {
+    overflow: hidden;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell-mobile .step-panel {
+    min-height: auto;
+  }
+
+  .app-shell-mobile .material-summary,
+  .app-shell-mobile .attendance-summary,
+  .app-shell-mobile .work-upload-summary,
+  .app-shell-mobile .record-progress-summary {
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .app-shell-mobile .attendance-summary > div,
+  .app-shell-mobile .work-upload-summary > div,
+  .app-shell-mobile .record-progress-summary > div {
+    display: grid;
+    gap: 3px;
+  }
+
+  .app-shell-mobile .roster-table button {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .app-shell-mobile .roster-table .adaptive-select {
+    max-width: none;
+  }
+
+  .app-shell-mobile .classroom-materials-board,
+  .app-shell-mobile .student-work-list,
+  .app-shell-mobile .archive-checklist-panel {
+    gap: 12px;
+  }
+
+  .app-shell-mobile .material-lane {
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .app-shell-mobile .material-lane > header {
+    display: grid;
+    gap: 10px;
+  }
+
+  .app-shell-mobile .material-lane .button-pair,
+  .app-shell-mobile .material-card-actions,
+  .app-shell-mobile .result-actions,
+  .app-shell-mobile .archive-check-actions,
+  .app-shell-mobile .record-editor-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell-mobile .material-lane .file-button,
+  .app-shell-mobile .material-lane button,
+  .app-shell-mobile .student-work-action .file-button,
+  .app-shell-mobile .result-actions button,
+  .app-shell-mobile .archive-check-actions button,
+  .app-shell-mobile .archive-check-actions .file-button,
+  .app-shell-mobile .record-editor-actions button,
+  .app-shell-mobile .stage-actions button,
+  .app-shell-mobile .review-next-action button,
+  .app-shell-mobile .publish-main-action {
+    width: 100%;
+  }
+
+  .app-shell-mobile .material-gallery.compact,
+  .app-shell-mobile .material-gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell-mobile .material-gallery article {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .app-shell-mobile .material-gallery img {
+    max-height: 210px;
+  }
+
+  .app-shell-mobile .work-thumbnails {
+    min-height: 0;
+  }
+
+  .app-shell-mobile .work-thumbnail {
+    width: 70px;
+    height: 70px;
+  }
+
+  .app-shell-mobile .student-work-row {
+    gap: 10px;
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .app-shell-mobile .record-student-tabs,
+  .app-shell-mobile .review-student-tabs {
+    display: grid;
+    grid-auto-columns: minmax(116px, 38vw);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .app-shell-mobile .single-record-editor,
+  .app-shell-mobile .generate-stage-panel,
+  .app-shell-mobile .parent-delivery-panel,
+  .app-shell-mobile .archive-summary-card {
+    padding: 14px;
+    border-radius: 8px;
+  }
+
+  .app-shell-mobile .single-record-editor textarea,
+  .app-shell-mobile .generated-comment-result textarea {
+    min-height: 180px;
+  }
+
+  .app-shell-mobile .review-stage-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-shell-mobile .generated-image-result,
+  .app-shell-mobile .generated-comment-result,
+  .app-shell-mobile .highlight-review-card {
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .app-shell-mobile .generated-image-result > img {
+    max-height: 300px;
+  }
+
+  .app-shell-mobile .stage-actions,
+  .app-shell-mobile .review-next-action {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .app-shell-mobile .template-scroll-list {
+    height: auto;
+    max-height: 260px;
+  }
+
+  .app-shell-mobile .share-expiry-setting {
+    gap: 10px;
+  }
+
+  .app-shell-mobile .student-share-list > article {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .app-shell-mobile .student-token-link {
+    min-width: 0;
+  }
+
+  .app-shell-mobile .archive-check-row {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    padding: 12px;
+  }
+
+  .app-shell-mobile .archive-check-actions {
+    grid-column: 1 / -1;
+  }
+
+  .app-shell-mobile .archive-target-card,
+  .app-shell-mobile .compact-targets {
+    padding: 12px;
+  }
+
+  .app-shell-mobile .wizard-actions {
+    position: sticky;
+    bottom: -12px;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin: 16px -14px -14px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--color-surface-warm) 96%, transparent);
+    box-shadow: 0 -10px 24px color-mix(in srgb, var(--color-ink) 8%, transparent);
+  }
 }

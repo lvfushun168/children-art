@@ -585,21 +585,6 @@ const confirmStudentAndNext = () => {
             </article>
           </section>
 
-          <article class="archive-target-card compact-targets">
-            <div class="mini-head">
-              <div>
-                <span>网盘通道</span>
-                <strong>{{ state.enabledCloudProviders.length ? '百度网盘已配置' : '尚未启用网盘' }}</strong>
-              </div>
-              <button v-if="!state.enabledCloudProviders.length" class="ghost" @click="$emit('navigate', 'settings')">去配置网盘</button>
-            </div>
-            <div class="archive-target-summary">
-              <span v-for="provider in state.enabledCloudProviders" :key="provider.id" class="required">
-                {{ provider.name }} · {{ provider.tokenStatus || '已配置' }}
-              </span>
-              <span v-if="!state.enabledCloudProviders.length">未启用网盘，本节外部同步项可跳过</span>
-            </div>
-          </article>
         </section>
       </section>
 

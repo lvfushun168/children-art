@@ -3,8 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps({
   modelValue: {
-    type: [String, Number, Boolean],
-    default: ''
+    type: Array,
+    default: () => []
   },
   options: {
     type: Array,
@@ -40,18 +40,19 @@ const normalizedOptions = computed(() =>
   })
 )
 
-const selectedOption = computed(() =>
-  normalizedOptions.value.find((option) => option.value === props.modelValue) ||
-  normalizedOptions.value.find((option) => String(option.value) === String(props.modelValue))
+const hasValue = (value) => props.modelValue.some((item) => item === value || String(item) === String(value))
+const selectedOptions = computed(() => normalizedOptions.value.filter((option) => hasValue(option.value)))
+const displayLabel = computed(() =>
+  selectedOptions.value.length ? `已选 ${selectedOptions.value.length} 项` : props.placeholder
 )
 
-const displayLabel = computed(() => selectedOption.value?.label || props.placeholder)
-
-const choose = (option) => {
+const toggle = (option) => {
   if (option.disabled) return
-  emit('update:modelValue', option.value)
-  emit('change', option.value)
-  open.value = false
+  const next = hasValue(option.value)
+    ? props.modelValue.filter((item) => !(item === option.value || String(item) === String(option.value)))
+    : [...props.modelValue, option.value]
+  emit('update:modelValue', next)
+  emit('change', next)
 }
 
 const closeFromOutside = (event) => {
@@ -75,7 +76,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="selectRef" class="adaptive-select" :class="{ open, disabled }">
+  <div ref="selectRef" class="adaptive-select adaptive-multi-select" :class="{ open, disabled }">
     <button
       type="button"
       class="adaptive-select-trigger"
@@ -87,19 +88,20 @@ onBeforeUnmount(() => {
       <b>⌄</b>
     </button>
 
-    <div v-if="open" class="adaptive-select-menu" role="listbox">
+    <div v-if="open" class="adaptive-select-menu" role="listbox" aria-multiselectable="true">
       <button
         v-for="option in normalizedOptions"
         :key="`${option.value}-${option.label}`"
         type="button"
         :disabled="option.disabled"
-        :class="{ selected: option.value === modelValue || String(option.value) === String(modelValue) }"
-        @click="choose(option)"
+        :class="{ selected: hasValue(option.value) }"
+        @click="toggle(option)"
       >
         <span>
           <strong>{{ option.label }}</strong>
           <small v-if="option.description">{{ option.description }}</small>
         </span>
+        <i>{{ hasValue(option.value) ? '✓' : '+' }}</i>
       </button>
     </div>
   </div>

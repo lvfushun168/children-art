@@ -157,7 +157,6 @@ button:disabled {
 button,
 .task-card,
 .data-card,
-.template-picker button,
 .channel-stack div,
 .work-card {
   transition:
@@ -1550,6 +1549,10 @@ textarea:focus,
 }
 
 .adaptive-select-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   min-height: 38px;
   padding: 8px 10px;
   border-radius: 7px;
@@ -1558,10 +1561,47 @@ textarea:focus,
   text-align: left;
 }
 
+.adaptive-select-menu button > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.adaptive-select-menu button strong {
+  font-size: 14px;
+}
+
+.adaptive-select-menu button small {
+  color: var(--color-muted);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 .adaptive-select-menu button.selected {
   background: var(--color-primary);
   color: var(--color-surface-warm);
   font-weight: 900;
+}
+
+.adaptive-select-menu button.selected small {
+  color: color-mix(in srgb, var(--color-surface-warm) 76%, transparent);
+}
+
+.adaptive-select-menu button i {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.adaptive-select-menu button.selected i {
+  background: var(--color-surface-warm);
 }
 
 @media (max-width: 680px) {
@@ -1650,17 +1690,11 @@ textarea:focus,
   display: none;
 }
 
-.template-card,
-.template-picker {
+.template-card {
   display: grid;
   gap: 6px;
   padding: 13px;
   border-radius: 8px;
-}
-
-.template-picker {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
 }
 
 .mini-head {
@@ -1672,29 +1706,6 @@ textarea:focus,
 }
 
 .mini-head span {
-  color: var(--color-muted);
-}
-
-.template-picker button {
-  display: grid;
-  gap: 4px;
-  width: 100%;
-  padding: 10px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 8px;
-  background: var(--color-surface-muted);
-  color: inherit;
-  text-align: left;
-}
-
-.template-picker button.selected {
-  border-color: var(--color-border-strong);
-  background: var(--color-primary-soft);
-  box-shadow: inset 4px 0 0 var(--color-primary);
-}
-
-.template-picker button span,
-.template-picker button small {
   color: var(--color-muted);
 }
 
@@ -1986,14 +1997,45 @@ textarea:focus,
   align-content: start;
 }
 
+.generation-template-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.generation-template-form article {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 9px;
+  background: var(--color-primary-soft);
+}
+
+.generation-template-form label {
+  color: var(--color-heading);
+  font-weight: 800;
+}
+
+.generation-template-form small {
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
 .selected-template-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
 }
 
+.selected-template-tags.compact-tags {
+  gap: 6px;
+}
+
 .selected-template-tags button,
-.template-static-tag {
+.template-static-tag,
+.template-empty-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2011,18 +2053,16 @@ textarea:focus,
   background: var(--color-primary-soft);
 }
 
+.template-empty-tag {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+
 .selected-template-tags b {
   color: var(--color-primary);
   font-size: 15px;
   line-height: 1;
-}
-
-.template-scroll-list {
-  display: grid;
-  gap: 8px;
-  height: 270px;
-  overflow-y: auto;
-  padding-right: 4px;
 }
 
 .stage-actions {
@@ -5044,6 +5084,7 @@ textarea:focus,
 
   .generate-subnav,
   .generate-flow-status,
+  .generation-template-form,
   .setting-summary-grid,
   .batch-progress-grid,
   .archive-overview-grid,
@@ -5529,6 +5570,7 @@ textarea:focus,
 
   .app-shell-mobile .single-record-editor,
   .app-shell-mobile .generate-stage-panel,
+  .app-shell-mobile .generation-template-form article,
   .app-shell-mobile .parent-delivery-panel,
   .app-shell-mobile .archive-summary-card {
     padding: 14px;
@@ -5560,11 +5602,6 @@ textarea:focus,
   .app-shell-mobile .review-next-action {
     display: grid;
     justify-content: stretch;
-  }
-
-  .app-shell-mobile .template-scroll-list {
-    height: auto;
-    max-height: 260px;
   }
 
   .app-shell-mobile .share-expiry-setting {

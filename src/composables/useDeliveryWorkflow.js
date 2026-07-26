@@ -59,6 +59,7 @@ export function useDeliveryWorkflow() {
   const settings = reactive(clone(settingSeed))
   const statusChangeLogs = reactive([])
   const archiveEditLogs = reactive([])
+  const wecomSendTasks = reactive([])
 
   const activeTaskId = ref(1)
   const copied = ref(false)
@@ -115,6 +116,7 @@ export function useDeliveryWorkflow() {
   }
 
   const createArchiveChecklist = () => ({
+    parentTouch: { status: '待创建', detail: '', method: '', sentCount: 0, updatedAt: '' },
     studentCloudArchive: { status: '待推送', detail: '', updatedAt: '' },
     deliveryVideo: { status: '待上传', detail: '', fileName: '', fileMeta: '', updatedAt: '' },
     teacherEffectArchive: { status: '待生成', detail: '', title: '', imageCount: 0, updatedAt: '' },
@@ -284,6 +286,8 @@ export function useDeliveryWorkflow() {
     warning: importPreviewRows.filter((row) => row.status !== '可导入').length
   }))
   const cloudDriveSetting = computed(() => settings.find((item) => item.type === 'cloudDrive' || item.name === '网盘配置'))
+  const wecomSetting = computed(() => settings.find((item) => item.type === 'wecom' || item.name === '企业微信触达'))
+  const wecomEnabled = computed(() => wecomSetting.value?.status === '已启用')
   const enabledCloudProviders = computed(() =>
     (cloudDriveSetting.value?.value?.providers || []).filter((provider) => provider.enabled)
   )
@@ -611,6 +615,7 @@ export function useDeliveryWorkflow() {
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
+    homeworkReady: homework.value.visible && !homework.value.content.trim() ? 0 : 1,
     referenceMaterials: referenceMaterials.value.length,
     coursewares: coursewareMaterials.value.length,
     classroomMaterials: materials.value.length,
@@ -625,7 +630,7 @@ export function useDeliveryWorkflow() {
     { title: '上传作品', done: counts.value.matched, total: counts.value.attend },
     { title: '课堂记录', done: counts.value.records, total: counts.value.attend },
     { title: '图文生成', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
-    { title: '家长展示', done: counts.value.shareReady, total: counts.value.attend },
+    { title: '课后任务', done: counts.value.homeworkReady, total: 1 },
     { title: '归档留痕', done: counts.value.archived, total: counts.value.attend }
   ])
 
@@ -637,7 +642,7 @@ export function useDeliveryWorkflow() {
       counts.value.matched +
       counts.value.records +
       Math.min(counts.value.processed, counts.value.confirmed) +
-      counts.value.shareReady +
+      (counts.value.homeworkReady ? counts.value.attend : 0) +
       counts.value.archived
     return Math.min(100, Math.round((done / total) * 100))
   })
@@ -653,7 +658,7 @@ export function useDeliveryWorkflow() {
       rows.filter((row) => row.imageMatched).length +
       rows.filter((row) => row.record).length +
       Math.min(rows.filter((row) => row.processed).length, rows.filter((row) => row.confirmed).length) +
-      rows.filter((row) => row.shareReady).length +
+      (workspace.homework?.visible && !workspace.homework.content.trim() ? 0 : rows.length) +
       rows.filter((row) => row.archived).length
     const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 7)) * 100))
     if (task.id === activeTaskId.value) return taskProgress.value
@@ -671,13 +676,15 @@ export function useDeliveryWorkflow() {
       if (!row.record) warnings.push(`${student.name}缺课堂记录`)
       if (!row.comment) warnings.push(`${student.name}缺课评`)
       if (row.comment && !row.confirmed) warnings.push(`${student.name}课评待确认`)
-      if (!row.shareReady) warnings.push(`${student.name}展示页待生成`)
     })
     return warnings
   })
 
-  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已跳过']
+  // 「待老师确认发送」「发送失败」按 PRD 属于正常触达留痕，不阻断课次归档完成；发送失败另行进入待办中心。
+  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已跳过', '待老师确认发送', '已发送', '人工触达', '发送失败']
+  const archiveWorkingStatuses = ['推送中', '生成中', '创建中']
   const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
+  const isArchiveWorking = (item) => archiveWorkingStatuses.includes(item.status)
   const studentArchivePathPreview = computed(() => {
     const student = attendingRows.value[0] ? students.find((item) => item.id === attendingRows.value[0].studentId) : students[0]
     return `${school.campus}/2026暑期/${activeTask.value.teacher}/${activeClass.value.name}（固定班）/${student?.name || '学生'}/1.作品（${activeTask.value.date}+${activeCourse.value.title}+${activeTask.value.teacher}+${student?.name || '学生'}）/`
@@ -686,6 +693,16 @@ export function useDeliveryWorkflow() {
     `${school.campus}/教学资料归档/课程归总/2026/2026暑期+固定班归总/`
   )
   const archiveChecklistItems = computed(() => [
+    {
+      key: 'parentTouch',
+      title: '家长展示发布与企微触达',
+      meta: wecomEnabled.value
+        ? '发布展示页快照并创建企业微信触达任务 · 链接随触达记录留档'
+        : '企业微信未启用 · 发布展示页后请复制链接人工发送',
+      action: '创建企微待推送',
+      required: true,
+      item: archiveChecklist.value.parentTouch
+    },
     {
       key: 'studentCloudArchive',
       title: '学生作品与照片百度归档',
@@ -1509,6 +1526,144 @@ export function useDeliveryWorkflow() {
     return true
   }
 
+  const wecomTaskFor = (lessonId, studentId) =>
+    wecomSendTasks.find((task) => task.lessonId === Number(lessonId) && task.studentId === Number(studentId))
+
+  const refreshParentTouchSummary = (lessonId = activeTask.value.id) => {
+    const workspace = getLessonWorkspace(lessonId)
+    if (!workspace?.archiveChecklist?.parentTouch) return
+    const lessonTasks = wecomSendTasks.filter((task) => task.lessonId === Number(lessonId))
+    if (!lessonTasks.length) return
+    const sent = lessonTasks.filter((task) => task.status === '已发送').length
+    const manual = lessonTasks.filter((task) => task.status === '人工触达').length
+    const failed = lessonTasks.filter((task) => task.status === '发送失败').length
+    const pending = lessonTasks.filter((task) => task.status === '待老师确认发送').length
+    const status = pending ? '待老师确认发送' : failed ? '发送失败' : sent >= manual ? '已发送' : '人工触达'
+    Object.assign(workspace.archiveChecklist.parentTouch, {
+      status,
+      sentCount: sent + manual,
+      detail: `企微已发送 ${sent} · 人工触达 ${manual} · 待确认发送 ${pending}${failed ? ` · 发送失败 ${failed}（已进入待办中心，不阻断归档）` : ''}`,
+      updatedAt: nowText()
+    })
+  }
+
+  const pushParentTouch = async () => {
+    if (archiveActionBlocked()) return false
+    const item = archiveChecklist.value.parentTouch
+    if (isArchiveDone(item)) {
+      notify('重复提交已拦截：本节家长触达任务已创建并留痕')
+      return false
+    }
+    const missing = attendingRows.value.filter((row) => !row.confirmed || !row.imageConfirmed)
+    if (missing.length) {
+      notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
+      return false
+    }
+    if (sharePage.value.status !== '已发布') await generateSharePages()
+    if (sharePage.value.status !== '已发布') return false
+    const before = item.status
+    setArchiveChecklistItem('parentTouch', { status: '创建中' })
+    const nextStatus = wecomEnabled.value ? '待老师确认发送' : '人工触达'
+    await runAction(
+      wecomEnabled.value ? '正在创建企业微信家长触达任务...' : '正在记录人工触达留痕...',
+      '',
+      async () => {
+        attendingRows.value.forEach((row) => {
+          const student = students.find((entry) => entry.id === row.studentId)
+          const payload = {
+            lessonId: activeTask.value.id,
+            lesson: `${activeTask.value.date} ${activeTask.value.time} · ${activeClass.value.name}`,
+            studentId: row.studentId,
+            studentName: student?.name || '学生',
+            targetName: student?.parent || '家长',
+            shareUrl: studentShareUrlFor(row),
+            shareVersion: sharePage.value.publishedVersion,
+            status: nextStatus,
+            fallbackMethod: wecomEnabled.value ? '' : '待复制链接发送',
+            failureReason: '',
+            createdAt: nowText(),
+            sentAt: ''
+          }
+          const existing = wecomTaskFor(activeTask.value.id, row.studentId)
+          if (existing) Object.assign(existing, payload)
+          else wecomSendTasks.unshift({ id: nextId(wecomSendTasks), ...payload })
+        })
+        setArchiveChecklistItem('parentTouch', {
+          status: nextStatus,
+          method: wecomEnabled.value ? '企业微信客户触达' : '人工触达',
+          sentCount: 0,
+          detail: wecomEnabled.value
+            ? `已创建 ${attendingRows.value.length} 个企微触达任务，请在企业微信中确认发送；家长链接已随触达记录留档`
+            : `企业微信未启用，已生成 ${attendingRows.value.length} 个学生链接，请展开下方链接复制后人工发送`
+        })
+        addStatusLog(
+          '家长触达',
+          activeTask.value.id,
+          before,
+          nextStatus,
+          wecomEnabled.value ? `发布展示页 V${sharePage.value.publishedVersion} 并创建 ${attendingRows.value.length} 个企微触达任务` : '企微未启用，发布展示页并记录人工触达'
+        )
+      }
+    )
+    notify(
+      wecomEnabled.value
+        ? `已创建 ${attendingRows.value.length} 个企微触达任务，等待老师在企业微信中确认发送`
+        : '企业微信未启用：请复制学生链接人工发送给家长'
+    )
+    return true
+  }
+
+  const markWecomSendTask = (task, status, reason = '') => {
+    const before = task.status
+    if (before === status) {
+      notify(`重复操作已拦截：该触达任务已经是“${status}”`)
+      return false
+    }
+    if (status === '发送失败' && !reason.trim()) {
+      notify('请填写发送失败原因')
+      return false
+    }
+    task.status = status
+    if (status === '已发送') {
+      task.sentAt = nowText()
+      task.failureReason = ''
+    }
+    if (status === '发送失败') task.failureReason = reason.trim()
+    addStatusLog('企微触达', task.id, before, status, reason.trim() || (status === '已发送' ? '老师已在企业微信确认发送' : ''), '待办中心', task.lessonId)
+    refreshParentTouchSummary(task.lessonId)
+    notify(`${task.studentName}的触达任务已标记为：${status}`)
+    return true
+  }
+
+  const manualCopyWecomTask = async (task) => {
+    let clipboardOk = true
+    try {
+      await navigator.clipboard.writeText(task.shareUrl)
+    } catch {
+      clipboardOk = false
+    }
+    const before = task.status
+    if (task.status !== '已发送') {
+      task.status = '人工触达'
+      task.sentAt = nowText()
+    }
+    task.fallbackMethod = '复制链接人工发送'
+    if (before !== task.status) addStatusLog('企微触达', task.id, before, task.status, '企微不可用或未绑定，复制链接人工发送', '家长触达', task.lessonId)
+    refreshParentTouchSummary(task.lessonId)
+    copiedStudentId.value = task.studentId
+    notify(clipboardOk ? `已复制${task.studentName}的家长链接，并记录人工触达` : `已记录${task.studentName}的人工触达，请手动复制链接发送`)
+    setTimeout(() => {
+      if (copiedStudentId.value === task.studentId) copiedStudentId.value = null
+    }, 1600)
+    return true
+  }
+
+  const manualCopyStudentLink = async (row) => {
+    const task = wecomTaskFor(activeTask.value.id, row.studentId)
+    if (task) return manualCopyWecomTask(task)
+    return copyStudentLink(row)
+  }
+
   const archiveAll = async () => {
     if (activeTask.value.status === '已完成' || activeTask.value.archived) {
       const trace = wheatTraces.find((item) => item.lessonId === activeTask.value.id)
@@ -1995,6 +2150,15 @@ export function useDeliveryWorkflow() {
     archiveChecklistProgress,
     archiveChecklistReady,
     archiveChecklistPending,
+    isArchiveDone,
+    isArchiveWorking,
+    wecomSendTasks,
+    wecomEnabled,
+    wecomTaskFor,
+    pushParentTouch,
+    markWecomSendTask,
+    manualCopyWecomTask,
+    manualCopyStudentLink,
     parentShareUrl,
     studentShareUrlFor,
     qrText,

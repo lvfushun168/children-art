@@ -724,6 +724,13 @@ export const settings = [
       directoryRule: '校区 / 班级 / 学生 / 年月 / 课程名',
       defaultArchiveTargets: ['baidu']
     }
+  },
+  {
+    id: 6,
+    name: '企业微信触达',
+    type: 'wecom',
+    status: '已启用',
+    value: '客户联系触达已配置 · 内部通知群机器人已配置 · 家长群绑定：周二创想班家长群'
   }
 ]
 

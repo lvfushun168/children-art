@@ -21,10 +21,12 @@ const pendingLessons = computed(() => props.state.visibleTasks.filter((task) => 
 const wheatTodos = computed(() => props.state.wheatTraces.filter((trace) => trace.status !== '已人工处理' && trace.status !== '无需处理'))
 const importTodos = computed(() => props.state.importPreviewRows.filter((row) => row.status !== '可导入'))
 const cloudTodos = computed(() => props.state.visibleTasks.filter((task) => task.cloudArchiveStatus === '同步失败'))
-const totalCount = computed(() => pendingLessons.value.length + wheatTodos.value.length + importTodos.value.length + cloudTodos.value.length)
+const wecomTodos = computed(() => props.state.wecomSendTasks.filter((task) => ['待老师确认发送', '发送失败'].includes(task.status)))
+const totalCount = computed(() => pendingLessons.value.length + wheatTodos.value.length + importTodos.value.length + cloudTodos.value.length + wecomTodos.value.length)
 const categories = computed(() => [
   { id: 'all', label: '全部', count: totalCount.value },
   { id: 'lessons', label: '今日课后', count: pendingLessons.value.length },
+  { id: 'wecom', label: '企微发送', count: wecomTodos.value.length },
   { id: 'wheat', label: '小麦留痕', count: wheatTodos.value.length },
   { id: 'cloud', label: '网盘同步', count: cloudTodos.value.length },
   { id: 'imports', label: '导入异常', count: importTodos.value.length }
@@ -36,6 +38,10 @@ const courseName = (task) => props.state.courses.find((item) => item.id === task
 
 const updateTrace = (trace, status) => {
   if (props.state.markTrace(trace, status, reasons[trace.id] || '')) reasons[trace.id] = ''
+}
+
+const updateWecomTask = (task, status) => {
+  if (props.state.markWecomSendTask(task, status, reasons[`wecom-${task.id}`] || '')) reasons[`wecom-${task.id}`] = ''
 }
 
 const goTask = (task) => {
@@ -79,6 +85,25 @@ const goTask = (task) => {
               <em>{{ task.status }} · {{ state.progressForTask(task) }}%</em>
             </button>
             <small v-if="!pendingLessons.length" class="empty-note">今天的课后交付都处理完了。</small>
+          </section>
+
+          <section v-if="showGroup('wecom')" class="todo-group">
+            <div class="mini-head"><div><span>企微发送确认</span><strong>{{ wecomTodos.length }} 条待处理</strong></div></div>
+            <article v-for="task in wecomTodos" :key="`wecom-${task.id}`" class="todo-trace-row">
+              <div>
+                <strong>{{ task.studentName }}（{{ task.targetName }}）</strong>
+                <small>{{ task.lesson }} · 展示页 V{{ task.shareVersion }} · {{ task.shareUrl }}</small>
+                <small v-if="task.failureReason">失败原因：{{ task.failureReason }}</small>
+              </div>
+              <em>{{ task.status }}</em>
+              <input v-model="reasons[`wecom-${task.id}`]" placeholder="发送失败原因（标记失败时必填）" />
+              <div class="button-pair">
+                <button class="secondary" @click="updateWecomTask(task, '已发送')">已确认发送</button>
+                <button class="ghost" @click="state.manualCopyWecomTask(task)">复制链接人工发送</button>
+                <button v-if="task.status !== '发送失败'" class="ghost" @click="updateWecomTask(task, '发送失败')">发送失败</button>
+              </div>
+            </article>
+            <small v-if="!wecomTodos.length" class="empty-note">暂无待确认的企微触达任务。</small>
           </section>
 
           <section v-if="showGroup('wheat')" class="todo-group">

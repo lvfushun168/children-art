@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import TaskReport from './TaskReport.vue'
-import StateControlPanel from './StateControlPanel.vue'
+import DeliveryPreview from './DeliveryPreview.vue'
 
 const props = defineProps({
   state: {
@@ -17,6 +17,7 @@ const showTemplateChoices = ref(false)
 const showAllCourses = ref(false)
 const showContentSettings = ref(false)
 const showArtworkLibrary = ref(false)
+const showSharePreview = ref(false)
 const workPreview = ref(null)
 const attendanceOptions = ['到课', '请假', '旷课']
 const imageTemplateOptions = computed(() =>
@@ -85,6 +86,7 @@ watch(() => props.state.activeTask.id, () => {
   showAllCourses.value = false
   showContentSettings.value = false
   showArtworkLibrary.value = false
+  showSharePreview.value = false
 })
 
 watch(() => props.state.currentStep, (step) => {
@@ -481,8 +483,9 @@ const updateCommentTemplate = (index) => {
         <div class="section-head">
           <div>
             <span>第 6 步</span>
-            <strong>准备课后任务并生成家长链接</strong>
+            <strong>准备课后任务并配置家长展示</strong>
           </div>
+          <button class="secondary" @click="showSharePreview = true">预览家长页草稿</button>
         </div>
         <section class="parent-delivery-panel">
           <article class="record-table homework-editor">
@@ -518,25 +521,53 @@ const updateCommentTemplate = (index) => {
             <summary>调整家长页展示内容</summary>
             <div class="switch-row"><label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示范画步骤</label><label><input v-model="state.displayConfig.showHomework" type="checkbox" /> 展示课后任务</label><label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label><label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label></div>
           </details>
-          <button class="primary publish-main-action" :disabled="state.isProcessing || state.counts.confirmed !== state.counts.attend || state.counts.imageConfirmed !== state.counts.attend" @click="state.generateSharePages">{{ state.sharePage.publishedVersion ? '更新全班家长链接' : '生成全班家长链接' }}</button>
-
-          <section v-if="state.sharePage.status === '已发布'" class="student-share-list">
-            <div class="section-head"><div><span>学生独立分享凭证</span><strong>{{ state.counts.shareReady }} 个链接已生成</strong></div></div>
-            <article v-for="row in state.attendingRows" :key="row.studentId">
-              <div class="student-share-identity"><span>{{ state.students.find((item) => item.id === row.studentId).name.slice(0, 1) }}</span><div><strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong><small>{{ state.students.find((item) => item.id === row.studentId).parent }}</small></div></div>
-              <div class="student-token-link"><strong>{{ state.studentShareUrlFor(row) }}</strong><small>仅可访问该学生本节课内容 · {{ state.displayConfig.expiresInDays }} 天有效</small></div>
-              <div class="qr-code">QR · {{ state.students.find((item) => item.id === row.studentId).name }}</div>
-              <button class="secondary" @click="state.copyStudentLink(row)">{{ state.copiedStudentId === row.studentId ? '已复制' : '复制链接' }}</button>
-            </article>
-          </section>
+          <p class="share-step-note">本步骤只配置课后任务和家长页展示内容。展示页快照发布、学生访问凭证生成与企业微信推送，将在第 7 步「归档留痕」时统一执行；链接与二维码随触达记录留档。</p>
         </section>
+
+        <div v-if="showSharePreview" class="drawer-backdrop" @click.self="showSharePreview = false">
+          <aside class="library-drawer share-preview-drawer">
+            <header class="drawer-head">
+              <div>
+                <span>家长展示页草稿</span>
+                <strong>{{ state.activeStudent?.name || '未选择学生' }}</strong>
+                <small>草稿 V{{ state.sharePage.draftVersion }} · 发布与推送在第 7 步归档时执行</small>
+              </div>
+              <button class="ghost" @click="showSharePreview = false">关闭</button>
+            </header>
+            <div class="student-tabs review-student-tabs">
+              <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: row.studentId === state.activeStudentId }" @click="state.activeStudentId = row.studentId">
+                {{ state.students.find((item) => item.id === row.studentId).name }}
+              </button>
+            </div>
+            <DeliveryPreview
+              :active-student="state.activeStudent"
+              :active-session-student="state.activeSessionStudent"
+              :active-course="state.activeCourse"
+              :active-task="state.activeTask"
+              :active-image-template="state.activeImageTemplate"
+              :materials="state.materials"
+              :homework="state.homework"
+              :display-config="state.displayConfig"
+              :selected-external-links="state.selectedExternalLinks"
+              :school="state.school"
+              :export-text="state.exportText"
+              :copied="state.copied"
+              :preview-pulse="state.previewPulse"
+              :comment-pulse="state.commentPulse"
+              :parent-share-url="state.parentShareUrl"
+              :qr-text="state.qrText"
+              :file-name-for="state.fileNameFor"
+              review-only
+            />
+          </aside>
+        </div>
       </section>
 
       <section v-if="state.currentStep === 6" class="step-panel">
         <div class="section-head">
           <div>
             <span>第 7 步</span>
-            <strong>归档交付清单</strong>
+            <strong>归档留痕与交付收口</strong>
           </div>
           <button class="primary" :disabled="state.isProcessing || !state.archiveChecklistReady" @click="state.archiveAll">
             完成本节归档交付
@@ -569,16 +600,26 @@ const updateCommentTemplate = (index) => {
               v-for="item in state.archiveChecklistItems"
               :key="item.key"
               class="archive-check-row"
-              :class="{ done: ['已同步', '已上传', '已归档', '已生成', '已跳过'].includes(item.item.status), working: ['推送中', '生成中'].includes(item.item.status) }"
+              :class="{ done: state.isArchiveDone(item.item), working: state.isArchiveWorking(item.item) }"
             >
-              <div class="archive-check-mark">{{ ['已同步', '已上传', '已归档', '已生成', '已跳过'].includes(item.item.status) ? '✓' : '·' }}</div>
+              <div class="archive-check-mark">{{ state.isArchiveDone(item.item) ? '✓' : '·' }}</div>
               <div class="archive-check-copy">
                 <span>{{ item.title }}</span>
                 <strong>{{ item.item.status }}</strong>
                 <small v-if="item.meta">{{ item.meta }}</small>
                 <em v-if="item.item.detail">{{ item.item.detail }}</em>
+                <details v-if="item.key === 'parentTouch' && state.sharePage.publishedSnapshot" class="touch-fallback">
+                  <summary>学生链接与二维码（企微不可用时人工发送兜底）</summary>
+                  <div v-for="row in state.attendingRows" :key="`touch-${row.lessonId}-${row.studentId}`" class="touch-fallback-row">
+                    <strong>{{ state.students.find((entry) => entry.id === row.studentId).name }}</strong>
+                    <small>{{ state.studentShareUrlFor(row) }}</small>
+                    <span class="qr-code mini">QR</span>
+                    <button class="ghost" @click="state.manualCopyStudentLink(row)">{{ state.copiedStudentId === row.studentId ? '已复制' : '复制并记录人工发送' }}</button>
+                  </div>
+                </details>
               </div>
               <div class="archive-check-actions">
+                <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.pushParentTouch">{{ state.isArchiveDone(item.item) ? '已创建触达' : item.action }}</button>
                 <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已同步' || item.item.status === '已跳过'" @click="state.pushArchiveItem(item.key)">{{ item.item.status === '已同步' ? '已同步' : item.action }}</button>
                 <template v-if="item.key === 'deliveryVideo'">
                   <label class="secondary file-button archive-video-upload" :class="{ disabled: state.isProcessing }">上传视频<input type="file" accept="video/*" :disabled="state.isProcessing" @change="state.uploadDeliveryVideo" /></label>

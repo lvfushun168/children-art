@@ -182,6 +182,10 @@ button:not(:disabled):hover,
   gap: 14px;
 }
 
+.app-shell-mobile {
+  display: block;
+}
+
 .nav-rail,
 .content,
 .panel,
@@ -491,6 +495,10 @@ label {
   min-width: 0;
   padding: 16px;
   overflow: auto;
+}
+
+.mobile-app-content {
+  min-height: calc(100vh - 20px);
 }
 
 .user-menu {
@@ -4802,6 +4810,15 @@ textarea:focus {
     gap: 10px;
   }
 
+  .app-shell-mobile {
+    padding: 10px;
+  }
+
+  .app-shell-mobile .content {
+    min-height: calc(100vh - 20px);
+    padding: 12px;
+  }
+
   .nav-rail {
     top: 8px;
   }
@@ -4834,11 +4851,16 @@ textarea:focus {
 
   .module-hub-grid {
     grid-template-columns: 1fr;
+    max-width: none;
   }
 
   .module-entry-card {
     min-height: 88px;
     padding: 14px;
+  }
+
+  .master-layout.mobile-detail-open {
+    grid-template-columns: 1fr;
   }
 
   .nav-summary {
@@ -4953,6 +4975,19 @@ textarea:focus {
 
   .user-popover {
     width: 100%;
+  }
+
+  .mobile-app-content .user-menu {
+    left: auto;
+    right: 12px;
+  }
+
+  .mobile-app-content .user-trigger {
+    width: auto;
+  }
+
+  .mobile-app-content .user-popover {
+    width: min(320px, calc(100vw - 24px));
   }
 
   .parent-h5 {

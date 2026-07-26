@@ -23,6 +23,8 @@ const activeGroupId = ref('afterClass')
 const activeImportType = ref('综合课表')
 const showTodoCenter = ref(false)
 const openWorkspaceSignal = ref(0)
+const isMobileApp = ref(false)
+const mobileLevel = ref('groups')
 const state = proxyRefs(useDeliveryWorkflow())
 const themeOptions = [
   { id: 'studio', label: '深海奶白' },
@@ -31,6 +33,7 @@ const themeOptions = [
 ]
 const savedTheme = typeof window !== 'undefined' ? window.localStorage.getItem('children-art-theme') : ''
 const activeTheme = ref(themeOptions.some((theme) => theme.id === savedTheme) ? savedTheme : 'studio')
+let cleanupMobileMedia = () => {}
 
 const filteredNavGroups = computed(() =>
   navGroups
@@ -44,21 +47,37 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['tasks', 'archives'])
-const showModuleBack = computed(() => Boolean(activeNav.value && !navIdsWithLocalBack.has(activeNav.value)))
+const navIdsWithLocalBack = new Set(['tasks', 'archives', 'students', 'classes'])
+const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || mobileLevel.value === 'page')))
+const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
+const mobileGroupEntries = computed(() =>
+  filteredNavGroups.value.map((group) => ({
+    id: group.id,
+    label: group.label,
+    description: group.description,
+    mark: group.mark || group.label.slice(0, 1)
+  }))
+)
 const groupForNav = (navId) => filteredNavGroups.value.find((group) => group.items.some((item) => item.id === navId))
 const openGroup = (groupId) => {
   activeGroupId.value = groupId
   activeNav.value = ''
+  if (isMobileApp.value) mobileLevel.value = 'group'
   showTodoCenter.value = false
 }
 const openNav = (target) => {
   const group = groupForNav(target)
   if (group) activeGroupId.value = group.id
   activeNav.value = target
+  if (isMobileApp.value) mobileLevel.value = 'page'
 }
 const returnToGroup = () => {
   activeNav.value = ''
+  if (isMobileApp.value) mobileLevel.value = 'group'
+}
+const returnToMobileGroups = () => {
+  activeNav.value = ''
+  mobileLevel.value = 'groups'
 }
 const pendingCount = computed(() => state.visibleTasks.filter((task) => task.status !== '已完成').length)
 const wheatPendingCount = computed(() => state.wheatTraces.filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)).length)
@@ -93,9 +112,24 @@ const applyTheme = (theme) => {
 
 onMounted(() => {
   applyTheme(activeTheme.value)
+  const media = window.matchMedia('(max-width: 680px)')
+  const syncMobile = () => {
+    isMobileApp.value = media.matches
+    if (media.matches) {
+      activeNav.value = ''
+      mobileLevel.value = 'groups'
+      showTodoCenter.value = false
+    }
+  }
+  syncMobile()
+  media.addEventListener('change', syncMobile)
+  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
   window.addEventListener('hashchange', updateRouteHash)
 })
-onBeforeUnmount(() => window.removeEventListener('hashchange', updateRouteHash))
+onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', updateRouteHash)
+  cleanupMobileMedia()
+})
 
 watch(activeTheme, (theme) => {
   applyTheme(theme)
@@ -125,8 +159,9 @@ const shareRoute = computed(() => {
 
   <LoginView v-else-if="!state.isLoggedIn" :state="state" />
 
-  <main v-else class="app-shell">
+  <main v-else class="app-shell" :class="{ 'app-shell-mobile': isMobileApp }">
     <SidebarNav
+      v-if="!isMobileApp"
       :active-group-id="activeGroupId"
       :nav-groups="filteredNavGroups"
       :pending-count="pendingCount"
@@ -145,7 +180,7 @@ const shareRoute = computed(() => {
       @open-imports="openImportCenter('综合课表')"
     />
 
-    <section class="content">
+    <section class="content" :class="{ 'mobile-app-content': isMobileApp }">
       <UserMenu
         :current-user="state.currentUser"
         :permission-summary="state.permissionSummary"
@@ -157,29 +192,42 @@ const shareRoute = computed(() => {
         @logout="state.logout"
       />
 
-      <ModuleHubView v-if="!activeNav && activeGroup" :group="activeGroup" @open="openNav" />
+      <ModuleHubView
+        v-if="isMobileApp && mobileLevel === 'groups'"
+        title="课后交付系统"
+        eyebrow="选择要进入的工作模块"
+        :items="mobileGroupEntries"
+        @open="openGroup"
+      />
+
+      <template v-else-if="isMobileApp && mobileLevel === 'group'">
+        <button class="module-back-link" type="button" @click="returnToMobileGroups">← 返回上一级</button>
+        <ModuleHubView v-if="activeGroup" :group="activeGroup" @open="openNav" />
+      </template>
+
+      <ModuleHubView v-else-if="!isMobileApp && !activeNav && activeGroup" :group="activeGroup" @open="openNav" />
 
       <button v-if="showModuleBack" class="module-back-link" type="button" @click="returnToGroup">← 返回{{ activeGroup?.label || '上一级' }}</button>
 
-      <TasksView v-if="activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @navigate="handleNavigate" />
+      <TasksView v-if="showActivePage && activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @navigate="handleNavigate" />
 
-      <MasterDataView v-if="activeNav === 'students'" :state="state" entity="students" @open-import="openImportCenter('学生名单')" />
+      <MasterDataView v-if="showActivePage && activeNav === 'students'" :state="state" entity="students" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-import="openImportCenter('学生名单')" />
 
-      <MasterDataView v-if="activeNav === 'classes'" :state="state" entity="classes" @open-import="openImportCenter('综合课表')" />
+      <MasterDataView v-if="showActivePage && activeNav === 'classes'" :state="state" entity="classes" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-import="openImportCenter('综合课表')" />
 
-      <ArtworkLibraryView v-if="activeNav === 'courses'" :state="state" />
+      <ArtworkLibraryView v-if="showActivePage && activeNav === 'courses'" :state="state" />
 
-      <ImportCenterView v-if="activeNav === 'imports'" :state="state" :initial-type="activeImportType" />
+      <ImportCenterView v-if="showActivePage && activeNav === 'imports'" :state="state" :initial-type="activeImportType" />
 
-      <ExternalLinksView v-if="activeNav === 'externalLinks'" :state="state" />
+      <ExternalLinksView v-if="showActivePage && activeNav === 'externalLinks'" :state="state" />
 
-      <TemplatesView v-if="activeNav === 'templates'" :state="state" />
+      <TemplatesView v-if="showActivePage && activeNav === 'templates'" :state="state" />
 
-      <ArchiveQueryView v-if="activeNav === 'archives'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
+      <ArchiveQueryView v-if="showActivePage && activeNav === 'archives'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
-      <ExtraTasksView v-if="activeNav === 'extraTasks'" :state="state" />
+      <ExtraTasksView v-if="showActivePage && activeNav === 'extraTasks'" :state="state" />
 
-      <SystemSettingsView v-if="activeNav === 'settings' && state.isAdmin" :state="state" />
+      <SystemSettingsView v-if="showActivePage && activeNav === 'settings' && state.isAdmin" :state="state" />
     </section>
   </main>
 </template>

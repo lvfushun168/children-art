@@ -3,6 +3,7 @@ export const navGroups = [
     id: 'afterClass',
     label: '课后工作',
     description: '今日课次与交付',
+    mark: '课',
     items: [
       { id: 'tasks', label: '今日课后', mark: '课' }
     ]
@@ -11,6 +12,7 @@ export const navGroups = [
     id: 'basic',
     label: '基础信息',
     description: '学生、班级与课程链接',
+    mark: '信',
     items: [
       { id: 'students', label: '学生', mark: '生' },
       { id: 'classes', label: '班级', mark: '班' },
@@ -21,6 +23,7 @@ export const navGroups = [
     id: 'materials',
     label: '素材档案',
     description: '备课、归档与课外事项',
+    mark: '档',
     items: [
       { id: 'courses', label: '范画库', mark: '画' },
       { id: 'archives', label: '档案中心', mark: '档' },
@@ -31,6 +34,7 @@ export const navGroups = [
     id: 'operations',
     label: '运营配置',
     description: '导入、模板与系统',
+    mark: '配',
     items: [
       { id: 'imports', label: '数据导入', mark: '导' },
       { id: 'templates', label: '模板配置', mark: '配' },

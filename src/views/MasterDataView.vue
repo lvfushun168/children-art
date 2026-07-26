@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 
 const props = defineProps({
@@ -10,12 +10,19 @@ const props = defineProps({
   entity: {
     type: String,
     required: true
+  },
+  groupLabel: {
+    type: String,
+    default: ''
   }
 })
-defineEmits(['open-import'])
+defineEmits(['open-import', 'backToGroup'])
 
 const selectedId = ref(null)
 const mode = ref('detail')
+const isMobileFlow = ref(false)
+const mobileShowingDetail = ref(false)
+let cleanupMobileMedia = () => {}
 
 const config = computed(() => {
   const map = {
@@ -33,7 +40,6 @@ const records = computed(() => {
 })
 
 const selected = computed(() => records.value.find((item) => item.id === selectedId.value) || records.value[0] || null)
-const selectedStudentHistory = computed(() => (props.entity === 'students' && selected.value ? props.state.studentHistoryFor(selected.value.id) : []))
 
 const blankDraft = () => {
   if (props.entity === 'students') {
@@ -84,6 +90,7 @@ watch(
   () => {
     selectedId.value = records.value[0]?.id || null
     mode.value = 'detail'
+    mobileShowingDetail.value = false
     resetDraft()
   },
   { immediate: true }
@@ -97,11 +104,13 @@ const selectRecord = (record) => {
   selectedId.value = record.id
   mode.value = 'detail'
   draft.value = cloneRecord(record)
+  if (isMobileFlow.value) mobileShowingDetail.value = true
 }
 
 const startNew = () => {
   mode.value = 'new'
   draft.value = blankDraft()
+  if (isMobileFlow.value) mobileShowingDetail.value = true
 }
 
 const startEdit = () => {
@@ -123,7 +132,14 @@ const save = () => {
     selectedId.value = saved.id
   }
   mode.value = 'detail'
+  if (isMobileFlow.value) mobileShowingDetail.value = true
   resetDraft()
+}
+
+const returnToList = () => {
+  mode.value = 'detail'
+  resetDraft()
+  mobileShowingDetail.value = false
 }
 
 const toggleStudentInClass = (studentId) => {
@@ -140,9 +156,40 @@ const className = (classId) => props.state.classes.find((item) => item.id === cl
 const courseTitle = (courseId) => props.state.courses.find((item) => item.id === courseId)?.title || '待配置'
 const teacherName = (teacherId) => props.state.teachers.find((item) => item.id === teacherId)?.name || '待配置'
 
+onMounted(() => {
+  const media = window.matchMedia('(max-width: 680px)')
+  const syncMobile = () => {
+    isMobileFlow.value = media.matches
+    if (media.matches) mobileShowingDetail.value = false
+  }
+  syncMobile()
+  media.addEventListener('change', syncMobile)
+  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
+})
+
+onBeforeUnmount(() => cleanupMobileMedia())
+
 </script>
 
 <template>
+  <button
+    v-if="groupLabel && (!isMobileFlow || !mobileShowingDetail)"
+    class="module-back-link"
+    type="button"
+    @click="$emit('backToGroup')"
+  >
+    ← 返回{{ groupLabel }}
+  </button>
+
+  <button
+    v-if="isMobileFlow && mobileShowingDetail"
+    class="module-back-link"
+    type="button"
+    @click="returnToList"
+  >
+    ← 返回列表
+  </button>
+
   <PageHead :eyebrow="config.eyebrow" :title="config.title">
     <div class="button-pair">
       <button v-if="state.isAdmin" class="secondary" @click="$emit('open-import')">导入数据</button>
@@ -150,8 +197,8 @@ const teacherName = (teacherId) => props.state.teachers.find((item) => item.id =
     </div>
   </PageHead>
 
-  <section class="master-layout">
-    <aside class="master-list panel">
+  <section class="master-layout" :class="{ 'mobile-detail-open': isMobileFlow && mobileShowingDetail }">
+    <aside v-show="!isMobileFlow || !mobileShowingDetail" class="master-list panel">
       <div class="section-head">
         <div>
           <span>数据列表</span>
@@ -175,7 +222,7 @@ const teacherName = (teacherId) => props.state.teachers.find((item) => item.id =
       </div>
     </aside>
 
-    <section class="master-detail panel">
+    <section v-show="!isMobileFlow || mobileShowingDetail" class="master-detail panel">
       <div class="section-head">
         <div>
           <span>{{ mode === 'new' ? '新增' : mode === 'edit' ? '编辑' : '详情' }}</span>
@@ -211,32 +258,6 @@ const teacherName = (teacherId) => props.state.teachers.find((item) => item.id =
             </select>
           </label>
           <label class="wide">备注<textarea v-model="draft.note" rows="5" /></label>
-        </div>
-        <div class="detail-metrics" v-if="selected && mode !== 'new'">
-          <article><span>历史作品</span><strong>{{ selected.works }}</strong></article>
-          <article><span>高光作品</span><strong>{{ selected.highlights }}</strong></article>
-          <article><span>当前班级</span><strong>{{ className(selected.classId) }}</strong></article>
-        </div>
-        <div v-if="selected && mode !== 'new'" class="student-history">
-          <div class="section-head">
-            <div>
-              <span>学生历史记录</span>
-              <strong>{{ selectedStudentHistory.length }} 条课后归档</strong>
-            </div>
-          </div>
-          <article v-for="record in selectedStudentHistory" :key="record.id" class="history-card">
-            <img :src="record.artwork" :alt="record.course" />
-            <div>
-              <strong>{{ record.date }} · {{ record.course }}</strong>
-              <small>{{ record.className }} · {{ record.teacher }} · {{ record.lessonType }}</small>
-              <p>{{ record.feedback }}</p>
-              <em v-if="record.highlight">高光：{{ record.highlightNote }}</em>
-              <span>课后任务：{{ record.homework }}</span>
-            </div>
-          </article>
-          <div v-if="!selectedStudentHistory.length" class="notice-box">
-            <small>暂无历史作品、课评、高光或任务记录。</small>
-          </div>
         </div>
       </template>
 

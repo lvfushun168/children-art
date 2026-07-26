@@ -427,7 +427,7 @@ export const homeworkSeed = {
   content: '回家观察一种暖色系植物，和家长说一说主体、背景分别在哪里。',
   requirement: '可拍一张观察照片，下节课前发给老师即可。',
   dueDate: '6月24日',
-  externalLinkIds: [1, 2],
+  externalLinkIds: [],
   visible: true
 }
 

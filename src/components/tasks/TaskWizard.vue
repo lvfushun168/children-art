@@ -14,12 +14,32 @@ defineEmits(['navigate', 'back'])
 
 const generateStage = ref('settings')
 const showTemplateChoices = ref(false)
-const showAllCourses = ref(false)
+const showResourceDrawer = ref(false)
 const showContentSettings = ref(false)
 const showArtworkLibrary = ref(false)
 const showSharePreview = ref(false)
+const resourceSearch = ref('')
+const resourceFilter = ref('全部')
 const workPreview = ref(null)
 const attendanceOptions = ['到课', '请假', '旷课']
+const resourceFilterOptions = computed(() => [
+  '全部',
+  '同主题',
+  '最近使用',
+  ...Array.from(new Set(props.state.externalLinks.map((link) => link.platform))).filter(Boolean)
+])
+const filteredExternalResources = computed(() => {
+  const keyword = resourceSearch.value.trim().toLowerCase()
+  return props.state.externalLinks.filter((link, index) => {
+    const filterMatched =
+      resourceFilter.value === '全部' ||
+      (resourceFilter.value === '同主题' && link.courseIds.includes(props.state.activeCourse.id)) ||
+      (resourceFilter.value === '最近使用' && index < 3) ||
+      link.platform === resourceFilter.value
+    const keywordMatched = !keyword || `${link.title} ${link.note} ${link.platform}`.toLowerCase().includes(keyword)
+    return filterMatched && keywordMatched
+  })
+})
 const imageTemplateOptions = computed(() =>
   props.state.templates.image.map((template, index) => ({
     label: template.name,
@@ -83,10 +103,12 @@ const removePreviewedWork = () => {
 watch(() => props.state.activeTask.id, () => {
   generateStage.value = 'settings'
   showTemplateChoices.value = false
-  showAllCourses.value = false
+  showResourceDrawer.value = false
   showContentSettings.value = false
   showArtworkLibrary.value = false
   showSharePreview.value = false
+  resourceSearch.value = ''
+  resourceFilter.value = '全部'
 })
 
 watch(() => props.state.currentStep, (step) => {
@@ -502,19 +524,24 @@ const updateCommentTemplate = (index) => {
               <input v-model="state.homework.dueDate" />
             </label>
           </article>
-          <article class="recommended-courses">
-            <div class="mini-head"><div><span>关联在线课程</span><strong>已根据“{{ state.activeCourse.title }}”自动匹配</strong></div><button class="ghost" @click="showAllCourses = !showAllCourses">{{ showAllCourses ? '只看推荐' : '查看更多课程' }}</button></div>
-            <label v-for="link in state.externalLinks.filter((link) => showAllCourses || link.courseIds.includes(state.activeCourse.id))" :key="link.id" class="course-choice">
-              <input
-                type="checkbox"
-                :checked="state.homework.externalLinkIds.includes(link.id)"
-                @change="state.toggleHomeworkLink(link.id)"
-              />
-              <span><strong>{{ link.title }}</strong><small>{{ link.note }}</small></span>
-            </label>
+          <article class="extension-resource-panel">
+            <div class="mini-head">
+              <div>
+                <span>延伸资源（可选）</span>
+                <strong>{{ state.selectedExternalLinks.length ? `已选 ${state.selectedExternalLinks.length} 个资源` : '本次不关联在线课程' }}</strong>
+              </div>
+              <button class="ghost" @click="showResourceDrawer = true">选择资源</button>
+            </div>
+            <div class="selected-resource-chips">
+              <button v-for="link in state.selectedExternalLinks" :key="link.id" class="resource-chip selected" @click="state.toggleHomeworkLink(link.id)">
+                <strong>{{ link.title }}</strong>
+                <span>×</span>
+              </button>
+              <span v-if="!state.selectedExternalLinks.length" class="resource-empty">没有选择延伸资源，家长页只展示课后任务本身。</span>
+            </div>
           </article>
           <div class="share-expiry-setting">
-            <div><span>链接有效期</span><strong>{{ state.displayConfig.expiresInDays }} 天</strong></div>
+            <div><span>展示页有效期</span><strong>{{ state.displayConfig.expiresInDays }} 天</strong></div>
             <label>有效期（天）<input v-model.number="state.displayConfig.expiresInDays" type="number" min="1" /></label>
           </div>
           <details class="advanced-state content-settings" :open="showContentSettings" @toggle="showContentSettings = $event.target.open">
@@ -523,6 +550,43 @@ const updateCommentTemplate = (index) => {
           </details>
           <p class="share-step-note">本步骤只配置课后任务和家长页展示内容。展示页快照发布、学生访问凭证生成与企业微信推送，将在第 7 步「归档留痕」时统一执行；链接与二维码随触达记录留档。</p>
         </section>
+
+        <div v-if="showResourceDrawer" class="drawer-backdrop" @click.self="showResourceDrawer = false">
+          <aside class="library-drawer resource-drawer">
+            <header class="drawer-head">
+              <div>
+                <span>延伸资源</span>
+                <strong>选择课后任务附件</strong>
+                <small>可选，不会自动关联；选中的资源会随家长展示页发布。</small>
+              </div>
+              <button class="ghost" @click="showResourceDrawer = false">关闭</button>
+            </header>
+            <section class="resource-picker-tools">
+              <input v-model="resourceSearch" placeholder="搜索资源名称、平台或备注" />
+              <div class="resource-filter-tags">
+                <button v-for="filter in resourceFilterOptions" :key="filter" :class="{ selected: resourceFilter === filter }" @click="resourceFilter = filter">{{ filter }}</button>
+              </div>
+            </section>
+            <section class="resource-drawer-list">
+              <label v-for="link in filteredExternalResources" :key="link.id" class="resource-choice" :class="{ selected: state.homework.externalLinkIds.includes(link.id) }">
+                <input
+                  type="checkbox"
+                  :checked="state.homework.externalLinkIds.includes(link.id)"
+                  @change="state.toggleHomeworkLink(link.id)"
+                />
+                <span>
+                  <strong>{{ link.title }}</strong>
+                  <small>{{ link.platform }} · {{ link.note }}</small>
+                </span>
+              </label>
+              <small v-if="!filteredExternalResources.length" class="empty-note">没有找到符合条件的资源。</small>
+            </section>
+            <footer class="drawer-actions">
+              <span>已选 {{ state.selectedExternalLinks.length }} 个</span>
+              <button class="primary" @click="showResourceDrawer = false">确认选择</button>
+            </footer>
+          </aside>
+        </div>
 
         <div v-if="showSharePreview" class="drawer-backdrop" @click.self="showSharePreview = false">
           <aside class="library-drawer share-preview-drawer">

@@ -1,15 +1,45 @@
-export const navItems = [
-  { id: 'tasks', label: '今日课后' },
-  { id: 'students', label: '学生' },
-  { id: 'classes', label: '班级' },
-  { id: 'courses', label: '范画库' },
-  { id: 'imports', label: '数据导入' },
-  { id: 'externalLinks', label: '外部课程' },
-  { id: 'templates', label: '配置中心' },
-  { id: 'archives', label: '档案中心' },
-  { id: 'extraTasks', label: '课外任务' },
-  { id: 'settings', label: '系统配置' }
+export const navGroups = [
+  {
+    id: 'afterClass',
+    label: '课后工作',
+    description: '今日课次与交付',
+    items: [
+      { id: 'tasks', label: '今日课后', mark: '课' }
+    ]
+  },
+  {
+    id: 'basic',
+    label: '基础信息',
+    description: '学生、班级与课程链接',
+    items: [
+      { id: 'students', label: '学生', mark: '生' },
+      { id: 'classes', label: '班级', mark: '班' },
+      { id: 'externalLinks', label: '外链', mark: '链' }
+    ]
+  },
+  {
+    id: 'materials',
+    label: '素材档案',
+    description: '备课、归档与课外事项',
+    items: [
+      { id: 'courses', label: '范画库', mark: '画' },
+      { id: 'archives', label: '档案中心', mark: '档' },
+      { id: 'extraTasks', label: '课外任务', mark: '外' }
+    ]
+  },
+  {
+    id: 'operations',
+    label: '运营配置',
+    description: '导入、模板与系统',
+    items: [
+      { id: 'imports', label: '数据导入', mark: '导' },
+      { id: 'templates', label: '模板配置', mark: '配' },
+      { id: 'settings', label: '系统配置', mark: '系' }
+    ]
+  }
 ]
+
+export const navItems = navGroups.flatMap((group) => group.items)
 
 export const school = {
   name: '梦地美术',

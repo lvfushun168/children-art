@@ -1,10 +1,10 @@
 <script setup>
 defineProps({
-  activeNav: {
+  activeGroupId: {
     type: String,
     required: true
   },
-  navItems: {
+  navGroups: {
     type: Array,
     required: true
   },
@@ -26,7 +26,7 @@ defineProps({
   }
 })
 
-defineEmits(['update:activeNav', 'open-todo-center'])
+defineEmits(['select-group', 'open-todo-center'])
 </script>
 
 <template>
@@ -39,14 +39,17 @@ defineEmits(['update:activeNav', 'open-todo-center'])
       </div>
     </div>
 
-    <nav class="main-nav">
+    <nav class="nav-groups" aria-label="一级板块">
       <button
-        v-for="item in navItems"
-        :key="item.id"
-        :class="{ active: activeNav === item.id }"
-        @click="$emit('update:activeNav', item.id)"
+        v-for="group in navGroups"
+        :key="group.id"
+        type="button"
+        class="nav-group-button"
+        :class="{ active: activeGroupId === group.id }"
+        @click="$emit('select-group', group.id)"
       >
-        {{ item.label }}
+        <strong>{{ group.label }}</strong>
+        <small>{{ group.description }}</small>
       </button>
     </nav>
 

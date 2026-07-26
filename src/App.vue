@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, proxyRefs, ref, watch } from 'vue
 import SidebarNav from './components/layout/SidebarNav.vue'
 import TodoCenterDrawer from './components/layout/TodoCenterDrawer.vue'
 import UserMenu from './components/layout/UserMenu.vue'
-import { navItems } from './data/mockData'
+import { navGroups } from './data/mockData'
 import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
 import ArchiveQueryView from './views/ArchiveQueryView.vue'
 import ArtworkLibraryView from './views/ArtworkLibraryView.vue'
@@ -12,12 +12,14 @@ import ImportCenterView from './views/ImportCenterView.vue'
 import ExtraTasksView from './views/ExtraTasksView.vue'
 import LoginView from './views/LoginView.vue'
 import MasterDataView from './views/MasterDataView.vue'
+import ModuleHubView from './views/ModuleHubView.vue'
 import ParentSharePage from './views/ParentSharePage.vue'
 import SystemSettingsView from './views/SystemSettingsView.vue'
 import TasksView from './views/TasksView.vue'
 import TemplatesView from './views/TemplatesView.vue'
 
 const activeNav = ref('tasks')
+const activeGroupId = ref('afterClass')
 const activeImportType = ref('综合课表')
 const showTodoCenter = ref(false)
 const openWorkspaceSignal = ref(0)
@@ -30,7 +32,34 @@ const themeOptions = [
 const savedTheme = typeof window !== 'undefined' ? window.localStorage.getItem('children-art-theme') : ''
 const activeTheme = ref(themeOptions.some((theme) => theme.id === savedTheme) ? savedTheme : 'studio')
 
-const filteredNavItems = computed(() => navItems.filter((item) => !state.visibleNavItems.includes(item.id)))
+const filteredNavGroups = computed(() =>
+  navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !state.visibleNavItems.includes(item.id))
+    }))
+    .filter((group) => group.items.length)
+)
+const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => group.items.map((item) => item.id)))
+const activeGroup = computed(() =>
+  filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
+)
+const navIdsWithLocalBack = new Set(['tasks', 'archives'])
+const showModuleBack = computed(() => Boolean(activeNav.value && !navIdsWithLocalBack.has(activeNav.value)))
+const groupForNav = (navId) => filteredNavGroups.value.find((group) => group.items.some((item) => item.id === navId))
+const openGroup = (groupId) => {
+  activeGroupId.value = groupId
+  activeNav.value = ''
+  showTodoCenter.value = false
+}
+const openNav = (target) => {
+  const group = groupForNav(target)
+  if (group) activeGroupId.value = group.id
+  activeNav.value = target
+}
+const returnToGroup = () => {
+  activeNav.value = ''
+}
 const pendingCount = computed(() => state.visibleTasks.filter((task) => task.status !== '已完成').length)
 const wheatPendingCount = computed(() => state.wheatTraces.filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)).length)
 const importIssueCount = computed(() => state.importPreviewRows.filter((row) => row.status !== '可导入').length)
@@ -40,7 +69,7 @@ const routeHash = ref(window.location.hash)
 const updateRouteHash = () => { routeHash.value = window.location.hash }
 const openImportCenter = (type = '综合课表') => {
   activeImportType.value = type
-  activeNav.value = 'imports'
+  openNav('imports')
   showTodoCenter.value = false
 }
 const handleNavigate = (target) => {
@@ -48,11 +77,11 @@ const handleNavigate = (target) => {
     showTodoCenter.value = true
     return
   }
-  activeNav.value = target
+  openNav(target)
 }
 const selectTodoTask = (task) => {
   state.selectTask(task)
-  activeNav.value = 'tasks'
+  openNav('tasks')
   openWorkspaceSignal.value += 1
 }
 
@@ -73,6 +102,14 @@ watch(activeTheme, (theme) => {
   if (typeof window !== 'undefined') window.localStorage.setItem('children-art-theme', theme)
 }, { immediate: true })
 
+watch(visibleNavIds, (ids) => {
+  if (!ids.length) return
+  if (activeNav.value && !ids.includes(activeNav.value)) activeNav.value = ''
+  if (!filteredNavGroups.value.some((group) => group.id === activeGroupId.value)) {
+    activeGroupId.value = filteredNavGroups.value[0].id
+  }
+}, { immediate: true })
+
 const shareRoute = computed(() => {
   const studentMatch = routeHash.value.match(/^#\/share\/student\/(\d+)\/(\d+)(?:\?token=([^&]+))?/)
   if (studentMatch) return { type: 'student', lessonId: Number(studentMatch[1]), studentId: Number(studentMatch[2]), token: studentMatch[3] || '' }
@@ -90,12 +127,13 @@ const shareRoute = computed(() => {
 
   <main v-else class="app-shell">
     <SidebarNav
-      v-model:active-nav="activeNav"
-      :nav-items="filteredNavItems"
+      :active-group-id="activeGroupId"
+      :nav-groups="filteredNavGroups"
       :pending-count="pendingCount"
       :todo-count="todoCount"
       :wheat-pending-count="wheatPendingCount"
       :school="state.school"
+      @select-group="openGroup"
       @open-todo-center="showTodoCenter = true"
     />
 
@@ -119,7 +157,11 @@ const shareRoute = computed(() => {
         @logout="state.logout"
       />
 
-      <TasksView v-if="activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" @navigate="handleNavigate" />
+      <ModuleHubView v-if="!activeNav && activeGroup" :group="activeGroup" @open="openNav" />
+
+      <button v-if="showModuleBack" class="module-back-link" type="button" @click="returnToGroup">← 返回{{ activeGroup?.label || '上一级' }}</button>
+
+      <TasksView v-if="activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @navigate="handleNavigate" />
 
       <MasterDataView v-if="activeNav === 'students'" :state="state" entity="students" @open-import="openImportCenter('学生名单')" />
 
@@ -133,7 +175,7 @@ const shareRoute = computed(() => {
 
       <TemplatesView v-if="activeNav === 'templates'" :state="state" />
 
-      <ArchiveQueryView v-if="activeNav === 'archives'" :state="state" />
+      <ArchiveQueryView v-if="activeNav === 'archives'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ExtraTasksView v-if="activeNav === 'extraTasks'" :state="state" />
 

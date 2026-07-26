@@ -176,7 +176,7 @@ button:not(:disabled):hover,
 
 .app-shell {
   display: grid;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-columns: 256px minmax(0, 1fr);
   min-height: 100vh;
   padding: 14px;
   gap: 14px;
@@ -249,24 +249,31 @@ label {
   color: var(--color-muted);
 }
 
-.main-nav {
+.nav-groups {
   display: grid;
-  gap: 7px;
+  gap: 8px;
 }
 
-.main-nav button {
-  min-height: 40px;
-  padding: 0 12px;
+.nav-group-button {
+  display: grid;
+  gap: 4px;
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
   color: var(--color-heading);
   text-align: left;
 }
 
-.main-nav button.active {
+.nav-group-button.active {
+  border-color: var(--color-border-strong);
   background: var(--color-primary);
   color: var(--color-surface-warm);
-  font-weight: 800;
+}
+
+.nav-group-button.active small {
+  color: color-mix(in srgb, var(--color-surface-warm) 76%, transparent);
 }
 
 .nav-summary {
@@ -596,6 +603,66 @@ label {
   margin-bottom: 14px;
 }
 
+.module-back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  margin-bottom: 12px;
+  padding: 0 14px;
+  border: 1px solid #0018A8;
+  border-radius: 7px;
+  background: #0018A8;
+  color: #F5F1E9;
+  font-weight: 900;
+}
+
+.module-hub-view {
+  min-height: 100%;
+}
+
+.module-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 14px;
+  max-width: 980px;
+}
+
+.module-entry-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  min-height: 118px;
+  gap: 6px 14px;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-heading);
+  text-align: left;
+  box-shadow: var(--shadow-panel);
+}
+
+.module-entry-card span {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+  font-weight: 900;
+}
+
+.module-entry-card strong {
+  font-size: 19px;
+}
+
+.module-entry-card small {
+  color: var(--color-muted);
+}
+
 h1,
 h2 {
   margin: 2px 0 0;
@@ -723,9 +790,12 @@ h2 {
 }
 
 .back-link {
-  padding: 8px 0;
-  background: transparent;
-  color: var(--color-primary);
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #0018A8;
+  border-radius: 7px;
+  background: #0018A8;
+  color: #F5F1E9;
   font-weight: 800;
 }
 
@@ -1413,6 +1483,12 @@ textarea:focus {
   color: var(--color-primary);
   border: 1px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
   padding: 0 12px;
+}
+
+.archive-subpage-head .ghost {
+  border-color: #0018A8;
+  background: #0018A8;
+  color: #F5F1E9;
 }
 
 .file-button {
@@ -4627,6 +4703,42 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .app-shell {
+    align-content: start;
+  }
+
+  .nav-rail {
+    position: sticky;
+    top: 10px;
+    z-index: 24;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .brand {
+    margin-bottom: 0;
+  }
+
+  .nav-groups {
+    grid-auto-columns: minmax(136px, 1fr);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .nav-group-button {
+    min-height: 54px;
+  }
+
+  .module-hub-grid {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+
+  .nav-summary {
+    margin-top: 0;
+  }
+
   .archive-date-range {
     grid-template-columns: max-content minmax(280px, 1fr) max-content;
   }
@@ -4687,6 +4799,59 @@ textarea:focus {
 @media (max-width: 680px) {
   .app-shell {
     padding: 10px;
+    gap: 10px;
+  }
+
+  .nav-rail {
+    top: 8px;
+  }
+
+  .brand {
+    gap: 10px;
+  }
+
+  .brand-mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  .brand small {
+    font-size: 12px;
+  }
+
+  .nav-groups {
+    grid-auto-columns: minmax(112px, 1fr);
+  }
+
+  .nav-group-button {
+    min-height: 48px;
+    padding: 8px 10px;
+  }
+
+  .nav-group-button small {
+    display: none;
+  }
+
+  .module-hub-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .module-entry-card {
+    min-height: 88px;
+    padding: 14px;
+  }
+
+  .nav-summary {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .nav-summary strong {
+    font-size: 18px;
+  }
+
+  .nav-summary small {
+    grid-column: 1 / -1;
   }
 
   .page-head,

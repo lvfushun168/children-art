@@ -7,8 +7,14 @@ const props = defineProps({
   state: {
     type: Object,
     required: true
+  },
+  groupLabel: {
+    type: String,
+    default: ''
   }
 })
+
+defineEmits(['backToGroup'])
 
 const archiveTabs = [
   { id: 'studentWorks', label: '学生作品档案' },
@@ -303,6 +309,8 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
 </script>
 
 <template>
+  <button v-if="activeTab === 'home' && groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
+
   <PageHead title="档案中心" />
 
   <section v-if="activeTab === 'home'" class="archive-home panel">

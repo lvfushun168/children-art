@@ -12,10 +12,14 @@ const props = defineProps({
   openWorkspaceSignal: {
     type: Number,
     default: 0
+  },
+  groupLabel: {
+    type: String,
+    default: ''
   }
 })
 
-defineEmits(['navigate'])
+defineEmits(['navigate', 'backToGroup'])
 
 const workspaceOpen = ref(false)
 const unfinishedTasks = computed(() => props.state.visibleTasks.filter((task) => task.status !== '已完成'))
@@ -35,6 +39,7 @@ watch(() => props.openWorkspaceSignal, (signal) => {
 <template>
   <div v-if="state.toast" class="toast">{{ state.toast }}</div>
   <template v-if="!workspaceOpen">
+    <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
     <PageHead eyebrow="老师工作台" :title="`${state.currentUser?.name || '老师'}，今天辛苦了`" />
     <section class="today-hero">
       <div>

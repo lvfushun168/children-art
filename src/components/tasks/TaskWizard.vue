@@ -671,10 +671,13 @@ const updateCommentTemplate = (index) => {
                 <small v-if="item.meta">{{ item.meta }}</small>
                 <em v-if="item.item.detail">{{ item.item.detail }}</em>
                 <details v-if="item.key === 'parentTouch' && state.sharePage.publishedSnapshot" class="touch-fallback">
-                  <summary>学生链接与二维码（企微不可用时人工发送兜底）</summary>
+                  <summary>学生访问凭证（企微不可用时人工发送兜底）</summary>
                   <div v-for="row in state.attendingRows" :key="`touch-${row.lessonId}-${row.studentId}`" class="touch-fallback-row">
-                    <strong>{{ state.students.find((entry) => entry.id === row.studentId).name }}</strong>
-                    <small>{{ state.studentShareUrlFor(row) }}</small>
+                    <div>
+                      <strong>{{ state.students.find((entry) => entry.id === row.studentId).name }}</strong>
+                      <small>{{ state.students.find((entry) => entry.id === row.studentId).parent }} · 展示页 V{{ state.sharePage.publishedVersion }}</small>
+                    </div>
+                    <span class="credential-status">链接已生成</span>
                     <span class="qr-code mini">QR</span>
                     <button class="ghost" @click="state.manualCopyStudentLink(row)">{{ state.copiedStudentId === row.studentId ? '已复制' : '复制并记录人工发送' }}</button>
                   </div>

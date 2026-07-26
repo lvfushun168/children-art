@@ -2757,7 +2757,7 @@ textarea:focus,
 
 .touch-fallback-row {
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: minmax(120px, 1fr) auto auto auto;
   gap: 10px;
   align-items: center;
   padding: 8px 0;
@@ -2768,8 +2768,23 @@ textarea:focus,
   border-bottom: none;
 }
 
-.touch-fallback-row small {
-  word-break: break-all;
+.touch-fallback-row > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.touch-fallback-row small,
+.credential-status {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.credential-status {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  white-space: nowrap;
 }
 
 .qr-code.mini {
@@ -6096,6 +6111,26 @@ textarea:focus,
     gap: 10px;
     align-items: start;
     padding: 12px;
+  }
+
+  .app-shell-mobile .touch-fallback-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 10px 0;
+  }
+
+  .app-shell-mobile .touch-fallback-row .credential-status {
+    justify-self: end;
+  }
+
+  .app-shell-mobile .touch-fallback-row .qr-code {
+    justify-self: start;
+  }
+
+  .app-shell-mobile .touch-fallback-row button {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 40px;
   }
 
   .app-shell-mobile .archive-check-actions {

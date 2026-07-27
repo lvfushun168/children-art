@@ -223,11 +223,6 @@ const updateCommentTemplate = (index) => {
             <strong>上传本节课的课堂资料</strong>
           </div>
         </div>
-        <div class="material-summary">
-          <strong>
-            {{ state.counts.classroomMaterials ? `已上传 ${state.counts.referenceMaterials} 张范画/步骤图，${state.counts.coursewares} 个课件` : state.materialsConfirmedEmpty ? '已确认本节无课堂资料' : '未上传课堂资料' }}
-          </strong>
-        </div>
 
         <section class="classroom-materials-board">
           <article class="material-lane">
@@ -381,11 +376,6 @@ const updateCommentTemplate = (index) => {
             <strong>逐个记录学生课堂表现</strong>
           </div>
         </div>
-        <div class="record-progress-summary">
-          <div><span>本节到课</span><strong>{{ state.counts.attend }} 人</strong></div>
-          <div><span>已记录</span><strong>{{ state.counts.records }} 人</strong></div>
-          <div><span>待记录</span><strong>{{ state.counts.attend - state.counts.records }} 人</strong></div>
-        </div>
         <div class="record-student-tabs">
           <button v-for="(row, index) in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ active: row.studentId === state.activeStudentId, done: row.record?.trim() }" @click="state.activeStudentId = row.studentId">
             <b>{{ index + 1 }}</b><span><strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong><small>{{ row.record?.trim() ? '已记录' : '待记录' }}</small></span>
@@ -507,7 +497,7 @@ const updateCommentTemplate = (index) => {
             <span>第 6 步</span>
             <strong>准备课后任务并配置家长展示</strong>
           </div>
-          <button class="secondary" @click="showSharePreview = true">预览家长页草稿</button>
+          <button class="secondary" @click="showSharePreview = true">家长页预览</button>
         </div>
         <section class="parent-delivery-panel">
           <article class="record-table homework-editor">

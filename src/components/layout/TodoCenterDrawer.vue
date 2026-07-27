@@ -12,20 +12,26 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'select-task', 'open-imports'])
+const emit = defineEmits(['close', 'select-task', 'open-imports', 'open-supervision'])
 
 const reasons = reactive({})
 const activeCategory = ref('all')
 
-const pendingLessons = computed(() => props.state.visibleTasks.filter((task) => task.status !== '已完成'))
+const pendingLessons = computed(() => {
+  const todayTasks = props.state.visibleTasks.filter((task) => task.dateValue === props.state.latestLessonDate)
+  const scopedTasks = todayTasks.length ? todayTasks : props.state.visibleTasks
+  return scopedTasks.filter((task) => task.status !== '已完成')
+})
 const wheatTodos = computed(() => props.state.wheatTraces.filter((trace) => trace.status !== '已人工处理' && trace.status !== '无需处理'))
 const importTodos = computed(() => props.state.importPreviewRows.filter((row) => row.status !== '可导入'))
 const cloudTodos = computed(() => props.state.visibleTasks.filter((task) => task.cloudArchiveStatus === '同步失败'))
 const wecomTodos = computed(() => props.state.wecomSendTasks.filter((task) => ['待老师确认发送', '发送失败'].includes(task.status)))
-const totalCount = computed(() => pendingLessons.value.length + wheatTodos.value.length + importTodos.value.length + cloudTodos.value.length + wecomTodos.value.length)
+const reviewTodos = computed(() => props.state.isAdmin ? props.state.pendingQualityReviews : [])
+const totalCount = computed(() => pendingLessons.value.length + wheatTodos.value.length + importTodos.value.length + cloudTodos.value.length + wecomTodos.value.length + reviewTodos.value.length)
 const categories = computed(() => [
   { id: 'all', label: '全部', count: totalCount.value },
   { id: 'lessons', label: '今日课后', count: pendingLessons.value.length },
+  { id: 'reviews', label: '待评分', count: reviewTodos.value.length },
   { id: 'wecom', label: '企微发送', count: wecomTodos.value.length },
   { id: 'wheat', label: '小麦留痕', count: wheatTodos.value.length },
   { id: 'cloud', label: '网盘同步', count: cloudTodos.value.length },
@@ -46,6 +52,11 @@ const updateWecomTask = (task, status) => {
 
 const goTask = (task) => {
   emit('select-task', task)
+  emit('close')
+}
+
+const openSupervision = () => {
+  emit('open-supervision')
   emit('close')
 }
 </script>
@@ -85,6 +96,18 @@ const goTask = (task) => {
               <em>{{ task.status }} · {{ state.progressForTask(task) }}%</em>
             </button>
             <small v-if="!pendingLessons.length" class="empty-note">今天的课后交付都处理完了。</small>
+          </section>
+
+          <section v-if="showGroup('reviews')" class="todo-group">
+            <div class="mini-head"><div><span>课次质量评分</span><strong>{{ reviewTodos.length }} 节待评分</strong></div><button class="ghost" @click="openSupervision">去教管看板</button></div>
+            <article v-for="lesson in reviewTodos" :key="lesson.id" class="todo-row static">
+              <div>
+                <strong>{{ lesson.date }} {{ lesson.time }} · {{ lesson.className }}</strong>
+                <small>{{ lesson.course }} · {{ lesson.teacher }} · {{ lesson.lessonType }}</small>
+              </div>
+              <em>{{ lesson.reviewStatus }}</em>
+            </article>
+            <small v-if="!reviewTodos.length" class="empty-note">暂无待评分课次。</small>
           </section>
 
           <section v-if="showGroup('wecom')" class="todo-group">

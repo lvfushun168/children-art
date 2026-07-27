@@ -659,13 +659,15 @@ label {
 .module-back-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  justify-self: start;
   min-height: 38px;
   margin-bottom: 12px;
   padding: 0 14px;
-  border: 1px solid #0018A8;
+  border: 1px solid var(--color-primary);
   border-radius: 7px;
-  background: #0018A8;
-  color: #F5F1E9;
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
   font-weight: 900;
 }
 
@@ -843,12 +845,16 @@ h2 {
 }
 
 .back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
   min-height: 38px;
   padding: 0 14px;
-  border: 1px solid #0018A8;
+  border: 1px solid var(--color-primary);
   border-radius: 7px;
-  background: #0018A8;
-  color: #F5F1E9;
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
   font-weight: 800;
 }
 
@@ -1676,9 +1682,9 @@ textarea:focus,
 }
 
 .archive-subpage-head .ghost {
-  border-color: #0018A8;
-  background: #0018A8;
-  color: #F5F1E9;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
 }
 
 .file-button {
@@ -1695,6 +1701,521 @@ textarea:focus,
   gap: 6px;
   padding: 13px;
   border-radius: 8px;
+}
+
+.supervision-view {
+  display: grid;
+  gap: 14px;
+  max-width: 1320px;
+}
+
+.supervision-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 4px;
+  justify-self: start;
+  padding: 4px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.supervision-tabs button {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-heading);
+  font-weight: 800;
+}
+
+.supervision-tabs button.active {
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+}
+
+.supervision-toolbar {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.supervision-toolbar label {
+  max-width: 240px;
+}
+
+.supervision-toolbar-metrics,
+.supervision-month-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.supervision-toolbar-metrics article,
+.supervision-month-summary article {
+  display: grid;
+  gap: 5px;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.supervision-toolbar-metrics span,
+.supervision-month-summary span,
+.supervision-lesson-row small,
+.supervision-month-row small,
+.supervision-review-panel > small,
+.review-history-note span {
+  color: var(--color-muted);
+}
+
+.supervision-toolbar-metrics strong,
+.supervision-month-summary strong {
+  color: var(--color-primary);
+  font-size: 24px;
+}
+
+.supervision-teacher-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.supervision-teacher-card {
+  display: grid;
+  gap: 8px;
+  min-height: 128px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-heading);
+  text-align: left;
+  box-shadow: var(--shadow-panel);
+}
+
+.supervision-teacher-card strong {
+  font-size: 24px;
+}
+
+.supervision-teacher-card em,
+.supervision-review-state strong,
+.supervision-review-panel em,
+.supervision-month-row em,
+.monthly-bar-card span {
+  color: var(--color-primary);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.supervision-today-layout,
+.monthly-review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.supervision-lesson-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.supervision-lesson-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.supervision-lesson-row.active {
+  border-color: var(--color-border-strong);
+  background: var(--color-primary-soft);
+}
+
+.supervision-lesson-row:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
+  outline: none;
+}
+
+.supervision-lesson-main {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.supervision-lesson-main > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.supervision-lesson-main strong,
+.supervision-month-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.supervision-checkpoints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.supervision-checkpoints span {
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--color-status-muted-bg);
+  color: var(--color-status-muted-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.supervision-checkpoints span.done {
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+}
+
+.supervision-review-state {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  text-align: right;
+}
+
+.supervision-review-panel {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.supervision-review-page {
+  display: grid;
+  justify-items: stretch;
+  max-width: 760px;
+}
+
+.supervision-review-page .supervision-review-panel {
+  position: static;
+}
+
+.review-checkpoints {
+  padding: 2px 0;
+}
+
+.review-month-summary {
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+}
+
+.supervision-month-review-entry {
+  justify-self: start;
+}
+
+.review-history-note {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+}
+
+.star-score-control {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.star-score-control.disabled {
+  opacity: 0.58;
+}
+
+.star-score-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.star-score-head strong {
+  color: var(--color-primary);
+  font-size: 20px;
+}
+
+.star-score-row {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(26px, 1fr));
+  gap: 4px;
+}
+
+.star-score-row button {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 7px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.star-score-row button.active {
+  border-color: color-mix(in srgb, var(--color-accent) 34%, transparent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.monthly-histogram {
+  display: grid;
+  gap: 12px;
+  min-height: 280px;
+  padding: 14px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.monthly-chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.monthly-chart-head span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.monthly-chart-head i,
+.monthly-chart-head b {
+  display: inline-block;
+  width: 18px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.monthly-chart-head i {
+  background: var(--color-primary-mist);
+}
+
+.monthly-chart-head b {
+  background: var(--color-primary);
+}
+
+.monthly-chart-body {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 220px;
+}
+
+.monthly-y-axis {
+  display: grid;
+  grid-template-rows: repeat(5, 1fr);
+  align-items: center;
+  justify-items: end;
+  padding-bottom: 50px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.monthly-plot {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  align-items: end;
+  gap: 12px;
+  min-height: 220px;
+  padding: 8px 8px 0;
+  border-left: 1px solid var(--color-border-soft);
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.monthly-grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-border-soft);
+  pointer-events: none;
+}
+
+.monthly-grid-line:nth-child(1) {
+  top: 8px;
+}
+
+.monthly-grid-line:nth-child(2) {
+  top: calc(8px + 25%);
+}
+
+.monthly-grid-line:nth-child(3) {
+  top: calc(8px + 50%);
+}
+
+.monthly-grid-line:nth-child(4) {
+  top: calc(8px + 75%);
+}
+
+.monthly-grid-line:nth-child(5) {
+  bottom: 50px;
+}
+
+.monthly-bar-card {
+  display: grid;
+  justify-items: center;
+  align-content: end;
+  gap: 6px;
+  min-height: 210px;
+  padding: 8px 8px 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-heading);
+  text-align: center;
+  z-index: 1;
+}
+
+.monthly-bar-card.active {
+  border-color: var(--color-border-strong);
+  background: var(--color-primary-soft);
+  box-shadow: inset 0 -3px 0 var(--color-primary);
+}
+
+.monthly-bar-shell {
+  position: relative;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  width: 34px;
+  height: 136px;
+  border-radius: 8px;
+  background: var(--color-progress-track);
+  overflow: hidden;
+}
+
+.monthly-bar-shell i,
+.monthly-bar-shell b {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  border-radius: 8px 8px 0 0;
+}
+
+.monthly-bar-shell i {
+  background: var(--color-primary-mist);
+}
+
+.monthly-bar-shell b {
+  background: var(--color-primary);
+}
+
+.supervision-month-summary {
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+}
+
+.supervision-month-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 64px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+@media (max-width: 1120px) {
+  .supervision-toolbar,
+  .supervision-today-layout,
+  .monthly-review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .supervision-review-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .supervision-toolbar-metrics,
+  .supervision-month-summary,
+  .supervision-teacher-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-chart-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .monthly-plot {
+    grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+    gap: 6px;
+    overflow-x: auto;
+  }
+
+  .supervision-lesson-row,
+  .supervision-lesson-main,
+  .supervision-month-row {
+    grid-template-columns: 1fr;
+  }
+
+  .supervision-review-state {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .supervision-lesson-main em {
+    justify-self: start;
+  }
+
+  .monthly-bar-card {
+    min-width: 86px;
+  }
+
+  .monthly-bar-shell {
+    width: 28px;
+    height: 120px;
+  }
+
+  .star-score-row {
+    grid-template-columns: repeat(5, minmax(34px, 1fr));
+  }
 }
 
 .mini-head {

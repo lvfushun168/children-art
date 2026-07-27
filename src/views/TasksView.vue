@@ -22,9 +22,13 @@ const props = defineProps({
 defineEmits(['navigate', 'backToGroup'])
 
 const workspaceOpen = ref(false)
-const unfinishedTasks = computed(() => props.state.visibleTasks.filter((task) => task.status !== '已完成'))
-const completedTasks = computed(() => props.state.visibleTasks.filter((task) => task.status === '已完成'))
-const nextTask = computed(() => unfinishedTasks.value[0] || props.state.visibleTasks[0])
+const todayTasks = computed(() => {
+  const matched = props.state.visibleTasks.filter((task) => task.dateValue === props.state.latestLessonDate)
+  return matched.length ? matched : props.state.visibleTasks
+})
+const unfinishedTasks = computed(() => todayTasks.value.filter((task) => task.status !== '已完成'))
+const completedTasks = computed(() => todayTasks.value.filter((task) => task.status === '已完成'))
+const nextTask = computed(() => unfinishedTasks.value[0] || todayTasks.value[0])
 
 const openTask = (task) => {
   props.state.selectTask(task)
@@ -53,13 +57,13 @@ watch(() => props.openWorkspaceSignal, (signal) => {
       </button>
     </section>
     <div class="today-summary">
-      <article><strong>{{ state.visibleTasks.length }}</strong><span>今日课次</span></article>
+      <article><strong>{{ todayTasks.length }}</strong><span>今日课次</span></article>
       <article><strong>{{ unfinishedTasks.length }}</strong><span>待完成</span></article>
       <article><strong>{{ completedTasks.length }}</strong><span>已交付</span></article>
     </div>
     <TaskList
       class="today-task-list"
-      :tasks="state.visibleTasks"
+      :tasks="todayTasks"
       :active-task-id="state.activeTaskId"
       :classes="state.classes"
       :courses="state.courses"

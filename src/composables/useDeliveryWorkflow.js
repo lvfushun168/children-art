@@ -16,6 +16,8 @@ import {
   initialBulkRecord,
   initialSessionStudents,
   lessonMaterials as lessonMaterialSeed,
+  monthlyTeacherReviews as monthlyTeacherReviewSeed,
+  qualityReviews as qualityReviewSeed,
   school as schoolSeed,
   sessionSeed,
   settings as settingSeed,
@@ -38,6 +40,7 @@ const isWithinDateRange = (value, start, end) => {
   if (!value) return !start && !end
   return (!start || value >= start) && (!end || value <= end)
 }
+const monthFromDateValue = (value) => (value || '').slice(0, 7)
 
 export function useDeliveryWorkflow() {
   const school = reactive(clone(schoolSeed))
@@ -58,6 +61,8 @@ export function useDeliveryWorkflow() {
   const importBatches = reactive(clone(importBatchSeed))
   const importPreviewRows = reactive(clone(importPreviewSeed))
   const settings = reactive(clone(settingSeed))
+  const qualityReviews = reactive(clone(qualityReviewSeed))
+  const monthlyTeacherReviews = reactive(clone(monthlyTeacherReviewSeed))
   const statusChangeLogs = reactive([])
   const archiveEditLogs = reactive([])
   const wecomSendTasks = reactive([])
@@ -256,7 +261,7 @@ export function useDeliveryWorkflow() {
     tasks.filter((task) => isAdmin.value || authorizedClassIds.value.includes(task.classId) || task.teacher === currentUser.value?.name)
   )
   const visibleNavItems = computed(() => {
-    const adminOnly = ['imports', 'settings']
+    const adminOnly = ['imports', 'settings', 'supervision']
     return isAdmin.value ? [] : adminOnly
   })
   const activeTask = computed(() => visibleTasks.value.find((task) => task.id === activeTaskId.value) || visibleTasks.value[0] || tasks[0])
@@ -482,6 +487,118 @@ export function useDeliveryWorkflow() {
         sourceLesson: lesson
       }))
   )
+  const latestLessonDate = computed(() =>
+    [...new Set(tasks.map((task) => task.dateValue).filter(Boolean))].sort().at(-1) || ''
+  )
+  const availableLessonMonths = computed(() =>
+    [...new Set(lessonArchiveRecords.value.map((lesson) => monthFromDateValue(lesson.dateValue)).filter(Boolean))].sort().reverse()
+  )
+  const qualityReviewForLesson = (lessonId) => {
+    if (!lessonId) return null
+    return qualityReviews.find((review) => review.lessonId === Number(lessonId)) || null
+  }
+  const monthlyReviewForTeacher = (teacher, month) =>
+    monthlyTeacherReviews.find((review) => review.teacher === teacher && review.month === month) || null
+  const supervisionLessonRecords = computed(() =>
+    lessonArchiveRecords.value.map((lesson) => {
+      const review = qualityReviewForLesson(lesson.lessonId)
+      return {
+        ...lesson,
+        review,
+        reviewStatus: lesson.status === '已完成' ? (review ? '已评分' : '待评分') : '未完成'
+      }
+    })
+  )
+  const pendingQualityReviews = computed(() =>
+    supervisionLessonRecords.value.filter((lesson) => lesson.lessonId && lesson.status === '已完成' && !lesson.review)
+  )
+  const lessonsForTeacherMonth = (teacher, month) =>
+    supervisionLessonRecords.value.filter((lesson) =>
+      (!teacher || lesson.teacher === teacher) &&
+      (!month || monthFromDateValue(lesson.dateValue) === month)
+    )
+  const teacherMonthStats = (teacher, month) => {
+    const lessons = lessonsForTeacherMonth(teacher, month)
+    const completed = lessons.filter((lesson) => lesson.status === '已完成')
+    const reviewed = completed.filter((lesson) => lesson.review)
+    const scores = reviewed.map((lesson) => Number(lesson.review.score)).filter((score) => Number.isFinite(score))
+    const averageScore = scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10 : null
+    return {
+      teacher,
+      month,
+      total: lessons.length,
+      completed: completed.length,
+      unfinished: lessons.filter((lesson) => !['已完成', '异常'].includes(lesson.status)).length,
+      exception: lessons.filter((lesson) => lesson.status === '异常').length,
+      pendingReview: completed.length - reviewed.length,
+      reviewed: reviewed.length,
+      averageScore,
+      completionRate: lessons.length ? Math.round((completed.length / lessons.length) * 100) : 0,
+      monthlyReview: monthlyReviewForTeacher(teacher, month)
+    }
+  }
+  const saveQualityReview = (payload) => {
+    if (!isAdmin.value) {
+      notify('只有管理员/教管可以评分')
+      return null
+    }
+    const lesson = supervisionLessonRecords.value.find((item) => item.lessonId === Number(payload.lessonId))
+    if (!lesson) {
+      notify('没有找到要评分的课次')
+      return null
+    }
+    if (lesson.status !== '已完成') {
+      notify('课次完成后才能提交质量评分')
+      return null
+    }
+    const score = Number(payload.score)
+    if (!Number.isFinite(score) || score < 0 || score > 10) {
+      notify('评分需要在 0-10 分之间')
+      return null
+    }
+    const existing = qualityReviewForLesson(lesson.lessonId)
+    const next = {
+      id: existing?.id || nextId(qualityReviews),
+      lessonId: lesson.lessonId,
+      teacher: lesson.teacher,
+      reviewer: currentUser.value?.name || '管理员',
+      score,
+      comment: payload.comment?.trim() || '',
+      status: '已评分',
+      reviewedAt: nowText()
+    }
+    if (existing) Object.assign(existing, next)
+    else qualityReviews.unshift(next)
+    notify(`已保存${lesson.teacher} ${lesson.date}课次评分：${score}分`)
+    return next
+  }
+  const saveMonthlyTeacherReview = (payload) => {
+    if (!isAdmin.value) {
+      notify('只有管理员/教管可以提交月度总评')
+      return null
+    }
+    const score = Number(payload.score)
+    if (!Number.isFinite(score) || score < 0 || score > 10) {
+      notify('月度评分需要在 0-10 分之间')
+      return null
+    }
+    const teacher = payload.teacher
+    const month = payload.month
+    const existing = monthlyReviewForTeacher(teacher, month)
+    const next = {
+      id: existing?.id || nextId(monthlyTeacherReviews),
+      month,
+      teacher,
+      reviewer: currentUser.value?.name || '管理员',
+      score,
+      comment: payload.comment?.trim() || '',
+      reviewedAt: nowText()
+    }
+    if (existing) Object.assign(existing, next)
+    else monthlyTeacherReviews.unshift(next)
+    notify(`已保存${teacher} ${month}月度总评：${score}分`)
+    return next
+  }
   const studentHistoryFor = (studentId) => archiveRecords.filter((record) => record.studentId === Number(studentId))
   const archiveCollectionsForRecord = (recordId) => archiveCollections.filter((collection) => collection.recordIds.includes(recordId))
   const archiveEditLogsForRecord = (recordId) => archiveEditLogs.filter((log) => log.recordId === recordId)
@@ -2093,10 +2210,14 @@ export function useDeliveryWorkflow() {
     archiveCollections,
     aiCallLogs,
     extraTaskArchives,
+    qualityReviews,
+    monthlyTeacherReviews,
     archiveFilter,
     filteredArchiveRecords,
     lessonArchiveRecords,
     teacherEffectArchiveRecords,
+    supervisionLessonRecords,
+    pendingQualityReviews,
     materials,
     referenceMaterials,
     coursewareMaterials,
@@ -2155,6 +2276,14 @@ export function useDeliveryWorkflow() {
     createArchiveCollection,
     copyArchiveCollectionLink,
     importStats,
+    latestLessonDate,
+    availableLessonMonths,
+    qualityReviewForLesson,
+    monthlyReviewForTeacher,
+    lessonsForTeacherMonth,
+    teacherMonthStats,
+    saveQualityReview,
+    saveMonthlyTeacherReview,
     counts,
     steps,
     taskProgress,

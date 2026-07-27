@@ -6,6 +6,7 @@ export const navGroups = [
     mark: '课',
     items: [
       { id: 'tasks', label: '今日课后', mark: '课' },
+      { id: 'supervision', label: '教管看板', mark: '管', description: '老师完成情况与评分' },
       { id: 'production', label: '制作中心', mark: '制' }
     ]
   },
@@ -278,6 +279,104 @@ export const tasks = [
     importedFrom: '小麦 Excel 导入',
     shareGenerated: false,
     archived: false
+  },
+  {
+    id: 4,
+    date: '7月27日',
+    dateValue: '2026-07-27',
+    time: '14:00',
+    classId: 1,
+    courseId: 1,
+    teacher: '林老师',
+    lessonType: '收费课',
+    status: '已完成',
+    wheatStatus: '待处理',
+    importedFrom: '小麦课表复制',
+    shareGenerated: true,
+    archived: true,
+    archiveVersion: 1
+  },
+  {
+    id: 5,
+    date: '7月27日',
+    dateValue: '2026-07-27',
+    time: '16:30',
+    classId: 2,
+    courseId: 3,
+    teacher: '林老师',
+    lessonType: '收费课',
+    status: '处理中',
+    wheatStatus: '未生成',
+    importedFrom: '小麦 Excel 导入',
+    shareGenerated: false,
+    archived: false
+  },
+  {
+    id: 6,
+    date: '7月27日',
+    dateValue: '2026-07-27',
+    time: '18:30',
+    classId: 3,
+    courseId: 2,
+    teacher: '周老师',
+    lessonType: '体验课',
+    status: '待处理',
+    wheatStatus: '未生成',
+    importedFrom: '手动补录',
+    shareGenerated: false,
+    archived: false
+  },
+  {
+    id: 7,
+    date: '7月27日',
+    dateValue: '2026-07-27',
+    time: '19:40',
+    classId: 3,
+    courseId: 2,
+    teacher: '周老师',
+    lessonType: '免费课',
+    status: '异常',
+    wheatStatus: '未生成',
+    importedFrom: '临时班级补录',
+    shareGenerated: false,
+    archived: false,
+    exceptionType: '素材缺失',
+    exceptionReason: '课堂视频未上传，等待老师补齐'
+  }
+]
+
+export const qualityReviews = [
+  {
+    id: 1,
+    lessonId: 2,
+    teacher: '周老师',
+    reviewer: '王教务',
+    score: 8,
+    comment: '体验课反馈完整，作品归档已完成；小麦留痕异常需要当天跟进。',
+    status: '已评分',
+    reviewedAt: '2026/6/21 20:12:00'
+  },
+  {
+    id: 2,
+    lessonId: 4,
+    teacher: '林老师',
+    reviewer: '王教务',
+    score: 9,
+    comment: '课评具体，家长展示内容清楚，课效图可直接进入月度归档。',
+    status: '已评分',
+    reviewedAt: '2026/7/27 15:35:00'
+  }
+]
+
+export const monthlyTeacherReviews = [
+  {
+    id: 1,
+    month: '2026-06',
+    teacher: '林老师',
+    reviewer: '王教务',
+    score: 8,
+    comment: '六月整体完成稳定，线描班归档质量较好，后续注意小麦留痕及时性。',
+    reviewedAt: '2026/6/30 18:00:00'
   }
 ]
 

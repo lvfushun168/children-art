@@ -15,6 +15,7 @@ import MasterDataView from './views/MasterDataView.vue'
 import ModuleHubView from './views/ModuleHubView.vue'
 import ParentSharePage from './views/ParentSharePage.vue'
 import ProductionCenterView from './views/ProductionCenterView.vue'
+import SupervisionBoardView from './views/SupervisionBoardView.vue'
 import SystemSettingsView from './views/SystemSettingsView.vue'
 import TasksView from './views/TasksView.vue'
 import TemplatesView from './views/TemplatesView.vue'
@@ -48,7 +49,7 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['tasks', 'production', 'archives', 'students', 'classes', 'externalLinks', 'extraTasks', 'templates', 'settings'])
+const navIdsWithLocalBack = new Set(['tasks', 'supervision', 'production', 'archives', 'students', 'classes', 'externalLinks', 'extraTasks', 'templates', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || mobileLevel.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
 const mobileGroupEntries = computed(() =>
@@ -80,11 +81,16 @@ const returnToMobileGroups = () => {
   activeNav.value = ''
   mobileLevel.value = 'groups'
 }
-const pendingCount = computed(() => state.visibleTasks.filter((task) => task.status !== '已完成').length)
+const visibleTodayTasks = computed(() => {
+  const matched = state.visibleTasks.filter((task) => task.dateValue === state.latestLessonDate)
+  return matched.length ? matched : state.visibleTasks
+})
+const pendingCount = computed(() => visibleTodayTasks.value.filter((task) => task.status !== '已完成').length)
 const wheatPendingCount = computed(() => state.wheatTraces.filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)).length)
 const importIssueCount = computed(() => state.importPreviewRows.filter((row) => row.status !== '可导入').length)
 const cloudIssueCount = computed(() => state.visibleTasks.filter((task) => task.cloudArchiveStatus === '同步失败').length)
-const todoCount = computed(() => pendingCount.value + wheatPendingCount.value + importIssueCount.value + cloudIssueCount.value)
+const reviewPendingCount = computed(() => state.isAdmin ? state.pendingQualityReviews.length : 0)
+const todoCount = computed(() => pendingCount.value + wheatPendingCount.value + importIssueCount.value + cloudIssueCount.value + reviewPendingCount.value)
 const routeHash = ref(window.location.hash)
 const updateRouteHash = () => { routeHash.value = window.location.hash }
 const openImportCenter = (type = '综合课表') => {
@@ -184,6 +190,7 @@ const shareRoute = computed(() => {
       @close="showTodoCenter = false"
       @select-task="selectTodoTask"
       @open-imports="openImportCenter('综合课表')"
+      @open-supervision="openNav('supervision')"
     />
 
     <section class="content" :class="{ 'mobile-app-content': isMobileApp }">
@@ -214,6 +221,8 @@ const shareRoute = computed(() => {
       <button v-if="showModuleBack" class="module-back-link" type="button" @click="returnToGroup">← 返回{{ activeGroup?.label || '上一级' }}</button>
 
       <TasksView v-if="showActivePage && activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @navigate="handleNavigate" />
+
+      <SupervisionBoardView v-if="showActivePage && activeNav === 'supervision' && state.isAdmin" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ProductionCenterView
         v-if="showActivePage && activeNav === 'production'"

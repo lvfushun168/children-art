@@ -24,6 +24,47 @@ const isMobileFlow = ref(false)
 const mobileShowingDetail = ref(false)
 let cleanupMobileMedia = () => {}
 
+const studentProfileSections = [
+  {
+    title: '家庭画像',
+    fields: [
+      { key: 'residentialCommunity', label: '现住小区', hint: '教育消费力 & 距离' },
+      { key: 'schoolName', label: '就读学校', hint: '教育消费力' },
+      { key: 'trainingBrandInterest', label: '培训班品牌-兴趣', hint: '教育消费力 & 时间' }
+    ]
+  },
+  {
+    title: '母亲信息',
+    fields: [
+      { key: 'motherOccupation', label: '母职业职务', hint: '教育消费力 & 决策影响' },
+      { key: 'motherSocialCircleEducation', label: '朋友圈-类别-学历', hint: '决策影响' },
+      { key: 'motherCompanionTime', label: '陪伴时间 & 情况', hint: '决策影响' }
+    ]
+  },
+  {
+    title: '父亲信息',
+    fields: [
+      { key: 'fatherOccupation', label: '父职业职务', hint: '教育消费力 & 决策影响' },
+      { key: 'fatherSocialCircleEducation', label: '朋友圈-类别-学历', hint: '决策影响' },
+      { key: 'fatherCompanionTime', label: '陪伴时间 & 情况', hint: '决策影响' }
+    ]
+  },
+  {
+    title: '带养与决策',
+    fields: [
+      { key: 'caregivingMode', label: '代养模式', hint: '决策人和带养人关系' },
+      { key: 'siblingRank', label: '家里孩子数量-排行', hint: '决策影响-家庭结构' },
+      { key: 'primaryCaregiver', label: '带养人', hint: '直接或间接获取决策人信息' },
+      { key: 'householdMembers', label: '现居一起的家庭成员', hint: '长辈、保姆、兄弟姐妹、父母全职自带' },
+      { key: 'purchaseDecisionPower', label: '购买决策权', hint: '谁主要决策？谁能阻碍决策？' },
+      { key: 'decisionInterviewTime', label: '决策人可面谈时间', hint: '判断面咨或签单时间，是否属于A类' }
+    ]
+  }
+]
+
+const studentProfileBlank = () =>
+  Object.fromEntries(studentProfileSections.flatMap((section) => section.fields.map((field) => [field.key, ''])))
+
 const config = computed(() => {
   const map = {
     students: { title: '学生管理', action: '新增学生', empty: '暂无学生' },
@@ -51,7 +92,8 @@ const blankDraft = () => {
       phone: '',
       classId: props.state.classes[0]?.id,
       status: '在读',
-      note: ''
+      note: '',
+      ...studentProfileBlank()
     }
   }
   if (props.entity === 'classes') {
@@ -236,22 +278,35 @@ onBeforeUnmount(() => cleanupMobileMedia())
       </div>
 
       <template v-if="entity === 'students'">
-        <div class="form-grid">
-          <label>姓名<input v-model="draft.name" /></label>
-          <label>小名<input v-model="draft.nickname" /></label>
-          <label>年龄<input v-model="draft.age" type="number" /></label>
-          <label>
-            所属班级
-            <AdaptiveSelect v-model="draft.classId" :options="state.classes.map((klass) => ({ label: klass.name, value: klass.id }))" />
-          </label>
-          <label>家长称呼<input v-model="draft.parent" /></label>
-          <label>家长电话<input v-model="draft.phone" /></label>
-          <label>
-            状态
-            <AdaptiveSelect v-model="draft.status" :options="['在读', '停课', '请假', '退费']" />
-          </label>
-          <label class="wide">备注<textarea v-model="draft.note" rows="5" /></label>
-        </div>
+        <section class="master-form-section">
+          <strong>基础信息</strong>
+          <div class="form-grid">
+            <label>姓名<input v-model="draft.name" /></label>
+            <label>小名<input v-model="draft.nickname" /></label>
+            <label>年龄<input v-model="draft.age" type="number" /></label>
+            <label>
+              所属班级
+              <AdaptiveSelect v-model="draft.classId" :options="state.classes.map((klass) => ({ label: klass.name, value: klass.id }))" />
+            </label>
+            <label>家长称呼<input v-model="draft.parent" /></label>
+            <label>家长电话<input v-model="draft.phone" /></label>
+            <label>
+              状态
+              <AdaptiveSelect v-model="draft.status" :options="['在读', '停课', '请假', '退费']" />
+            </label>
+            <label class="wide">备注<textarea v-model="draft.note" rows="4" /></label>
+          </div>
+        </section>
+
+        <section v-for="section in studentProfileSections" :key="section.title" class="master-form-section">
+          <strong>{{ section.title }}</strong>
+          <div class="form-grid">
+            <label v-for="field in section.fields" :key="field.key">
+              {{ field.label }}
+              <input v-model="draft[field.key]" :placeholder="field.hint" />
+            </label>
+          </div>
+        </section>
       </template>
 
       <template v-if="entity === 'classes'">

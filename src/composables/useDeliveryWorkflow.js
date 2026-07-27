@@ -1932,6 +1932,7 @@ export function useDeliveryWorkflow() {
 
   const addStudent = (payload) => {
     const student = {
+      ...payload,
       id: nextId(students),
       name: payload.name || '新学生',
       nickname: payload.nickname || payload.name || '新学生',
@@ -1941,8 +1942,8 @@ export function useDeliveryWorkflow() {
       classId: Number(payload.classId) || classes[0]?.id,
       status: payload.status || '在读',
       note: payload.note || '',
-      works: 0,
-      highlights: 0
+      works: payload.works || 0,
+      highlights: payload.highlights || 0
     }
     students.push(student)
     const klass = classes.find((item) => item.id === student.classId)

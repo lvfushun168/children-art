@@ -5327,6 +5327,23 @@ textarea:focus,
   min-width: 0;
 }
 
+.master-form-section {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.master-form-section + .master-form-section {
+  margin-top: 12px;
+}
+
+.master-form-section > strong {
+  color: var(--color-heading);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(220px, 1fr));

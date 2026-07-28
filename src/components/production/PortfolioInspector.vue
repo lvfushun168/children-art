@@ -32,7 +32,7 @@ const roleLabels = {
   body: '正文',
   meta: '课次信息',
   caption: '图注',
-  footer: '页脚',
+  stat: '统计',
   cover: '主图'
 }
 
@@ -46,22 +46,15 @@ const crop = computed(() => resolved.value?.crop || { scale: 1, x: 50, y: 50 })
 const poolRecords = computed(() => props.state.orderedProjectRecords(props.project))
 const issues = computed(() => props.state.portfolioIssuesFor(props.project))
 const errorCount = computed(() => issues.value.filter((issue) => issue.level === 'error').length)
-const worksPerPageOptions = [1, 2, 4]
+const currentRecordId = computed(() => resolved.value?.record?.id || null)
 
 const slotText = computed({
   get: () => (projectField.value ? props.project[projectField.value] || '' : resolved.value?.text || ''),
-  set: (value) => {
-    if (projectField.value) {
-      props.project[projectField.value] = value
-      return
-    }
-    props.state.setSlotText(props.project, props.page, props.activeSlot, value)
-  }
+  set: (value) => props.state.setSlotText(props.project, props.page, props.activeSlot, value)
 })
 
 const setCrop = (patch) => props.state.setSlotCrop(props.project, props.page, props.activeSlot, patch)
 const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project, props.page, props.activeSlot, recordId)
-const currentRecordId = computed(() => resolved.value?.record?.id || null)
 </script>
 
 <template>
@@ -70,7 +63,7 @@ const currentRecordId = computed(() => resolved.value?.record?.id || null)
       <header class="pf-inspector-head">
         <div>
           <span>第 {{ pageIndex + 1 }} 页 · {{ roleLabels[activeSlot.role] || (activeSlot.type === 'image' ? '图片位' : '文字位') }}</span>
-          <strong>{{ activeSlot.type === 'image' ? '图片槽位' : '文字槽位' }}</strong>
+          <strong>{{ activeSlot.type === 'image' ? '替换图片' : '修改文字' }}</strong>
         </div>
         <button class="ghost" @click="emit('clearSelection')">取消选中</button>
       </header>
@@ -82,7 +75,6 @@ const currentRecordId = computed(() => resolved.value?.record?.id || null)
         </div>
         <p v-if="resolved.record" class="pf-inspector-note">
           {{ resolved.record.title || resolved.record.course }} · {{ resolved.record.date }}
-          <em v-if="resolved.record.pixelWidth">{{ resolved.record.pixelWidth }}×{{ resolved.record.pixelHeight }}</em>
         </p>
         <p v-else class="pf-inspector-note missing">从下方素材池选一件作品放进来。</p>
 
@@ -95,7 +87,7 @@ const currentRecordId = computed(() => resolved.value?.record?.id || null)
             @click="chooseRecord(record.id)"
           >
             <img :src="record.artwork" :alt="record.studentName" />
-            <small>{{ record.studentName }}</small>
+            <small>{{ record.date }}</small>
           </button>
         </div>
 
@@ -121,37 +113,34 @@ const currentRecordId = computed(() => resolved.value?.record?.id || null)
 
       <section v-else class="pf-inspector-group">
         <div class="mini-head">
-          <span>{{ projectField ? '册子文字（改一次，全册生效）' : '本页文字' }}</span>
+          <span>{{ projectField ? '作品册文字' : '本页文字' }}</span>
           <strong :class="{ 'missing-text': textLength > capacity }">{{ textLength }}/{{ capacity }} 字</strong>
         </div>
         <textarea v-model="slotText" rows="8" placeholder="输入文字内容" />
-        <small v-if="textLength > capacity" class="missing-text">超出这个版式的建议字数，可能会排不下，可改短或换版式。</small>
-        <div class="button-pair">
-          <button
-            v-if="!projectField"
-            class="ghost"
-            :disabled="!resolved.edited"
-            @click="state.resetSlotText(project, page, activeSlot)"
-          >
-            恢复为档案数据
-          </button>
-          <span v-if="!projectField && resolved.edited" class="pf-inspector-tag">已手动改写</span>
-        </div>
+        <small v-if="textLength > capacity" class="missing-text">文字偏长，导出前建议压缩一点。</small>
+        <button
+          v-if="!projectField"
+          class="ghost"
+          :disabled="!resolved.edited"
+          @click="state.resetSlotText(project, page, activeSlot)"
+        >
+          恢复档案文字
+        </button>
       </section>
     </template>
 
     <template v-else>
       <header class="pf-inspector-head">
         <div>
-          <span>整册设置</span>
+          <span>A4 横向作品册</span>
           <strong>{{ project.pages.length }} 页 · {{ state.portfolioTemplateFor(project).name }}</strong>
         </div>
       </header>
 
       <section class="pf-inspector-group">
         <div class="mini-head">
-          <span>成册体检</span>
-          <strong :class="errorCount ? 'missing-text' : 'ok-text'">{{ errorCount ? `${errorCount} 项必须处理` : '可以导出' }}</strong>
+          <span>导出前检查</span>
+          <strong :class="errorCount ? 'missing-text' : 'ok-text'">{{ errorCount ? `${errorCount} 项需处理` : '可以导出' }}</strong>
         </div>
         <article
           v-for="issue in issues"
@@ -163,16 +152,15 @@ const currentRecordId = computed(() => resolved.value?.record?.id || null)
             <strong>{{ issue.title }}</strong>
             <small>{{ issue.detail }}</small>
           </div>
-          <button v-if="issue.action === 'pad'" class="ghost" @click="state.padPortfolioPages(project)">补空白页</button>
-          <button v-else-if="issue.pageNos.length" class="ghost" @click="emit('focusPage', issue.pageNos[0] - 1)">
+          <button v-if="issue.pageNos.length" class="ghost" @click="emit('focusPage', issue.pageNos[0] - 1)">
             去第 {{ issue.pageNos[0] }} 页
           </button>
         </article>
-        <p v-if="!issues.length" class="pf-inspector-note">没有发现问题，可以进入导出。</p>
+        <p v-if="!issues.length" class="pf-inspector-note">没有发现缺图、缺文字或孔位遮挡问题。</p>
       </section>
 
       <section class="pf-inspector-group">
-        <div class="mini-head"><span>册子风格</span></div>
+        <div class="mini-head"><span>作品册设置</span></div>
         <div class="pf-choice-row">
           <button
             v-for="theme in state.bookThemes"
@@ -199,25 +187,7 @@ const currentRecordId = computed(() => resolved.value?.record?.id || null)
           <label><input v-model="project.book.showCourse" type="checkbox" /> 显示课程主题</label>
           <label><input v-model="project.book.showWatermark" type="checkbox" /> 显示机构水印</label>
         </div>
-      </section>
-
-      <section class="pf-inspector-group">
-        <div class="mini-head">
-          <span>每页作品数</span>
-          <strong>{{ project.book.worksPerPage }} 件/页</strong>
-        </div>
-        <div class="pf-choice-row">
-          <button
-            v-for="count in worksPerPageOptions"
-            :key="count"
-            :class="{ selected: project.book.worksPerPage === count }"
-            @click="project.book.worksPerPage = count"
-          >
-            {{ count }} 件
-          </button>
-        </div>
-        <small class="pf-inspector-note">改完点下面的按钮会按新密度重新铺页，手动改写过的文字会被重置。</small>
-        <button class="secondary" @click="state.autoPaginate(project)">按当前设置重新套版</button>
+        <button class="secondary" @click="state.autoPaginate(project)">按当前作品重新生成页卡</button>
       </section>
     </template>
   </aside>

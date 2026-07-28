@@ -2377,6 +2377,7 @@ export function useDeliveryWorkflow() {
     updateExtraTask,
     nextStep,
     prevStep,
+    nowText,
     notify,
     pulseComment
   }

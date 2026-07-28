@@ -2,6 +2,326 @@
   box-sizing: border-box;
 }
 
+/* ---------- 制作中心 v2 · A4 横向作品册 ---------- */
+.pf-demo-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(241, 248, 244, 0.92)),
+    var(--panel-bg);
+}
+
+.pf-demo-hero span,
+.pf-export-actions span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pf-demo-hero h2 {
+  margin: 8px 0;
+  max-width: 760px;
+  font-size: 28px;
+  line-height: 1.25;
+}
+
+.pf-demo-hero p {
+  margin: 0;
+  max-width: 720px;
+  color: var(--muted);
+}
+
+.pf-studio-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.pf-landscape-layout {
+  grid-template-columns: minmax(150px, 180px) minmax(0, 1fr) minmax(280px, 320px);
+}
+
+.pf-landscape-stage {
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow: auto;
+}
+
+.pf-landscape-stage .pf-page {
+  width: min(100%, 920px);
+}
+
+.pf-page {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: #f7f7f2;
+  border: 1px solid rgba(20, 35, 30, 0.12);
+  box-shadow: 0 24px 60px rgba(24, 42, 34, 0.12);
+  color: #17221d;
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.pf-page::before {
+  content: "";
+  position: absolute;
+  inset: 7.5% 5.5% 7% 5.5%;
+  border: 1px solid rgba(36, 70, 58, 0.06);
+  pointer-events: none;
+}
+
+.pf-brand-lock {
+  position: absolute;
+  left: 7%;
+  top: 7%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #17221d;
+  pointer-events: none;
+}
+
+.pf-brand-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 2px solid #1b5f4c;
+  border-radius: 50%;
+  color: #1b5f4c;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.pf-brand-lock strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.pf-brand-lock small {
+  display: block;
+  color: #4d5d56;
+  font-size: 9px;
+}
+
+.pf-punch-safe {
+  position: absolute;
+  z-index: 5;
+  border-left: 1px dashed rgba(33, 95, 76, 0.28);
+  border-bottom: 1px dashed rgba(33, 95, 76, 0.28);
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(39, 121, 91, 0.05),
+    rgba(39, 121, 91, 0.05) 4px,
+    rgba(255, 255, 255, 0.08) 4px,
+    rgba(255, 255, 255, 0.08) 8px
+  );
+  pointer-events: none;
+}
+
+.pf-punch-safe span {
+  position: absolute;
+  top: 34%;
+  right: 34%;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(33, 95, 76, 0.35);
+  border-radius: 50%;
+  background: rgba(247, 247, 242, 0.88);
+}
+
+.pf-side-label {
+  position: absolute;
+  left: 4%;
+  top: 44%;
+  z-index: 3;
+  color: #17221d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.05;
+  writing-mode: vertical-rl;
+  opacity: 0.75;
+}
+
+.pf-year-mark {
+  position: absolute;
+  right: 4.2%;
+  top: 43%;
+  z-index: 3;
+  padding: 2px 4px;
+  background: #17221d;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+}
+
+.pf-folio {
+  position: absolute;
+  right: 4.4%;
+  bottom: 7%;
+  z-index: 3;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.pf-watermark {
+  position: absolute;
+  right: 7%;
+  top: 8%;
+  z-index: 2;
+  color: rgba(23, 34, 29, 0.45);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.pf-slot {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.pf-slot-image {
+  background: #fff;
+  box-shadow: 12px 18px 22px rgba(23, 34, 29, 0.16);
+}
+
+.pf-slot-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.pf-slot-text {
+  white-space: pre-line;
+}
+
+.pf-role-title .pf-text {
+  display: block;
+  font-size: clamp(16px, 3.4vw, 46px);
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.pf-role-subtitle .pf-text,
+.pf-role-meta .pf-text,
+.pf-role-caption .pf-text {
+  display: block;
+  color: #33443c;
+  font-size: clamp(8px, 1vw, 14px);
+  line-height: 1.45;
+}
+
+.pf-role-body .pf-text {
+  display: block;
+  color: #26352f;
+  font-size: clamp(9px, 1.15vw, 16px);
+  line-height: 1.65;
+}
+
+.pf-role-stat .pf-text {
+  display: block;
+  color: #122a22;
+  font-size: clamp(18px, 2.4vw, 34px);
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.pf-page-editable .pf-slot {
+  cursor: pointer;
+}
+
+.pf-page-editable .pf-slot:not(:disabled):hover {
+  outline: 2px solid rgba(32, 129, 92, 0.45);
+  outline-offset: 3px;
+}
+
+.pf-page-editable .pf-slot.selected {
+  outline: 3px solid #1f8a62;
+  outline-offset: 4px;
+}
+
+.pf-page-type-cover .pf-role-title .pf-text {
+  font-size: clamp(30px, 5.2vw, 64px);
+}
+
+.pf-theme-clean {
+  background: #fff;
+}
+
+.pf-export-ready {
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+}
+
+.pf-export-actions {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(21, 57, 43, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.pf-export-actions strong {
+  display: block;
+  margin: 4px 0;
+  word-break: break-all;
+}
+
+.pf-thumb .pf-page {
+  width: 100%;
+  box-shadow: none;
+}
+
+.pf-candidate .pf-page {
+  width: 150px;
+  box-shadow: none;
+}
+
+.pf-export-render-source {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 1122px;
+  pointer-events: none;
+  opacity: 1;
+}
+
+.pf-export-render-source .pf-page {
+  width: 1122px;
+  margin-bottom: 24px;
+  box-shadow: none;
+}
+
+@media (max-width: 1100px) {
+  .pf-landscape-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pf-page-rail,
+  .pf-inspector {
+    order: 2;
+  }
+
+  .pf-export-ready {
+    grid-template-columns: 1fr;
+  }
+}
+
 :root {
   --font-sans: 'Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --color-text: #171a22;
@@ -7652,5 +7972,564 @@ textarea:focus,
     padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
     background: color-mix(in srgb, var(--color-surface-warm) 96%, transparent);
     box-shadow: 0 -10px 24px color-mix(in srgb, var(--color-ink) 8%, transparent);
+  }
+}
+
+/* ---------- 制作中心 v2 最终覆盖：横向 A4 页卡 ---------- */
+.pf-landscape-layout {
+  grid-template-columns: minmax(150px, 180px) minmax(0, 1fr) minmax(280px, 320px);
+}
+
+.pf-landscape-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 920px);
+  place-items: center;
+  padding: 20px;
+  overflow: auto;
+}
+
+.pf-landscape-stage .pf-page {
+  width: min(100%, 920px);
+}
+
+.pf-page {
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(20, 35, 30, 0.12);
+  border-radius: 4px;
+  background: #f7f7f2;
+  color: #17221d;
+  box-shadow: 0 24px 60px rgba(24, 42, 34, 0.12);
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.pf-page::before {
+  content: "";
+  position: absolute;
+  inset: 7.5% 5.5% 7% 5.5%;
+  border: 1px solid rgba(36, 70, 58, 0.06);
+  pointer-events: none;
+}
+
+.pf-brand-lock {
+  position: absolute;
+  left: 7%;
+  top: 7%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #17221d;
+  pointer-events: none;
+}
+
+.pf-brand-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 2px solid #1b5f4c;
+  border-radius: 50%;
+  color: #1b5f4c;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.pf-brand-lock strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.pf-brand-lock small {
+  display: block;
+  color: #4d5d56;
+  font-size: 9px;
+}
+
+.pf-punch-safe {
+  position: absolute;
+  z-index: 5;
+  border-left: 1px dashed rgba(33, 95, 76, 0.28);
+  border-bottom: 1px dashed rgba(33, 95, 76, 0.28);
+  background: repeating-linear-gradient(-45deg, rgba(39, 121, 91, 0.05), rgba(39, 121, 91, 0.05) 4px, rgba(255, 255, 255, 0.08) 4px, rgba(255, 255, 255, 0.08) 8px);
+  pointer-events: none;
+}
+
+.pf-punch-safe span {
+  position: absolute;
+  top: 34%;
+  right: 34%;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(33, 95, 76, 0.35);
+  border-radius: 50%;
+  background: rgba(247, 247, 242, 0.88);
+}
+
+.pf-side-label {
+  position: absolute;
+  left: 4%;
+  top: 44%;
+  z-index: 3;
+  color: #17221d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.05;
+  writing-mode: vertical-rl;
+  opacity: 0.75;
+}
+
+.pf-year-mark {
+  position: absolute;
+  right: 4.2%;
+  top: 43%;
+  z-index: 3;
+  padding: 2px 4px;
+  background: #17221d;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+}
+
+.pf-folio {
+  position: absolute;
+  right: 4.4%;
+  bottom: 7%;
+  left: auto;
+  z-index: 3;
+  transform: none;
+  font-weight: 800;
+  font-size: 12px;
+  opacity: 1;
+}
+
+.pf-watermark {
+  position: absolute;
+  right: 7%;
+  top: 8%;
+  bottom: auto;
+  z-index: 2;
+  color: rgba(23, 34, 29, 0.45);
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.pf-slot {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  overflow: hidden;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.pf-slot-image {
+  background: #fff;
+  box-shadow: 12px 18px 22px rgba(23, 34, 29, 0.16);
+}
+
+.pf-slot-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.pf-text {
+  display: block;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.pf-role-title .pf-text {
+  font-size: clamp(10px, 3.4cqw, 46px);
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.pf-page-type-cover .pf-role-title .pf-text {
+  font-size: clamp(14px, 5.2cqw, 64px);
+}
+
+.pf-role-subtitle .pf-text,
+.pf-role-meta .pf-text,
+.pf-role-caption .pf-text {
+  color: #33443c;
+  font-size: clamp(7px, 1cqw, 14px);
+  line-height: 1.45;
+}
+
+.pf-role-body .pf-text {
+  color: #26352f;
+  font-size: clamp(7px, 1.15cqw, 16px);
+  line-height: 1.65;
+}
+
+.pf-role-stat .pf-text {
+  color: #122a22;
+  font-size: clamp(10px, 2.4cqw, 34px);
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.pf-page-editable .pf-slot {
+  outline: 0;
+  cursor: pointer;
+}
+
+.pf-page-editable .pf-slot:not(:disabled):hover {
+  outline: 2px solid rgba(32, 129, 92, 0.45);
+  outline-offset: 3px;
+}
+
+.pf-page-editable .pf-slot.selected {
+  outline: 3px solid #1f8a62;
+  outline-offset: 4px;
+}
+
+.pf-theme-clean {
+  background: #fff;
+}
+
+.pf-export-ready {
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+}
+
+.pf-export-actions {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(21, 57, 43, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.pf-export-actions strong {
+  display: block;
+  margin: 4px 0;
+  word-break: break-all;
+}
+
+.pf-thumb .pf-page,
+.pf-candidate .pf-page {
+  box-shadow: none;
+}
+
+.pf-thumb .pf-page {
+  max-width: 130px;
+}
+
+.pf-candidate .pf-page {
+  width: 150px;
+}
+
+.pf-export-render-source {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 1122px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.pf-export-render-source .pf-page {
+  width: 1122px;
+  margin-bottom: 24px;
+  box-shadow: none;
+}
+
+@media (max-width: 1100px) {
+  .pf-landscape-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pf-export-ready {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 制作中心 v3 · PPT 工作台接入 ---------- */
+.pc-create-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.55fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.pc-create-main,
+.pc-side-list,
+.pc-editor-page {
+  display: grid;
+  gap: 16px;
+}
+
+.pc-template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pc-template-card {
+  min-height: 176px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.pc-template-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--border));
+}
+
+.pc-template-card.selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.pc-template-card span,
+.pc-create-preview span,
+.pc-upload-block span,
+.pc-export-box span,
+.pc-editor-head span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pc-template-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 17px;
+}
+
+.pc-template-card small {
+  display: block;
+  margin-top: 12px;
+  min-height: 44px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.pc-template-card em {
+  display: block;
+  margin-top: 12px;
+  color: var(--color-primary);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.pc-create-form {
+  margin-top: 8px;
+}
+
+.pc-create-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--panel-bg));
+}
+
+.pc-create-preview strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 22px;
+}
+
+.pc-editor-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.pc-editor-head strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 22px;
+}
+
+.pc-editor-head small {
+  color: var(--muted);
+}
+
+.pc-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pc-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  min-height: 720px;
+}
+
+.pc-ppt-stage {
+  min-width: 0;
+  min-height: 720px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.pptist-workspace {
+  width: 100%;
+  height: 720px;
+  min-height: 720px;
+  background: #f6f7f8;
+}
+
+.pc-asset-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  max-height: 720px;
+  overflow: hidden;
+}
+
+.pc-search,
+.pc-export-box input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--input-bg, #fff);
+  color: var(--text);
+}
+
+.pc-inline-check {
+  padding: 0;
+}
+
+.pc-asset-list {
+  display: grid;
+  gap: 10px;
+  max-height: 390px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.pc-asset-card {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+}
+
+.pc-asset-card img {
+  width: 78px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.pc-asset-card strong,
+.pc-asset-card small,
+.pc-asset-card em {
+  display: block;
+}
+
+.pc-asset-card small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pc-asset-card em {
+  margin-top: 6px;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.pc-asset-card .button-pair {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
+.pc-upload-block,
+.pc-export-box {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-bg) 88%, #eef5f2);
+}
+
+.pc-upload-block strong,
+.pc-export-box strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.pc-upload-button {
+  display: inline-grid;
+  place-items: center;
+  min-height: 38px;
+  cursor: pointer;
+}
+
+.pc-upload-button input {
+  display: none;
+}
+
+.pc-export-box small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+@media (max-width: 1180px) {
+  .pc-create-shell,
+  .pc-workbench,
+  .pc-editor-head {
+    grid-template-columns: 1fr;
+  }
+
+  .pc-asset-panel {
+    max-height: none;
+  }
+
+  .pc-asset-list {
+    max-height: 520px;
+  }
+}
+
+@media (max-width: 760px) {
+  .pc-template-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pc-create-preview,
+  .pc-editor-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

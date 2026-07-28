@@ -46,6 +46,16 @@ const pageStyle = computed(() => ({
   aspectRatio: `${props.pageSize.widthMm} / ${props.pageSize.heightMm}`
 }))
 
+const safeAreaStyle = computed(() => {
+  const area = props.pageSize.punchSafeArea || { x: 88.55, y: 0, w: 11.45, h: 16.2 }
+  return {
+    left: `${area.x}%`,
+    top: `${area.y}%`,
+    width: `${area.w}%`,
+    height: `${area.h}%`
+  }
+})
+
 const renderSlots = computed(() =>
   props.layout.slots.map((slot) => ({ slot, resolved: props.resolveSlot(props.project, props.page, slot) }))
 )
@@ -73,9 +83,20 @@ const onDrop = (slot, event) => {
 <template>
   <div
     class="pf-page"
-    :class="[`pf-theme-${project.book.theme}`, { 'pf-page-editable': editable, 'pf-page-blank': page.kind === 'blank' }]"
+    :class="[`pf-theme-${project.book.theme}`, `pf-page-type-${page.pageType}`, { 'pf-page-editable': editable }]"
     :style="pageStyle"
   >
+    <div class="pf-brand-lock">
+      <span class="pf-brand-mark">梦</span>
+      <div>
+        <strong>Dream Chaser</strong>
+        <small>One painting after another</small>
+      </div>
+    </div>
+    <div class="pf-punch-safe" :style="safeAreaStyle">
+      <span></span>
+    </div>
+
     <component
       v-for="entry in renderSlots"
       :key="entry.slot.key"
@@ -103,7 +124,9 @@ const onDrop = (slot, event) => {
       </template>
     </component>
 
-    <span v-if="watermark && page.kind === 'work'" class="pf-watermark">{{ watermark }}</span>
-    <span v-if="page.kind !== 'cover'" class="pf-folio">{{ pageNo }}</span>
+    <span v-if="watermark" class="pf-watermark">{{ watermark }}</span>
+    <span class="pf-side-label">DREAM<br />CHASER</span>
+    <span class="pf-year-mark">20<br />26</span>
+    <span class="pf-folio">{{ pageNo }}</span>
   </div>
 </template>

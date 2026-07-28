@@ -5962,7 +5962,7 @@ textarea:focus,
   color: var(--color-muted);
 }
 
-/* ---------- 制作中心 · 项目列表 ---------- */
+/* ---------- 制作中心 · 旧版作品册辅助样式 ---------- */
 
 .production-stepper {
   grid-template-columns: repeat(4, 1fr);
@@ -8263,27 +8263,131 @@ textarea:focus,
 /* ---------- 制作中心 v3 · PPT 工作台接入 ---------- */
 .pc-create-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.55fr);
   gap: 16px;
   align-items: start;
 }
 
 .pc-create-main,
-.pc-side-list,
 .pc-editor-page {
   display: grid;
   gap: 16px;
 }
 
-.pc-template-grid {
+.pc-start-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(360px, 0.95fr) minmax(0, 1.05fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.pc-template-picker,
+.pc-start-settings {
+  display: grid;
   gap: 12px;
 }
 
-.pc-template-card {
-  min-height: 176px;
-  padding: 18px;
+.pc-step-panel {
+  max-width: 860px;
+}
+
+.pc-template-step {
+  display: grid;
+  gap: 14px;
+}
+
+.pc-picked-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--panel-bg));
+}
+
+.pc-picked-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pc-picked-summary strong,
+.pc-picked-summary small {
+  display: block;
+}
+
+.pc-picked-summary strong {
+  margin-top: 4px;
+}
+
+.pc-picked-summary small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.pc-record-preview {
+  max-width: 860px;
+}
+
+.pc-record-list {
+  display: grid;
+  gap: 8px;
+  max-height: 300px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.pc-record-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+}
+
+.pc-record-row img {
+  width: 52px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.pc-record-row strong,
+.pc-record-row small {
+  display: block;
+}
+
+.pc-record-row small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pc-record-row em {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.pc-template-list {
+  display: grid;
+  gap: 8px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.pc-template-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 72px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel-bg);
@@ -8293,17 +8397,26 @@ textarea:focus,
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.pc-template-card:hover {
+.pc-template-row:hover {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--color-primary) 35%, var(--border));
 }
 
-.pc-template-card.selected {
+.pc-template-row.selected {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 12%, transparent);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
-.pc-template-card span,
+.pc-template-row.selected small {
+  color: color-mix(in srgb, var(--color-primary) 72%, var(--muted));
+}
+
+.pc-template-row.selected em {
+  color: var(--color-primary);
+}
+
 .pc-create-preview span,
 .pc-upload-block span,
 .pc-export-box span,
@@ -8313,30 +8426,57 @@ textarea:focus,
   font-size: 12px;
 }
 
-.pc-template-card strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 17px;
-}
-
-.pc-template-card small {
-  display: block;
-  margin-top: 12px;
-  min-height: 44px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.pc-template-card em {
-  display: block;
-  margin-top: 12px;
+.pc-template-preview {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--panel-bg));
   color: var(--color-primary);
+  font-weight: 900;
+}
+
+.pc-template-row.selected .pc-template-preview {
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+}
+
+.pc-template-copy {
+  min-width: 0;
+  display: block;
+}
+
+.pc-template-copy strong {
+  display: block;
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pc-template-copy small {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pc-template-row em {
+  display: block;
+  color: var(--color-primary);
+  font-size: 12px;
   font-style: normal;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .pc-create-form {
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .pc-create-preview {
@@ -8536,6 +8676,7 @@ textarea:focus,
 
 @media (max-width: 1180px) {
   .pc-create-shell,
+  .pc-start-grid,
   .pc-workbench,
   .pc-editor-head {
     grid-template-columns: 1fr;
@@ -8551,8 +8692,17 @@ textarea:focus,
 }
 
 @media (max-width: 760px) {
-  .pc-template-grid {
-    grid-template-columns: 1fr;
+  .pc-picked-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pc-template-row {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .pc-template-row em {
+    grid-column: 2;
   }
 
   .pc-create-preview,

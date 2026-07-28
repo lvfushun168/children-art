@@ -27,8 +27,10 @@ const workspaceRef = ref(null)
 const latestDeck = ref(null)
 const editorDocument = ref(null)
 const editorKey = ref(0)
+const setupStep = ref('student')
 const exporting = ref(false)
 const templateName = ref('')
+const templateKeyword = ref('')
 const showTemplateSaveDialog = ref(false)
 const leaveAfterTemplateDecision = ref(false)
 const createDraft = reactive({
@@ -50,6 +52,15 @@ const template = computed(() => (project.value ? props.state.portfolioTemplateFo
 const selectedTemplate = computed(() =>
   props.state.portfolioTemplates.find((item) => item.id === createDraft.templateId) || props.state.portfolioTemplates[0]
 )
+const filteredTemplates = computed(() => {
+  const keyword = templateKeyword.value.trim()
+  if (!keyword) return props.state.portfolioTemplates
+  return props.state.portfolioTemplates.filter((item) =>
+    [item.name, item.desc, item.projectType]
+      .filter(Boolean)
+      .some((value) => String(value).includes(keyword))
+  )
+})
 const projectRecords = computed(() => (project.value ? props.state.orderedProjectRecords(project.value) : []))
 const exportFileName = computed(() => (project.value ? props.state.portfolioFileNameFor(project.value) : '作品册.pdf'))
 const allProjectRecords = computed(() => projectRecords.value)
@@ -94,6 +105,18 @@ const studentOptions = computed(() =>
   }))
 )
 
+const goTemplateStep = () => {
+  if (!createDraft.studentId) {
+    props.state.notify('请先选择学生')
+    return
+  }
+  if (!selectedStudentRecords.value.length) {
+    props.state.notify('当前范围内没有可用作品')
+    return
+  }
+  setupStep.value = 'template'
+}
+
 const openProjectInEditor = (item) => {
   props.state.openPortfolioProject(item)
   if (!item.deck) props.state.generatePortfolioDeck(item)
@@ -137,6 +160,7 @@ const leaveWorkbench = () => {
   props.state.closePortfolioProject()
   editorDocument.value = null
   latestDeck.value = null
+  setupStep.value = 'template'
   showTemplateSaveDialog.value = false
   leaveAfterTemplateDecision.value = false
 }
@@ -234,6 +258,7 @@ watch(
   () => props.handoff,
   (payload) => {
     if (!payload?.recordIds?.length) return
+    setupStep.value = 'template'
     createDraft.studentId = payload.studentId ? String(payload.studentId) : ''
     const created = props.state.createPortfolioProject({
       templateId: createDraft.templateId,
@@ -253,86 +278,123 @@ watch(
   <div v-if="state.toast" class="toast">{{ state.toast }}</div>
 
   <template v-if="!project">
-    <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
+    <button v-if="groupLabel && setupStep === 'student'" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
+    <button v-else-if="setupStep === 'template'" class="module-back-link" type="button" @click="setupStep = 'student'">← 返回上一步</button>
     <PageHead eyebrow="课后工作 · 学期作品册" title="制作中心" />
 
     <section class="pc-create-shell">
       <section class="panel pc-create-main">
         <div class="section-head">
           <div>
-            <span>新建作品册</span>
-            <strong>选择模板、学生和学期</strong>
+            <span>{{ setupStep === 'student' ? '新建作品册' : '选择模板' }}</span>
+            <strong>{{ setupStep === 'student' ? '先选择学生和作品范围' : '选择一个模板进入工作台' }}</strong>
           </div>
         </div>
 
-        <div class="pc-template-grid">
-          <button
-            v-for="item in state.portfolioTemplates"
-            :key="item.id"
-            class="pc-template-card"
-            :class="{ selected: createDraft.templateId === item.id }"
-            @click="createDraft.templateId = item.id"
-          >
-            <span>{{ item.projectType }}</span>
-            <strong>{{ item.name }}</strong>
-            <small>{{ item.desc }}</small>
-            <em>{{ item.slideCount || item.deck?.slides?.length || '自动' }} 页左右 · A4 横向</em>
-          </button>
-        </div>
+        <template v-if="setupStep === 'student'">
+          <section class="pc-start-settings pc-step-panel">
+            <div class="form-grid pc-create-form">
+              <label class="wide">
+                学生
+                <select v-model="createDraft.studentId">
+                  <option value="">请选择学生</option>
+                  <option v-for="option in studentOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                </select>
+              </label>
+              <label>
+                学期
+                <input v-model="createDraft.termLabel" placeholder="例如：2026 春季" />
+              </label>
+              <label class="archive-check">
+                <input v-model="createDraft.highlightOnly" type="checkbox" />
+                <span>只使用高光作品</span>
+              </label>
+              <label class="wide">作品册标题<input v-model="createDraft.title" placeholder="留空使用学生姓名和学期命名" /></label>
+            </div>
+            <DateRangeFilter v-model:start="createDraft.dateStart" v-model:end="createDraft.dateEnd" />
 
-        <div class="form-grid pc-create-form">
-          <label class="wide">
-            学生
-            <select v-model="createDraft.studentId">
-              <option value="">请选择学生</option>
-              <option v-for="option in studentOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
-          <label>
-            学期
-            <input v-model="createDraft.termLabel" placeholder="例如：2026 春季" />
-          </label>
-          <label class="archive-check">
-            <input v-model="createDraft.highlightOnly" type="checkbox" />
-            <span>只使用高光作品</span>
-          </label>
-          <label class="wide">作品册标题<input v-model="createDraft.title" placeholder="留空使用学生姓名和学期命名" /></label>
-        </div>
-        <DateRangeFilter v-model:start="createDraft.dateStart" v-model:end="createDraft.dateEnd" />
+            <section class="pc-create-preview">
+              <div>
+                <span>生成预估</span>
+                <strong>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</strong>
+                <small>{{ createDraft.studentId ? '下一步选择模板' : '请选择学生' }}</small>
+              </div>
+              <button class="primary" :disabled="!selectedStudentRecords.length" @click="goTemplateStep">下一步：选择模板</button>
+            </section>
+          </section>
 
-        <section class="pc-create-preview">
-          <div>
-            <span>生成预估</span>
-            <strong>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</strong>
-            <small>{{ selectedTemplate.name }}</small>
-          </div>
-          <button class="primary" :disabled="!selectedStudentRecords.length" @click="confirmCreate">进入 PPT 工作台</button>
-        </section>
-      </section>
+          <section class="pc-record-preview panel">
+            <div class="mini-head">
+              <div>
+                <span>本次作品</span>
+                <strong>{{ selectedStudentRecords.length }} 幅</strong>
+              </div>
+            </div>
+            <div class="pc-record-list">
+              <article v-for="record in selectedStudentRecords" :key="record.id" class="pc-record-row">
+                <img :src="record.artwork" :alt="record.course" />
+                <div>
+                  <strong>{{ record.course }}</strong>
+                  <small>{{ record.date }} · {{ record.className }}</small>
+                </div>
+                <em v-if="record.highlight">高光</em>
+              </article>
+              <div v-if="!selectedStudentRecords.length" class="notice-box">
+                <small>选择学生后，这里会显示本次可进入作品册的作品。</small>
+              </div>
+            </div>
+          </section>
+        </template>
 
-      <section class="panel pc-side-list">
-        <div class="section-head">
-          <div>
-            <span>制作项目</span>
-            <strong>{{ state.visiblePortfolioProjects.length }} 个项目</strong>
-          </div>
-        </div>
-        <article v-for="item in state.visiblePortfolioProjects" :key="item.id" class="pf-project-row">
-          <button class="pf-project-main" @click="openProjectInEditor(item)">
-            <span>
-              <strong>{{ item.title }}</strong>
-              <small>{{ state.projectSubjectLabel(item) }} · {{ state.projectClassLabel(item) }} · {{ state.projectDateRangeLabel(item) }}</small>
-              <em>{{ item.recordIds.length }} 幅作品 · {{ item.deck?.slides?.length || item.pages.length || '待生成' }} 页 · {{ item.owner }}</em>
-            </span>
-          </button>
-          <div class="pf-project-side">
-            <span class="pf-status-tag" :class="item.status === '已导出' ? 'done' : ''">{{ item.status }}</span>
-            <small>{{ item.updatedAt }}</small>
-          </div>
-        </article>
-        <div v-if="!state.visiblePortfolioProjects.length" class="notice-box">
-          <small>还没有制作项目。可以从档案中心带入作品，也可以在左侧直接新建。</small>
-        </div>
+        <template v-else>
+          <section class="pc-template-step">
+            <div class="pc-picked-summary">
+              <div>
+                <span>已选条件</span>
+                <strong>{{ selectedStudentRecords[0]?.studentName || '学生' }} · {{ createDraft.termLabel }}</strong>
+                <small>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</small>
+              </div>
+            </div>
+
+            <div class="pc-template-picker">
+              <div class="mini-head">
+                <div>
+                  <span>模板库</span>
+                  <strong>{{ filteredTemplates.length }} / {{ state.portfolioTemplates.length }} 个模板</strong>
+                </div>
+              </div>
+              <input v-model="templateKeyword" class="pc-search" placeholder="搜索模板名称、风格或用途" />
+              <div class="pc-template-list">
+                <button
+                  v-for="item in filteredTemplates"
+                  :key="item.id"
+                  class="pc-template-row"
+                  :class="{ selected: createDraft.templateId === item.id }"
+                  @click="createDraft.templateId = item.id"
+                >
+                  <span class="pc-template-preview">{{ item.name.slice(0, 1) }}</span>
+                  <span class="pc-template-copy">
+                    <strong>{{ item.name }}</strong>
+                    <small>{{ item.desc }}</small>
+                  </span>
+                  <em>{{ item.slideCount || item.deck?.slides?.length || '自动' }} 页 · A4</em>
+                </button>
+                <div v-if="!filteredTemplates.length" class="notice-box">
+                  <small>没有匹配的模板。</small>
+                </div>
+              </div>
+            </div>
+
+            <section class="pc-create-preview">
+              <div>
+                <span>将使用模板</span>
+                <strong>{{ selectedTemplate.name }}</strong>
+                <small>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</small>
+              </div>
+              <button class="primary" :disabled="!selectedStudentRecords.length" @click="confirmCreate">进入 PPT 工作台</button>
+            </section>
+          </section>
+        </template>
       </section>
     </section>
   </template>
@@ -340,7 +402,7 @@ watch(
   <template v-else>
     <div class="pc-editor-page">
       <header class="pc-editor-head panel">
-        <button class="back-link" @click="backToList">← 返回制作中心</button>
+        <button class="back-link" @click="backToList">← 返回模板选择</button>
         <div>
           <span>{{ template?.name }} · A4 横向 · 右上角打孔</span>
           <strong>{{ project.title }}</strong>
@@ -436,7 +498,7 @@ watch(
       </label>
       <p>保存后，下次选择学生和学期时可以复用当前页面、文字和图片位置，再自动替换为新学生作品。</p>
       <div class="modal-actions">
-        <button v-if="leaveAfterTemplateDecision" class="ghost" @click="skipTemplateSave">不保存，直接退出</button>
+        <button v-if="leaveAfterTemplateDecision" class="ghost" @click="skipTemplateSave">不保存，返回模板选择</button>
         <button v-else class="ghost" @click="showTemplateSaveDialog = false">取消</button>
         <button class="primary" :disabled="!templateName.trim()" @click="saveAsTemplate">保存模板</button>
       </div>

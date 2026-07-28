@@ -23,13 +23,14 @@ const emit = defineEmits(['backToGroup', 'handoffConsumed'])
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
 
-const listTab = ref('create')
 const workspaceRef = ref(null)
 const latestDeck = ref(null)
 const editorDocument = ref(null)
 const editorKey = ref(0)
 const exporting = ref(false)
 const templateName = ref('')
+const showTemplateSaveDialog = ref(false)
+const leaveAfterTemplateDecision = ref(false)
 const createDraft = reactive({
   templateId: 'term-a4-landscape',
   studentId: '',
@@ -50,7 +51,6 @@ const selectedTemplate = computed(() =>
   props.state.portfolioTemplates.find((item) => item.id === createDraft.templateId) || props.state.portfolioTemplates[0]
 )
 const projectRecords = computed(() => (project.value ? props.state.orderedProjectRecords(project.value) : []))
-const projectExportJobs = computed(() => props.state.exportJobs.filter((job) => job.sourceId === project.value?.id))
 const exportFileName = computed(() => (project.value ? props.state.portfolioFileNameFor(project.value) : '作品册.pdf'))
 const allProjectRecords = computed(() => projectRecords.value)
 const visibleProjectRecords = computed(() => {
@@ -125,10 +125,20 @@ const confirmCreate = () => {
 }
 
 const backToList = () => {
+  if (project.value?.deck?.slides?.length) {
+    openTemplateSaveDialog(true)
+    return
+  }
+  leaveWorkbench()
+}
+
+const leaveWorkbench = () => {
   captureDeck()
   props.state.closePortfolioProject()
   editorDocument.value = null
   latestDeck.value = null
+  showTemplateSaveDialog.value = false
+  leaveAfterTemplateDecision.value = false
 }
 
 const captureDeck = () => {
@@ -175,6 +185,13 @@ const insertChatScreenshot = async (event) => {
   if (ok) props.state.notify('已插入聊天截图素材')
 }
 
+const openTemplateSaveDialog = (leaveAfterSave = false) => {
+  captureDeck()
+  templateName.value = templateName.value || `${props.state.projectSubjectLabel(project.value)} · ${props.state.projectDateRangeLabel(project.value)}模板`
+  leaveAfterTemplateDecision.value = leaveAfterSave
+  showTemplateSaveDialog.value = true
+}
+
 const saveAsTemplate = () => {
   const deck = captureDeck()
   if (!deck) {
@@ -183,10 +200,15 @@ const saveAsTemplate = () => {
   }
   props.state.savePortfolioDeckAsTemplate(project.value, { name: templateName.value })
   templateName.value = ''
+  showTemplateSaveDialog.value = false
+  if (leaveAfterTemplateDecision.value) leaveWorkbench()
+  leaveAfterTemplateDecision.value = false
 }
 
-const finishWithoutTemplate = () => {
-  captureDeck()
+const skipTemplateSave = () => {
+  showTemplateSaveDialog.value = false
+  leaveAfterTemplateDecision.value = false
+  leaveWorkbench()
   props.state.notify('已保留本次项目内容，模板不变')
 }
 
@@ -204,6 +226,7 @@ const recordExport = async () => {
     pageCount: deck.slides.length,
     exportedAt: props.state.nowText()
   })
+  props.state.notify('作品册导出已完成')
   exporting.value = false
 }
 
@@ -231,13 +254,9 @@ watch(
 
   <template v-if="!project">
     <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
-    <PageHead eyebrow="课后工作 · 学期作品册" title="制作中心">
-      <div class="button-pair">
-        <button class="ghost" :class="{ active: listTab === 'records' }" @click="listTab = 'records'">导出记录</button>
-      </div>
-    </PageHead>
+    <PageHead eyebrow="课后工作 · 学期作品册" title="制作中心" />
 
-    <section v-if="listTab !== 'records'" class="pc-create-shell">
+    <section class="pc-create-shell">
       <section class="panel pc-create-main">
         <div class="section-head">
           <div>
@@ -316,27 +335,6 @@ watch(
         </div>
       </section>
     </section>
-
-    <section v-else class="panel">
-      <div class="section-head">
-        <div>
-          <span>PDF 导出记录</span>
-          <strong>{{ state.exportJobs.length }} 条</strong>
-        </div>
-        <button class="ghost" @click="listTab = 'create'">返回新建</button>
-      </div>
-      <article v-for="job in state.exportJobs" :key="job.id" class="pf-export-row">
-        <span>
-          <strong>{{ job.fileName || job.title }}</strong>
-          <small>{{ job.exportType }} · {{ job.pages }} 页 · {{ job.createdBy }} · {{ job.createdAt }}</small>
-          <em>{{ job.fileUrl }}</em>
-        </span>
-        <div>
-          <span class="pf-status-tag done">{{ job.status }}</span>
-          <small>归档：{{ job.cloudPath }}</small>
-        </div>
-      </article>
-    </section>
   </template>
 
   <template v-else>
@@ -349,9 +347,8 @@ watch(
           <small>{{ state.projectSubjectLabel(project) }} · {{ state.projectClassLabel(project) }} · {{ project.recordIds.length }} 幅作品 · {{ project.deck?.slides?.length || 0 }} 页</small>
         </div>
         <div class="pc-editor-actions">
-          <button class="ghost" @click="finishWithoutTemplate">不保存为模板</button>
-          <button class="ghost" @click="saveAsTemplate">保存为新模板</button>
-          <button class="primary" :disabled="exporting" @click="recordExport">{{ exporting ? '正在记录...' : '完成并记录导出' }}</button>
+          <button class="ghost" @click="openTemplateSaveDialog(false)">保存为模板</button>
+          <button class="primary" :disabled="exporting" @click="recordExport">{{ exporting ? '正在导出...' : '导出作品册' }}</button>
         </div>
       </header>
 
@@ -417,34 +414,32 @@ watch(
               <strong>{{ exportFileName }}</strong>
               <small>{{ state.portfolioCloudPathFor(project) }}</small>
             </div>
-            <input v-model="templateName" placeholder="保存为模板时的名称" />
-            <small>PDF/PPT 导出请使用工作台内置导出菜单；点击完成后会生成系统导出记录。</small>
+            <small>PDF/PPT 导出请使用工作台内置导出菜单；需要复用本次排版时，可在顶部保存为模板。</small>
           </section>
         </aside>
       </section>
-
-      <section class="panel">
-        <div class="section-head">
-          <div>
-            <span>本项目导出记录</span>
-            <strong>{{ projectExportJobs.length }} 条</strong>
-          </div>
-        </div>
-        <article v-for="job in projectExportJobs" :key="job.id" class="pf-export-row">
-          <span>
-            <strong>{{ job.fileName }}</strong>
-            <small>{{ job.createdBy }} · {{ job.createdAt }} · {{ job.pages }} 页</small>
-            <em>{{ job.fileUrl }}</em>
-          </span>
-          <div>
-            <span class="pf-status-tag done">{{ job.status }}</span>
-            <small>归档：{{ job.cloudPath }}</small>
-          </div>
-        </article>
-        <div v-if="!projectExportJobs.length" class="notice-box">
-          <small>本项目还没有导出记录。</small>
-        </div>
-      </section>
     </div>
   </template>
+
+  <div v-if="showTemplateSaveDialog" class="modal-backdrop">
+    <section class="import-modal pc-template-modal">
+      <div class="modal-head">
+        <div>
+          <span>{{ leaveAfterTemplateDecision ? '离开工作台' : '保存模板' }}</span>
+          <strong>{{ leaveAfterTemplateDecision ? '是否把本次排版保存成新模板？' : '为本次排版命名' }}</strong>
+        </div>
+        <button class="ghost" @click="showTemplateSaveDialog = false">关闭</button>
+      </div>
+      <label>
+        模板名称
+        <input v-model="templateName" placeholder="例如：彤彤春季成长册模板" />
+      </label>
+      <p>保存后，下次选择学生和学期时可以复用当前页面、文字和图片位置，再自动替换为新学生作品。</p>
+      <div class="modal-actions">
+        <button v-if="leaveAfterTemplateDecision" class="ghost" @click="skipTemplateSave">不保存，直接退出</button>
+        <button v-else class="ghost" @click="showTemplateSaveDialog = false">取消</button>
+        <button class="primary" :disabled="!templateName.trim()" @click="saveAsTemplate">保存模板</button>
+      </div>
+    </section>
+  </div>
 </template>

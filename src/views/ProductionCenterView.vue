@@ -178,15 +178,49 @@ const onWorkspaceChange = (deck) => {
   latestDeck.value = clone(deck)
 }
 
-const insertRecordImage = async (record) => {
-  const ok = await workspaceRef.value?.insertImage?.(record)
-  if (ok) props.state.notify(`已插入作品：${record.course}`)
+const copyText = async (text, successMessage) => {
+  if (!text) {
+    props.state.notify('没有可复制的内容')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(text)
+    props.state.notify(successMessage)
+  } catch {
+    props.state.notify('复制失败，请手动选择内容复制')
+  }
 }
 
-const insertRecordText = async (record) => {
+const copyRecordImage = async (record) => {
+  if (!record?.artwork) {
+    props.state.notify('这条作品没有图片')
+    return
+  }
+  try {
+    if (window.ClipboardItem && navigator.clipboard?.write) {
+      const response = await fetch(record.artwork)
+      const blob = await response.blob()
+      if (blob.type.startsWith('image/')) {
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+        props.state.notify(`已复制图片：${record.course}`)
+        return
+      }
+    }
+    await navigator.clipboard.writeText(record.artwork)
+    props.state.notify(`已复制图片链接：${record.course}`)
+  } catch {
+    await copyText(record.artwork, `已复制图片链接：${record.course}`)
+  }
+}
+
+const copyRecordText = async (record) => {
   const text = record.feedback || record.highlightNote || record.description
-  const ok = await workspaceRef.value?.insertText?.(text, `${record.course}课评`)
-  if (ok) props.state.notify(`已插入课评：${record.course}`)
+  await copyText(text, `已复制课评：${record.course}`)
+}
+
+const dropRecordImage = async (record) => {
+  const ok = await workspaceRef.value?.insertImage?.(record)
+  if (ok) props.state.notify(`已放入作品：${record.course}`)
 }
 
 const onRecordDragStart = (event, record) => {
@@ -197,7 +231,7 @@ const onRecordDragStart = (event, record) => {
 const onWorkbenchDrop = (event) => {
   const recordId = Number(event.dataTransfer?.getData('text/portfolio-record'))
   const record = allProjectRecords.value.find((item) => item.id === recordId)
-  if (record) insertRecordImage(record)
+  if (record) dropRecordImage(record)
 }
 
 const insertChatScreenshot = async (event) => {
@@ -305,10 +339,7 @@ watch(
                 学期
                 <input v-model="createDraft.termLabel" placeholder="例如：2026 春季" />
               </label>
-              <label class="archive-check">
-                <input v-model="createDraft.highlightOnly" type="checkbox" />
-                <span>只使用高光作品</span>
-              </label>
+
               <label class="wide">作品册标题<input v-model="createDraft.title" placeholder="留空使用学生姓名和学期命名" /></label>
             </div>
             <DateRangeFilter v-model:start="createDraft.dateStart" v-model:end="createDraft.dateEnd" />
@@ -453,8 +484,8 @@ watch(
                 <em v-if="record.highlight">高光作品</em>
               </div>
               <div class="button-pair">
-                <button class="ghost" @click="insertRecordImage(record)">插入图片</button>
-                <button class="ghost" @click="insertRecordText(record)">插入课评</button>
+                <button class="ghost" @click="copyRecordImage(record)">复制图片</button>
+                <button class="ghost" @click="copyRecordText(record)">复制课评</button>
               </div>
             </article>
           </div>

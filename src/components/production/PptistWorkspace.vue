@@ -14,8 +14,10 @@ const emit = defineEmits(['ready', 'change', 'error'])
 
 const hostRef = ref(null)
 const controller = shallowRef(null)
+const activeSlideId = ref('')
 let destroyed = false
 let applyingDocument = false
+let unsubscribe = null
 
 const nextId = (prefix) => {
   if (window.crypto?.randomUUID) return `${prefix}-${window.crypto.randomUUID()}`
@@ -56,11 +58,32 @@ const applyDocument = async (document) => {
 
 const currentDocument = () => controller.value?.getDocument?.() || props.document
 
+const syncActiveSlideId = () => {
+  const slideId = controller.value?.getState?.()?.currentSlideId
+  if (slideId) activeSlideId.value = slideId
+  return slideId
+}
+
 const currentSlideId = () => {
   try {
-    return controller.value?.slides?.get?.()?.id || currentDocument()?.slides?.[0]?.id
+    return syncActiveSlideId() || activeSlideId.value || controller.value?.slides?.get?.()?.id || currentDocument()?.slides?.[0]?.id
   } catch {
-    return currentDocument()?.slides?.[0]?.id
+    return activeSlideId.value || currentDocument()?.slides?.[0]?.id
+  }
+}
+
+const restoreSlide = async (slideId) => {
+  if (!controller.value || !slideId) return
+  try {
+    if (controller.value.view?.goToSlide) {
+      await controller.value.view.goToSlide(slideId, { source: 'host', label: 'Keep current slide after asset insert' })
+      activeSlideId.value = slideId
+      return
+    }
+    controller.value.goToSlide?.(slideId)
+    activeSlideId.value = slideId
+  } catch (error) {
+    emit('error', error)
   }
 }
 
@@ -71,6 +94,7 @@ const upsertElement = async (element) => {
   try {
     if (controller.value.elements?.create) {
       const result = await controller.value.elements.create({ slideId, element, select: true })
+      await restoreSlide(slideId)
       return result?.ok !== false
     }
     const document = currentDocument()
@@ -78,6 +102,7 @@ const upsertElement = async (element) => {
     if (!slide) return false
     slide.elements.push(element)
     controller.value.setDocument(document)
+    await restoreSlide(slideId)
     return true
   } catch (error) {
     emit('error', error)
@@ -155,6 +180,11 @@ const mount = async () => {
       return
     }
     controller.value = result.controller
+    activeSlideId.value = controller.value.getState?.()?.currentSlideId || props.document?.slides?.[0]?.id || ''
+    unsubscribe = controller.value.subscribe?.((event) => {
+      const slideId = event?.data?.currentSlideId || controller.value?.getState?.()?.currentSlideId
+      if (slideId) activeSlideId.value = slideId
+    })
     await applyViewport()
     emit('ready', result.controller)
   } catch (error) {
@@ -173,6 +203,8 @@ onMounted(mount)
 
 onBeforeUnmount(() => {
   destroyed = true
+  unsubscribe?.()
+  unsubscribe = null
   controller.value?.destroy?.()
   controller.value = null
 })

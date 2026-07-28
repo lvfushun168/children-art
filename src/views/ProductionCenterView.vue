@@ -234,15 +234,6 @@ const onWorkbenchDrop = (event) => {
   if (record) dropRecordImage(record)
 }
 
-const insertChatScreenshot = async (event) => {
-  const file = event.target.files?.[0]
-  event.target.value = ''
-  if (!file) return
-  const fileUrl = URL.createObjectURL(file)
-  const ok = await workspaceRef.value?.insertImage?.({ src: fileUrl, name: file.name })
-  if (ok) props.state.notify('已插入聊天截图素材')
-}
-
 const openTemplateSaveDialog = (leaveAfterSave = false) => {
   captureDeck()
   templateName.value = templateName.value || `${props.state.projectSubjectLabel(project.value)} · ${props.state.projectDateRangeLabel(project.value)}模板`
@@ -489,17 +480,6 @@ watch(
               </div>
             </article>
           </div>
-
-          <section class="pc-upload-block">
-            <div>
-              <span>补充素材</span>
-              <strong>聊天截图 / 临时照片</strong>
-            </div>
-            <label class="ghost pc-upload-button">
-              选择文件
-              <input type="file" accept="image/*" @change="insertChatScreenshot" />
-            </label>
-          </section>
 
           <section class="pc-export-box">
             <div>

@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import '@lofcz/pptist/embed.css'
+import { installPptistChineseLocalization } from '../../services/pptistChineseLocale'
 import { pptistViewport } from '../../services/portfolioPptistAdapter'
 
 const props = defineProps({
@@ -18,6 +19,7 @@ const activeSlideId = ref('')
 let destroyed = false
 let applyingDocument = false
 let unsubscribe = null
+let cleanupLocalization = null
 
 const nextId = (prefix) => {
   if (window.crypto?.randomUUID) return `${prefix}-${window.crypto.randomUUID()}`
@@ -180,6 +182,7 @@ const mount = async () => {
       return
     }
     controller.value = result.controller
+    cleanupLocalization = installPptistChineseLocalization(hostRef.value)
     activeSlideId.value = controller.value.getState?.()?.currentSlideId || props.document?.slides?.[0]?.id || ''
     unsubscribe = controller.value.subscribe?.((event) => {
       const slideId = event?.data?.currentSlideId || controller.value?.getState?.()?.currentSlideId
@@ -203,6 +206,8 @@ onMounted(mount)
 
 onBeforeUnmount(() => {
   destroyed = true
+  cleanupLocalization?.()
+  cleanupLocalization = null
   unsubscribe?.()
   unsubscribe = null
   controller.value?.destroy?.()

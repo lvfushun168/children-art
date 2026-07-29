@@ -830,6 +830,8 @@ const isTransitionTab = (label) => ['切换', 'Transition'].includes(label)
 const isAnimationTab = (label) => ['动画', 'Animation'].includes(label)
 const isSpeakerNotesPlaceholder = (label) =>
   ['Click to enter speaker notes', 'Tap to enter speaker notes', '单击输入演讲者备注', '点击输入演讲者备注'].includes(label)
+const isSlideshowMenuLabel = (label) =>
+  ['From beginning', 'From current slide', '从头开始', '从第一页开始', '从第一页预览', '从当前页开始', '从当前页预览'].includes(label)
 
 const resetHostTab = (tab) => {
   if (tab.dataset.pptistHostHidden === 'true') {
@@ -862,6 +864,28 @@ const forceHideElement = (element) => {
   element.style.setProperty('overflow', 'hidden', 'important')
 }
 
+const forceHideControl = (element, className) => {
+  if (!element) return
+  element.classList.add(className, 'pptist-host-control-hidden')
+  element.hidden = true
+  element.setAttribute('aria-hidden', 'true')
+  element.style.setProperty('display', 'none', 'important')
+  element.style.setProperty('width', '0', 'important')
+  element.style.setProperty('min-width', '0', 'important')
+  element.style.setProperty('height', '0', 'important')
+  element.style.setProperty('min-height', '0', 'important')
+  element.style.setProperty('margin', '0', 'important')
+  element.style.setProperty('padding', '0', 'important')
+  element.style.setProperty('border', '0', 'important')
+  element.style.setProperty('overflow', 'hidden', 'important')
+  element.style.setProperty('pointer-events', 'none', 'important')
+}
+
+const hasProjectionIcon = (element) => {
+  const html = element?.innerHTML || ''
+  return html.includes('M4 8h40') && html.includes('M8 8h32v26H8z')
+}
+
 const simplifySlideToolbarTabs = (root) => {
   root.querySelectorAll('.toolbar .tabs.card').forEach((tabs) => {
     const tabList = [...tabs.querySelectorAll('.tab')]
@@ -887,6 +911,43 @@ const simplifySlideToolbarTabs = (root) => {
       }
       hideHostTab(tab)
     })
+  })
+}
+
+const hideSlideshowControls = (root) => {
+  root.querySelectorAll('.editor-header .right > .group-menu-item, .layout-header .right > .group-menu-item').forEach((item) => {
+    if (hasProjectionIcon(item)) forceHideControl(item, 'pptist-slideshow-hidden')
+  })
+
+  document.querySelectorAll('.tippy-box, [data-tippy-root], .popover, .el-popper').forEach((floating) => {
+    const labels = [...floating.querySelectorAll('*')]
+      .map((item) => normalize(item.textContent))
+      .filter(Boolean)
+    if (labels.some(isSlideshowMenuLabel)) forceHideControl(floating, 'pptist-slideshow-hidden')
+  })
+}
+
+const hideOfficialTemplateControls = (root) => {
+  root.querySelectorAll('.add-slide').forEach((addSlide) => {
+    const addButton = addSlide.querySelector(':scope > .btn')
+    const templatePopover = addSlide.querySelector(':scope > .popover')
+
+    if (normalize(addButton?.textContent) === '添加手册页' || normalize(addButton?.textContent) === 'Add slide') {
+      forceHideControl(templatePopover, 'pptist-template-dropdown-hidden')
+    }
+  })
+
+  document.querySelectorAll('.tippy-box, [data-tippy-root], .popover, .el-popper').forEach((floating) => {
+    const text = normalize(floating.textContent)
+    const looksLikeOfficialTemplatePanel = text.includes('Template cover title') || (
+      text.includes('封面') &&
+      text.includes('目录') &&
+      text.includes('切换') &&
+      text.includes('内容') &&
+      text.includes('结束页')
+    )
+
+    if (looksLikeOfficialTemplatePanel) forceHideControl(floating, 'pptist-template-dropdown-hidden')
   })
 }
 
@@ -976,6 +1037,8 @@ export const installPptistChineseLocalization = (root) => {
     pending = false
     walk(root, root)
     simplifySlideToolbarTabs(root)
+    hideSlideshowControls(root)
+    hideOfficialTemplateControls(root)
     hideSpeakerNotesEditor(root)
   }
 
@@ -1000,6 +1063,8 @@ export const installPptistChineseLocalization = (root) => {
       mutation.addedNodes.forEach((node) => walk(node, root))
     }
     simplifySlideToolbarTabs(root)
+    hideSlideshowControls(root)
+    hideOfficialTemplateControls(root)
     hideSpeakerNotesEditor(root)
     scheduleTranslate()
   })

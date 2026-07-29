@@ -8550,6 +8550,28 @@ textarea:focus,
   flex: 1 1 100%;
 }
 
+.pptist-workspace.pptist-embed-root .pptist-host-control-hidden,
+.pptist-workspace .pptist-embed-root .pptist-host-control-hidden,
+.pptist-workspace.pptist-embed-root .pptist-slideshow-hidden,
+.pptist-workspace .pptist-embed-root .pptist-slideshow-hidden,
+.pptist-workspace.pptist-embed-root .pptist-template-dropdown-hidden,
+.pptist-workspace .pptist-embed-root .pptist-template-dropdown-hidden,
+.tippy-box.pptist-host-control-hidden,
+[data-tippy-root].pptist-host-control-hidden,
+.popover.pptist-host-control-hidden,
+.el-popper.pptist-host-control-hidden {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
 .pptist-workspace.pptist-embed-root .remark,
 .pptist-workspace .pptist-embed-root .remark {
   display: none !important;

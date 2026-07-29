@@ -325,6 +325,7 @@ export function useDeliveryWorkflow() {
     teacher: 'all',
     dateStart: '',
     dateEnd: '',
+    sourceType: 'all',
     highlightOnly: false,
     frameStatus: 'all'
   })
@@ -334,12 +335,14 @@ export function useDeliveryWorkflow() {
       const classOk = archiveFilter.classId === 'all' || record.classId === Number(archiveFilter.classId)
       const teacherOk = archiveFilter.teacher === 'all' || record.teacher === archiveFilter.teacher
       const dateOk = isWithinDateRange(record.dateValue, archiveFilter.dateStart, archiveFilter.dateEnd)
+      const source = record.sourceType || 'lesson'
+      const sourceOk = archiveFilter.sourceType === 'all' || source === archiveFilter.sourceType
       const highlightOk = !archiveFilter.highlightOnly || record.highlight
       const frameOk =
         archiveFilter.frameStatus === 'all' ||
         (archiveFilter.frameStatus === 'framed' && record.framed) ||
         (archiveFilter.frameStatus === 'unframed' && !record.framed)
-      return studentOk && classOk && teacherOk && dateOk && highlightOk && frameOk
+      return studentOk && classOk && teacherOk && dateOk && sourceOk && highlightOk && frameOk
     })
   )
   const lessonArchiveRecords = computed(() => {
@@ -1572,7 +1575,9 @@ export function useDeliveryWorkflow() {
         shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`,
         collectionIds: existing?.collectionIds || [],
         wheatStatus,
-        storageTarget
+        storageTarget,
+        sourceType: 'lesson',
+        archiveCategory: '课堂作品'
       }
       if (existing) Object.assign(existing, payload)
       else archiveRecords.unshift({ id: Date.now() + row.studentId, ...payload })
@@ -2204,6 +2209,107 @@ export function useDeliveryWorkflow() {
     return task
   }
 
+  const extraTaskWorksForTask = (taskId) =>
+    archiveRecords.filter((record) => record.sourceType === 'extraTask' && record.extraTaskId === Number(taskId))
+
+  const buildExtraTaskWorkPayload = (extraTask, payload, existing = null) => {
+    const student = students.find((item) => item.id === Number(payload.studentId ?? existing?.studentId))
+    if (!extraTask || !student) return null
+    const relatedLesson = tasks.find((task) => task.id === Number(extraTask.relatedLessonId))
+    const relatedClass = relatedLesson ? classes.find((item) => item.id === relatedLesson.classId) : null
+    const studentClass = classes.find((item) => item.id === student.classId)
+    const dateValue = payload.dateValue || existing?.dateValue || relatedLesson?.dateValue || ''
+    const teacher = extraTask.owner || relatedLesson?.teacher || currentUser.value?.name || '待记录老师'
+
+    return {
+      lessonId: relatedLesson?.id || null,
+      date: displayDateFromValue(dateValue) || payload.date || existing?.date || extraTask.dueDate || '未记录日期',
+      dateValue,
+      time: relatedLesson?.time || existing?.time || '课外',
+      classId: relatedClass?.id || studentClass?.id || existing?.classId || null,
+      className: relatedClass?.name || studentClass?.name || existing?.className || '未归属班级',
+      teacher,
+      course: extraTask.title,
+      lessonType: '课外作品',
+      studentId: student.id,
+      studentName: student.name,
+      artwork: payload.artwork || existing?.artwork || '',
+      pixelWidth: existing?.pixelWidth || 1600,
+      pixelHeight: existing?.pixelHeight || 1200,
+      title: payload.title?.trim() || existing?.title || `${student.name}的课外作品`,
+      description: payload.description?.trim() || existing?.description || '',
+      tags: [...new Set((payload.tags || []).map((tag) => tag.trim()).filter(Boolean))],
+      note: payload.note?.trim() || existing?.note || '',
+      feedback: existing?.feedback || '',
+      homework: extraTask.content || '',
+      highlight: Boolean(payload.highlight ?? existing?.highlight),
+      highlightNote: payload.highlight ? payload.highlightNote?.trim() || '' : '',
+      framed: existing?.framed || false,
+      framedAt: existing?.framedAt || '',
+      frameFee: existing?.frameFee || 0,
+      framerId: existing?.framerId || null,
+      framerName: existing?.framerName || '',
+      frameNote: existing?.frameNote || '',
+      updatedBy: currentUser.value?.name || teacher,
+      updatedAt: nowText(),
+      shareUrl: existing?.shareUrl || '',
+      collectionIds: existing?.collectionIds || [],
+      wheatStatus: '无需处理',
+      storageTarget: '系统作品档案',
+      sourceType: 'extraTask',
+      archiveCategory: '课外作品',
+      extraTaskId: extraTask.id,
+      extraTaskTitle: extraTask.title,
+      extraTaskStatus: extraTask.status
+    }
+  }
+
+  const addExtraTaskWork = (extraTaskId, payload) => {
+    const extraTask = extraTaskArchives.find((item) => item.id === Number(extraTaskId))
+    const next = buildExtraTaskWorkPayload(extraTask, payload)
+    if (!next || !next.artwork) {
+      notify('请先选择学生并上传作品图片')
+      return null
+    }
+    const record = { id: nextId(archiveRecords), ...next }
+    archiveRecords.unshift(record)
+    if (extraTask && extraTask.status !== '已归档') extraTask.status = '待归档'
+    notify(`已归档课外作品：${record.title}`)
+    return record
+  }
+
+  const updateExtraTaskWork = (recordId, payload) => {
+    const record = archiveRecords.find((item) => item.id === Number(recordId) && item.sourceType === 'extraTask')
+    if (!record || !canEditArchiveRecord(record)) {
+      notify('无权限编辑该课外作品')
+      return null
+    }
+    const extraTask = extraTaskArchives.find((item) => item.id === Number(record.extraTaskId))
+    const next = buildExtraTaskWorkPayload(extraTask, payload, record)
+    if (!next || !next.artwork) {
+      notify('请保留学生和作品图片')
+      return null
+    }
+    Object.assign(record, next)
+    notify(`已保存课外作品：${record.title}`)
+    return record
+  }
+
+  const deleteExtraTaskWork = (recordId) => {
+    const index = archiveRecords.findIndex((item) => item.id === Number(recordId) && item.sourceType === 'extraTask')
+    const record = archiveRecords[index]
+    if (!record || !canEditArchiveRecord(record)) {
+      notify('无权限删除该课外作品')
+      return false
+    }
+    archiveCollections.forEach((collection) => {
+      collection.recordIds = collection.recordIds.filter((id) => id !== record.id)
+    })
+    archiveRecords.splice(index, 1)
+    notify(`已删除课外作品：${record.title}`)
+    return true
+  }
+
   const updateExtraTask = (id, payload) => {
     const task = extraTaskArchives.find((item) => item.id === id)
     if (!task) return null
@@ -2431,6 +2537,10 @@ export function useDeliveryWorkflow() {
     updateTemplate,
     addExtraTask,
     updateExtraTask,
+    extraTaskWorksForTask,
+    addExtraTaskWork,
+    updateExtraTaskWork,
+    deleteExtraTaskWork,
     nextStep,
     prevStep,
     nowText,

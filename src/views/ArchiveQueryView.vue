@@ -31,6 +31,7 @@ const showWorkDrawer = ref(false)
 const showLessonDrawer = ref(false)
 const showEffectDrawer = ref(false)
 const isEditingWork = ref(false)
+const exportingSelectedPdf = ref(false)
 const workEditError = ref('')
 const initialWorkDraft = ref('')
 const wasFramed = ref(false)
@@ -111,6 +112,11 @@ const frameStatusOptions = [
   { label: '全部状态', value: 'all' },
   { label: '已装裱', value: 'framed' },
   { label: '未装裱', value: 'unframed' }
+]
+const sourceTypeOptions = [
+  { label: '全部来源', value: 'all' },
+  { label: '课堂作品', value: 'lesson' },
+  { label: '课外作品', value: 'extraTask' }
 ]
 const framerOptions = computed(() => [
   { label: '请选择', value: '' },
@@ -277,6 +283,83 @@ const sendSelectionToProduction = () => {
   })
 }
 
+const loadImage = (src) => new Promise((resolve, reject) => {
+  const image = new Image()
+  image.crossOrigin = 'anonymous'
+  image.onload = () => resolve(image)
+  image.onerror = () => reject(new Error('图片加载失败'))
+  image.src = src
+})
+
+const imageToJpegDataUrl = (image) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = image.naturalWidth || image.width
+  canvas.height = image.naturalHeight || image.height
+  const context = canvas.getContext('2d')
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.drawImage(image, 0, 0)
+  return canvas.toDataURL('image/jpeg', 0.92)
+}
+
+const sanitizeFilePart = (value) => String(value || '').replace(/[\\/:*?"<>|\s]+/g, '')
+
+const selectedPdfFileName = computed(() => {
+  const student = singleStudentSelection.value?.name || '多名学生'
+  const dates = selectedRecords.value.map((record) => record.dateValue).filter(Boolean).sort()
+  const range = dates.length ? `${dates[0]}${dates.length > 1 ? `-${dates[dates.length - 1]}` : ''}` : '作品档案'
+  return [props.state.school.campus, student, range, '学生作品档案'].map(sanitizeFilePart).filter(Boolean).join('-') + '.pdf'
+})
+
+const exportSelectedWorksPdf = async () => {
+  if (!selectedRecords.value.length || exportingSelectedPdf.value) return
+  exportingSelectedPdf.value = true
+  try {
+    const { jsPDF } = await import('jspdf')
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    const margin = 12
+    const gap = 8
+    const usableWidth = pageWidth - margin * 2
+    let cursorY = margin
+    let hasImageOnPage = false
+
+    for (const record of selectedRecords.value) {
+      const image = await loadImage(record.artwork)
+      const dataUrl = imageToJpegDataUrl(image)
+      const naturalWidth = image.naturalWidth || record.pixelWidth || 1
+      const naturalHeight = image.naturalHeight || record.pixelHeight || 1
+      let imageWidth = usableWidth
+      let imageHeight = imageWidth * (naturalHeight / naturalWidth)
+      const maxSingleImageHeight = pageHeight - margin * 2
+
+      if (imageHeight > maxSingleImageHeight) {
+        imageHeight = maxSingleImageHeight
+        imageWidth = imageHeight * (naturalWidth / naturalHeight)
+      }
+
+      if (hasImageOnPage && cursorY + imageHeight > pageHeight - margin) {
+        pdf.addPage()
+        cursorY = margin
+        hasImageOnPage = false
+      }
+
+      const x = margin + (usableWidth - imageWidth) / 2
+      pdf.addImage(dataUrl, 'JPEG', x, cursorY, imageWidth, imageHeight)
+      cursorY += imageHeight + gap
+      hasImageOnPage = true
+    }
+
+    pdf.save(selectedPdfFileName.value)
+    props.state.notify(`已导出 PDF：${selectedPdfFileName.value}`)
+  } catch (error) {
+    props.state.notify(`PDF 导出失败：${error.message || '请稍后重试'}`)
+  } finally {
+    exportingSelectedPdf.value = false
+  }
+}
+
 const assetMeta = (asset) => {
   if (asset.fileName) return `${asset.fileName}${asset.fileExt ? ` · ${asset.fileExt.toUpperCase()}` : ''}`
   return asset.visible ? '家长展示页可见' : '仅内部归档'
@@ -333,6 +416,10 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <AdaptiveSelect v-model="state.archiveFilter.teacher" :options="teacherFilterOptions" @change="selectFirstIfMissing" />
         </label>
         <label>
+          来源
+          <AdaptiveSelect v-model="state.archiveFilter.sourceType" :options="sourceTypeOptions" @change="selectFirstIfMissing" />
+        </label>
+        <label>
           装裱状态
           <AdaptiveSelect v-model="state.archiveFilter.frameStatus" :options="frameStatusOptions" @change="selectFirstIfMissing" />
         </label>
@@ -359,10 +446,18 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </button>
       </div>
       <div v-if="selectedRecordIds.length" class="archive-selection-bar">
-        <strong>已选 {{ selectedRecordIds.length }} 件作品</strong>
-        <button class="primary" @click="sendSelectionToProduction">
-          {{ singleStudentSelection ? `去制作中心为${singleStudentSelection.name}成册` : '去制作中心成册' }}
-        </button>
+        <span>
+          <strong>已选 {{ selectedRecordIds.length }} 件作品</strong>
+          <small>{{ selectedPdfFileName }}</small>
+        </span>
+        <div class="archive-selection-actions">
+          <button class="secondary" :disabled="exportingSelectedPdf" @click="exportSelectedWorksPdf">
+            {{ exportingSelectedPdf ? '正在导出...' : '导出 PDF' }}
+          </button>
+          <button class="primary" @click="sendSelectionToProduction">
+            {{ singleStudentSelection ? `去制作中心为${singleStudentSelection.name}成册` : '去制作中心成册' }}
+          </button>
+        </div>
       </div>
       <article
         v-for="record in state.filteredArchiveRecords"
@@ -378,6 +473,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>
           <strong>{{ record.title || `${record.studentName} · ${record.course}` }}</strong>
           <small>{{ record.date }} {{ record.time }} · {{ record.className }} · {{ record.teacher }}</small>
+          <em v-if="record.sourceType === 'extraTask'">课外作品</em>
           <em v-if="record.highlight">高光作品</em>
           <em v-if="record.framed" class="framed-tag">已装裱</em>
           <em v-if="record.collectionIds?.length" class="collection-tag">已入选作品集</em>
@@ -523,6 +619,8 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span><small>班级</small><strong>{{ selected.className }}</strong></span>
           <span><small>任课老师</small><strong>{{ selected.teacher }}</strong></span>
           <span><small>课次类型</small><strong>{{ selected.lessonType }}</strong></span>
+          <span><small>档案来源</small><strong>{{ selected.sourceType === 'extraTask' ? '课外任务交付作品' : '课堂作品' }}</strong></span>
+          <span v-if="selected.sourceType === 'extraTask'"><small>关联任务</small><strong>{{ selected.extraTaskTitle }}</strong></span>
         </div>
       </section>
       <template v-if="isEditingWork">

@@ -2001,6 +2001,15 @@ textarea:focus,
   padding: 0 12px;
 }
 
+.danger-text {
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-status-danger-text);
+  font-weight: 800;
+}
+
 .archive-subpage-head .ghost {
   border-color: var(--color-primary);
   background: var(--color-primary);
@@ -5664,6 +5673,205 @@ textarea:focus,
   color: var(--color-heading);
 }
 
+.student-detail-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 4px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.student-detail-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 7px;
+  color: var(--color-muted);
+  font-weight: 900;
+}
+
+.student-detail-tabs button.active {
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+}
+
+.student-detail-tabs small {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--panel-bg));
+  color: inherit;
+}
+
+.student-communication-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.communication-list-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.communication-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.communication-summary article {
+  display: grid;
+  gap: 5px;
+  min-height: 74px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+}
+
+.communication-summary span,
+.communication-record span,
+.communication-record small {
+  color: var(--color-muted);
+}
+
+.communication-summary strong {
+  color: var(--color-heading);
+  font-size: 24px;
+}
+
+.communication-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.communication-editor .button-pair {
+  justify-content: flex-end;
+}
+
+.communication-form-page {
+  display: grid;
+  gap: 12px;
+}
+
+.communication-form-head {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.communication-form-head .module-back-link {
+  margin: 0;
+  justify-self: start;
+}
+
+.communication-form-head > div {
+  display: grid;
+  gap: 3px;
+}
+
+.communication-form-head span {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.communication-form-head strong {
+  color: var(--color-heading);
+  font-size: 18px;
+}
+
+.communication-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.communication-record {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.communication-record-mark {
+  position: relative;
+  width: 14px;
+}
+
+.communication-record-mark::before {
+  content: '';
+  position: absolute;
+  top: 15px;
+  left: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-primary);
+}
+
+.communication-record-mark::after {
+  content: '';
+  position: absolute;
+  top: 28px;
+  bottom: -14px;
+  left: 8px;
+  border-left: 1px solid var(--color-border);
+}
+
+.communication-record:last-of-type .communication-record-mark::after {
+  display: none;
+}
+
+.communication-record-body {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.communication-record-body header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.communication-record-body header > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.communication-record-body p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.communication-record-body em {
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--color-status-warning-bg);
+  color: var(--color-heading);
+  font-style: normal;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(220px, 1fr));
@@ -7382,6 +7590,8 @@ textarea:focus,
   .teacher-row,
   .teacher-row.new,
   .form-grid,
+  .communication-list-head,
+  .communication-toolbar,
   .detail-metrics,
   .import-steps,
   .mapping-grid,
@@ -7399,6 +7609,19 @@ textarea:focus,
   .archive-entry-card,
   .image-review {
     grid-template-columns: 1fr;
+  }
+
+  .communication-list-head {
+    align-items: stretch;
+  }
+
+  .communication-list-head .primary {
+    width: 100%;
+  }
+
+  .communication-record-body header {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .archive-entry-card em {
@@ -8500,6 +8723,7 @@ textarea:focus,
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
+  padding-right: 150px;
 }
 
 .pc-editor-head strong {

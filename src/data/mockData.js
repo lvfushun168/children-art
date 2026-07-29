@@ -160,6 +160,45 @@ export const students = [
   }
 ]
 
+export const communicationRecords = [
+  {
+    id: 1,
+    studentId: 1,
+    contactPerson: '彤彤妈妈',
+    contactRole: '母亲',
+    contactMethod: '微信',
+    content: '沟通本月作品整理情况，家长希望后续多保留孩子创作过程照片，便于发朋友圈和家庭纪念。',
+    followUpAction: '下节课补拍 2 张过程照，并在课评里强调色彩表达进步。',
+    recordedBy: '林老师',
+    recordedAt: '2026/7/23 19:42:00',
+    updatedAt: ''
+  },
+  {
+    id: 2,
+    studentId: 1,
+    contactPerson: '彤彤妈妈',
+    contactRole: '母亲',
+    contactMethod: '到店沟通',
+    content: '家长反馈孩子近期在家主动画画次数增加，对向日葵主题很有兴趣。',
+    followUpAction: '',
+    recordedBy: '王教务',
+    recordedAt: '2026/7/18 11:20:00',
+    updatedAt: ''
+  },
+  {
+    id: 3,
+    studentId: 2,
+    contactPerson: '浩浩爸爸',
+    contactRole: '父亲',
+    contactMethod: '电话',
+    content: '确认暑期班时间安排，爸爸更关注课程动手性和孩子课堂专注度。',
+    followUpAction: '下次课后发送课堂专注表现摘要，便于家长判断续报。',
+    recordedBy: '林老师',
+    recordedAt: '2026/7/21 20:05:00',
+    updatedAt: ''
+  }
+]
+
 export const classes = [
   {
     id: 1,

@@ -6,6 +6,7 @@ import {
   archiveRecords as archiveRecordSeed,
   aiCallLogs as aiCallLogSeed,
   classes as classSeed,
+  communicationRecords as communicationRecordSeed,
   courses as courseSeed,
   displayConfigSeed,
   extraTaskArchives as extraTaskArchiveSeed,
@@ -54,6 +55,7 @@ export function useDeliveryWorkflow() {
   const archives = reactive(clone(archiveSeed))
   const archiveRecords = reactive(clone(archiveRecordSeed))
   const archiveCollections = reactive(clone(archiveCollectionSeed))
+  const communicationRecords = reactive(clone(communicationRecordSeed))
   const aiCallLogStore = reactive(clone(aiCallLogSeed).map((log) => ({ ...log, lessonId: log.lessonId || 1 })))
   const extraTaskArchives = reactive(clone(extraTaskArchiveSeed))
   const externalLinks = reactive(clone(externalLinkSeed))
@@ -600,6 +602,10 @@ export function useDeliveryWorkflow() {
     return next
   }
   const studentHistoryFor = (studentId) => archiveRecords.filter((record) => record.studentId === Number(studentId))
+  const communicationRecordsFor = (studentId) =>
+    communicationRecords
+      .filter((record) => record.studentId === Number(studentId))
+      .sort((a, b) => String(b.recordedAt || '').localeCompare(String(a.recordedAt || '')))
   const archiveCollectionsForRecord = (recordId) => archiveCollections.filter((collection) => collection.recordIds.includes(recordId))
   const archiveEditLogsForRecord = (recordId) => archiveEditLogs.filter((log) => log.recordId === recordId)
   const canEditArchiveRecord = (record) => Boolean(
@@ -1971,6 +1977,51 @@ export function useDeliveryWorkflow() {
     return student
   }
 
+  const addCommunicationRecord = (payload) => {
+    const student = students.find((item) => item.id === Number(payload.studentId))
+    if (!student) {
+      notify('请先选择学生')
+      return null
+    }
+    const record = {
+      id: nextId(communicationRecords),
+      studentId: student.id,
+      contactPerson: payload.contactPerson || student.parent || '家长',
+      contactRole: payload.contactRole || '家长',
+      contactMethod: payload.contactMethod || '微信',
+      content: payload.content || '',
+      followUpAction: payload.followUpAction || '',
+      recordedBy: payload.recordedBy || currentUser.value?.name || '当前用户',
+      recordedAt: payload.recordedAt || nowText(),
+      updatedAt: ''
+    }
+    communicationRecords.unshift(record)
+    notify(`已新增${student.name}的沟通记录`)
+    return record
+  }
+
+  const updateCommunicationRecord = (id, payload) => {
+    const record = communicationRecords.find((item) => item.id === Number(id))
+    if (!record) return null
+    Object.assign(record, {
+      ...payload,
+      studentId: Number(payload.studentId) || record.studentId,
+      updatedAt: nowText()
+    })
+    const student = students.find((item) => item.id === record.studentId)
+    notify(`已保存${student?.name || '学生'}的沟通记录`)
+    return record
+  }
+
+  const deleteCommunicationRecord = (id) => {
+    const index = communicationRecords.findIndex((item) => item.id === Number(id))
+    if (index < 0) return null
+    const [record] = communicationRecords.splice(index, 1)
+    const student = students.find((item) => item.id === record.studentId)
+    notify(`已删除${student?.name || '学生'}的沟通记录`)
+    return record
+  }
+
   const addClass = (payload) => {
     const teacher = teachers.find((item) => item.id === Number(payload.teacherId))
     const klass = {
@@ -2205,6 +2256,7 @@ export function useDeliveryWorkflow() {
     statusChangeLogs,
     archiveEditLogs,
     lessonStatusLogs,
+    communicationRecords,
     sessionStudents,
     archives,
     archiveRecords,
@@ -2270,6 +2322,7 @@ export function useDeliveryWorkflow() {
     selectedExternalLinks,
     permissionSummary,
     studentHistoryFor,
+    communicationRecordsFor,
     archiveCollectionsForRecord,
     archiveEditLogsForRecord,
     canEditArchiveRecord,
@@ -2360,6 +2413,9 @@ export function useDeliveryWorkflow() {
     addLesson,
     addStudent,
     updateStudent,
+    addCommunicationRecord,
+    updateCommunicationRecord,
+    deleteCommunicationRecord,
     addClass,
     updateClass,
     addCourse,

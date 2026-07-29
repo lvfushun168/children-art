@@ -261,8 +261,6 @@ const UI_TEXT = {
   'New slide': '新建手册页',
   'Pan canvas': '平移画布',
   'Zoom canvas': '缩放画布',
-  'Zoom in': '放大',
-  'Zoom out': '缩小',
   'Fit canvas to screen': '适应屏幕',
   'Previous slide (no element selected)': '上一页（未选中元素）',
   'Next slide (no element selected)': '下一页（未选中元素）',
@@ -737,8 +735,6 @@ const UI_TEXT = {
   'Ignore web fonts:': '忽略网络字体：',
   'Web fonts are ignored by default when exporting. If you use web fonts in your slides and want to keep their appearance in the export, turn off this option. Note that this will increase export time.': '导出时默认忽略网络字体。如需保留网络字体效果，请关闭此项；导出耗时会增加。',
   'Exit editing': '退出编辑',
-  'Text color:': '文本颜色：',
-  'Fill color:': '填充颜色：',
   'No properties available': '暂无可配置属性'
 }
 

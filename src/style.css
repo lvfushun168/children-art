@@ -8540,12 +8540,34 @@ textarea:focus,
   background: #f6f7f8;
 }
 
+.pptist-workspace.pptist-embed-root .toolbar .tabs.card.pptist-slide-tabs-only-design .tab[data-pptist-host-hidden="true"],
 .pptist-workspace .pptist-embed-root .toolbar .tabs.card.pptist-slide-tabs-only-design .tab[data-pptist-host-hidden="true"] {
   display: none !important;
 }
 
+.pptist-workspace.pptist-embed-root .toolbar .tabs.card.pptist-slide-tabs-only-design .tab:first-child,
 .pptist-workspace .pptist-embed-root .toolbar .tabs.card.pptist-slide-tabs-only-design .tab:first-child {
   flex: 1 1 100%;
+}
+
+.pptist-workspace.pptist-embed-root .remark,
+.pptist-workspace .pptist-embed-root .remark {
+  display: none !important;
+}
+
+.pptist-workspace.pptist-embed-root .pptist-speaker-notes-hidden,
+.pptist-workspace.pptist-embed-root .ProseMirror:has([data-placeholder="Click to enter speaker notes"]),
+.pptist-workspace.pptist-embed-root .prosemirror-editor:has(.ProseMirror [data-placeholder="Click to enter speaker notes"]),
+.pptist-workspace .pptist-embed-root .pptist-speaker-notes-hidden,
+.pptist-workspace .pptist-embed-root .ProseMirror:has([data-placeholder="Click to enter speaker notes"]),
+.pptist-workspace .pptist-embed-root .prosemirror-editor:has(.ProseMirror [data-placeholder="Click to enter speaker notes"]) {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
 }
 
 .pc-asset-panel {

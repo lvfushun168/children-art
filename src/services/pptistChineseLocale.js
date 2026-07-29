@@ -237,8 +237,8 @@ const UI_TEXT = {
   Formula: '公式',
 
   General: '常规',
-  'Slide show': '放映',
-  'Slide editing': '幻灯片编辑',
+  'Slide show': '预览',
+  'Slide editing': '手册页编辑',
   'Element operations': '元素操作',
   'Table editing': '表格编辑',
   'Chart data editing': '图表数据编辑',
@@ -253,12 +253,12 @@ const UI_TEXT = {
   'Open find and replace': '打开查找和替换',
   Print: '打印',
   'Close dialog': '关闭弹窗',
-  'Start slide show from beginning': '从头开始放映',
-  'Start slide show from current slide': '从当前页开始放映',
+  'Start slide show from beginning': '从第一页预览',
+  'Start slide show from current slide': '从当前页预览',
   'Previous slide': '上一页',
   'Next slide': '下一页',
-  'Exit slide show': '退出放映',
-  'New slide': '新建幻灯片',
+  'Exit slide show': '退出预览',
+  'New slide': '新建手册页',
   'Pan canvas': '平移画布',
   'Zoom canvas': '缩放画布',
   'Zoom in': '放大',
@@ -396,7 +396,7 @@ const UI_TEXT = {
   'Cols:': '列数：',
   'Row and column count must be between 1 and 20.': '行数和列数必须在 1 到 20 之间。',
 
-  'Notes for slide': '幻灯片备注',
+  'Notes for slide': '手册页备注',
   Reply: '回复',
   'Enter reply': '输入回复',
   'No notes on this slide': '本页暂无备注',
@@ -439,8 +439,8 @@ const UI_TEXT = {
   Center: '居中',
   Justify: '两端对齐',
 
-  'Apply to all slides': '应用到全部幻灯片',
-  'Applied to all slides': '已应用到全部幻灯片',
+  'Apply to all slides': '应用到全部页面',
+  'Applied to all slides': '已应用到全部页面',
   'Edit theme colors': '编辑主题色',
   'Background fill': '背景填充',
   'Solid fill': '纯色填充',
@@ -466,7 +466,7 @@ const UI_TEXT = {
   'Theme color:': '主题色：',
   'Apply theme to all': '主题应用到全部',
   'Unify font globally': '统一全局字体',
-  'Extract theme from slide': '从幻灯片提取主题',
+  'Extract theme from slide': '从当前页面提取主题',
   'Preset themes': '预设主题',
   'Text Aa': '文字 Aa',
   Set: '设置',
@@ -495,11 +495,11 @@ const UI_TEXT = {
   '(proprietary format)': '（专有格式）',
   'Export file': '导出文件',
   'New presentation': '新建演示文稿',
-  'Slide type markup': '幻灯片类型标注',
+  'Slide type markup': '页面类型标注',
   'Keyboard shortcuts': '快捷键',
   Feedback: '反馈',
   FAQ: '常见问题',
-  'Slideshow (F5)': '放映 (F5)',
+  'Slideshow (F5)': '预览 (F5)',
   'From beginning': '从头开始',
   'From current slide': '从当前页开始',
   'Generate PPT with AI': 'AI 生成 PPT',
@@ -570,7 +570,7 @@ const UI_TEXT = {
   'Grid color:': '网格颜色：',
   'Theme colors:': '主题色：',
   'Preset chart themes:': '预设图表主题：',
-  'Slide theme:': '幻灯片主题：',
+  'Slide theme:': '页面主题：',
   'Custom colors': '自定义颜色',
   'Chart theme colors': '图表主题色',
   'Add theme color': '添加主题色',
@@ -643,18 +643,18 @@ const UI_TEXT = {
   'Show all': '全部显示',
   'Hide all': '全部隐藏',
   'This slide has no content': '本页暂无内容',
-  'Add slide': '添加幻灯片',
+  'Add slide': '添加手册页',
   'Enter section name': '输入分节名称',
   'Untitled section': '未命名分节',
   'Default section': '默认分节',
   'Delete section': '删除分节',
-  'Delete section and slides': '删除分节和幻灯片',
+  'Delete section and slides': '删除分节和手册页',
   'Delete all sections': '删除所有分节',
   'Rename section': '重命名分节',
-  'Duplicate slide': '复制幻灯片',
-  'Delete slide': '删除幻灯片',
+  'Duplicate slide': '复制手册页',
+  'Delete slide': '删除手册页',
   'Add section': '添加分节',
-  'Present from current slide': '从当前页放映',
+  'Present from current slide': '从当前页预览',
 
   'Add animation': '添加动画',
   'Select an element on the canvas to add animation': '选择画布中的元素以添加动画',
@@ -684,7 +684,7 @@ const UI_TEXT = {
   'Please select a link target first': '请先选择链接目标',
   'Set link': '设置链接',
   'Web link': '网页链接',
-  'Slide page': '幻灯片页',
+  'Slide page': '手册页',
   'Enter web page link URL': '输入网页链接 URL',
   'Preview:': '预览：',
   Ruler: '标尺',
@@ -721,7 +721,7 @@ const UI_TEXT = {
   'Current slide': '当前页',
   'Custom range:': '自定义范围：',
   'Exporting...': '导出中...',
-  'Slides per page:': '每页幻灯片数：',
+  'Slides per page:': '每张纸放置页数：',
   'Page margin:': '页面边距：',
   'Tip: In the print dialog, enable "Background graphics" and set margins to "Default".': '提示：在打印弹窗中启用“背景图形”，并将边距设为“默认”。',
   'Export mode:': '导出模式：',
@@ -778,16 +778,16 @@ const textMap = new Map(Object.entries(UI_TEXT).map(([key, value]) => [normalize
 
 const translateDynamic = (text) => {
   let match = text.match(/^Slide\s+(\d+)\s*\/\s*(\d+)$/i)
-  if (match) return `幻灯片 ${match[1]} / ${match[2]}`
+  if (match) return `手册页 ${match[1]} / ${match[2]}`
 
   match = text.match(/^Slide\s+(\d+)$/i)
-  if (match) return `幻灯片 ${match[1]}`
+  if (match) return `手册页 ${match[1]}`
 
   match = text.match(/^Slide page\s+(\d+)$/i)
-  if (match) return `幻灯片页 ${match[1]}`
+  if (match) return `手册页 ${match[1]}`
 
   match = text.match(/^Notes for slide\s+(\d+)$/i)
-  if (match) return `幻灯片 ${match[1]} 备注`
+  if (match) return `手册页 ${match[1]} 备注`
 
   match = text.match(/^Selection\s+\((\d+)\/(\d+)\)$/i)
   if (match) return `选择窗格（${match[1]}/${match[2]}）`
@@ -811,7 +811,7 @@ const translateDynamic = (text) => {
   if (match) return `主题色 ${match[1]}：`
 
   match = text.match(/^Slide theme color\s+(\d+):$/i)
-  if (match) return `幻灯片主题色 ${match[1]}：`
+  if (match) return `页面主题色 ${match[1]}：`
 
   match = text.match(/^Canvas size:\s*(\d+)\s*×\s*(\d+)$/i)
   if (match) return `画布尺寸：${match[1]} × ${match[2]}`
@@ -828,6 +828,8 @@ const translateValue = (value) => {
 const isDesignTab = (label) => ['设计', 'Design'].includes(label)
 const isTransitionTab = (label) => ['切换', 'Transition'].includes(label)
 const isAnimationTab = (label) => ['动画', 'Animation'].includes(label)
+const isSpeakerNotesPlaceholder = (label) =>
+  ['Click to enter speaker notes', 'Tap to enter speaker notes', '单击输入演讲者备注', '点击输入演讲者备注'].includes(label)
 
 const resetHostTab = (tab) => {
   if (tab.dataset.pptistHostHidden === 'true') {
@@ -845,6 +847,19 @@ const hideHostTab = (tab) => {
   tab.dataset.pptistHostHidden = 'true'
   tab.hidden = true
   tab.style.display = 'none'
+}
+
+const forceHideElement = (element) => {
+  if (!element) return
+  element.classList.add('pptist-speaker-notes-hidden')
+  element.hidden = true
+  element.style.setProperty('display', 'none', 'important')
+  element.style.setProperty('height', '0', 'important')
+  element.style.setProperty('min-height', '0', 'important')
+  element.style.setProperty('margin', '0', 'important')
+  element.style.setProperty('padding', '0', 'important')
+  element.style.setProperty('border', '0', 'important')
+  element.style.setProperty('overflow', 'hidden', 'important')
 }
 
 const simplifySlideToolbarTabs = (root) => {
@@ -872,6 +887,31 @@ const simplifySlideToolbarTabs = (root) => {
       }
       hideHostTab(tab)
     })
+  })
+}
+
+const hideSpeakerNotesEditor = (root) => {
+  const rootRect = root.getBoundingClientRect()
+
+  root.querySelectorAll('.ProseMirror [data-placeholder], .ProseMirror[data-placeholder]').forEach((placeholder) => {
+    if (!isSpeakerNotesPlaceholder(normalize(placeholder.getAttribute('data-placeholder')))) return
+
+    const remark = placeholder.closest('.remark')
+    if (remark) {
+      forceHideElement(remark)
+      return
+    }
+
+    let node = placeholder.closest('.prosemirror-editor') || placeholder.closest('.ProseMirror')
+    let candidate = node
+
+    while (node?.parentElement && node.parentElement !== root) {
+      const rect = node.getBoundingClientRect()
+      if (rect.width >= rootRect.width * 0.45 && rect.height >= 20 && rect.height <= 180) candidate = node
+      node = node.parentElement
+    }
+
+    forceHideElement(candidate)
   })
 }
 
@@ -936,6 +976,7 @@ export const installPptistChineseLocalization = (root) => {
     pending = false
     walk(root, root)
     simplifySlideToolbarTabs(root)
+    hideSpeakerNotesEditor(root)
   }
 
   const scheduleTranslate = () => {
@@ -959,6 +1000,7 @@ export const installPptistChineseLocalization = (root) => {
       mutation.addedNodes.forEach((node) => walk(node, root))
     }
     simplifySlideToolbarTabs(root)
+    hideSpeakerNotesEditor(root)
     scheduleTranslate()
   })
 

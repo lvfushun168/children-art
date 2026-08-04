@@ -57,9 +57,47 @@ export const school = {
 }
 
 export const teachers = [
-  { id: 1, name: '林老师', phone: '137****9011', role: '老师', status: '启用', classes: [1, 2] },
-  { id: 2, name: '周老师', phone: '136****2708', role: '老师', status: '启用', classes: [3] },
-  { id: 3, name: '王教务', phone: '139****1822', role: '管理员', status: '启用', classes: [] }
+  {
+    id: 1,
+    name: '林老师',
+    phone: '13700009011',
+    password: '123456',
+    role: '老师',
+    availableRoles: ['老师'],
+    status: '启用',
+    classes: [1, 2]
+  },
+  {
+    id: 2,
+    name: '周老师',
+    phone: '13600002708',
+    password: '123456',
+    role: '老师',
+    availableRoles: ['老师'],
+    status: '启用',
+    classes: [3]
+  },
+  {
+    id: 3,
+    name: '王教务',
+    phone: '13900001822',
+    password: '123456',
+    role: '管理员',
+    availableRoles: ['管理员', '老师'],
+    status: '启用',
+    classes: [1, 2, 3]
+  },
+  {
+    id: 4,
+    name: '系统管理员',
+    username: 'admin',
+    phone: '13800000000',
+    password: 'admin123',
+    role: '管理员',
+    availableRoles: ['管理员'],
+    status: '启用',
+    classes: []
+  }
 ]
 
 export const students = [

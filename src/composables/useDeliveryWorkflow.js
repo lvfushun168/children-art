@@ -74,7 +74,9 @@ export function useDeliveryWorkflow() {
   const copiedStudentId = ref(null)
   const isLoggedIn = ref(false)
   const currentUserId = ref(1)
-  const loginForm = reactive({ phone: '137****9011', role: '老师' })
+  const verifiedLoginUserId = ref(null)
+  const activeLoginRole = ref(null)
+  const loginForm = reactive({ phone: '', password: '', role: '' })
   const processingAction = ref('')
   const toast = ref('')
   const previewPulse = ref(false)
@@ -256,8 +258,24 @@ export function useDeliveryWorkflow() {
   })
   const aiCallLogs = computed(() => aiCallLogStore.filter((log) => log.lessonId === activeTaskId.value))
 
-  const currentUser = computed(() => teachers.find((teacher) => teacher.id === currentUserId.value))
+  const currentUser = computed(() => {
+    const teacher = teachers.find((item) => item.id === currentUserId.value)
+    if (!teacher) return null
+    if (!activeLoginRole.value || activeLoginRole.value === teacher.role) return teacher
+    return { ...teacher, role: activeLoginRole.value }
+  })
   const isAdmin = computed(() => currentUser.value?.role === '管理员')
+  const loginAccount = computed(() => teachers.find((teacher) => teacher.id === verifiedLoginUserId.value) || null)
+  const loginRoleOptions = computed(() => {
+    const account = loginAccount.value
+    const roles = account?.availableRoles?.length ? account.availableRoles : account?.role ? [account.role] : []
+    return roles.map((role) => ({
+      value: role,
+      label: role,
+      description: role === '管理员' ? '管理基础数据、课次、模板和系统配置' : '处理本人授权班级的课后交付',
+      scope: role === '管理员' ? '全部课次与后台配置' : `${account.classes?.length || 0} 个授权班级`
+    }))
+  })
   const authorizedClassIds = computed(() => (isAdmin.value ? classes.map((klass) => klass.id) : currentUser.value?.classes || []))
   const visibleTasks = computed(() =>
     tasks.filter((task) => isAdmin.value || authorizedClassIds.value.includes(task.classId) || task.teacher === currentUser.value?.name)
@@ -1024,25 +1042,72 @@ export function useDeliveryWorkflow() {
     activeTaskId.value = task.id
   }
 
-  const loginAs = (teacherId) => {
-    const teacher = teachers.find((item) => item.id === Number(teacherId))
-    if (!teacher) return
-    currentUserId.value = teacher.id
-    loginForm.phone = teacher.phone
-    loginForm.role = teacher.role
+  const clearLoginVerification = () => {
+    verifiedLoginUserId.value = null
+    loginForm.role = ''
+  }
+
+  const verifyLogin = () => {
+    const identifier = String(loginForm.phone || '').trim()
+    const password = String(loginForm.password || '')
+    const account = teachers.find((item) =>
+      item.status === '启用' &&
+      item.password === password &&
+      (item.phone === identifier || item.username === identifier)
+    )
+    if (!account) {
+      clearLoginVerification()
+      notify('手机号或密码不正确，请检查后重试')
+      return false
+    }
+    verifiedLoginUserId.value = account.id
+    activeLoginRole.value = null
+    loginForm.role = loginRoleOptions.value[0]?.value || account.role
+    return true
+  }
+
+  const loginWithRole = (role = loginForm.role) => {
+    const account = loginAccount.value
+    const selectedRole = loginRoleOptions.value.find((option) => option.value === role)
+    if (!account || !selectedRole) {
+      notify('请选择当前账号可用的身份')
+      return false
+    }
+
+    currentUserId.value = account.id
+    activeLoginRole.value = selectedRole.value
+    loginForm.role = selectedRole.value
     isLoggedIn.value = true
     const firstTask = visibleTasks.value[0]
     if (firstTask) selectTask(firstTask)
-    notify(`已登录：${teacher.name}（${teacher.role}）`)
+    notify(`已登录：${account.name}（${selectedRole.label}）`)
+    return true
+  }
+
+  // 保留给内部演示和旧入口调用，正式登录仍需经过手机号、密码和角色两步验证。
+  const loginAs = (teacherId) => {
+    const teacher = teachers.find((item) => item.id === Number(teacherId))
+    if (!teacher) return false
+    loginForm.phone = teacher.phone
+    loginForm.password = teacher.password || ''
+    verifiedLoginUserId.value = teacher.id
+    loginForm.role = teacher.availableRoles?.[0] || teacher.role
+    return loginWithRole(loginForm.role)
   }
 
   const loginWithForm = () => {
-    const teacher = teachers.find((item) => item.phone === loginForm.phone && item.role === loginForm.role) || teachers.find((item) => item.role === loginForm.role)
-    loginAs(teacher?.id || teachers[0]?.id)
+    if (!verifiedLoginUserId.value) return verifyLogin()
+    return loginWithRole(loginForm.role)
   }
 
   const logout = () => {
     isLoggedIn.value = false
+    currentUserId.value = 1
+    activeLoginRole.value = null
+    verifiedLoginUserId.value = null
+    loginForm.phone = ''
+    loginForm.password = ''
+    loginForm.role = ''
     notify('已退出登录')
   }
 
@@ -2117,7 +2182,9 @@ export function useDeliveryWorkflow() {
       id: nextId(teachers),
       name: payload.name || '新老师',
       phone: payload.phone || '',
+      password: payload.password || '123456',
       role: payload.role || '老师',
+      availableRoles: [payload.role || '老师'],
       status: payload.status || '启用',
       classes: []
     }
@@ -2411,6 +2478,8 @@ export function useDeliveryWorkflow() {
     activeShareMode,
     activeTask,
     currentUser,
+    loginAccount,
+    loginRoleOptions,
     isAdmin,
     authorizedClassIds,
     visibleTasks,
@@ -2473,7 +2542,10 @@ export function useDeliveryWorkflow() {
     selectTask,
     transitionLesson,
     loginAs,
+    verifyLogin,
+    loginWithRole,
     loginWithForm,
+    clearLoginVerification,
     logout,
     setAttendance,
     toggleMaterialVisible,

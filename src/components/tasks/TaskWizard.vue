@@ -418,7 +418,7 @@ const updateCommentTemplate = (index) => {
                 作品图片
                 <AdaptiveMultiSelect v-model="state.selectedImageTemplates" :options="imageTemplateOptions" placeholder="选择图片处理效果" />
               </label>
-              <small>可多选，不做互斥；未选择时生成会使用原图策略。</small>
+              <small>可多选；未选择时生成会使用原图策略。</small>
               <div class="selected-template-tags compact-tags">
                 <span v-for="index in state.selectedImageTemplates" :key="index" class="template-static-tag">
                   {{ state.templates.image[index]?.name }}

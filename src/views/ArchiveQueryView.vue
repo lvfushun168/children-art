@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
+import { sameId } from '../services/mappers'
 
 const props = defineProps({
   state: {
@@ -31,10 +32,8 @@ const showWorkDrawer = ref(false)
 const showLessonDrawer = ref(false)
 const showEffectDrawer = ref(false)
 const isEditingWork = ref(false)
-const exportingSelectedPdf = ref(false)
 const workEditError = ref('')
 const initialWorkDraft = ref('')
-const wasFramed = ref(false)
 const lessonFilter = reactive({ classId: 'all', teacher: 'all', dateStart: '', dateEnd: '' })
 const effectFilter = reactive({ teacher: 'all', classId: 'all', dateStart: '', dateEnd: '' })
 const workDraft = reactive({
@@ -49,46 +48,44 @@ const workDraft = reactive({
   frameFee: 0,
   framerKey: '',
   externalFramerName: '',
-  frameNote: '',
-  changeReason: ''
+  frameNote: ''
 })
-const selected = computed(() => props.state.filteredArchiveRecords.find((record) => record.id === selectedId.value) || props.state.filteredArchiveRecords[0])
-const selectedRecords = computed(() => selectedRecordIds.value.map((id) => props.state.archiveRecords.find((record) => record.id === id)).filter(Boolean))
-const selectedCollections = computed(() => (selected.value ? props.state.archiveCollectionsForRecord(selected.value.id) : []))
+const selected = computed(() => props.state.filteredArchiveRecords.find((record) => sameId(record.id, selectedId.value)) || props.state.filteredArchiveRecords[0])
+const selectedRecords = computed(() => selectedRecordIds.value.map((id) => props.state.archiveRecords.find((record) => sameId(record.id, id))).filter(Boolean))
 const selectedWorkLogs = computed(() => (selected.value ? props.state.archiveEditLogsForRecord(selected.value.id) : []))
 const canEditSelectedWork = computed(() => props.state.canEditArchiveRecord(selected.value))
 const hasUnsavedWorkChanges = computed(() => isEditingWork.value && JSON.stringify(workDraft) !== initialWorkDraft.value)
-const visibleSelectedCount = computed(() => props.state.filteredArchiveRecords.filter((record) => selectedRecordIds.value.includes(record.id)).length)
+const visibleSelectedCount = computed(() => props.state.filteredArchiveRecords.filter((record) => selectedRecordIds.value.some((id) => sameId(id, record.id))).length)
 const allVisibleSelected = computed(() => props.state.filteredArchiveRecords.length > 0 && visibleSelectedCount.value === props.state.filteredArchiveRecords.length)
 // 勾选的作品全部属于同一个学生时，制作中心可以直接按学生建成长手册
 const singleStudentSelection = computed(() => {
   const ids = [...new Set(selectedRecords.value.map((record) => record.studentId))]
-  return ids.length === 1 ? props.state.students.find((student) => student.id === ids[0]) : null
+  return ids.length === 1 ? props.state.students.find((student) => sameId(student.id, ids[0])) : null
 })
 const isWithinDateRange = (value, start, end) =>
   Boolean(value && (!start || value >= start) && (!end || value <= end))
 
 const filteredLessonArchives = computed(() =>
   props.state.lessonArchiveRecords.filter((lesson) => {
-    const classOk = lessonFilter.classId === 'all' || lesson.classId === Number(lessonFilter.classId)
+    const classOk = lessonFilter.classId === 'all' || sameId(lesson.classId, lessonFilter.classId)
     const teacherOk = lessonFilter.teacher === 'all' || lesson.teacher === lessonFilter.teacher
     const dateOk = isWithinDateRange(lesson.dateValue, lessonFilter.dateStart, lessonFilter.dateEnd)
     return classOk && teacherOk && dateOk
   })
 )
-const selectedLesson = computed(() => filteredLessonArchives.value.find((lesson) => lesson.id === selectedLessonId.value) || filteredLessonArchives.value[0])
+const selectedLesson = computed(() => filteredLessonArchives.value.find((lesson) => sameId(lesson.id, selectedLessonId.value)) || filteredLessonArchives.value[0])
 const selectedLessonAssets = computed(() => selectedLesson.value?.materials || [])
 const selectedLessonWorks = computed(() => selectedLesson.value?.studentWorks || [])
 
 const filteredTeacherEffects = computed(() =>
   props.state.teacherEffectArchiveRecords.filter((effect) => {
-    const classOk = effectFilter.classId === 'all' || effect.sourceLesson.classId === Number(effectFilter.classId)
+    const classOk = effectFilter.classId === 'all' || sameId(effect.sourceLesson.classId, effectFilter.classId)
     const teacherOk = effectFilter.teacher === 'all' || effect.teacher === effectFilter.teacher
     const dateOk = isWithinDateRange(effect.dateValue, effectFilter.dateStart, effectFilter.dateEnd)
     return classOk && teacherOk && dateOk
   })
 )
-const selectedEffect = computed(() => filteredTeacherEffects.value.find((effect) => effect.id === selectedEffectId.value) || filteredTeacherEffects.value[0])
+const selectedEffect = computed(() => filteredTeacherEffects.value.find((effect) => sameId(effect.id, selectedEffectId.value)) || filteredTeacherEffects.value[0])
 
 const archiveStats = computed(() => ({
   works: props.state.archiveRecords.length,
@@ -133,32 +130,32 @@ const archiveCountFor = (id) => {
 }
 
 watch(filteredLessonArchives, (records) => {
-  if (!records.some((record) => record.id === selectedLessonId.value)) selectedLessonId.value = records[0]?.id || null
+  if (!records.some((record) => sameId(record.id, selectedLessonId.value))) selectedLessonId.value = records[0]?.id || null
 }, { immediate: true })
 
 watch(filteredTeacherEffects, (records) => {
-  if (!records.some((record) => record.id === selectedEffectId.value)) selectedEffectId.value = records[0]?.id || null
+  if (!records.some((record) => sameId(record.id, selectedEffectId.value))) selectedEffectId.value = records[0]?.id || null
 }, { immediate: true })
 
 const selectFirstIfMissing = () => {
-  if (!props.state.filteredArchiveRecords.some((record) => record.id === selectedId.value)) {
+  if (!props.state.filteredArchiveRecords.some((record) => sameId(record.id, selectedId.value))) {
     selectedId.value = props.state.filteredArchiveRecords[0]?.id || null
   }
   const visibleIds = props.state.filteredArchiveRecords.map((record) => record.id)
-  selectedRecordIds.value = selectedRecordIds.value.filter((id) => visibleIds.includes(id))
+  selectedRecordIds.value = selectedRecordIds.value.filter((id) => visibleIds.some((visibleId) => sameId(visibleId, id)))
 }
 
 const toggleRecord = (record) => {
   selectedId.value = record.id
-  selectedRecordIds.value = selectedRecordIds.value.includes(record.id)
-    ? selectedRecordIds.value.filter((id) => id !== record.id)
+  selectedRecordIds.value = selectedRecordIds.value.some((id) => sameId(id, record.id))
+    ? selectedRecordIds.value.filter((id) => !sameId(id, record.id))
     : [...selectedRecordIds.value, record.id]
 }
 
 const toggleAllVisible = () => {
   const visibleIds = props.state.filteredArchiveRecords.map((record) => record.id)
   if (allVisibleSelected.value) {
-    selectedRecordIds.value = selectedRecordIds.value.filter((id) => !visibleIds.includes(id))
+    selectedRecordIds.value = selectedRecordIds.value.filter((id) => !visibleIds.some((visibleId) => sameId(visibleId, id)))
     return
   }
   selectedRecordIds.value = [...new Set([...selectedRecordIds.value, ...visibleIds])]
@@ -187,9 +184,7 @@ const loadWorkDraft = () => {
     framerKey: record.framerId ? `staff:${record.framerId}` : record.framerName ? 'external' : '',
     externalFramerName: record.framerId ? '' : record.framerName || '',
     frameNote: record.frameNote || '',
-    changeReason: ''
   })
-  wasFramed.value = Boolean(record.framed)
   initialWorkDraft.value = JSON.stringify(workDraft)
   workEditError.value = ''
 }
@@ -213,7 +208,7 @@ const closeWorkDrawer = () => {
   showWorkDrawer.value = false
 }
 
-const saveWorkEdit = () => {
+const saveWorkEdit = async () => {
   workEditError.value = ''
   if (!workDraft.title.trim()) {
     workEditError.value = '请填写作品标题。'
@@ -237,27 +232,19 @@ const saveWorkEdit = () => {
       return
     }
   }
-  if (wasFramed.value && !workDraft.framed && !workDraft.changeReason.trim()) {
-    workEditError.value = '取消既有装裱状态时必须填写更正原因。'
-    return
-  }
-
-  const staffId = workDraft.framerKey.startsWith('staff:') ? Number(workDraft.framerKey.split(':')[1]) : null
-  const staff = props.state.teachers.find((item) => item.id === staffId)
-  const saved = props.state.updateArchiveRecord(selected.value.id, {
+  const staffId = workDraft.framerKey.startsWith('staff:') ? workDraft.framerKey.slice('staff:'.length) : null
+  const staff = props.state.teachers.find((item) => sameId(item.id, staffId))
+  const saved = await props.state.updateArchiveRecord(selected.value.id, {
     title: workDraft.title,
     description: workDraft.description,
     tags: workDraft.tagsText.split(/[，,、]/),
     note: workDraft.note,
-    highlight: workDraft.highlight,
-    highlightNote: workDraft.highlightNote,
     framed: workDraft.framed,
     framedAt: workDraft.framedAt,
     frameFee: workDraft.frameFee,
     framerId: staffId,
     framerName: staff?.name || workDraft.externalFramerName,
-    frameNote: workDraft.frameNote,
-    changeReason: workDraft.changeReason
+    frameNote: workDraft.frameNote
   })
   if (!saved) return
   isEditingWork.value = false
@@ -281,83 +268,6 @@ const sendSelectionToProduction = () => {
     recordIds: [...selectedRecordIds.value],
     studentId: singleStudentSelection.value?.id || null
   })
-}
-
-const loadImage = (src) => new Promise((resolve, reject) => {
-  const image = new Image()
-  image.crossOrigin = 'anonymous'
-  image.onload = () => resolve(image)
-  image.onerror = () => reject(new Error('图片加载失败'))
-  image.src = src
-})
-
-const imageToJpegDataUrl = (image) => {
-  const canvas = document.createElement('canvas')
-  canvas.width = image.naturalWidth || image.width
-  canvas.height = image.naturalHeight || image.height
-  const context = canvas.getContext('2d')
-  context.fillStyle = '#ffffff'
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  context.drawImage(image, 0, 0)
-  return canvas.toDataURL('image/jpeg', 0.92)
-}
-
-const sanitizeFilePart = (value) => String(value || '').replace(/[\\/:*?"<>|\s]+/g, '')
-
-const selectedPdfFileName = computed(() => {
-  const student = singleStudentSelection.value?.name || '多名学生'
-  const dates = selectedRecords.value.map((record) => record.dateValue).filter(Boolean).sort()
-  const range = dates.length ? `${dates[0]}${dates.length > 1 ? `-${dates[dates.length - 1]}` : ''}` : '作品档案'
-  return [props.state.school.campus, student, range, '学生作品档案'].map(sanitizeFilePart).filter(Boolean).join('-') + '.pdf'
-})
-
-const exportSelectedWorksPdf = async () => {
-  if (!selectedRecords.value.length || exportingSelectedPdf.value) return
-  exportingSelectedPdf.value = true
-  try {
-    const { jsPDF } = await import('jspdf')
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    const pageWidth = pdf.internal.pageSize.getWidth()
-    const pageHeight = pdf.internal.pageSize.getHeight()
-    const margin = 12
-    const gap = 8
-    const usableWidth = pageWidth - margin * 2
-    let cursorY = margin
-    let hasImageOnPage = false
-
-    for (const record of selectedRecords.value) {
-      const image = await loadImage(record.artwork)
-      const dataUrl = imageToJpegDataUrl(image)
-      const naturalWidth = image.naturalWidth || record.pixelWidth || 1
-      const naturalHeight = image.naturalHeight || record.pixelHeight || 1
-      let imageWidth = usableWidth
-      let imageHeight = imageWidth * (naturalHeight / naturalWidth)
-      const maxSingleImageHeight = pageHeight - margin * 2
-
-      if (imageHeight > maxSingleImageHeight) {
-        imageHeight = maxSingleImageHeight
-        imageWidth = imageHeight * (naturalWidth / naturalHeight)
-      }
-
-      if (hasImageOnPage && cursorY + imageHeight > pageHeight - margin) {
-        pdf.addPage()
-        cursorY = margin
-        hasImageOnPage = false
-      }
-
-      const x = margin + (usableWidth - imageWidth) / 2
-      pdf.addImage(dataUrl, 'JPEG', x, cursorY, imageWidth, imageHeight)
-      cursorY += imageHeight + gap
-      hasImageOnPage = true
-    }
-
-    pdf.save(selectedPdfFileName.value)
-    props.state.notify(`已导出 PDF：${selectedPdfFileName.value}`)
-  } catch (error) {
-    props.state.notify(`PDF 导出失败：${error.message || '请稍后重试'}`)
-  } finally {
-    exportingSelectedPdf.value = false
-  }
 }
 
 const assetMeta = (asset) => {
@@ -448,12 +358,9 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div v-if="selectedRecordIds.length" class="archive-selection-bar">
         <span>
           <strong>已选 {{ selectedRecordIds.length }} 件作品</strong>
-          <small>{{ selectedPdfFileName }}</small>
+          <small>选定归档记录将进入制作中心生成并登记 PDF</small>
         </span>
         <div class="archive-selection-actions">
-          <button class="secondary" :disabled="exportingSelectedPdf" @click="exportSelectedWorksPdf">
-            {{ exportingSelectedPdf ? '正在导出...' : '导出 PDF' }}
-          </button>
           <button class="primary" @click="sendSelectionToProduction">
             {{ singleStudentSelection ? `去制作中心为${singleStudentSelection.name}成册` : '去制作中心成册' }}
           </button>
@@ -463,11 +370,11 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         v-for="record in state.filteredArchiveRecords"
         :key="record.id"
         class="archive-row"
-        :class="{ active: selected?.id === record.id, picked: selectedRecordIds.includes(record.id) }"
+        :class="{ active: sameId(selected?.id, record.id), picked: selectedRecordIds.some((id) => sameId(id, record.id)) }"
         @click="openWorkDrawer(record)"
       >
         <label class="archive-pick" @click.stop>
-          <input type="checkbox" :checked="selectedRecordIds.includes(record.id)" @change="toggleRecord(record)" />
+          <input type="checkbox" :checked="selectedRecordIds.some((id) => sameId(id, record.id))" @change="toggleRecord(record)" />
         </label>
         <img :src="record.artwork" :alt="record.studentName" />
         <span>
@@ -521,7 +428,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         v-for="lesson in filteredLessonArchives"
         :key="lesson.id"
         class="lesson-archive-row"
-        :class="{ active: selectedLesson?.id === lesson.id }"
+        :class="{ active: sameId(selectedLesson?.id, lesson.id) }"
         @click="openLessonDrawer(lesson)"
       >
         <span>
@@ -575,7 +482,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         v-for="effect in filteredTeacherEffects"
         :key="effect.id"
         class="lesson-archive-row"
-        :class="{ active: selectedEffect?.id === effect.id }"
+        :class="{ active: sameId(selectedEffect?.id, effect.id) }"
         @click="openEffectDrawer(effect)"
       >
         <span>
@@ -634,12 +541,12 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           </div>
         </section>
         <section class="archive-detail-group archive-edit-section">
-          <span>高光信息</span>
-          <label class="archive-toggle-row">
-            <input v-model="workDraft.highlight" type="checkbox" />
-            <span>标记为高光作品</span>
-          </label>
-          <label v-if="workDraft.highlight">高光说明<textarea v-model="workDraft.highlightNote" rows="3" /></label>
+          <span>高光信息（归档快照）</span>
+          <article class="archive-block highlight">
+            <strong>{{ workDraft.highlight ? '高光作品' : '非高光作品' }}</strong>
+            <p>{{ workDraft.highlightNote || '当前归档快照没有高光说明。' }}</p>
+            <small>高光状态来自课次归档快照，本期归档接口不支持在此修改。</small>
+          </article>
         </section>
         <section class="archive-detail-group archive-edit-section">
           <span>装裱信息</span>
@@ -660,10 +567,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
             </label>
             <label class="wide">装裱备注<textarea v-model="workDraft.frameNote" rows="3" /></label>
           </div>
-          <label v-if="wasFramed && !workDraft.framed" class="archive-correction-reason">
-            更正原因
-            <textarea v-model="workDraft.changeReason" rows="3" placeholder="请说明取消既有装裱状态的原因" />
-          </label>
+          <small class="archive-protocol-note">当前接口不接收自定义更正原因，服务端会统一记录归档元数据变更审计。</small>
         </section>
       </template>
       <template v-else>
@@ -720,13 +624,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <strong>高光状态</strong>
           <p>当前作品未标记为高光。</p>
         </article>
-        <div v-if="selectedCollections.length" class="archive-collection-uses">
-          <div v-for="collection in selectedCollections" :key="collection.id" class="archive-link-row">
-            <strong>{{ collection.title }}</strong>
-            <small>{{ collection.createdAt }} · {{ collection.target }}</small>
-            <button class="ghost" @click="state.copyArchiveCollectionLink(collection)">复制链接</button>
-          </div>
-        </div>
+        <small class="archive-protocol-note">作品集和成长手册请在制作中心基于选定归档记录生成；本页面不再创建本地虚拟归档集合。</small>
       </section>
       <section v-if="!isEditingWork && (selected.updatedAt || selectedWorkLogs.length)" class="archive-detail-group">
         <span>变更记录</span>
@@ -781,6 +679,13 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span>{{ selectedLesson.teacher }}</span>
           <span>{{ selectedLesson.className }}（{{ selectedLesson.classType }}）</span>
           <span>{{ selectedLesson.lessonType }}</span>
+        </div>
+      </section>
+
+      <section v-if="selectedLesson.archiveVersions?.length" class="archive-detail-group">
+        <span>归档版本</span>
+        <div class="archive-meta">
+          <span v-for="version in selectedLesson.archiveVersions" :key="version.id">V{{ version.versionNo }} · {{ version.createdAt }}</span>
         </div>
       </section>
 
@@ -841,9 +746,9 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </div>
       </section>
       <section class="archive-detail-group">
-        <span>百度网盘路径</span>
+        <span>云盘路径</span>
         <article class="archive-block">
-          <p>{{ selectedEffect.cloudPath }}</p>
+          <p>{{ selectedEffect.cloudPath || '服务端当前未返回可展示的云盘路径。' }}</p>
         </article>
       </section>
     </aside>

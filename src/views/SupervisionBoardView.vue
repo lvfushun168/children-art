@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
+import { sameId } from '../services/mappers'
 
 const props = defineProps({
   state: {
@@ -15,43 +16,21 @@ const props = defineProps({
 
 defineEmits(['backToGroup'])
 
-const activeTab = ref('today')
 const selectedDate = ref(props.state.latestLessonDate || '')
-const selectedMonth = ref(props.state.availableLessonMonths[0] || props.state.latestLessonDate?.slice(0, 7) || '')
-const selectedMonthlyTeacher = ref('')
 const activeLessonId = ref(null)
 const todayStage = ref('list')
-const monthStage = ref('list')
 const lessonDrafts = reactive({})
-const monthlyDraft = reactive({ score: 8, comment: '' })
 
 const teacherOptions = computed(() => props.state.teachers.filter((teacher) => teacher.role !== '管理员'))
-const teacherNameById = (id) => props.state.teachers.find((teacher) => teacher.id === Number(id))?.name || ''
-const isListStage = computed(() =>
-  (activeTab.value === 'today' && todayStage.value === 'list') ||
-  (activeTab.value === 'month' && monthStage.value === 'list')
-)
+const isListStage = computed(() => todayStage.value === 'list')
 
 watch(() => props.state.latestLessonDate, (value) => {
   if (!selectedDate.value && value) selectedDate.value = value
 }, { immediate: true })
 
-watch(teacherOptions, (teachers) => {
-  if (!selectedMonthlyTeacher.value && teachers[0]) selectedMonthlyTeacher.value = teachers[0].name
-}, { immediate: true })
-
-watch(activeTab, () => {
-  todayStage.value = 'list'
-  monthStage.value = 'list'
-})
-
 watch(selectedDate, () => {
   activeLessonId.value = null
   todayStage.value = 'list'
-})
-
-watch(selectedMonth, () => {
-  monthStage.value = 'list'
 })
 
 const statusOrder = {
@@ -84,7 +63,7 @@ const todayStats = computed(() => {
     completed: completed.length,
     working: todayLessons.value.filter((lesson) => ['待处理', '处理中'].includes(lesson.status)).length,
     exception: todayLessons.value.filter((lesson) => lesson.status === '异常').length,
-    pendingReview: completed.filter((lesson) => !lesson.review).length
+    pendingReview: completed.filter((lesson) => lesson.review?.status !== '已评分').length
   }
 })
 
@@ -100,7 +79,7 @@ const teacherDayStats = computed(() =>
       completed: completed.length,
       working: lessons.filter((lesson) => ['待处理', '处理中'].includes(lesson.status)).length,
       exception: lessons.filter((lesson) => lesson.status === '异常').length,
-      pendingReview: completed.filter((lesson) => !lesson.review).length,
+      pendingReview: completed.filter((lesson) => lesson.review?.status !== '已评分').length,
       averageScore: scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10 : null,
       completionRate: lessons.length ? Math.round((completed.length / lessons.length) * 100) : 0
     }
@@ -108,11 +87,11 @@ const teacherDayStats = computed(() =>
 )
 
 const activeLesson = computed(() =>
-  todayLessons.value.find((lesson) => lesson.lessonId === activeLessonId.value) || null
+  todayLessons.value.find((lesson) => sameId(lesson.lessonId, activeLessonId.value)) || null
 )
 
 watch(todayLessons, (lessons) => {
-  if (!lessons.some((lesson) => lesson.lessonId === activeLessonId.value)) {
+  if (!lessons.some((lesson) => sameId(lesson.lessonId, activeLessonId.value))) {
     activeLessonId.value = null
     todayStage.value = 'list'
   }
@@ -150,56 +129,6 @@ const backToTodayList = () => {
   todayStage.value = 'list'
 }
 
-const monthlyStats = computed(() =>
-  teacherOptions.value.map((teacher) => props.state.teacherMonthStats(teacher.name, selectedMonth.value))
-)
-
-const maxMonthlyTotal = computed(() => Math.max(1, ...monthlyStats.value.map((item) => item.total)))
-const monthlyYAxisTicks = computed(() => {
-  const max = maxMonthlyTotal.value
-  return [max, Math.ceil(max * 0.75), Math.ceil(max * 0.5), Math.ceil(max * 0.25), 0]
-    .map((value) => Math.min(max, Math.max(0, value)))
-    .filter((value, index, list) => list.indexOf(value) === index)
-})
-
-const monthLessons = computed(() =>
-  props.state.lessonsForTeacherMonth(selectedMonthlyTeacher.value, selectedMonth.value)
-    .sort((a, b) => a.dateValue.localeCompare(b.dateValue) || a.time.localeCompare(b.time))
-)
-
-const selectedMonthlyStats = computed(() =>
-  props.state.teacherMonthStats(selectedMonthlyTeacher.value, selectedMonth.value)
-)
-
-const syncMonthlyDraft = () => {
-  const existing = props.state.monthlyReviewForTeacher(selectedMonthlyTeacher.value, selectedMonth.value)
-  monthlyDraft.score = existing?.score ?? Math.max(7, Math.round((selectedMonthlyStats.value.averageScore || 8) * 10) / 10)
-  monthlyDraft.comment = existing?.comment || ''
-}
-
-watch([selectedMonthlyTeacher, selectedMonth, () => props.state.monthlyTeacherReviews.length], syncMonthlyDraft, { immediate: true })
-
-const chooseMonthlyTeacher = (teacher) => {
-  selectedMonthlyTeacher.value = teacher
-}
-
-const openMonthlyReview = (teacher = selectedMonthlyTeacher.value) => {
-  selectedMonthlyTeacher.value = teacher
-  monthStage.value = 'review'
-}
-
-const backToMonthList = () => {
-  monthStage.value = 'list'
-}
-
-const submitMonthlyReview = () => {
-  props.state.saveMonthlyTeacherReview({
-    teacher: selectedMonthlyTeacher.value,
-    month: selectedMonth.value,
-    score: monthlyDraft.score,
-    comment: monthlyDraft.comment
-  })
-}
 </script>
 
 <template>
@@ -210,11 +139,10 @@ const submitMonthlyReview = () => {
 
   <section class="supervision-view">
     <div class="supervision-tabs" role="tablist" aria-label="教管看板维度">
-      <button :class="{ active: activeTab === 'today' }" type="button" @click="activeTab = 'today'">今日跟进</button>
-      <button :class="{ active: activeTab === 'month' }" type="button" @click="activeTab = 'month'">月度评分</button>
+      <button class="active" type="button">今日跟进</button>
     </div>
 
-    <template v-if="activeTab === 'today' && todayStage === 'list'">
+    <template v-if="todayStage === 'list'">
       <div class="supervision-toolbar">
         <label>
           日期
@@ -250,7 +178,7 @@ const submitMonthlyReview = () => {
             v-for="lesson in todayLessons"
             :key="lesson.id"
             class="supervision-lesson-row"
-            :class="{ active: lesson.lessonId === activeLesson?.lessonId }"
+            :class="{ active: sameId(lesson.lessonId, activeLesson?.lessonId) }"
             role="button"
             tabindex="0"
             @click="openLessonReview(lesson)"
@@ -288,7 +216,7 @@ const submitMonthlyReview = () => {
       </section>
     </template>
 
-    <template v-else-if="activeTab === 'today'">
+    <template v-else>
       <button class="back-link" type="button" @click="backToTodayList">← 返回今日跟进</button>
       <section class="supervision-review-page">
         <aside class="supervision-review-panel">
@@ -337,116 +265,5 @@ const submitMonthlyReview = () => {
       </section>
     </template>
 
-    <template v-else-if="monthStage === 'list'">
-      <div class="supervision-toolbar">
-        <label>
-          月份
-          <input v-model="selectedMonth" type="month" />
-        </label>
-        <label>
-          老师
-          <select v-model="selectedMonthlyTeacher">
-            <option v-for="teacher in teacherOptions" :key="teacher.id" :value="teacher.name">{{ teacher.name }}</option>
-          </select>
-        </label>
-      </div>
-
-      <section class="monthly-histogram">
-        <div class="monthly-chart-head">
-          <strong>老师月度课次完成情况</strong>
-          <span><i></i> 总课次 <b></b> 已完成</span>
-        </div>
-        <div class="monthly-chart-body">
-          <div class="monthly-y-axis">
-            <span v-for="tick in monthlyYAxisTicks" :key="tick">{{ tick }}</span>
-          </div>
-          <div class="monthly-plot">
-            <span v-for="tick in monthlyYAxisTicks" :key="`line-${tick}`" class="monthly-grid-line"></span>
-            <button
-              v-for="item in monthlyStats"
-              :key="item.teacher"
-              class="monthly-bar-card"
-              :class="{ active: selectedMonthlyTeacher === item.teacher }"
-              type="button"
-              @click="chooseMonthlyTeacher(item.teacher)"
-            >
-              <div class="monthly-bar-shell" :title="`${item.teacher}：${item.completed}/${item.total} 节`">
-                <i :style="{ height: `${item.total ? Math.max(6, (item.total / maxMonthlyTotal) * 100) : 0}%` }"></i>
-                <b :style="{ height: `${item.total ? (item.completed / maxMonthlyTotal) * 100 : 0}%` }"></b>
-              </div>
-              <strong>{{ item.teacher }}</strong>
-              <span>{{ item.completed }}/{{ item.total }} 节</span>
-              <small>{{ item.pendingReview }} 待评分 · {{ item.averageScore === null ? '暂无均分' : `${item.averageScore} 均分` }}</small>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="monthly-review-layout">
-        <div class="supervision-lesson-list">
-          <div class="supervision-month-summary">
-            <article><span>完成率</span><strong>{{ selectedMonthlyStats.completionRate }}%</strong></article>
-            <article><span>完成课次</span><strong>{{ selectedMonthlyStats.completed }}</strong></article>
-            <article><span>异常课次</span><strong>{{ selectedMonthlyStats.exception }}</strong></article>
-            <article><span>平均课次分</span><strong>{{ selectedMonthlyStats.averageScore ?? '无' }}</strong></article>
-          </div>
-          <button class="primary supervision-month-review-entry" type="button" @click="openMonthlyReview()">进入月度总评</button>
-
-          <article v-for="lesson in monthLessons" :key="lesson.id" class="supervision-month-row">
-            <div>
-              <strong>{{ lesson.date }} {{ lesson.time }} · {{ lesson.className }}</strong>
-              <small>{{ lesson.course }} · {{ lesson.lessonType }} · {{ lesson.status }}</small>
-            </div>
-            <em>{{ lesson.review ? `${lesson.review.score} 分` : lesson.reviewStatus }}</em>
-          </article>
-          <small v-if="!monthLessons.length" class="empty-note">所选月份暂无课次。</small>
-        </div>
-      </section>
-    </template>
-
-    <template v-else>
-      <button class="back-link" type="button" @click="backToMonthList">← 返回月度评分</button>
-      <section class="supervision-review-page">
-        <aside class="supervision-review-panel">
-          <div class="mini-head">
-            <div>
-              <span>月度总评</span>
-              <strong>{{ selectedMonthlyTeacher }} · {{ selectedMonth }}</strong>
-            </div>
-            <em>{{ selectedMonthlyStats.monthlyReview ? `${selectedMonthlyStats.monthlyReview.score} 分` : '未评分' }}</em>
-          </div>
-          <div class="supervision-month-summary review-month-summary">
-            <article><span>完成率</span><strong>{{ selectedMonthlyStats.completionRate }}%</strong></article>
-            <article><span>完成课次</span><strong>{{ selectedMonthlyStats.completed }}</strong></article>
-            <article><span>异常课次</span><strong>{{ selectedMonthlyStats.exception }}</strong></article>
-            <article><span>平均课次分</span><strong>{{ selectedMonthlyStats.averageScore ?? '无' }}</strong></article>
-          </div>
-          <div class="star-score-control">
-            <div class="star-score-head">
-              <strong>{{ monthlyDraft.score }} 分</strong>
-              <button class="ghost" type="button" @click="monthlyDraft.score = 0">0 分</button>
-            </div>
-            <div class="star-score-row" aria-label="月度评分">
-              <button
-                v-for="point in 10"
-                :key="point"
-                type="button"
-                :class="{ active: point <= monthlyDraft.score }"
-                :title="`${point} 分`"
-                @click="monthlyDraft.score = point"
-              >
-                {{ point <= monthlyDraft.score ? '★' : '☆' }}
-              </button>
-            </div>
-          </div>
-          <textarea v-model="monthlyDraft.comment" rows="6" placeholder="月度评语"></textarea>
-          <button class="primary" type="button" @click="submitMonthlyReview">保存月度总评</button>
-          <div v-if="selectedMonthlyStats.monthlyReview" class="review-history-note">
-            <strong>{{ selectedMonthlyStats.monthlyReview.reviewer }} · {{ selectedMonthlyStats.monthlyReview.reviewedAt }}</strong>
-            <span>{{ selectedMonthlyStats.monthlyReview.comment || '未填写评语' }}</span>
-          </div>
-        </aside>
-      </section>
-    </template>
   </section>
 </template>

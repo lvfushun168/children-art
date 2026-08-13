@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
 import PptistWorkspace from '../components/production/PptistWorkspace.vue'
+import { sameId } from '../services/mappers'
 
 const props = defineProps({
   state: {
@@ -50,7 +51,7 @@ const assetFilter = reactive({
 const project = computed(() => props.state.activePortfolioProject)
 const template = computed(() => (project.value ? props.state.portfolioTemplateFor(project.value) : selectedTemplate.value))
 const selectedTemplate = computed(() =>
-  props.state.portfolioTemplates.find((item) => item.id === createDraft.templateId) || props.state.portfolioTemplates[0]
+  props.state.portfolioTemplates.find((item) => sameId(item.id, createDraft.templateId)) || props.state.portfolioTemplates[0]
 )
 const filteredTemplates = computed(() => {
   const keyword = templateKeyword.value.trim()
@@ -78,7 +79,7 @@ const visibleProjectRecords = computed(() => {
 const selectedStudentRecords = computed(() => {
   if (!createDraft.studentId) return []
   return props.state.archiveRecords
-    .filter((record) => record.studentId === Number(createDraft.studentId))
+    .filter((record) => sameId(record.studentId, createDraft.studentId))
     .filter((record) => props.state.canEditArchiveRecord(record))
     .filter((record) => !createDraft.dateStart || (record.dateValue || '') >= createDraft.dateStart)
     .filter((record) => !createDraft.dateEnd || (record.dateValue || '') <= createDraft.dateEnd)
@@ -100,10 +101,16 @@ const estimatedSlides = computed(() => {
 })
 const studentOptions = computed(() =>
   props.state.students.map((student) => ({
-    label: `${student.name} · ${props.state.classes.find((klass) => klass.id === student.classId)?.name || '未分班'}`,
+    label: `${student.name} · ${props.state.classes.find((klass) => sameId(klass.id, student.classId))?.name || '未分班'}`,
     value: student.id
   }))
 )
+
+watch(() => props.state.portfolioTemplates.length, () => {
+  if (!props.state.portfolioTemplates.some((item) => sameId(item.id, createDraft.templateId))) {
+    createDraft.templateId = props.state.portfolioTemplates[0]?.id || ''
+  }
+}, { immediate: true })
 
 const goTemplateStep = () => {
   if (!createDraft.studentId) {
@@ -134,6 +141,10 @@ const confirmCreate = () => {
     props.state.notify('当前范围内没有可用作品')
     return
   }
+  if (!selectedTemplate.value) {
+    props.state.notify('当前没有可用的服务端作品集模板')
+    return
+  }
   const created = props.state.createPortfolioProject({
     templateId: createDraft.templateId,
     studentId: createDraft.studentId,
@@ -143,6 +154,7 @@ const confirmCreate = () => {
     title: createDraft.title,
     recordIds: selectedStudentRecords.value.map((record) => record.id)
   })
+  if (!created) return
   props.state.generatePortfolioDeck(created)
   openProjectInEditor(created)
 }
@@ -229,8 +241,8 @@ const onRecordDragStart = (event, record) => {
 }
 
 const onWorkbenchDrop = (event) => {
-  const recordId = Number(event.dataTransfer?.getData('text/portfolio-record'))
-  const record = allProjectRecords.value.find((item) => item.id === recordId)
+  const recordId = event.dataTransfer?.getData('text/portfolio-record')
+  const record = allProjectRecords.value.find((item) => sameId(item.id, recordId))
   if (record) dropRecordImage(record)
 }
 
@@ -241,13 +253,14 @@ const openTemplateSaveDialog = (leaveAfterSave = false) => {
   showTemplateSaveDialog.value = true
 }
 
-const saveAsTemplate = () => {
+const saveAsTemplate = async () => {
   const deck = captureDeck()
   if (!deck) {
     props.state.notify('当前没有可保存的模板内容')
     return
   }
-  props.state.savePortfolioDeckAsTemplate(project.value, { name: templateName.value })
+  const saved = await props.state.savePortfolioDeckAsTemplate(project.value, { name: templateName.value })
+  if (!saved) return
   templateName.value = ''
   showTemplateSaveDialog.value = false
   if (leaveAfterTemplateDecision.value) leaveWorkbench()
@@ -269,14 +282,16 @@ const recordExport = async () => {
   }
   exporting.value = true
   await nextTick()
-  props.state.recordPortfolioExport(project.value, {
-    fileName: exportFileName.value,
-    fileUrl: 'pptist://browser-export/pdf',
-    pageCount: deck.slides.length,
-    exportedAt: props.state.nowText()
-  })
-  props.state.notify('作品册导出已完成')
-  exporting.value = false
+  try {
+    const exported = await workspaceRef.value?.exportPdfBlob?.(exportFileName.value)
+    if (!exported?.blob) {
+      props.state.notify('无法获取工作台页面，请先等待编辑器加载完成')
+      return
+    }
+    await props.state.recordPortfolioExport(project.value, exported)
+  } finally {
+    exporting.value = false
+  }
 }
 
 watch(
@@ -291,6 +306,7 @@ watch(
       recordIds: payload.recordIds,
       termLabel: createDraft.termLabel
     })
+    if (!created) return
     props.state.generatePortfolioDeck(created)
     openProjectInEditor(created)
     emit('handoffConsumed')
@@ -391,7 +407,7 @@ watch(
                   v-for="item in filteredTemplates"
                   :key="item.id"
                   class="pc-template-row"
-                  :class="{ selected: createDraft.templateId === item.id }"
+                  :class="{ selected: sameId(createDraft.templateId, item.id) }"
                   @click="createDraft.templateId = item.id"
                 >
                   <span class="pc-template-preview">{{ item.name.slice(0, 1) }}</span>
@@ -410,10 +426,10 @@ watch(
             <section class="pc-create-preview">
               <div>
                 <span>将使用模板</span>
-                <strong>{{ selectedTemplate.name }}</strong>
+                <strong>{{ selectedTemplate?.name || '暂无服务端模板' }}</strong>
                 <small>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</small>
               </div>
-              <button class="primary" :disabled="!selectedStudentRecords.length" @click="confirmCreate">进入 PPT 工作台</button>
+              <button class="primary" :disabled="!selectedStudentRecords.length || !selectedTemplate" @click="confirmCreate">进入 PPT 工作台</button>
             </section>
           </section>
         </template>

@@ -74,7 +74,7 @@ const imageStyle = (crop) => ({
 })
 
 const onDrop = (slot, event) => {
-  const recordId = Number(event.dataTransfer?.getData('text/portfolio-record'))
+  const recordId = event.dataTransfer?.getData('text/portfolio-record')
   if (!recordId) return
   emit('dropRecord', { slot, recordId })
 }

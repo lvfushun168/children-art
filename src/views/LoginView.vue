@@ -17,13 +17,13 @@ const showPassword = ref(false)
 const roleOptions = computed(() => state.loginRoleOptions || [])
 const canContinue = computed(() => Boolean(String(state.loginForm.phone || '').trim() && state.loginForm.password))
 
-const submitCredentials = () => {
+const submitCredentials = async () => {
   errorMessage.value = ''
   if (!canContinue.value) {
     errorMessage.value = '请输入手机号和密码'
     return
   }
-  if (!state.verifyLogin()) {
+  if (!(await state.verifyLogin())) {
     errorMessage.value = '手机号或密码不正确，请检查后重试'
     return
   }
@@ -37,13 +37,13 @@ const selectRole = (role) => {
   errorMessage.value = ''
 }
 
-const submitRole = () => {
+const submitRole = async () => {
   errorMessage.value = ''
   if (!selectedRole.value) {
     errorMessage.value = '请选择登录身份'
     return
   }
-  if (!state.loginWithRole(selectedRole.value)) {
+  if (!(await state.loginWithRole(selectedRole.value))) {
     errorMessage.value = '该身份暂不可用，请返回重新验证'
   }
 }

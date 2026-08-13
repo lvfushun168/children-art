@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
+import { sameId } from '../services/mappers'
 
 const props = defineProps({
   state: {
@@ -20,7 +21,7 @@ const isMobileFlow = ref(false)
 const mobileShowingDetail = ref(false)
 let cleanupMobileMedia = () => {}
 
-const selected = computed(() => props.state.externalLinks.find((link) => link.id === selectedId.value) || props.state.externalLinks[0])
+const selected = computed(() => props.state.externalLinks.find((link) => sameId(link.id, selectedId.value)) || props.state.externalLinks[0])
 
 const blankDraft = () => ({
   title: '',
@@ -59,17 +60,17 @@ const startEdit = () => {
 }
 
 const toggleCourse = (courseId) => {
-  const ids = draft.value.courseIds || []
-  draft.value.courseIds = ids.includes(courseId) ? ids.filter((id) => id !== courseId) : [...ids, courseId]
+  draft.value.courseIds = sameId(draft.value.courseIds?.[0], courseId) ? [] : [courseId]
 }
 
 const courseNames = (courseIds = []) =>
-  courseIds.map((id) => props.state.courses.find((course) => course.id === id)?.title).filter(Boolean).join('、') || '未绑定课程'
+  courseIds.map((id) => props.state.courses.find((course) => sameId(course.id, id))?.title).filter(Boolean).join('、') || '未绑定课程'
 
-const save = () => {
+const save = async () => {
   const saved = mode.value === 'new'
-    ? props.state.addExternalLink(draft.value)
-    : props.state.updateExternalLink(selected.value.id, draft.value)
+    ? await props.state.addExternalLink(draft.value)
+    : await props.state.updateExternalLink(selected.value.id, draft.value)
+  if (!saved) return
   selectedId.value = saved.id
   mode.value = 'detail'
   if (isMobileFlow.value) mobileShowingDetail.value = true
@@ -134,7 +135,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         v-for="link in state.externalLinks"
         :key="link.id"
         class="master-row"
-        :class="{ active: selected?.id === link.id && mode !== 'new' }"
+        :class="{ active: sameId(selected?.id, link.id) && mode !== 'new' }"
         @click="selectLink(link)"
       >
         <strong>{{ link.title }}</strong>
@@ -160,16 +161,20 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
         <label>
           平台
-          <AdaptiveSelect v-model="draft.platform" :options="['创客匠人', '通用链接', '网盘资料', '其他平台']" />
+          <AdaptiveSelect v-model="draft.platform" :options="['创客匠人', '通用链接', '网盘资料', '其他平台']" disabled />
         </label>
         <label class="wide">链接地址<input v-model="draft.url" /></label>
         <label class="wide">备注<textarea v-model="draft.note" rows="4" /></label>
       </div>
 
+      <div class="notice-box">
+        <small>平台分类不在 M1–M6 外部课程链接协议中，本期仅保存标题、地址、备注、单个课程关联和启停状态。</small>
+      </div>
+
       <div class="member-picker">
         <strong>适用课程主题</strong>
         <label v-for="course in state.courses" :key="course.id" class="inline-check">
-          <input type="checkbox" :checked="draft.courseIds?.includes(course.id)" @change="toggleCourse(course.id)" />
+          <input type="checkbox" :checked="draft.courseIds?.some((id) => sameId(id, course.id))" @change="toggleCourse(course.id)" />
           <span>{{ course.title }} · {{ course.age }}</span>
         </label>
       </div>

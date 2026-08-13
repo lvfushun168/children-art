@@ -1,34 +1,59 @@
 import { computed, reactive, ref } from 'vue'
-import {
-  artworkLibrary as artworkLibrarySeed,
-  archiveCollections as archiveCollectionSeed,
-  archives as archiveSeed,
-  archiveRecords as archiveRecordSeed,
-  aiCallLogs as aiCallLogSeed,
-  classes as classSeed,
-  communicationRecords as communicationRecordSeed,
-  courses as courseSeed,
-  displayConfigSeed,
-  extraTaskArchives as extraTaskArchiveSeed,
-  externalLinks as externalLinkSeed,
-  homeworkSeed,
-  importBatches as importBatchSeed,
-  importPreviewRows as importPreviewSeed,
-  initialBulkRecord,
-  initialSessionStudents,
-  lessonMaterials as lessonMaterialSeed,
-  monthlyTeacherReviews as monthlyTeacherReviewSeed,
-  qualityReviews as qualityReviewSeed,
-  school as schoolSeed,
-  sessionSeed,
-  settings as settingSeed,
-  students as studentSeed,
-  tasks as taskSeed,
-  templates as templateSeed,
-  teachers as teacherSeed,
-  wheatTraces as wheatTraceSeed
-} from '../data/mockData'
 import { usePortfolioStudio } from './usePortfolioStudio'
+import { api } from '../services/api'
+import {
+  ApiError,
+  clearSession,
+  createIdempotencyKey,
+  getAccessToken,
+  getSession,
+  onSessionChanged,
+  setSession,
+  updateStoredMe
+} from '../services/apiClient'
+import {
+  displayDate,
+  displayDateTime,
+  displayTime,
+  fromApiId,
+  fromApiIds,
+  mapCampus,
+  mapArchiveRecord,
+  mapArchiveVersion,
+  mapAsset,
+  mapAttendance,
+  mapArtwork,
+  mapClass,
+  mapCourse,
+  mapExternalLink,
+  mapExtraArtwork,
+  mapExtraTask,
+  mapFeedback,
+  mapJob,
+  mapFile,
+  mapLesson,
+  mapPage,
+  mapProfileAudit,
+  mapProfileField,
+  mapProfileValue,
+  mapQualityReview,
+  mapSupervisionLesson,
+  mapStudent,
+  mapTeacher,
+  mapTeacherArchive,
+  mapTerm,
+  mapTodo,
+  mapSharePage,
+  mapTouchTask,
+  mapWheat,
+  sameId,
+  toApiAssetType,
+  toApiAttendanceStatus,
+  toApiLessonStatus,
+  toApiLessonType,
+  toApiWheatCommand
+} from '../services/mappers'
+import { loadProtectedBlobUrl, sha256ForFile, uploadFile } from '../services/fileService'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -41,42 +66,67 @@ const isWithinDateRange = (value, start, end) => {
   if (!value) return !start && !end
   return (!start || value >= start) && (!end || value <= end)
 }
-const monthFromDateValue = (value) => (value || '').slice(0, 7)
+
+const profileKeyAliases = {
+  residential_community: 'residentialCommunity',
+  school_name: 'schoolName',
+  training_brand_interest: 'trainingBrandInterest',
+  primary_caregiver: 'primaryCaregiver',
+  purchase_decision_power: 'purchaseDecisionPower',
+  decision_interview_time: 'decisionInterviewTime'
+}
+const profileUiKey = (fieldKey) => profileKeyAliases[fieldKey] || String(fieldKey || '').replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+const profileApiKey = (fieldKey) => Object.entries(profileKeyAliases).find(([, value]) => value === fieldKey)?.[0] || fieldKey
 
 export function useDeliveryWorkflow() {
-  const school = reactive(clone(schoolSeed))
-  const artworkLibrary = reactive(clone(artworkLibrarySeed))
-  const teachers = reactive(clone(teacherSeed))
-  const students = reactive(clone(studentSeed))
-  const classes = reactive(clone(classSeed))
-  const courses = reactive(clone(courseSeed))
-  const templates = reactive(clone(templateSeed))
-  const tasks = reactive(clone(taskSeed))
-  const archives = reactive(clone(archiveSeed))
-  const archiveRecords = reactive(clone(archiveRecordSeed))
-  const archiveCollections = reactive(clone(archiveCollectionSeed))
-  const communicationRecords = reactive(clone(communicationRecordSeed))
-  const aiCallLogStore = reactive(clone(aiCallLogSeed).map((log) => ({ ...log, lessonId: log.lessonId || 1 })))
-  const extraTaskArchives = reactive(clone(extraTaskArchiveSeed))
-  const externalLinks = reactive(clone(externalLinkSeed))
-  const wheatTraces = reactive(clone(wheatTraceSeed))
-  const importBatches = reactive(clone(importBatchSeed))
-  const importPreviewRows = reactive(clone(importPreviewSeed))
-  const settings = reactive(clone(settingSeed))
-  const qualityReviews = reactive(clone(qualityReviewSeed))
-  const monthlyTeacherReviews = reactive(clone(monthlyTeacherReviewSeed))
+  const storedMe = ref(getSession())
+  const school = reactive({ name: '课后交付系统', campus: '', address: '', aiProvider: '', objectStorage: '', watermark: '' })
+  const campuses = reactive([])
+  const artworkLibrary = reactive([])
+  const teachers = reactive([])
+  const students = reactive([])
+  const classes = reactive([])
+  const courses = reactive([])
+  const templates = reactive({ image: [], comment: [], prompt: [], watermark: [] })
+  const classTypes = reactive([])
+  const tasks = reactive([])
+  const archives = reactive([])
+  const archiveRecords = reactive([])
+  const archiveCollections = reactive([])
+  const communicationRecords = reactive([])
+  const studentProfileFields = reactive([])
+  const studentProfiles = reactive({})
+  const studentProfileAudits = reactive({})
+  const aiCallLogStore = reactive([])
+  const extraTaskArchives = reactive([])
+  const extraTaskWorks = reactive([])
+  const externalLinks = reactive([])
+  const wheatTraces = reactive([])
+  const todos = reactive([])
+  const importBatches = reactive([])
+  const importPreviewRows = reactive([])
+  const settings = reactive([])
+  const qualityReviews = reactive([])
+  const terms = reactive([])
+  const supervisionDashboard = reactive([])
+  const teacherArchives = reactive([])
+  const providerCatalog = reactive({ cloud: [], wecom: [], ai: [] })
+  const permissionCatalog = reactive([])
   const statusChangeLogs = reactive([])
   const archiveEditLogs = reactive([])
   const wecomSendTasks = reactive([])
 
-  const activeTaskId = ref(1)
+  const activeTaskId = ref(null)
   const copied = ref(false)
   const copiedStudentId = ref(null)
-  const isLoggedIn = ref(false)
-  const currentUserId = ref(1)
+  const isLoggedIn = ref(Boolean(getAccessToken() && storedMe.value))
+  const currentUserId = ref(null)
   const verifiedLoginUserId = ref(null)
   const activeLoginRole = ref(null)
   const loginForm = reactive({ phone: '', password: '', role: '' })
+  const pendingAuth = ref(null)
+  const remoteLoading = ref(false)
+  const remoteReady = ref(false)
   const processingAction = ref('')
   const toast = ref('')
   const previewPulse = ref(false)
@@ -84,37 +134,29 @@ export function useDeliveryWorkflow() {
   const reportPulse = ref(false)
 
   const createStudentDeliveries = (task, useInitialSeed = false) => {
-    const targetClass = classes.find((item) => item.id === task.classId)
-    if (useInitialSeed) {
-      return clone(initialSessionStudents).map((row) => ({
-        ...row,
-        lessonId: task.id,
-        studentId: row.id,
-        images: row.image && row.attendance === '到课' ? [row.image] : [],
-        imageConfirmed: Boolean(row.imageMatched) && row.attendance === '到课'
-      }))
-    }
+    if (!task?.id) return []
+      const targetClass = classes.find((item) => sameId(item.id, task.classId))
+    if (useInitialSeed) return []
 
     return (targetClass?.studentIds || []).map((studentId) => {
-      const seed = sessionSeed[studentId] || { image: '', record: '', focus: '色彩' }
-      const student = students.find((item) => item.id === studentId)
+      const student = students.find((item) => sameId(item.id, studentId))
       const isAbsent = student?.status === '请假'
       return {
         id: studentId,
         lessonId: task.id,
         studentId,
         attendance: isAbsent ? '请假' : '到课',
-        originalImage: seed.image,
+        originalImage: '',
         processedImage: '',
         imageProcessStatus: '未处理',
         imageProcessError: '',
-        image: seed.image,
-        images: seed.image && !isAbsent ? [seed.image] : [],
-        imageMatched: Boolean(seed.image) && !isAbsent,
+        image: '',
+        images: [],
+        imageMatched: false,
         processed: false,
-        imageConfirmed: Boolean(seed.image) && !isAbsent,
-        record: isAbsent ? '' : seed.record,
-        focus: seed.focus,
+        imageConfirmed: false,
+        record: '',
+        focus: '色彩',
         comment: '',
         confirmed: false,
         highlight: false,
@@ -128,7 +170,6 @@ export function useDeliveryWorkflow() {
   const createArchiveChecklist = () => ({
     parentTouch: { status: '待创建', detail: '', method: '', sentCount: 0, updatedAt: '' },
     studentCloudArchive: { status: '待推送', detail: '', updatedAt: '' },
-    deliveryVideo: { status: '待上传', detail: '', fileName: '', fileMeta: '', updatedAt: '' },
     teacherEffectArchive: { status: '待生成', detail: '', title: '', imageCount: 0, updatedAt: '' },
     wheatTrace: { status: '待生成', detail: '', traceId: null, updatedAt: '' }
   })
@@ -136,25 +177,31 @@ export function useDeliveryWorkflow() {
   const createLessonWorkspace = (task, useInitialSeed = false) => ({
     lessonId: task.id,
     studentDeliveries: createStudentDeliveries(task, useInitialSeed),
-    materials: clone(lessonMaterialSeed).map((material) => ({ ...material, lessonId: task.id })),
+    materials: [],
     materialsConfirmedEmpty: false,
-    homework: { ...clone(homeworkSeed), lessonId: task.id },
-    displayConfig: { ...clone(displayConfigSeed), lessonId: task.id },
-    bulkRecord: useInitialSeed ? initialBulkRecord : '',
-    selectedImageTemplate: [1],
+    materialsVersion: null,
+    homework: { lessonId: task.id, content: '', requirement: '', dueDate: '', visible: true, externalLinkIds: [], version: 0 },
+    displayConfig: { lessonId: task.id, expiresInDays: 30, showMaterials: true, showHomework: true, showHighlight: true, showLessonType: true },
+    bulkRecord: '',
+    selectedImageTemplate: [],
     selectedCommentTemplate: 0,
     activeShareMode: 'student',
     activeStudentId: null,
-    selectedArchiveTargets: ['system', 'cloud:baidu', 'wheat'],
+    teacherEffect: null,
+    cloudJobs: [],
+    archiveVersions: [],
+    selectedArchiveTargets: ['system', 'wheat'],
     archiveChecklist: createArchiveChecklist(),
     currentStep: 0,
     showReport: false,
     sharePage: {
+      id: null,
       status: '草稿',
       draftVersion: 1,
       publishedVersion: 0,
       publishedSnapshot: null,
       studentTokens: {},
+      accessLinks: [],
       lastPublishedHash: '',
       revokedReason: '',
       publishedAt: '',
@@ -163,11 +210,11 @@ export function useDeliveryWorkflow() {
     }
   })
 
-  const lessonWorkspaces = reactive(
-    Object.fromEntries(tasks.map((task) => [task.id, createLessonWorkspace(task, task.id === activeTaskId.value)]))
-  )
+  const lessonWorkspaces = reactive({})
+  const emptyLessonWorkspace = reactive(createLessonWorkspace({ id: null }, false))
 
   const ensureLessonWorkspace = (task) => {
+    if (!task?.id) return emptyLessonWorkspace
     if (!lessonWorkspaces[task.id]) lessonWorkspaces[task.id] = createLessonWorkspace(task)
     const workspace = lessonWorkspaces[task.id]
     if (!workspace.activeStudentId) {
@@ -179,22 +226,9 @@ export function useDeliveryWorkflow() {
     return workspace
   }
 
-  tasks.forEach((task) => ensureLessonWorkspace(task))
-
   const persistSharePage = (lessonId, page) => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(`children-art-share-${lessonId}`, JSON.stringify(page))
-  }
-
-  if (typeof window !== 'undefined') {
-    tasks.forEach((task) => {
-      try {
-        const saved = window.localStorage.getItem(`children-art-share-${task.id}`)
-        if (saved) Object.assign(lessonWorkspaces[task.id].sharePage, JSON.parse(saved))
-      } catch {
-        // 存储损坏时回退为本课次初始草稿，不影响其他课次。
-      }
-    })
+    // 家长展示草稿由后端保存；不再写入 localStorage。
+    return page
   }
 
   const activeWorkspace = computed(() => ensureLessonWorkspace(activeTask.value))
@@ -211,7 +245,7 @@ export function useDeliveryWorkflow() {
   const sharePage = computed(() => activeWorkspace.value.sharePage)
   const activeStudentId = computed({
     get: () => activeWorkspace.value.activeStudentId,
-    set: (value) => { activeWorkspace.value.activeStudentId = Number(value) }
+    set: (value) => { activeWorkspace.value.activeStudentId = value === '' || value === undefined ? null : value }
   })
   const currentStep = computed({
     get: () => activeWorkspace.value.currentStep,
@@ -256,55 +290,109 @@ export function useDeliveryWorkflow() {
     get: () => activeWorkspace.value.showReport,
     set: (value) => { activeWorkspace.value.showReport = Boolean(value) }
   })
-  const aiCallLogs = computed(() => aiCallLogStore.filter((log) => log.lessonId === activeTaskId.value))
+  const aiCallLogs = computed(() => aiCallLogStore.filter((log) => sameId(log.lessonId, activeTaskId.value)))
 
   const currentUser = computed(() => {
-    const teacher = teachers.find((item) => item.id === currentUserId.value)
+    const user = storedMe.value?.user
+    if (user) {
+      const role = activeLoginRole.value || storedMe.value?.roles?.[0]?.name || storedMe.value?.roles?.[0]?.roleKey || '老师'
+      return {
+        id: fromApiId(user.id),
+        name: user.displayName || user.username || user.phone || '',
+        username: user.username,
+        phone: user.phone,
+        role,
+        roles: storedMe.value?.roles || [],
+        permissions: storedMe.value?.permissions || [],
+        classes: tasks.filter((task) => sameId(task.teacherId, user.teacherId) || task.teacher === user.displayName).map((task) => task.classId)
+      }
+    }
+    const teacher = teachers.find((item) => sameId(item.id, currentUserId.value))
     if (!teacher) return null
-    if (!activeLoginRole.value || activeLoginRole.value === teacher.role) return teacher
-    return { ...teacher, role: activeLoginRole.value }
+    return !activeLoginRole.value || activeLoginRole.value === teacher.role ? teacher : { ...teacher, role: activeLoginRole.value }
   })
-  const isAdmin = computed(() => currentUser.value?.role === '管理员')
-  const loginAccount = computed(() => teachers.find((teacher) => teacher.id === verifiedLoginUserId.value) || null)
+  const isAdmin = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && permissions.some((permission) => String(permission).includes('identity.') || String(permission).includes('configuration.')))
+  })
+  const canQualityReview = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && (isAdmin.value || permissions.includes('quality.review')))
+  })
+  const canQualityRead = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && (isAdmin.value || permissions.includes('quality.read') || permissions.includes('quality.review')))
+  })
+  const loginAccount = computed(() => pendingAuth.value?.me?.user || teachers.find((teacher) => sameId(teacher.id, verifiedLoginUserId.value)) || null)
   const loginRoleOptions = computed(() => {
     const account = loginAccount.value
-    const roles = account?.availableRoles?.length ? account.availableRoles : account?.role ? [account.role] : []
-    return roles.map((role) => ({
-      value: role,
-      label: role,
-      description: role === '管理员' ? '管理基础数据、课次、模板和系统配置' : '处理本人授权班级的课后交付',
-      scope: role === '管理员' ? '全部课次与后台配置' : `${account.classes?.length || 0} 个授权班级`
-    }))
+    const roles = pendingAuth.value?.me?.roles?.length
+      ? pendingAuth.value.me.roles
+      : account?.availableRoles?.length ? account.availableRoles.map((role) => ({ name: role, roleKey: role })) : account?.role ? [{ name: account.role, roleKey: account.role }] : []
+    return roles.map((role) => {
+      const value = role.roleKey || role.name || role
+      const label = role.name || role.label || value
+      return {
+        value,
+        label,
+        description: label === '管理员' || value === 'ADMIN' ? '管理基础数据、课次、模板和系统配置' : '处理本人授权班级的课后交付',
+        scope: label === '管理员' || value === 'ADMIN' ? '全部课次与后台配置' : `${account?.classes?.length || 0} 个授权班级`
+      }
+    })
   })
-  const authorizedClassIds = computed(() => (isAdmin.value ? classes.map((klass) => klass.id) : currentUser.value?.classes || []))
+  const authorizedClassIds = computed(() => {
+    if (isAdmin.value) return classes.map((klass) => klass.id)
+    const teacher = teachers.find((item) => sameId(item.userId, currentUserId.value) || sameId(item.id, currentUserId.value))
+    const assigned = classes.filter((klass) => sameId(klass.teacherId, teacher?.id)).map((klass) => klass.id)
+    return [...new Set([...(currentUser.value?.classes || []), ...assigned])]
+  })
   const visibleTasks = computed(() =>
-    tasks.filter((task) => isAdmin.value || authorizedClassIds.value.includes(task.classId) || task.teacher === currentUser.value?.name)
+    tasks.filter((task) => isAdmin.value || authorizedClassIds.value.some((id) => sameId(id, task.classId)) || task.teacher === currentUser.value?.name)
   )
   const visibleNavItems = computed(() => {
-    const adminOnly = ['imports', 'settings', 'supervision']
-    return isAdmin.value ? [] : adminOnly
+    const permissions = new Set(storedMe.value?.permissions || [])
+    const can = (...keys) => isAdmin.value || keys.some((key) => permissions.has(key))
+    const requiredPermissions = {
+      tasks: ['lesson.read'],
+      supervision: ['quality.read', 'quality.review'],
+      production: ['portfolio.template.read', 'portfolio.export'],
+      students: ['masterdata.read'],
+      classes: ['masterdata.read'],
+      externalLinks: ['masterdata.read'],
+      courses: ['masterdata.read'],
+      archives: ['archive.read'],
+      extraTasks: ['extra-task.read'],
+      imports: ['import.create', 'import.preview', 'import.confirm'],
+      templates: ['lesson.read'],
+      settings: ['identity.user.manage', 'configuration.provider.read', 'configuration.manage']
+    }
+    return Object.entries(requiredPermissions)
+      .filter(([, keys]) => !can(...keys))
+      .map(([navId]) => navId)
   })
-  const activeTask = computed(() => visibleTasks.value.find((task) => task.id === activeTaskId.value) || visibleTasks.value[0] || tasks[0])
-  const activeClass = computed(() => classes.find((item) => item.id === activeTask.value.classId))
-  const activeCourse = computed(() => courses.find((item) => item.id === activeTask.value.courseId))
-  const activeSessionStudent = computed(() => sessionStudents.value.find((item) => item.studentId === activeStudentId.value))
-  const activeStudent = computed(() => students.find((item) => item.id === activeStudentId.value))
-  const classStudents = computed(() => activeClass.value.studentIds.map((id) => students.find((item) => item.id === id)).filter(Boolean))
+  const activeTask = computed(() => visibleTasks.value.find((task) => sameId(task.id, activeTaskId.value)) || visibleTasks.value[0] || {
+    id: null, classId: null, courseId: null, teacherId: null, teacher: '', date: '', dateValue: '', time: '', lessonType: '其他', status: '待处理', version: 0, wheatStatus: '未生成'
+  })
+  const activeClass = computed(() => classes.find((item) => sameId(item.id, activeTask.value?.classId)) || { id: null, name: '未选择班级', studentIds: [], time: '' })
+  const activeCourse = computed(() => courses.find((item) => sameId(item.id, activeTask.value?.courseId)) || { id: null, title: '待配置', materials: '', defaultFocus: '' })
+  const activeSessionStudent = computed(() => sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value)))
+  const activeStudent = computed(() => students.find((item) => sameId(item.id, activeStudentId.value)))
+  const classStudents = computed(() => (activeClass.value.studentIds || []).map((id) => students.find((item) => sameId(item.id, id))).filter(Boolean))
   const attendingRows = computed(() => sessionStudents.value.filter((item) => item.attendance === '到课'))
   const activeImageTemplates = computed(() => {
     const picked = selectedImageTemplates.value.map((index) => templates.image[index]).filter(Boolean)
-    return picked.length ? picked : [templates.image[0]]
+    return picked.length ? picked : templates.image[0] ? [templates.image[0]] : []
   })
-  const activeImageTemplate = computed(() => activeImageTemplates.value[0] || templates.image[0])
-  const activeCommentTemplate = computed(() => templates.comment[selectedCommentTemplate.value])
+  const activeImageTemplate = computed(() => activeImageTemplates.value[0] || null)
+  const activeCommentTemplate = computed(() => templates.comment[selectedCommentTemplate.value] || { name: '默认课评', tone: '', length: '' })
   const isProcessing = computed(() => Boolean(processingAction.value))
-  const selectedExternalLinks = computed(() => externalLinks.filter((link) => homework.value.externalLinkIds.includes(link.id)))
+  const selectedExternalLinks = computed(() => externalLinks.filter((link) => (homework.value.externalLinkIds || []).some((id) => sameId(id, link.id))))
   const permissionSummary = computed(() => ({
     role: currentUser.value?.role || '未登录',
-    visibleClasses: authorizedClassIds.value.map((id) => classes.find((klass) => klass.id === id)?.name).filter(Boolean),
+    visibleClasses: authorizedClassIds.value.map((id) => classes.find((klass) => sameId(klass.id, id))?.name).filter(Boolean),
     taskScope: isAdmin.value ? '全部课次' : '本人授权班级课次',
     canManageSettings: isAdmin.value,
-    canProcessLesson: Boolean(activeTask.value && (isAdmin.value || authorizedClassIds.value.includes(activeTask.value.classId)))
+    canProcessLesson: Boolean(activeTask.value && (isAdmin.value || authorizedClassIds.value.some((id) => sameId(id, activeTask.value.classId))))
   }))
   const importStats = computed(() => ({
     total: importPreviewRows.length,
@@ -313,7 +401,12 @@ export function useDeliveryWorkflow() {
   }))
   const cloudDriveSetting = computed(() => settings.find((item) => item.type === 'cloudDrive' || item.name === '网盘配置'))
   const wecomSetting = computed(() => settings.find((item) => item.type === 'wecom' || item.name === '企业微信触达'))
-  const wecomEnabled = computed(() => wecomSetting.value?.status === '已启用')
+  const wecomEnabled = computed(() => Boolean(
+    wecomSetting.value?.status === '已启用' ||
+    cloudDriveSetting.value?.value?.providers?.some((provider) =>
+      provider.enabled && ['WECOM', 'WE_COM', '企业微信'].includes(String(provider.providerType || provider.type).toUpperCase())
+    )
+  ))
   const enabledCloudProviders = computed(() =>
     (cloudDriveSetting.value?.value?.providers || []).filter((provider) => provider.enabled)
   )
@@ -334,7 +427,7 @@ export function useDeliveryWorkflow() {
       id: 'wheat',
       label: '小麦留痕待办',
       required: true,
-      status: activeTask.value.wheatStatus || '未生成'
+      status: activeTask.value?.wheatStatus || '未生成'
     }
   ])
   const archiveFilter = reactive({
@@ -349,8 +442,8 @@ export function useDeliveryWorkflow() {
   })
   const filteredArchiveRecords = computed(() =>
     archiveRecords.filter((record) => {
-      const studentOk = archiveFilter.studentId === 'all' || record.studentId === Number(archiveFilter.studentId)
-      const classOk = archiveFilter.classId === 'all' || record.classId === Number(archiveFilter.classId)
+      const studentOk = archiveFilter.studentId === 'all' || sameId(record.studentId, archiveFilter.studentId)
+      const classOk = archiveFilter.classId === 'all' || sameId(record.classId, archiveFilter.classId)
       const teacherOk = archiveFilter.teacher === 'all' || record.teacher === archiveFilter.teacher
       const dateOk = isWithinDateRange(record.dateValue, archiveFilter.dateStart, archiveFilter.dateEnd)
       const source = record.sourceType || 'lesson'
@@ -366,12 +459,12 @@ export function useDeliveryWorkflow() {
   const lessonArchiveRecords = computed(() => {
     const taskRecords = visibleTasks.value.map((task) => {
       const workspace = ensureLessonWorkspace(task)
-      const klass = classes.find((item) => item.id === task.classId)
-      const course = courses.find((item) => item.id === task.courseId)
-      const trace = wheatTraces.find((item) => item.lessonId === task.id)
-      const savedWorks = archiveRecords.filter((record) => record.lessonId === task.id)
+      const klass = classes.find((item) => sameId(item.id, task.classId))
+      const course = courses.find((item) => sameId(item.id, task.courseId))
+      const trace = wheatTraces.find((item) => sameId(item.lessonId, task.id))
+      const savedWorks = archiveRecords.filter((record) => sameId(record.lessonId, task.id))
       const studentWorks = (savedWorks.length ? savedWorks : workspace.studentDeliveries.filter((row) => row.attendance === '到课').map((row) => {
-        const student = students.find((item) => item.id === row.studentId)
+        const student = students.find((item) => sameId(item.id, row.studentId))
         return {
           id: `${task.id}-${row.studentId}`,
           lessonId: task.id,
@@ -424,8 +517,8 @@ export function useDeliveryWorkflow() {
         wheatStatus: trace?.status || task.wheatStatus || '未生成',
         cloudArchiveStatus: task.cloudArchiveStatus || '待推送',
         teacherEffect: workspace.archiveChecklist?.teacherEffectArchive || createArchiveChecklist().teacherEffectArchive,
-        deliveryVideo: workspace.archiveChecklist?.deliveryVideo || createArchiveChecklist().deliveryVideo,
         studentArchive: workspace.archiveChecklist?.studentCloudArchive || createArchiveChecklist().studentCloudArchive,
+        archiveVersions: workspace.archiveVersions || [],
         shareStatus: workspace.sharePage?.status || '草稿'
       }
     })
@@ -479,7 +572,6 @@ export function useDeliveryWorkflow() {
             detail: `${archive.teacher}历史课效图 · ${archive.className} · ${archive.course}`,
             updatedAt: archive.date
           },
-          deliveryVideo: { status: '已跳过', detail: '历史归档未记录交付视频' },
           studentArchive: { status: '已同步', detail: '历史学生作品档案已归档' },
           shareStatus: '已归档'
         }
@@ -487,8 +579,33 @@ export function useDeliveryWorkflow() {
 
     return [...taskRecords, ...historicalRecords]
   })
-  const teacherEffectArchiveRecords = computed(() =>
-    lessonArchiveRecords.value
+  const teacherEffectArchiveRecords = computed(() => {
+    if (teacherArchives.length) {
+      return teacherArchives.map((effect) => {
+        const sourceLesson = lessonArchiveRecords.value.find((lesson) => sameId(lesson.lessonId, effect.lessonId)) || {
+          lessonId: effect.lessonId,
+          classId: effect.classId,
+          className: effect.className,
+          classType: '固定班',
+          date: effect.date,
+          dateValue: effect.dateValue,
+          time: effect.time,
+          teacher: effect.teacher,
+          course: effect.course,
+          studentWorks: [],
+          referenceMaterials: []
+        }
+        return {
+          ...effect,
+          imageCount: effect.imageCount || 0,
+          detail: effect.failureReason || '老师课效长图已归档',
+        cloudPath: effect.targetPath || '',
+          sourceWorks: sourceLesson.studentWorks || [],
+          sourceLesson
+        }
+      })
+    }
+    return lessonArchiveRecords.value
       .filter((lesson) => lesson.teacherEffect?.status && lesson.teacherEffect.status !== '待生成')
       .map((lesson) => ({
         id: `effect-${lesson.id}`,
@@ -504,68 +621,57 @@ export function useDeliveryWorkflow() {
         status: lesson.teacherEffect.status,
         imageCount: lesson.teacherEffect.imageCount || lesson.worksCount,
         detail: lesson.teacherEffect.detail || '课效长图已生成',
-        cloudPath: lesson.teacherEffect.detail?.includes('教学资料归档') ? lesson.teacherEffect.detail : teacherEffectPathPreview.value,
+        cloudPath: lesson.teacherEffect.detail?.includes('教学资料归档') ? lesson.teacherEffect.detail : '',
         cover: lesson.studentWorks.find((work) => work.artwork)?.artwork || lesson.referenceMaterials.find((material) => material.image)?.image || '',
         sourceWorks: lesson.studentWorks,
         sourceLesson: lesson
       }))
-  )
+  })
   const latestLessonDate = computed(() =>
     [...new Set(tasks.map((task) => task.dateValue).filter(Boolean))].sort().at(-1) || ''
   )
-  const availableLessonMonths = computed(() =>
-    [...new Set(lessonArchiveRecords.value.map((lesson) => monthFromDateValue(lesson.dateValue)).filter(Boolean))].sort().reverse()
-  )
   const qualityReviewForLesson = (lessonId) => {
     if (!lessonId) return null
-    return qualityReviews.find((review) => review.lessonId === Number(lessonId)) || null
+    return qualityReviews.find((review) => sameId(review.lessonId, lessonId)) || null
   }
-  const monthlyReviewForTeacher = (teacher, month) =>
-    monthlyTeacherReviews.find((review) => review.teacher === teacher && review.month === month) || null
-  const supervisionLessonRecords = computed(() =>
-    lessonArchiveRecords.value.map((lesson) => {
-      const review = qualityReviewForLesson(lesson.lessonId)
+  const supervisionLessonRecords = computed(() => {
+    const dashboardByLesson = new Map(supervisionDashboard.map((item) => [String(item.lessonId), item]))
+    return lessonArchiveRecords.value.map((lesson) => {
+      const dashboard = dashboardByLesson.get(String(lesson.lessonId))
+      const currentReview = qualityReviewForLesson(lesson.lessonId)
+      const review = currentReview || dashboard?.review || (dashboard?.reviewId
+        ? {
+            id: dashboard.reviewId,
+            lessonId: dashboard.lessonId,
+            teacher: dashboard.teacherName,
+            score: dashboard.score,
+            comment: dashboard.reviewComment || '',
+            status: dashboard.reviewStatus || '待评分',
+            reviewedAt: dashboard.reviewedAt,
+            version: dashboard.reviewVersion || 0
+          }
+        : null)
       return {
         ...lesson,
+        className: dashboard?.className || lesson.className,
+        teacher: dashboard?.teacherName || lesson.teacher,
+        course: dashboard?.courseTitle || lesson.course,
         review,
-        reviewStatus: lesson.status === '已完成' ? (review ? '已评分' : '待评分') : '未完成'
+        reviewStatus: lesson.status === '已完成'
+          ? (review?.status || currentReview?.status || dashboard?.reviewStatus || '待评分')
+          : (dashboard?.status || '未完成')
       }
     })
-  )
+  })
   const pendingQualityReviews = computed(() =>
-    supervisionLessonRecords.value.filter((lesson) => lesson.lessonId && lesson.status === '已完成' && !lesson.review)
+    supervisionLessonRecords.value.filter((lesson) => lesson.lessonId && lesson.status === '已完成' && lesson.review?.status !== '已评分')
   )
-  const lessonsForTeacherMonth = (teacher, month) =>
-    supervisionLessonRecords.value.filter((lesson) =>
-      (!teacher || lesson.teacher === teacher) &&
-      (!month || monthFromDateValue(lesson.dateValue) === month)
-    )
-  const teacherMonthStats = (teacher, month) => {
-    const lessons = lessonsForTeacherMonth(teacher, month)
-    const completed = lessons.filter((lesson) => lesson.status === '已完成')
-    const reviewed = completed.filter((lesson) => lesson.review)
-    const scores = reviewed.map((lesson) => Number(lesson.review.score)).filter((score) => Number.isFinite(score))
-    const averageScore = scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10 : null
-    return {
-      teacher,
-      month,
-      total: lessons.length,
-      completed: completed.length,
-      unfinished: lessons.filter((lesson) => !['已完成', '异常'].includes(lesson.status)).length,
-      exception: lessons.filter((lesson) => lesson.status === '异常').length,
-      pendingReview: completed.length - reviewed.length,
-      reviewed: reviewed.length,
-      averageScore,
-      completionRate: lessons.length ? Math.round((completed.length / lessons.length) * 100) : 0,
-      monthlyReview: monthlyReviewForTeacher(teacher, month)
-    }
-  }
   const saveQualityReview = (payload) => {
     if (!isAdmin.value) {
       notify('只有管理员/教管可以评分')
       return null
     }
-    const lesson = supervisionLessonRecords.value.find((item) => item.lessonId === Number(payload.lessonId))
+    const lesson = supervisionLessonRecords.value.find((item) => sameId(item.lessonId, payload.lessonId))
     if (!lesson) {
       notify('没有找到要评分的课次')
       return null
@@ -595,43 +701,16 @@ export function useDeliveryWorkflow() {
     notify(`已保存${lesson.teacher} ${lesson.date}课次评分：${score}分`)
     return next
   }
-  const saveMonthlyTeacherReview = (payload) => {
-    if (!isAdmin.value) {
-      notify('只有管理员/教管可以提交月度总评')
-      return null
-    }
-    const score = Number(payload.score)
-    if (!Number.isFinite(score) || score < 0 || score > 10) {
-      notify('月度评分需要在 0-10 分之间')
-      return null
-    }
-    const teacher = payload.teacher
-    const month = payload.month
-    const existing = monthlyReviewForTeacher(teacher, month)
-    const next = {
-      id: existing?.id || nextId(monthlyTeacherReviews),
-      month,
-      teacher,
-      reviewer: currentUser.value?.name || '管理员',
-      score,
-      comment: payload.comment?.trim() || '',
-      reviewedAt: nowText()
-    }
-    if (existing) Object.assign(existing, next)
-    else monthlyTeacherReviews.unshift(next)
-    notify(`已保存${teacher} ${month}月度总评：${score}分`)
-    return next
-  }
-  const studentHistoryFor = (studentId) => archiveRecords.filter((record) => record.studentId === Number(studentId))
+  const studentHistoryFor = (studentId) => archiveRecords.filter((record) => sameId(record.studentId, studentId))
   const communicationRecordsFor = (studentId) =>
     communicationRecords
-      .filter((record) => record.studentId === Number(studentId))
+      .filter((record) => sameId(record.studentId, studentId))
       .sort((a, b) => String(b.recordedAt || '').localeCompare(String(a.recordedAt || '')))
   const archiveCollectionsForRecord = (recordId) => archiveCollections.filter((collection) => collection.recordIds.includes(recordId))
   const archiveEditLogsForRecord = (recordId) => archiveEditLogs.filter((log) => log.recordId === recordId)
   const canEditArchiveRecord = (record) => Boolean(
     record &&
-    (isAdmin.value || record.teacher === currentUser.value?.name || authorizedClassIds.value.includes(record.classId))
+    (isAdmin.value || record.teacher === currentUser.value?.name || authorizedClassIds.value.some((id) => sameId(id, record.classId)))
   )
   const archiveFieldLabels = {
     title: '作品标题',
@@ -723,7 +802,7 @@ export function useDeliveryWorkflow() {
       createdAt: nowText(),
       status: '已发布',
       recordIds: selectedRecords.map((record) => record.id),
-      link: `https://share.xinghe-art.local/collections/${id}`,
+      link: '',
       intro: payload.intro?.trim() || '',
       summary: payload.summary?.trim() || '',
       teacherMessage: payload.teacherMessage?.trim() || '',
@@ -760,7 +839,7 @@ export function useDeliveryWorkflow() {
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
-    homeworkReady: homework.value.visible && !homework.value.content.trim() ? 0 : 1,
+    homeworkReady: displayConfig.value.showHomework !== false && !homework.value.content.trim() ? 0 : 1,
     referenceMaterials: referenceMaterials.value.length,
     coursewares: coursewareMaterials.value.length,
     classroomMaterials: materials.value.length,
@@ -806,36 +885,36 @@ export function useDeliveryWorkflow() {
       (workspace.homework?.visible && !workspace.homework.content.trim() ? 0 : rows.length) +
       rows.filter((row) => row.archived).length
     const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 7)) * 100))
-    if (task.id === activeTaskId.value) return taskProgress.value
+    if (sameId(task.id, activeTaskId.value)) return taskProgress.value
     return workspaceProgress
   }
 
   const currentWarnings = computed(() => {
     const warnings = []
     if (!materials.value.length && !materialsConfirmedEmpty.value) warnings.push('课堂资料待上传或确认无资料')
-    if (homework.value.visible && !homework.value.content.trim()) warnings.push('课后任务内容为空')
+    if (displayConfig.value.showHomework !== false && !homework.value.content.trim()) warnings.push('课后任务内容为空')
     attendingRows.value.forEach((row) => {
-      const student = students.find((item) => item.id === row.studentId)
-      if (!row.imageMatched) warnings.push(`${student.name}缺作品`)
-      if (!row.imageConfirmed) warnings.push(`${student.name}图片待确认`)
-      if (!row.record) warnings.push(`${student.name}缺课堂记录`)
-      if (!row.comment) warnings.push(`${student.name}缺课评`)
-      if (row.comment && !row.confirmed) warnings.push(`${student.name}课评待确认`)
+      const student = students.find((item) => sameId(item.id, row.studentId))
+      const name = student?.name || row.studentName || '学生'
+      if (!row.imageMatched) warnings.push(`${name}缺作品`)
+      if (!row.imageConfirmed) warnings.push(`${name}图片待确认`)
+      if (!row.record) warnings.push(`${name}缺课堂记录`)
+      if (!row.comment) warnings.push(`${name}缺课评`)
+      if (row.comment && !row.confirmed) warnings.push(`${name}课评待确认`)
     })
     return warnings
   })
 
   // 「待老师确认发送」「发送失败」按 PRD 属于正常触达留痕，不阻断课次归档完成；发送失败另行进入待办中心。
-  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已跳过', '待老师确认发送', '已发送', '人工触达', '发送失败']
+  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工触达', '发送失败']
   const archiveWorkingStatuses = ['推送中', '生成中', '创建中']
   const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
   const isArchiveWorking = (item) => archiveWorkingStatuses.includes(item.status)
-  const studentArchivePathPreview = computed(() => {
-    const student = attendingRows.value[0] ? students.find((item) => item.id === attendingRows.value[0].studentId) : students[0]
-    return `${school.campus}/2026暑期/${activeTask.value.teacher}/${activeClass.value.name}（固定班）/${student?.name || '学生'}/1.作品（${activeTask.value.date}+${activeCourse.value.title}+${activeTask.value.teacher}+${student?.name || '学生'}）/`
-  })
+  const studentArchivePathPreview = computed(() =>
+    activeWorkspace.value.cloudJobs?.find((job) => job.targetPath)?.targetPath || '云盘目录由服务端按机构归档规则生成'
+  )
   const teacherEffectPathPreview = computed(() =>
-    `${school.campus}/教学资料归档/课程归总/2026/2026暑期+固定班归总/`
+    activeWorkspace.value.teacherEffect?.outputFileId ? '课效图文件已由服务端生成' : '归档路径由服务端按机构规则生成'
   )
   const archiveChecklistItems = computed(() => [
     {
@@ -853,23 +932,15 @@ export function useDeliveryWorkflow() {
       title: '学生作品与照片百度归档',
       meta: studentArchivePathPreview.value,
       action: '推送',
-      required: true,
+      required: false,
       item: archiveChecklist.value.studentCloudArchive
-    },
-    {
-      key: 'deliveryVideo',
-      title: '交付视频',
-      meta: archiveChecklist.value.deliveryVideo.fileName,
-      action: '上传视频',
-      required: true,
-      item: archiveChecklist.value.deliveryVideo
     },
     {
       key: 'teacherEffectArchive',
       title: '老师课效长图归档',
       meta: archiveChecklist.value.teacherEffectArchive.title || teacherEffectPathPreview.value,
       action: '生成并归档',
-      required: true,
+      required: false,
       item: archiveChecklist.value.teacherEffectArchive
     },
     {
@@ -907,16 +978,14 @@ export function useDeliveryWorkflow() {
   }
 
   const ensureStudentToken = (lessonId, studentId) => {
-    const workspace = ensureLessonWorkspace(tasks.find((task) => task.id === Number(lessonId)))
+    const workspace = ensureLessonWorkspace(tasks.find((task) => sameId(task.id, lessonId)))
     if (!workspace.sharePage.studentTokens) workspace.sharePage.studentTokens = {}
     if (!workspace.sharePage.studentTokens[studentId]) workspace.sharePage.studentTokens[studentId] = createShareToken()
     return workspace.sharePage.studentTokens[studentId]
   }
 
   const studentShareUrlFor = (rowOrId) => {
-    const studentId = Number(rowOrId?.studentId || rowOrId)
-    const base = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:5174'
-    return `${base}/#/share/student/${activeTask.value.id}/${studentId}?token=${ensureStudentToken(activeTask.value.id, studentId)}`
+    return ''
   }
 
   const parentShareUrl = computed(() => studentShareUrlFor(activeStudentId.value))
@@ -924,7 +993,7 @@ export function useDeliveryWorkflow() {
   const qrText = computed(() => `QR · ${activeShareMode.value === 'class' ? activeClass.value.name : activeStudent.value?.name || ''}`)
 
   const fileNameFor = (row) => {
-    const student = students.find((item) => item.id === row.studentId)
+    const student = students.find((item) => sameId(item.id, row.studentId))
     return `${activeTask.value.date}-${activeClass.value.name}-${student.name}-${activeCourse.value.title}.jpg`
   }
 
@@ -962,7 +1031,7 @@ export function useDeliveryWorkflow() {
     })
   }
 
-  const lessonStatusLogs = computed(() => statusChangeLogs.filter((log) => log.lessonId === activeTask.value.id))
+  const lessonStatusLogs = computed(() => statusChangeLogs.filter((log) => sameId(log.lessonId, activeTask.value.id)))
 
   const transitionLesson = (action, reason, exceptionType = '') => {
     const task = activeTask.value
@@ -1034,7 +1103,7 @@ export function useDeliveryWorkflow() {
   }
 
   const selectTask = (task) => {
-    if (!isAdmin.value && !authorizedClassIds.value.includes(task.classId) && task.teacher !== currentUser.value?.name) {
+    if (!isAdmin.value && !authorizedClassIds.value.some((id) => sameId(id, task.classId)) && task.teacher !== currentUser.value?.name) {
       notify('无权限查看该课次，请联系管理员授权班级')
       return
     }
@@ -1121,7 +1190,6 @@ export function useDeliveryWorkflow() {
       row.shareReady = false
       row.archived = false
     } else {
-      if (!row.image) row.image = sessionSeed[row.studentId]?.image || ''
       if (!row.images?.length && row.image) row.images = [row.image]
       row.imageMatched = Boolean(row.images?.length)
       row.imageConfirmed = row.imageMatched
@@ -1139,7 +1207,7 @@ export function useDeliveryWorkflow() {
       lessonId: activeTaskId.value,
       type,
       title: `新上传${type} ${materials.value.length + 1}`,
-      image: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=720&q=80',
+      image: '',
       visible: true,
       libraryId: null
     })
@@ -1195,7 +1263,7 @@ export function useDeliveryWorkflow() {
   }
 
   const addArtworkLibraryItem = (payload) => {
-    const item = { id: nextId(artworkLibrary), type: payload.type || '范画', title: payload.title || '新范画', theme: payload.theme || '未分类', age: payload.age || '不限', uploader: currentUser.value.name, usage: 0, image: payload.image || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=720&q=80' }
+    const item = { id: nextId(artworkLibrary), type: payload.type || '范画', title: payload.title || '新范画', theme: payload.theme || '未分类', age: payload.age || '不限', uploader: currentUser.value.name, usage: 0, image: payload.image || '' }
     artworkLibrary.unshift(item)
     notify(`已加入范画库：${item.title}`)
     return item
@@ -1529,7 +1597,7 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const getLessonWorkspace = (lessonId) => lessonWorkspaces[Number(lessonId)]
+  const getLessonWorkspace = (lessonId) => lessonWorkspaces[String(lessonId)]
   const isShareAccessible = (route) => {
     const workspace = getLessonWorkspace(route.lessonId)
     return Boolean(
@@ -1637,7 +1705,7 @@ export function useDeliveryWorkflow() {
         frameNote: existing?.frameNote || '',
         updatedBy: existing?.updatedBy || '',
         updatedAt: existing?.updatedAt || '',
-        shareUrl: `https://share.xinghe-art.local/student-${activeTask.value.id}-${row.studentId}`,
+        shareUrl: existing?.shareUrl || '',
         collectionIds: existing?.collectionIds || [],
         wheatStatus,
         storageTarget,
@@ -1666,25 +1734,6 @@ export function useDeliveryWorkflow() {
       setArchiveChecklistItem(key, { status: '已同步', detail: studentArchivePathPreview.value })
     })
     return true
-  }
-
-  const uploadDeliveryVideo = (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    const sizeMb = Math.max(0.1, file.size / 1024 / 1024).toFixed(1)
-    setArchiveChecklistItem('deliveryVideo', {
-      status: '已上传',
-      detail: `${file.name} · ${sizeMb} MB · ${file.type || 'video/*'}`,
-      fileName: file.name,
-      fileMeta: `${sizeMb} MB`
-    })
-    event.target.value = ''
-    notify(`交付视频已上传：${file.name}`)
-  }
-
-  const skipDeliveryVideo = () => {
-    setArchiveChecklistItem('deliveryVideo', { status: '已跳过', detail: '本节课无需交付视频', fileName: '', fileMeta: '' })
-    notify('已标记本节无需交付视频')
   }
 
   const archiveTeacherEffectImage = async () => {
@@ -1721,7 +1770,7 @@ export function useDeliveryWorkflow() {
   }
 
   const wecomTaskFor = (lessonId, studentId) =>
-    wecomSendTasks.find((task) => task.lessonId === Number(lessonId) && task.studentId === Number(studentId))
+    wecomSendTasks.find((task) => sameId(task.lessonId, lessonId) && sameId(task.studentId, studentId))
 
   const refreshParentTouchSummary = (lessonId = activeTask.value.id) => {
     const workspace = getLessonWorkspace(lessonId)
@@ -2398,6 +2447,1720 @@ export function useDeliveryWorkflow() {
     if (currentStep.value > 0) currentStep.value -= 1
   }
 
+  const replaceReactive = (target, values = []) => {
+    target.splice(0, target.length, ...(Array.isArray(values) ? values : []))
+  }
+
+  const remoteErrorMessage = (error, fallback = '操作失败，请稍后重试') => {
+    if (error?.status === 401 || error?.code === 'TOKEN_EXPIRED') return '登录状态已失效，请重新登录'
+    if (error?.status === 404 || error?.code === 'RESOURCE_NOT_FOUND') return '服务端找不到对应资源，请刷新后重试'
+    if (error?.status === 409 || ['VERSION_CONFLICT', 'INVALID_STATE_TRANSITION', 'DUPLICATE_RESOURCE', 'IDEMPOTENCY_KEY_REUSED', 'STALE_JOB_ATTEMPT'].includes(error?.code)) return '数据已被其他人更新或操作重复，页面已刷新，请确认后重试'
+    if (error?.code === 'PERMISSION_DENIED' || error?.status === 403) return '当前账号没有执行此操作的权限'
+    if (error?.status === 422 || error?.code === 'TRANSITION_PRECONDITION_FAILED' || error?.code === 'LESSON_COMPLETION_BLOCKED') return error.message || '当前前置条件未满足'
+    if (error?.status === 413) return '文件超过系统允许的大小'
+    if (error?.status === 415) return '文件格式不受支持'
+    return error?.message || fallback
+  }
+
+  const runRemote = async (label, action, success = '') => {
+    processingAction.value = label
+    try {
+      const result = await action()
+      if (success) notify(success)
+      return result
+    } catch (error) {
+      if (error?.status === 409 && remoteReady.value) {
+        try {
+          await loadRemoteState()
+        } catch {
+          // 原始冲突信息仍由统一错误提示展示。
+        }
+      }
+      notify(remoteErrorMessage(error))
+      return null
+    } finally {
+      processingAction.value = ''
+    }
+  }
+
+  const runRemoteVoid = async (label, action, success = '') => {
+    processingAction.value = label
+    try {
+      await action()
+      if (success) notify(success)
+      return true
+    } catch (error) {
+      if (error?.status === 409 && remoteReady.value) {
+        try {
+          await loadRemoteState()
+        } catch {
+          // 原始冲突信息仍由统一错误提示展示。
+        }
+      }
+      notify(remoteErrorMessage(error))
+      return false
+    } finally {
+      processingAction.value = ''
+    }
+  }
+
+  const fileUrlCache = new Map()
+  const protectedFileUrl = async (fileId) => {
+    if (!fileId) return ''
+    const key = String(fileId)
+    if (!fileUrlCache.has(key)) fileUrlCache.set(key, loadProtectedBlobUrl(fileId))
+    try {
+      return await fileUrlCache.get(key)
+    } catch {
+      fileUrlCache.delete(key)
+      return ''
+    }
+  }
+
+  const mapImportBatch = (value = {}) => ({
+    ...value,
+    id: fromApiId(value.id),
+    source: value.originalFilename || value.sourceType || '数据导入',
+    time: displayDateTime(value.createdAt),
+    success: Number(value.importedRows || value.readyRows || 0),
+    failed: Number(value.invalidRows || value.duplicateRows || 0),
+    note: value.failedStage || value.status || '',
+    version: Number(value.version || 0)
+  })
+
+  const mapImportRow = (value = {}) => {
+    const normalized = value.normalizedValues || {}
+    return {
+      ...value,
+      id: fromApiId(value.id),
+      type: String(value.recordType || '').toLowerCase().includes('student') ? 'student' : String(value.recordType || '').toLowerCase().includes('class') ? 'class' : 'lesson',
+      name: normalized.name || normalized.studentName || normalized.className || normalized.title || value.rawValues?.name || '',
+      className: normalized.className || normalized.class_name || value.rawValues?.className || '',
+      teacher: normalized.teacher || normalized.teacherName || value.rawValues?.teacher || '',
+      time: normalized.time || normalized.scheduleText || value.rawValues?.time || '',
+      course: normalized.course || normalized.courseTitle || value.rawValues?.course || '',
+      nickname: normalized.nickname || '',
+      parent: normalized.parentName || normalized.parent || '',
+      phone: normalized.parentPhone || normalized.phone || '',
+      status: value.status === 'READY' ? '可导入' : value.status === 'SKIPPED' ? '已跳过' : '需处理',
+      issue: value.reasonDetail || value.reasonCode || ''
+    }
+  }
+
+  const mapProviderSetting = (providers = []) => {
+    const mapped = providers.map((provider) => ({
+      ...provider,
+      endpoint: provider.endpoint || provider.config?.endpoint || '',
+      appKey: provider.appKey || provider.config?.appKey || '',
+      authType: provider.authType || provider.config?.authType || '',
+      id: fromApiId(provider.id),
+      type: provider.providerType || provider.type || '',
+      providerType: provider.providerType || provider.type || '',
+      version: Number(provider.version || 0),
+      name: provider.name,
+      enabled: ['ENABLED', '启用', 'ACTIVE'].includes(provider.status),
+      status: ['ENABLED', 'ACTIVE'].includes(provider.status) ? '已启用' : provider.status || '未启用',
+      tokenStatus: provider.secretStatus || (provider.secretRefPresent ? '已配置' : '未配置')
+    }))
+    replaceReactive(settings, [{ id: 'providers', type: 'cloudDrive', name: '第三方通道配置', status: mapped.some((item) => item.enabled) ? '已启用' : '未启用', value: { providers: mapped }, version: 0 }])
+  }
+
+  const mergeSharePageForWorkspace = (workspace, page) => {
+    const existingLinks = workspace.sharePage?.accessLinks || []
+    const accessLinks = page.statusCode === 'PUBLISHED' && !page.accessLinks?.length
+      ? existingLinks
+      : (page.accessLinks || [])
+    return {
+      ...workspace.sharePage,
+      ...page,
+      accessLinks,
+      studentTokens: Object.fromEntries(accessLinks.map((link) => [String(link.studentId), link.token]).filter(([, token]) => token))
+    }
+  }
+
+  const providerTypeOptions = computed(() => providerCatalog.cloud)
+
+  const statusForArchiveItem = (value) => ({
+    PENDING: '待处理', QUEUED: '创建中', CREATING: '创建中', RUNNING: '推送中', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SUCCEEDED: '已同步', SYNCED: '已同步', COMPLETED: '已归档', SKIPPED: '已跳过', FAILED: '发送失败', CANCELED: '已取消'
+  }[value] || value || '待处理')
+
+  const refreshRemoteLesson = async (lessonId) => {
+    if (!lessonId) return null
+    const results = await Promise.allSettled([
+      api.lessons.get(lessonId),
+      api.lessons.workspace(lessonId),
+      api.lessons.attendance(lessonId),
+      api.assets.list(lessonId),
+      api.assets.artworks(lessonId),
+      api.feedback.list(lessonId),
+      api.parent.draft(lessonId),
+      api.parent.touchTasksForLesson(lessonId),
+      api.todo.wheat(lessonId),
+      api.m5.teacherEffect(lessonId),
+      api.m5.cloudJobs({ lessonId }),
+      api.archive.versions(lessonId)
+    ])
+    const valueAt = (index) => results[index].status === 'fulfilled' ? results[index].value : null
+    const lesson = mapLesson(valueAt(0) || tasks.find((item) => sameId(item.id, lessonId)) || {})
+    if (lesson.id) {
+      const existing = tasks.findIndex((item) => sameId(item.id, lesson.id))
+      if (existing >= 0) tasks.splice(existing, 1, { ...tasks[existing], ...lesson })
+      else tasks.unshift(lesson)
+    }
+    const attendance = (valueAt(2) || valueAt(1)?.attendance || []).map(mapAttendance)
+    const assets = (valueAt(3) || valueAt(1)?.m3?.assets || []).map(mapAsset)
+    const artworks = (valueAt(4) || valueAt(1)?.m3?.artworks || []).map(mapArtwork)
+    const feedbacks = (valueAt(5) || valueAt(1)?.m3?.feedbacks || []).map(mapFeedback)
+    const artworkJobResults = await Promise.allSettled(artworks.filter((artwork) => artwork.id).map((artwork) => api.jobs.list({ businessObjectType: 'ARTWORK', businessObjectId: String(artwork.id) })))
+    const artworkJobs = new Map(artworkJobResults.map((result, index) => [String(artworks.filter((artwork) => artwork.id)[index]?.id), result.status === 'fulfilled' ? (result.value || []).map(mapJob) : []]))
+    const draft = mapSharePage(valueAt(6) || {})
+    const currentDraft = draft.draftSnapshot || {}
+    const touchTasks = (valueAt(7) || []).map((value) => {
+      const task = mapTouchTask(value)
+      const student = students.find((item) => sameId(item.id, task.studentId))
+      return {
+        ...task,
+        studentName: student?.name || task.studentName,
+        targetName: student?.parent || task.targetName || '家长',
+        parent: student?.parent || task.targetName || '',
+        lesson: `${lesson.date} ${lesson.time} · ${lesson.className || ''}`.trim()
+      }
+    })
+    const wheat = mapWheat(valueAt(8) || {})
+    const teacherEffect = valueAt(9) || {}
+    const cloudJobs = valueAt(10)?.items || valueAt(10) || []
+    const archiveVersions = (valueAt(11) || []).map(mapArchiveVersion)
+    const workspace = ensureLessonWorkspace(lesson)
+    const draftDisplayConfig = {
+      ...workspace.displayConfig,
+      ...(currentDraft.displayConfig || draft.displayConfig || {})
+    }
+    ;['showMaterials', 'showHomework', 'showHighlight', 'showLessonType'].forEach((key) => {
+      if (currentDraft[key] !== undefined) draftDisplayConfig[key] = Boolean(currentDraft[key])
+    })
+    const artworkByStudent = new Map(artworks.map((artwork) => [String(artwork.studentId), artwork]))
+    const feedbackByStudent = new Map(feedbacks.map((feedback) => [String(feedback.studentId), feedback]))
+    const assetsByStudent = new Map()
+    assets.filter((asset) => asset.studentId).forEach((asset) => {
+      const key = String(asset.studentId)
+      if (!assetsByStudent.has(key)) assetsByStudent.set(key, [])
+      assetsByStudent.get(key).push(asset)
+    })
+    const rows = await Promise.all(attendance.map(async (attendanceRow) => {
+      const artwork = artworkByStudent.get(String(attendanceRow.studentId))
+      const feedback = feedbackByStudent.get(String(attendanceRow.studentId))
+      const studentAssets = assetsByStudent.get(String(attendanceRow.studentId)) || []
+      const versions = artwork?.versions || []
+      const latestArtworkJob = (artworkJobs.get(String(artwork?.id)) || []).at(-1)
+      const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || versions.at(-1)
+      const processedVersion = versions.find((version) => version.versionKind === 'PROCESSED') || selectedVersion
+      const originalVersion = versions.find((version) => version.versionKind === 'ORIGINAL') || selectedVersion
+      const files = await Promise.all([...studentAssets.map((asset) => asset.fileId), selectedVersion?.fileId].filter(Boolean).map(protectedFileUrl))
+      const imageUrls = files.filter(Boolean)
+      return {
+        id: attendanceRow.studentId,
+        lessonId: lesson.id,
+        studentId: attendanceRow.studentId,
+        attendance: attendanceRow.attendance,
+        attendanceVersion: attendanceRow.version,
+        note: attendanceRow.note || '',
+        images: imageUrls,
+        image: imageUrls[0] || '',
+        originalImage: await protectedFileUrl(originalVersion?.fileId) || imageUrls[0] || '',
+        processedImage: await protectedFileUrl(processedVersion?.fileId) || '',
+        imageMatched: Boolean(artwork || studentAssets.length),
+        imageConfirmed: artwork?.confirmationStatus === 'CONFIRMED' || artwork?.status === 'CONFIRMED',
+        artworkId: artwork?.id || null,
+        artworkVersion: artwork?.version || 0,
+        selectedVersionId: selectedVersion?.id || null,
+        originalVersionId: originalVersion?.id || null,
+        processedVersionId: processedVersion?.id || null,
+        processed: Boolean(processedVersion && processedVersion.versionKind === 'PROCESSED'),
+        imageProcessStatus: latestArtworkJob?.statusLabel || artwork?.statusLabel || '未处理',
+        imageProcessError: latestArtworkJob?.failureReason || artwork?.failureReason || '',
+        record: feedback?.classroomRecord || '',
+        comment: feedback?.content || '',
+        feedbackId: feedback?.id || null,
+        feedbackVersion: feedback?.version || 0,
+        feedbackVersionId: feedback?.currentVersionId || null,
+        confirmed: feedback?.status === 'CONFIRMED' || Boolean(feedback?.confirmedVersionId),
+        highlight: false,
+        highlightNote: '',
+        shareReady: Boolean(draft.accessLinks?.some((link) => sameId(link.studentId, attendanceRow.studentId))),
+        archived: lesson.status === '已完成'
+      }
+    }))
+    const materialItems = await Promise.all(assets.filter((asset) => !asset.studentId).map(async (asset) => ({
+      ...asset,
+      image: await protectedFileUrl(asset.fileId) || asset.image,
+      lessonId: lesson.id
+    })))
+    const homeworkData = draft.homework || draft.publishedSnapshot?.homework || {}
+    Object.assign(workspace, {
+      lessonId: lesson.id,
+      studentDeliveries: rows,
+      materials: materialItems,
+      materialsConfirmedEmpty: Boolean(valueAt(1)?.m3?.materialsConfirmedEmpty),
+      materialsVersion: workspace.materialsVersion ?? null,
+      homework: { ...workspace.homework, ...homeworkData, externalLinkIds: fromApiIds(homeworkData.externalLinkIds || []) },
+      displayConfig: draftDisplayConfig,
+      sharePage: mergeSharePageForWorkspace(workspace, draft),
+      teacherEffect,
+      cloudJobs,
+      archiveVersions,
+      artworkJobs: Object.fromEntries([...artworkJobs.entries()]),
+      completion: valueAt(1)?.completion || valueAt(1)?.completionCheck || null,
+      availableCommands: valueAt(1)?.availableCommands || []
+    })
+    const touchStatus = touchTasks.length && touchTasks.every((task) => ['已发送', '人工触达'].includes(task.status)) ? '已发送' : touchTasks.some((task) => task.status === '发送失败') ? '发送失败' : touchTasks.length ? '待老师确认发送' : '待创建'
+    Object.assign(workspace.archiveChecklist, {
+      parentTouch: { ...workspace.archiveChecklist.parentTouch, status: touchStatus, sentCount: touchTasks.filter((task) => ['已发送', '人工触达'].includes(task.status)).length, detail: touchTasks.length ? `已创建 ${touchTasks.length} 个触达任务` : '' },
+      studentCloudArchive: { ...workspace.archiveChecklist.studentCloudArchive, status: statusForArchiveItem(cloudJobs.find((job) => job.required || ['LESSON_ASSET', 'ARCHIVE_RECORD', 'TEACHER_EFFECT'].includes(job.sourceType))?.status) },
+      teacherEffectArchive: { ...workspace.archiveChecklist.teacherEffectArchive, status: statusForArchiveItem(teacherEffect.status), title: teacherEffect.title || '', imageCount: teacherEffect.sources?.length || 0, detail: teacherEffect.failureReason || '' },
+      wheatTrace: { ...workspace.archiveChecklist.wheatTrace, status: wheat.status === '已人工处理' || wheat.status === '无需处理' ? wheat.status : wheat.id ? '已生成' : '待生成', traceId: wheat.id || null, detail: wheat.note || '' }
+    })
+    replaceReactive(wheatTraces, [...wheatTraces.filter((item) => !sameId(item.lessonId, lesson.id)), wheat.id ? { ...wheat, lesson: `${lesson.date} ${lesson.time} · ${lesson.className}`, course: lesson.courseTitle, teacher: lesson.teacher } : null].filter(Boolean))
+    replaceReactive(wecomSendTasks, touchTasks)
+    return workspace
+  }
+
+  const waitForJobs = async (jobIds = [], lessonId) => {
+    const pendingIds = jobIds.filter(Boolean).map(String)
+    if (!pendingIds.length) return
+    const terminal = new Set(['SUCCEEDED', 'FAILED', 'CANCELED', 'STALE'])
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      if (attempt > 0) await wait(700)
+      const results = await Promise.allSettled(pendingIds.map((jobId) => api.jobs.get(jobId)))
+      const snapshots = results.filter((result) => result.status === 'fulfilled').map((result) => result.value)
+      if (!snapshots.length) break
+      if (snapshots.length && snapshots.every((job) => terminal.has(job.status))) break
+    }
+    if (lessonId) await refreshRemoteLesson(lessonId)
+  }
+
+  let portfolioStudioRef = null
+
+  const loadRemoteState = async () => {
+    if (!isLoggedIn.value) return
+    remoteLoading.value = true
+    const results = await Promise.allSettled([
+      api.auth.me(),
+      api.master.campuses(),
+      api.master.teachers(),
+      api.master.students(),
+      api.master.classes(),
+      api.master.classTypes(),
+      api.master.courses(),
+      api.master.externalLinks(),
+      api.lessons.list(),
+      api.archive.records(),
+      api.m6.qualityReviews(),
+      api.m5.providers(),
+      api.m6.extraTasks(),
+      api.imports.list(),
+      api.master.terms(),
+      api.m6.supervision(),
+      api.m5.providerTypes(),
+      api.auth.permissions(),
+      api.m6.profileFields(),
+      api.todo.list(),
+      api.archive.teacherArchives()
+    ])
+    const valueAt = (index) => results[index].status === 'fulfilled' ? results[index].value : null
+    if (results[0].status === 'rejected') {
+      remoteLoading.value = false
+      throw results[0].reason
+    }
+    const me = valueAt(0)
+    if (me) {
+      storedMe.value = me
+      updateStoredMe(me)
+      currentUserId.value = me.user?.id || null
+      const campus = me.campuses?.find((item) => sameId(item.id, me.activeCampusId)) || me.campuses?.[0]
+      if (campus) Object.assign(school, { campus: campus.name, address: campus.address || '' })
+    }
+    replaceReactive(campuses, (valueAt(1)?.items || []).map(mapCampus))
+    replaceReactive(teachers, (valueAt(2)?.items || []).map(mapTeacher))
+    replaceReactive(students, (valueAt(3)?.items || []).map(mapStudent))
+    const classTypeMap = new Map((valueAt(5)?.items || []).map((item) => [String(item.id), item.name]))
+    replaceReactive(classTypes, (valueAt(5)?.items || []).map((item) => ({ ...item, id: fromApiId(item.id), version: Number(item.version || 0) })))
+    replaceReactive(classes, (valueAt(4)?.items || []).map((item) => ({ ...mapClass(item), classType: classTypeMap.get(String(item.classTypeId)) || '' })))
+    replaceReactive(courses, (valueAt(6)?.items || []).map(mapCourse))
+    replaceReactive(externalLinks, (valueAt(7)?.items || []).map(mapExternalLink))
+    replaceReactive(tasks, (valueAt(8)?.items || []).map(mapLesson))
+    const remoteArchiveRecords = (valueAt(9)?.items || []).map(mapArchiveRecord)
+    await Promise.all(remoteArchiveRecords.map(async (record) => {
+      if (record.fileId) {
+        const protectedUrl = await protectedFileUrl(record.fileId)
+        if (protectedUrl) record.artwork = protectedUrl
+      }
+      return record
+    }))
+    replaceReactive(archiveRecords, remoteArchiveRecords)
+    replaceReactive(qualityReviews, (valueAt(10)?.items || []).map(mapQualityReview))
+    mapProviderSetting(valueAt(11) || [])
+    replaceReactive(extraTaskArchives, (valueAt(12)?.items || []).map((value) => ({
+      ...mapExtraTask(value),
+      owner: value.owner || value.ownerName || teachers.find((teacher) => sameId(teacher.id, value.ownerId))?.name || ''
+    })))
+    const extraArtworkResults = await Promise.allSettled(extraTaskArchives.map((task) => api.m6.extraArtworks(task.id)))
+    const remoteExtraWorks = (await Promise.all(extraArtworkResults.map(async (result) => {
+      if (result.status !== 'fulfilled') return []
+      return Promise.all((result.value || []).map(async (value) => {
+        const work = mapExtraArtwork(value)
+        work.artwork = await protectedFileUrl(work.fileId)
+        return work
+      }))
+    }))).flat()
+    replaceReactive(extraTaskWorks, remoteExtraWorks)
+    replaceReactive(importBatches, (valueAt(13)?.items || []).map(mapImportBatch))
+    replaceReactive(terms, (valueAt(14)?.items || []).map(mapTerm))
+    replaceReactive(supervisionDashboard, (valueAt(15)?.items || []).map(mapSupervisionLesson))
+    Object.assign(providerCatalog, valueAt(16) || {})
+    replaceReactive(permissionCatalog, valueAt(17) || [])
+    replaceReactive(studentProfileFields, (valueAt(18) || []).map(mapProfileField))
+    replaceReactive(todos, (valueAt(19) || []).map(mapTodo))
+    replaceReactive(teacherArchives, (valueAt(20)?.items || []).map(mapTeacherArchive))
+    await Promise.all(teacherArchives.map(async (archive) => {
+      if (archive.outputFileId) archive.cover = await protectedFileUrl(archive.outputFileId)
+      return archive
+    }))
+    const wheatResults = await Promise.allSettled(tasks.map((task) => api.todo.wheat(task.id)))
+    replaceReactive(wheatTraces, wheatResults
+      .map((result) => result.status === 'fulfilled' ? mapWheat(result.value) : null)
+      .filter((trace) => trace?.id))
+    const [feedbackTemplates, imageTemplates, promptTemplates] = await Promise.allSettled([api.feedback.templates(), api.feedback.imageTemplates(), api.feedback.promptTemplates()])
+    templates.comment = feedbackTemplates.status === 'fulfilled' ? feedbackTemplates.value.map((item) => ({ ...item, id: item.id, name: item.name, length: item.lengthHint, version: item.version })) : []
+    templates.image = imageTemplates.status === 'fulfilled' ? imageTemplates.value.map((item) => ({ ...item, id: item.id, name: item.name, version: item.version })) : []
+    templates.prompt = promptTemplates.status === 'fulfilled' ? promptTemplates.value.map((item) => ({ ...item, id: item.id, name: item.name, version: item.version })) : []
+    if (!activeTaskId.value && tasks[0]) activeTaskId.value = tasks[0].id
+    remoteReady.value = true
+    if (activeTaskId.value) await refreshRemoteLesson(activeTaskId.value)
+    await portfolioStudioRef?.loadPortfolioData?.()
+    remoteLoading.value = false
+  }
+
+  const remoteVerifyLogin = async () => {
+    try {
+      const auth = await api.auth.login({ account: loginForm.phone.trim(), password: loginForm.password })
+      setSession(auth)
+      pendingAuth.value = auth
+      verifiedLoginUserId.value = auth.me?.user?.id || null
+      return true
+    } catch (error) {
+      notify(remoteErrorMessage(error, '账号或密码不正确'))
+      return false
+    }
+  }
+
+  const remoteLoginWithRole = async (role = loginForm.role) => {
+    if (!pendingAuth.value?.me) return false
+    activeLoginRole.value = role || pendingAuth.value.me.roles?.[0]?.name || '老师'
+    loginForm.role = activeLoginRole.value
+    storedMe.value = pendingAuth.value.me
+    currentUserId.value = pendingAuth.value.me.user?.id || null
+    isLoggedIn.value = true
+    try {
+      await loadRemoteState()
+    } catch (error) {
+      notify(remoteErrorMessage(error, '登录后加载数据失败'))
+      return false
+    }
+    notify(`欢迎回来，${currentUser.value?.name || '用户'}`)
+    return true
+  }
+
+  const remoteLoginWithForm = async () => {
+    if (!(await remoteVerifyLogin())) return false
+    const role = loginRoleOptions.value[0]?.value || ''
+    return remoteLoginWithRole(role)
+  }
+
+  const remoteClearLoginVerification = () => {
+    pendingAuth.value = null
+    verifiedLoginUserId.value = null
+    activeLoginRole.value = null
+    loginForm.role = ''
+    clearSession()
+  }
+
+  const remoteLogout = async () => {
+    try {
+      if (getAccessToken()) await api.auth.logout()
+    } catch {
+      // 服务端会话失效时仍清理本地凭据。
+    }
+    clearSession()
+    portfolioStudioRef?.clearPortfolioSession?.()
+    storedMe.value = null
+    pendingAuth.value = null
+    isLoggedIn.value = false
+    remoteReady.value = false
+    replaceReactive(teachers)
+    replaceReactive(students)
+    replaceReactive(classes)
+    replaceReactive(courses)
+    replaceReactive(tasks)
+    replaceReactive(archiveRecords)
+    replaceReactive(artworkLibrary)
+    replaceReactive(communicationRecords)
+    replaceReactive(extraTaskArchives)
+    replaceReactive(extraTaskWorks)
+    replaceReactive(externalLinks)
+    replaceReactive(wheatTraces)
+    replaceReactive(todos)
+    replaceReactive(importBatches)
+    replaceReactive(importPreviewRows)
+    replaceReactive(qualityReviews)
+    replaceReactive(terms)
+    replaceReactive(supervisionDashboard)
+    replaceReactive(permissionCatalog)
+    replaceReactive(studentProfileFields)
+    replaceReactive(wecomSendTasks)
+    Object.keys(studentProfiles).forEach((key) => delete studentProfiles[key])
+    Object.keys(studentProfileAudits).forEach((key) => delete studentProfileAudits[key])
+    Object.keys(lessonWorkspaces).forEach((key) => delete lessonWorkspaces[key])
+    activeTaskId.value = null
+    notify('已退出登录')
+  }
+
+  const remoteSavePreferences = async (uiTheme) => {
+    const preferences = storedMe.value?.preferences || {}
+    const result = await runRemote('正在保存界面偏好...', () => api.auth.preferences({
+      uiTheme,
+      language: preferences.language || 'zh-CN',
+      timezone: preferences.timezone || 'Asia/Shanghai',
+      version: Number(preferences.version || 0)
+    }))
+    if (!result) return false
+    storedMe.value = { ...storedMe.value, preferences: result }
+    updateStoredMe(storedMe.value)
+    return true
+  }
+
+  const remoteSelectTask = async (task) => {
+    if (!task?.id) return null
+    activeTaskId.value = task.id
+    const workspace = ensureLessonWorkspace(task)
+    if (workspace) workspace.currentStep = 0
+    return runRemote('正在加载课次工作区...', () => refreshRemoteLesson(task.id))
+  }
+
+  const remoteTransitionLesson = async (action, reason = '', exceptionType = '') => {
+    const task = activeTask.value
+    if (!task?.id) return false
+    const commands = { start: 'START_PROCESSING', exception: 'MARK_EXCEPTION', recover: 'RECOVER_PROCESSING', reopen: 'REOPEN' }
+    if (!commands[action]) return false
+    const result = await runRemote('正在更新课次状态...', () => api.lessons.transition(task.id, {
+      command: commands[action], version: task.version, reason: reason?.trim() || undefined, exceptionType: exceptionType || undefined
+    }))
+    if (!result) return false
+    const mapped = mapLesson(result)
+    const index = tasks.findIndex((item) => sameId(item.id, task.id))
+    if (index >= 0) tasks.splice(index, 1, { ...tasks[index], ...mapped })
+    await refreshRemoteLesson(task.id)
+    notify(`课次状态已更新为“${mapped.status}”`)
+    return true
+  }
+
+  const remoteSetAttendance = async (row, value) => {
+    if (!activeTask.value?.id || !row?.studentId) return false
+    const result = await runRemote('正在保存出勤...', () => api.lessons.updateAttendance(activeTask.value.id, row.studentId, {
+      status: toApiAttendanceStatus(value), note: row.note || undefined, version: activeTask.value.version, attendanceVersion: row.attendanceVersion || row.version || undefined
+    }))
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteToggleMaterialVisible = async (material) => {
+    if (!material?.id) return false
+    const result = await runRemote('正在更新素材展示状态...', () => api.assets.update(material.id, {
+      studentId: material.studentId === null || material.studentId === undefined ? undefined : String(material.studentId),
+      title: material.title || undefined,
+      visible: !material.visible,
+      sortOrder: material.sortOrder || 0,
+      version: material.version
+    }))
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteUploadLessonMaterial = async (event, type = '范画') => {
+    const files = [...(event.target.files || [])]
+    event.target.value = ''
+    if (!files.length || !activeTask.value?.id) return false
+    const result = await runRemote('正在上传课堂资料...', async () => {
+      for (const file of files) {
+        const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-asset`)
+        await api.assets.create(activeTask.value.id, {
+          fileId: String(uploaded.id),
+          assetType: toApiAssetType(type),
+          title: file.name,
+          visible: type !== '课堂视频',
+          sortOrder: materials.value.length
+        })
+      }
+      await refreshRemoteLesson(activeTask.value.id)
+      return true
+    }, `已上传 ${files.length} 个课堂资料`)
+    return result === true
+  }
+
+  const remoteRemoveLessonMaterial = async (material) => {
+    if (!material?.id) return false
+    const result = await runRemote('正在删除课堂资料...', () => api.assets.remove(material.id, material.version))
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteConfirmNoLessonMaterials = async () => {
+    const result = await runRemote('正在保存无资料确认...', () => api.assets.emptyConfirmation(activeTask.value.id, {
+      confirmedEmpty: !materialsConfirmedEmpty.value,
+      version: activeWorkspace.value.materialsVersion ?? undefined
+    }))
+    if (!result) return false
+    activeWorkspace.value.materialsVersion = Number(result.version || 0)
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteUpdateImage = async (event, row, replaceIndex = null) => {
+    const files = [...(event.target.files || [])]
+    event.target.value = ''
+    if (!files.length || !row?.studentId || !activeTask.value?.id) return
+    await runRemote('正在上传学生作品...', async () => {
+      for (const file of files) {
+        const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-artwork-${row.studentId}`)
+        await api.assets.createArtwork(activeTask.value.id, { studentId: String(row.studentId), fileId: String(uploaded.id), sortOrder: replaceIndex === null ? row.images.length : replaceIndex })
+      }
+      await refreshRemoteLesson(activeTask.value.id)
+    }, `已为${students.find((item) => sameId(item.id, row.studentId))?.name || '学生'}上传作品`)
+  }
+
+  const remoteRemoveStudentImage = async (row) => {
+    if (!row?.artworkId) return false
+    const result = await runRemote('正在删除作品...', () => api.assets.removeArtwork(row.artworkId, row.artworkVersion))
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteConfirmCurrentImage = async (mode = 'processed') => {
+    const row = activeSessionStudent.value
+    if (!row?.artworkId) return false
+    const versionId = mode === 'processed' ? (row.processedVersionId || row.selectedVersionId) : (row.originalVersionId || row.selectedVersionId)
+    if (!versionId) {
+      notify('当前学生没有可确认的图片版本')
+      return false
+    }
+    const result = await runRemote('正在确认作品图片...', () => api.assets.confirmArtwork(row.artworkId, { versionId: String(versionId), version: row.artworkVersion }))
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteProcessImages = async () => {
+    const rows = attendingRows.value.filter((row) => row.artworkId)
+    if (!rows.length) {
+      notify('请先上传学生作品')
+      return false
+    }
+    const result = await runRemote('正在提交图片处理任务...', async () => {
+      const jobIds = []
+      for (const row of rows) {
+        const job = await api.assets.processArtwork(row.artworkId, {
+          templateKey: activeImageTemplate.value?.templateKey || activeImageTemplate.value?.name || undefined,
+          parameters: JSON.stringify({})
+        })
+        if (job?.jobId) jobIds.push(job.jobId)
+      }
+      await waitForJobs(jobIds, activeTask.value.id)
+      return true
+    }, '图片处理任务已提交')
+    return result === true
+  }
+
+  const remoteRetryCurrentImageProcess = async () => {
+    const row = activeSessionStudent.value
+    if (!row?.artworkId) return false
+    const result = await runRemote('正在重试图片处理...', () => api.assets.processArtwork(row.artworkId, { templateKey: activeImageTemplate.value?.templateKey || undefined, parameters: JSON.stringify({}) }), '图片处理任务已重新提交')
+    if (!result) return false
+    await waitForJobs([result.jobId], activeTask.value.id)
+    return true
+  }
+
+  const feedbackBodyFor = (row) => ({
+    classroomRecord: row.record || '',
+    content: row.comment || '',
+    clear: false,
+    version: row.feedbackVersion || 0
+  })
+
+  const remoteGenerateOne = async (row) => {
+    if (!row) return null
+    const result = await runRemote('正在生成当前学生课评...', async () => {
+      const feedback = row.feedbackId
+        ? row
+        : await api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row))
+      if (!feedback?.id && !row.feedbackId) throw new Error('课堂记录保存失败，无法生成课评')
+      const generation = await api.feedback.regenerate(feedback.id || row.feedbackId, {
+        templateId: templates.comment[selectedCommentTemplate.value]?.id,
+        promptTemplateId: templates.prompt[0]?.id
+      })
+      await waitForJobs([generation?.jobId], activeTask.value.id)
+      return generation
+    })
+    if (result) await refreshRemoteLesson(activeTask.value.id)
+    return result
+  }
+
+  const remoteGenerateAll = async () => {
+    const rows = attendingRows.value
+    if (!rows.length) {
+      notify('当前课次没有到课学生')
+      return false
+    }
+    const result = await runRemote('正在保存课堂记录并生成全班 1v1 课评...', async () => {
+      for (const row of rows) await api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row))
+      const generation = await api.feedback.generate(activeTask.value.id, {
+        templateId: templates.comment[selectedCommentTemplate.value]?.id,
+        promptTemplateId: templates.prompt[0]?.id
+      })
+      await waitForJobs((generation?.items || []).map((item) => item.jobId), activeTask.value.id)
+      return generation
+    }, '课评生成任务已提交')
+    if (result) await refreshRemoteLesson(activeTask.value.id)
+    return result
+  }
+
+  const remoteConfirmCurrentComment = async () => {
+    const row = activeSessionStudent.value
+    if (!row?.comment?.trim()) {
+      notify('当前学生还没有课评内容')
+      return false
+    }
+    const saved = await runRemote('正在保存课评...', () => api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row)))
+    if (!saved) return false
+    const versionId = saved.currentVersionId || saved.confirmedVersionId || row.feedbackVersionId
+    if (!versionId) {
+      notify('当前课评暂无可确认版本，请刷新后重试')
+      return false
+    }
+    const confirmed = await runRemote('正在确认课评...', () => api.feedback.confirm(saved.id || row.feedbackId, { versionId: String(versionId), version: saved.version || row.feedbackVersion || 0 }))
+    if (!confirmed) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    notify(`${activeStudent.value?.name || '当前学生'}课评已确认`)
+    return true
+  }
+
+  const remoteConfirmAll = async () => {
+    const previousStudentId = activeStudentId.value
+    let success = true
+    try {
+      for (const row of attendingRows.value) {
+        if (row.comment?.trim()) {
+          activeStudentId.value = row.studentId
+          if (!await remoteConfirmCurrentComment()) success = false
+        }
+      }
+    } finally {
+      activeStudentId.value = previousStudentId
+    }
+    return success
+  }
+
+  const remoteSaveRecord = async (row) => {
+    if (!row) return false
+    const result = await runRemote('正在保存课堂记录...', () => api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row)))
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteShareDraftPayload = () => ({
+    version: ensureLessonWorkspace(activeTask.value).sharePage.version || 0,
+    lessonId: String(activeTask.value.id),
+    showMaterials: displayConfig.value.showMaterials !== false,
+    showHomework: displayConfig.value.showHomework !== false,
+    showHighlight: displayConfig.value.showHighlight !== false,
+    showLessonType: displayConfig.value.showLessonType !== false,
+    expiresAt: new Date(Date.now() + Math.max(1, Number(displayConfig.value.expiresInDays) || 30) * 24 * 60 * 60 * 1000).toISOString(),
+    lesson: (() => {
+      const lesson = clone(activeTask.value)
+      ;['id', 'classId', 'teacherId', 'courseId', 'sourceBatchId'].forEach((key) => {
+        if (lesson[key] !== null && lesson[key] !== undefined) lesson[key] = String(lesson[key])
+      })
+      return lesson
+    })(),
+    class: (() => {
+      const klass = clone(activeClass.value)
+      ;['id', 'classTypeId', 'teacherId', 'courseId'].forEach((key) => {
+        if (klass[key] !== null && klass[key] !== undefined) klass[key] = String(klass[key])
+      })
+      klass.studentIds = (klass.studentIds || []).map(String)
+      return klass
+    })(),
+    course: (() => {
+      const course = clone(activeCourse.value)
+      if (course.id !== null && course.id !== undefined) course.id = String(course.id)
+      return course
+    })(),
+    // 仅保存展示草稿字段；受保护文件的 Blob URL 只存在于当前浏览器会话，不能写入服务端快照。
+    studentDeliveries: sessionStudents.value.map((row) => ({
+      studentId: String(row.studentId),
+      attendance: row.attendance,
+      record: row.record || '',
+      comment: row.comment || '',
+      confirmed: Boolean(row.confirmed),
+      imageConfirmed: Boolean(row.imageConfirmed),
+      highlight: Boolean(row.highlight),
+      highlightNote: row.highlightNote || ''
+    })),
+    students: students.map((student) => ({
+      ...clone(student),
+      id: String(student.id),
+      classId: student.classId === null || student.classId === undefined ? null : String(student.classId),
+      classIds: (student.classIds || []).map(String)
+    })),
+    materials: materials.value.map((asset) => ({
+      id: asset.id,
+      fileId: asset.fileId,
+      type: asset.type,
+      assetType: asset.assetType,
+      title: asset.title,
+      visible: asset.visible,
+      sortOrder: asset.sortOrder
+    })),
+    homework: { ...clone(homework.value), visible: displayConfig.value.showHomework !== false, externalLinkIds: (homework.value.externalLinkIds || []).map(String) },
+    displayConfig: clone(displayConfig.value),
+    school: clone(school),
+    externalLinks: selectedExternalLinks.value.map((link) => ({
+      ...clone(link),
+      id: String(link.id),
+      courseId: link.courseId === null || link.courseId === undefined ? null : String(link.courseId)
+    }))
+  })
+
+  const remoteSaveShareDraft = async (reason = '调整展示内容') => {
+    if (!activeTask.value?.id) return false
+    const payload = remoteShareDraftPayload()
+    const result = await runRemote('正在保存家长展示草稿...', () => api.parent.saveDraft(activeTask.value.id, payload), '展示草稿已保存')
+    if (!result) return false
+    const workspace = ensureLessonWorkspace(activeTask.value)
+    const page = mapSharePage(result)
+    workspace.sharePage = mergeSharePageForWorkspace(workspace, page)
+    if (page.homework) workspace.homework = { ...workspace.homework, ...page.homework }
+    workspace.sharePage.draftSnapshot = payload
+    addStatusLog('家长展示页', activeTask.value.id, '已发布', '草稿', reason)
+    return true
+  }
+
+  const remoteToggleHighlight = async (row) => {
+    if (!row || !activeTask.value?.id) return false
+    const previous = { highlight: Boolean(row.highlight), highlightNote: row.highlightNote || '' }
+    row.highlight = !previous.highlight
+    if (row.highlight && !row.highlightNote) row.highlightNote = '作品表现突出，可作为本节课高光展示。'
+    const saved = await remoteSaveShareDraft('更新作品高光')
+    if (!saved) Object.assign(row, previous)
+    return saved
+  }
+
+  const remoteGenerateSharePages = async () => {
+    const missing = attendingRows.value.filter((row) => !row.confirmed || !row.imageConfirmed)
+    if (missing.length) {
+      notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
+      return false
+    }
+    const draftSaved = await remoteSaveShareDraft('发布前保存草稿')
+    if (!draftSaved) return false
+    const pageState = ensureLessonWorkspace(activeTask.value).sharePage
+    const result = await runRemote(
+      pageState.status === '已失效' ? '正在重新发布家长展示页...' : '正在发布家长展示页...',
+      () => pageState.status === '已失效'
+        ? api.parent.republish(pageState.id, { reason: '更新展示内容后重新发布', version: pageState.version }, createIdempotencyKey(`share-republish:${activeTask.value.id}`))
+        : api.parent.publish(activeTask.value.id, { version: pageState.version || 0 }, createIdempotencyKey(`share-publish:${activeTask.value.id}`)),
+      pageState.status === '已失效' ? '家长展示页已重新发布' : '家长展示页已发布'
+    )
+    if (!result) return false
+    const workspace = ensureLessonWorkspace(activeTask.value)
+    const page = mapSharePage(result.page || result)
+    Object.assign(workspace.sharePage, mergeSharePageForWorkspace(workspace, page), { publishedSnapshot: page.publishedSnapshot || remoteShareDraftPayload() })
+    workspace.studentDeliveries.forEach((row) => { row.shareReady = Boolean(page.accessLinks?.some((link) => sameId(link.studentId, row.studentId))) })
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteRevokeSharePage = async (reason) => {
+    const page = sharePage.value
+    if (!page?.id) return false
+    if (!reason?.trim()) {
+      notify('请填写撤销原因')
+      return false
+    }
+    const result = await runRemote('正在撤销家长展示页...', () => api.parent.revoke(page.id, { reason: reason.trim(), version: page.version }), '家长展示页已撤销')
+    if (!result) return false
+    Object.assign(sharePage.value, mapSharePage(result))
+    return true
+  }
+
+  const remoteStudentShareUrlFor = (rowOrId) => {
+    const studentId = rowOrId?.studentId || rowOrId
+    const link = sharePage.value?.accessLinks?.find((item) => sameId(item.studentId, studentId))
+    const token = link?.token || String(link?.url || '').match(/\/public\/share\/([^/?#]+)/)?.[1]
+    if (token && typeof window !== 'undefined') return `${window.location.origin}/#/share/student/${activeTask.value.id}/${studentId}?token=${encodeURIComponent(token)}`
+    const storedUrl = wecomTaskFor(activeTask.value?.id, studentId)?.shareUrl
+    if (storedUrl) {
+      if (typeof window === 'undefined') return storedUrl
+      try {
+        return new URL(storedUrl, window.location.origin).toString()
+      } catch {
+        return storedUrl
+      }
+    }
+    return ''
+  }
+
+  const remoteFileNameFor = (row) => {
+    const student = students.find((item) => sameId(item.id, row?.studentId))
+    const studentName = student?.name || row?.studentName || '学生'
+    return `${activeTask.value.date}-${activeClass.value.name}-${studentName}-${activeCourse.value.title}.jpg`
+  }
+
+  const remoteExportText = computed(() =>
+    attendingRows.value
+      .map((row, index) => {
+        const student = students.find((item) => sameId(item.id, row.studentId))
+        const link = remoteStudentShareUrlFor(row)
+        return `${index + 1}. ${student?.name || row.studentName || '学生'}\n作品文件：${remoteFileNameFor(row)}\n展示页：${link || '待发布'}\n课评：${row.comment || '待生成'}`
+      })
+      .join('\n\n')
+  )
+
+  const remoteCopyExport = async () => {
+    if (!remoteExportText.value) {
+      notify('当前课次没有可复制的交付内容')
+      return false
+    }
+    try {
+      await navigator.clipboard.writeText(remoteExportText.value)
+      copied.value = true
+      notify('家长展示链接和文案已复制')
+      setTimeout(() => { copied.value = false }, 1600)
+      return true
+    } catch {
+      notify('复制失败，请手动选择内容复制')
+      return false
+    }
+  }
+
+  const remoteCopyStudentLink = async (row) => {
+    const link = remoteStudentShareUrlFor(row)
+    if (!link) {
+      notify('当前学生还没有已发布的家长展示链接')
+      return false
+    }
+    try { await navigator.clipboard.writeText(link); copiedStudentId.value = row.studentId } catch { /* 仅记录提示 */ }
+    notify('家长展示链接已复制')
+    return true
+  }
+
+  const remotePushParentTouch = async () => {
+    if (sharePage.value?.status !== '已发布') {
+      if (!(await remoteGenerateSharePages())) return false
+    }
+    const channel = wecomEnabled.value ? 'WECOM' : 'MANUAL'
+    const result = await runRemote('正在创建家长触达任务...', () => api.parent.touchTasks(activeTask.value.id, {
+      channel,
+      sharePageVersion: sharePage.value.publishedVersion,
+      studentIds: attendingRows.value.map((row) => String(row.studentId)),
+      shareUrls: Object.fromEntries(attendingRows.value.map((row) => [String(row.studentId), remoteStudentShareUrlFor(row)]))
+    }, createIdempotencyKey(`touch:${activeTask.value.id}:${sharePage.value.publishedVersion}`)), '家长触达任务已创建')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteManualCopyStudentLink = async (row) => {
+    const task = wecomTaskFor(activeTask.value.id, row.studentId)
+    if (!task) return remoteCopyStudentLink(row)
+    const result = await runRemote('正在记录人工触达...', () => api.parent.fallbackManual(task.id, { reason: '复制链接人工发送', version: task.version, shareUrl: task.shareUrl }))
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return remoteCopyStudentLink(row)
+  }
+
+  const remoteManualCopyWecomTask = async (task) => {
+    if (!task?.id) return false
+    const result = await runRemote('正在记录人工触达...', () => api.parent.fallbackManual(task.id, {
+      reason: '复制链接人工发送',
+      version: task.version,
+      shareUrl: task.shareUrl
+    }))
+    if (!result) return false
+    await refreshRemoteLesson(task.lessonId)
+    return remoteCopyStudentLink({ studentId: task.studentId })
+  }
+
+  const remoteMarkWecomSendTask = async (task, status, reason = '') => {
+    if (!task?.id) return false
+    const action = status === '已发送' ? api.parent.markSent : status === '人工触达' ? api.parent.fallbackManual : status === '已取消' ? api.parent.cancelTouch : null
+    if (!action) return false
+    const body = status === '已发送' ? { version: task.version } : { reason: reason.trim() || '人工操作', version: task.version }
+    const result = await runRemote('正在更新触达任务...', () => action(task.id, body))
+    if (!result) return false
+    await refreshRemoteLesson(task.lessonId)
+    return true
+  }
+
+  const remoteRetryWecomSendTask = async (task) => {
+    if (!task?.id) return false
+    const result = await runRemote('正在重试触达任务...', () => api.parent.retryTouch(task.id, { version: task.version }), '触达任务已重新提交')
+    if (!result) return false
+    await refreshRemoteLesson(task.lessonId)
+    return true
+  }
+
+  const remoteGenerateWheatTraceTask = async () => {
+    if (!activeTask.value?.id) return false
+    const result = await runRemote('正在创建小麦留痕...', () => api.todo.createWheat(activeTask.value.id, createIdempotencyKey(`wheat:${activeTask.value.id}`)), '小麦留痕已创建')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteMarkTrace = async (trace, status, reason = '') => {
+    if (!trace?.id) return false
+    const command = toApiWheatCommand(status)
+    const result = await runRemote('正在更新小麦留痕...', () => api.todo.transitionWheat(trace.id, {
+      command, reason: reason.trim() || undefined, version: trace.version, exceptionType: status === '异常' ? 'OTHER' : undefined
+    }))
+    if (!result) return false
+    await refreshRemoteLesson(trace.lessonId)
+    return true
+  }
+
+  const remoteCompleteTodo = async (todo) => {
+    if (!todo?.id) return false
+    const result = await runRemote('正在完成待办...', () => api.todo.complete(todo.id, { version: todo.version }))
+    if (!result) return false
+    const mapped = mapTodo(result)
+    const index = todos.findIndex((item) => sameId(item.id, todo.id))
+    if (index >= 0) todos.splice(index, 1, mapped)
+    else todos.push(mapped)
+    return true
+  }
+
+  const remoteCancelTodo = async (todo, reason = '') => {
+    if (!todo?.id || !reason.trim()) {
+      notify('取消待办必须填写原因')
+      return false
+    }
+    const result = await runRemote('正在取消待办...', () => api.todo.cancel(todo.id, { reason: reason.trim(), version: todo.version }))
+    if (!result) return false
+    const mapped = mapTodo(result)
+    const index = todos.findIndex((item) => sameId(item.id, todo.id))
+    if (index >= 0) todos.splice(index, 1, mapped)
+    else todos.push(mapped)
+    return true
+  }
+
+  const remotePushArchiveItem = async (key) => {
+    if (key !== 'studentCloudArchive') return false
+    const source = materials.value.find((item) => item.id && item.fileId)
+    if (!source) {
+      notify('请先上传至少一份课堂资料，再创建云归档任务')
+      return false
+    }
+    const failedJob = (activeWorkspace.value.cloudJobs || []).find((job) => ['FAILED', 'CANCELED'].includes(job.status) && job.retryable)
+    const result = failedJob
+      ? await runRemote('正在重试云归档任务...', () => api.m5.retryCloud(failedJob.id, { version: failedJob.version }, createIdempotencyKey(`cloud-archive-retry:${failedJob.id}`)), '云归档任务已重新提交')
+      : await runRemote('正在创建云归档任务...', () => api.m5.cloudArchive(activeTask.value.id, {
+          sourceType: 'LESSON_ASSET', sourceId: String(source.id), fileId: String(source.fileId), required: false
+        }, createIdempotencyKey(`cloud-archive:${activeTask.value.id}`)), '云归档任务已创建')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteArchiveTeacherEffectImage = async () => {
+    let effect = activeWorkspace.value.teacherEffect
+    if (!effect) {
+      try {
+        effect = await api.m5.teacherEffect(activeTask.value.id)
+      } catch (error) {
+        if (error?.status !== 404 && error?.code !== 'RESOURCE_NOT_FOUND') {
+          notify(remoteErrorMessage(error, '老师课效图加载失败'))
+          return false
+        }
+      }
+    }
+    if (!effect?.id) {
+      const draft = await runRemote('正在保存课效图草稿...', () => api.m5.saveTeacherEffectDraft(activeTask.value.id, {
+        sourceAssetIds: materials.value.map((item) => String(item.id)).filter(Boolean),
+        title: `${activeTask.value.date} ${activeClass.value.name}`,
+        version: effect?.version || 0
+      }))
+      if (!draft?.id) return false
+      const job = await runRemote('正在生成老师课效长图...', () => api.m5.generateTeacherEffect(activeTask.value.id, { version: draft.version }, createIdempotencyKey(`teacher-effect:${activeTask.value.id}`)), '课效图生成任务已提交')
+      if (!job) return false
+    } else {
+      const job = await runRemote('正在生成老师课效长图...', () => api.m5.generateTeacherEffect(activeTask.value.id, { version: effect.version }, createIdempotencyKey(`teacher-effect:${activeTask.value.id}`)), '课效图生成任务已提交')
+      if (!job) return false
+    }
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteConfirmTeacherEffect = async () => {
+    const effect = activeWorkspace.value.teacherEffect
+    if (!effect?.id) {
+      notify('请先生成老师课效图')
+      return false
+    }
+    const result = await runRemote('正在确认老师课效图...', () => api.m5.confirmTeacherEffect(effect.id, { version: effect.version }), '老师课效图已确认')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteRetryTeacherEffect = async () => {
+    const effect = activeWorkspace.value.teacherEffect
+    if (!effect?.id) return remoteArchiveTeacherEffectImage()
+    const result = await runRemote('正在重试老师课效图...', () => api.m5.retryTeacherEffect(effect.id, { version: effect.version }, createIdempotencyKey(`teacher-effect-retry:${effect.id}`)), '老师课效图已重新提交')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteSkipTeacherEffect = async (reason = '') => {
+    const effect = activeWorkspace.value.teacherEffect
+    if (!effect?.id || !reason.trim()) {
+      notify('跳过老师课效图必须填写原因')
+      return false
+    }
+    const result = await runRemote('正在跳过老师课效图...', () => api.m5.skipTeacherEffect(effect.id, { reason: reason.trim(), version: effect.version }), '老师课效图已跳过')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteArchiveAll = async () => {
+    const task = activeTask.value
+    if (!task?.id) return false
+
+    // 归档前先把当前页面上的草稿编辑提交到服务端，再提交协议要求的触达和留痕命令。
+    if (!(await remoteSaveShareDraft('归档前保存展示草稿'))) return false
+    const lessonTouchTasks = wecomSendTasks.filter((item) => sameId(item.lessonId, task.id))
+    const touchReady = attendingRows.value.every((row) => lessonTouchTasks.some((item) =>
+      sameId(item.studentId, row.studentId) && ['待老师确认发送', '已发送', '人工触达', '发送失败', '已跳过'].includes(item.status)
+    ))
+    if (!touchReady && !(await remotePushParentTouch())) return false
+    const lessonWheat = wheatTraces.find((item) => sameId(item.lessonId, task.id))
+    if (!lessonWheat?.id && !(await remoteGenerateWheatTraceTask())) return false
+
+    const completion = await runRemote('正在检查归档前置条件...', () => api.lessons.completion(task.id))
+    if (!completion) return false
+    if (!completion.passed) {
+      const messages = (completion?.items || []).filter((item) => item.blocking && !item.passed).map((item) => item.message)
+      notify(messages.join('、') || '后端完成检查未通过')
+      return false
+    }
+    const result = await runRemote('正在完成本节归档交付...', () => api.lessons.archiveCommit(task.id, { version: completion.lessonVersion ?? task.version }, createIdempotencyKey(`archive-commit:${task.id}`)), '本节课已完成归档交付')
+    if (!result) return false
+    await loadRemoteState()
+    await refreshRemoteLesson(task.id)
+    return true
+  }
+
+  const apiStudentStatus = (value) => ({ 在读: 'ACTIVE', 停课: 'SUSPENDED', 请假: 'LEAVE', 退费: 'REFUNDED' }[value] || value || 'ACTIVE')
+  const apiEnabledStatus = (value) => ({ 启用: 'ENABLED', 停用: 'DISABLED' }[value] || value || 'ENABLED')
+  const apiClassStatus = (value) => ({ 筹备中: 'PREPARING', 开班中: 'ACTIVE', 停课: 'SUSPENDED', 结课: 'COMPLETED' }[value] || value || 'PREPARING')
+  const apiLessonSource = (value) => ({ 手动补录: 'MANUAL', 小麦课表复制: 'WHEAT_COPY', '小麦 Excel 导入': 'WHEAT_EXCEL' }[value] || value || 'MANUAL')
+  const apiExtraTaskStatus = (value) => ({
+    待发布: 'DRAFT',
+    已发布: 'PUBLISHED',
+    进行中: 'IN_PROGRESS',
+    待归档: 'PENDING_ARCHIVE',
+    已归档: 'ARCHIVED',
+    已取消: 'CANCELED'
+  }[value] || value || 'DRAFT')
+
+  const remoteAddLesson = async (payload) => {
+    const result = await runRemote('正在创建课次...', () => api.lessons.create({
+      classId: String(payload.classId), teacherId: payload.teacherId ? String(payload.teacherId) : undefined, courseId: payload.courseId ? String(payload.courseId) : undefined,
+      dateValue: payload.dateValue, startTime: String(payload.time || '00:00').slice(0, 5), endTime: payload.endTime || undefined,
+      lessonType: toApiLessonType(payload.lessonType || '其他'), sourceType: apiLessonSource(payload.importedFrom), sourceAttendanceCount: payload.sourceAttendanceCount
+    }), '课次已创建')
+    if (!result) return null
+    const lesson = mapLesson(result)
+    tasks.unshift(lesson)
+    activeTaskId.value = lesson.id
+    await refreshRemoteLesson(lesson.id)
+    return lesson
+  }
+
+  const syncStudentClassMembership = async (studentId, targetClassId) => {
+    const affectedClasses = classes.filter((klass) =>
+      klass.studentIds?.some((memberId) => sameId(memberId, studentId)) || sameId(klass.id, targetClassId)
+    )
+    for (const klass of affectedClasses) {
+      const shouldContain = Boolean(targetClassId) && sameId(klass.id, targetClassId)
+      const nextStudentIds = [...new Set([
+        ...(klass.studentIds || []).filter((memberId) => shouldContain || !sameId(memberId, studentId)),
+        ...(shouldContain ? [studentId] : [])
+      ].map(String))]
+      const previousStudentIds = (klass.studentIds || []).map(String)
+      if (nextStudentIds.length === previousStudentIds.length && nextStudentIds.every((memberId) => previousStudentIds.includes(memberId))) continue
+      const saved = await api.master.updateClass(klass.id, {
+        classTypeId: klass.classTypeId ? String(klass.classTypeId) : undefined,
+        teacherId: klass.teacherId ? String(klass.teacherId) : undefined,
+        courseId: klass.courseId ? String(klass.courseId) : undefined,
+        name: klass.name,
+        scheduleText: klass.scheduleText || klass.time || '',
+        status: apiClassStatus(klass.status),
+        studentIds: nextStudentIds,
+        version: klass.version
+      })
+      const mapped = mapClass(saved)
+      const index = classes.findIndex((item) => sameId(item.id, klass.id))
+      if (index >= 0) classes.splice(index, 1, mapped)
+    }
+    return classes
+  }
+
+  const remoteAddStudent = async (payload) => {
+    const result = await runRemote('正在创建学生...', async () => {
+      const saved = await api.master.createStudent({
+        externalId: payload.externalId || undefined, name: payload.name, nickname: payload.nickname || undefined, age: Number(payload.age) || undefined,
+        parentName: payload.parent || payload.parentName || undefined, parentPhone: payload.phone || payload.parentPhone || undefined,
+        status: apiStudentStatus(payload.status), note: payload.note || undefined
+      })
+      const student = mapStudent(saved)
+      if (payload.classId !== undefined && payload.classId !== '') {
+        await syncStudentClassMembership(student.id, payload.classId)
+        const assigned = classes.filter((klass) => klass.studentIds?.some((memberId) => sameId(memberId, student.id))).map((klass) => klass.id)
+        student.classIds = assigned
+        student.classId = assigned[0] || null
+      }
+      return student
+    }, '学生已创建')
+    if (!result) return null
+    students.push(result)
+    return result
+  }
+
+  const remoteUpdateStudent = async (studentId, payload) => {
+    const current = students.find((item) => sameId(item.id, studentId))
+    if (!current) return null
+    const result = await runRemote('正在保存学生...', async () => {
+      const saved = await api.master.updateStudent(studentId, {
+        externalId: payload.externalId || undefined, name: payload.name, nickname: payload.nickname || undefined, age: Number(payload.age) || undefined,
+        parentName: payload.parent || payload.parentName || undefined, parentPhone: payload.phone || payload.parentPhone || undefined,
+        status: apiStudentStatus(payload.status), note: payload.note || undefined, version: current.version
+      })
+      const student = mapStudent(saved)
+      if (Object.prototype.hasOwnProperty.call(payload, 'classId')) {
+        await syncStudentClassMembership(studentId, payload.classId || null)
+        const assigned = classes.filter((klass) => klass.studentIds?.some((memberId) => sameId(memberId, studentId))).map((klass) => klass.id)
+        student.classIds = assigned
+        student.classId = assigned[0] || null
+      }
+      return student
+    }, '学生信息已保存')
+    if (!result) return null
+    const index = students.findIndex((item) => sameId(item.id, studentId))
+    students.splice(index, 1, result)
+    return result
+  }
+
+  const studentProfileFor = (studentId) => {
+    const entry = studentProfiles[String(studentId)]
+    if (!entry) return null
+    return {
+      ...entry,
+      valueMap: { ...(entry.valueMap || {}) }
+    }
+  }
+
+  const studentProfileFieldFor = (fieldKey) => {
+    const apiKey = profileApiKey(fieldKey)
+    return studentProfileFields.find((field) => field.fieldKey === apiKey || field.fieldKey === fieldKey) || null
+  }
+
+  const remoteLoadStudentProfile = async (studentId) => {
+    if (!studentId) return null
+    try {
+      const result = await api.m6.profile(studentId)
+      const fields = (result?.fields || []).map(mapProfileField)
+      const values = (result?.values || []).map(mapProfileValue)
+      const mergedFields = [...studentProfileFields]
+      fields.forEach((field) => {
+        const index = mergedFields.findIndex((item) => sameId(item.id, field.id))
+        if (index >= 0) mergedFields.splice(index, 1, field)
+        else mergedFields.push(field)
+      })
+      mergedFields.sort((left, right) => Number(left.displayOrder || 0) - Number(right.displayOrder || 0))
+      replaceReactive(studentProfileFields, mergedFields)
+      studentProfiles[String(studentId)] = {
+        studentId: studentId,
+        fields,
+        values,
+        valueMap: Object.fromEntries(values.map((value) => [profileUiKey(value.fieldKey), value.value ?? '']))
+      }
+      return studentProfiles[String(studentId)]
+    } catch (error) {
+      notify(remoteErrorMessage(error, '学生 CRM 档案加载失败'))
+      return null
+    }
+  }
+
+  const remoteLoadStudentProfileAudits = async (studentId, params = {}) => {
+    if (!studentId) return []
+    try {
+      const result = await api.m6.profileAudits(studentId, params)
+      const rows = (result?.items || []).map(mapProfileAudit)
+      studentProfileAudits[String(studentId)] = { ...result, items: rows }
+      return rows
+    } catch (error) {
+      notify(remoteErrorMessage(error, '学生 CRM 档案审计加载失败'))
+      return []
+    }
+  }
+
+  const remoteSaveStudentProfile = async (studentId, payload = {}) => {
+    if (!studentId) return false
+    let entry = studentProfiles[String(studentId)]
+    if (!entry) entry = await remoteLoadStudentProfile(studentId)
+    const fields = (entry?.fields?.length ? entry.fields : studentProfileFields).filter((field) => field.id)
+    if (!fields.length) {
+      notify('当前账号暂无可保存的 CRM 档案字段')
+      return true
+    }
+    const existingValues = new Map((entry?.values || []).map((value) => [String(value.fieldId), value]))
+    const requests = fields.map((field) => {
+      const uiKey = profileUiKey(field.fieldKey)
+      const rawValue = Object.prototype.hasOwnProperty.call(payload, uiKey) ? payload[uiKey] : payload[field.fieldKey]
+      const current = existingValues.get(String(field.id))
+      return {
+        fieldId: String(field.id),
+        value: rawValue === undefined || rawValue === null || String(rawValue).trim() === '' ? null : String(rawValue).trim(),
+        ...(current ? { version: String(current.version) } : {})
+      }
+    })
+    processingAction.value = '正在保存学生 CRM 档案...'
+    try {
+      await api.m6.saveProfileValues(studentId, requests)
+      await remoteLoadStudentProfile(studentId)
+      notify('学生 CRM 档案已保存')
+      return true
+    } catch (error) {
+      notify(remoteErrorMessage(error, '学生 CRM 档案保存失败'))
+      return false
+    } finally {
+      processingAction.value = ''
+    }
+  }
+
+  const remoteLoadCommunicationRecords = async (studentId) => {
+    try {
+      const result = await api.m6.communications(studentId)
+      const rows = result?.items || result || []
+      replaceReactive(communicationRecords, [...communicationRecords.filter((item) => !sameId(item.studentId, studentId)), ...rows.map((item) => ({
+        ...item,
+        id: fromApiId(item.id),
+        studentId: fromApiId(item.studentId),
+        recordedBy: fromApiId(item.recordedBy),
+        createdBy: fromApiId(item.createdBy),
+        updatedBy: fromApiId(item.updatedBy),
+        recordedAt: displayDateTime(item.recordedAt),
+        version: Number(item.version || 0)
+      }))])
+      return rows
+    } catch (error) {
+      notify(remoteErrorMessage(error, '沟通记录加载失败'))
+      return []
+    }
+  }
+
+  const remoteAddCommunicationRecord = async (payload) => {
+    const result = await runRemote('正在新增沟通记录...', () => api.m6.createCommunication(payload.studentId, {
+      contactPerson: payload.contactPerson || undefined, contactRole: payload.contactRole || undefined, contactMethod: payload.contactMethod,
+      content: payload.content, followUpAction: payload.followUpAction || undefined, recordedAt: payload.recordedAt ? new Date(payload.recordedAt).toISOString() : undefined
+    }), '沟通记录已新增')
+    if (!result) return null
+    await remoteLoadCommunicationRecords(payload.studentId)
+    return result
+  }
+
+  const remoteUpdateCommunicationRecord = async (recordId, payload) => {
+    const current = communicationRecords.find((item) => sameId(item.id, recordId))
+    const result = await runRemote('正在保存沟通记录...', () => api.m6.updateCommunication(recordId, {
+      contactPerson: payload.contactPerson || undefined, contactRole: payload.contactRole || undefined, contactMethod: payload.contactMethod,
+      content: payload.content, followUpAction: payload.followUpAction || undefined, recordedAt: payload.recordedAt ? new Date(payload.recordedAt).toISOString() : undefined,
+      version: current?.version || 0
+    }), '沟通记录已保存')
+    if (!result) return null
+    await remoteLoadCommunicationRecords(payload.studentId || current?.studentId)
+    return result
+  }
+
+  const remoteDeleteCommunicationRecord = async (recordId) => {
+    const current = communicationRecords.find((item) => sameId(item.id, recordId))
+    if (!current) return null
+    const success = await runRemoteVoid('正在删除沟通记录...', () => api.m6.deleteCommunication(recordId, current.version), '沟通记录已删除')
+    if (!success) return null
+    await remoteLoadCommunicationRecords(current.studentId)
+    return current
+  }
+
+  const remoteAddClass = async (payload) => {
+    const result = await runRemote('正在创建班级...', () => api.master.createClass({
+      classTypeId: payload.classTypeId ? String(payload.classTypeId) : undefined, teacherId: payload.teacherId ? String(payload.teacherId) : undefined,
+      courseId: payload.courseId ? String(payload.courseId) : undefined, name: payload.name, scheduleText: payload.time || payload.scheduleText || '',
+      status: apiClassStatus(payload.status), studentIds: (payload.studentIds || []).map(String)
+    }), '班级已创建')
+    if (!result) return null
+    const klass = mapClass(result)
+    classes.push(klass)
+    return klass
+  }
+
+  const remoteUpdateClass = async (classId, payload) => {
+    const current = classes.find((item) => sameId(item.id, classId))
+    const result = await runRemote('正在保存班级...', () => api.master.updateClass(classId, {
+      classTypeId: payload.classTypeId ? String(payload.classTypeId) : undefined, teacherId: payload.teacherId ? String(payload.teacherId) : undefined,
+      courseId: payload.courseId ? String(payload.courseId) : undefined, name: payload.name, scheduleText: payload.time || payload.scheduleText || '',
+      status: apiClassStatus(payload.status), studentIds: (payload.studentIds || []).map(String), version: current?.version || 0
+    }), '班级信息已保存')
+    if (!result) return null
+    const klass = mapClass(result)
+    const index = classes.findIndex((item) => sameId(item.id, classId))
+    classes.splice(index, 1, klass)
+    return klass
+  }
+
+  const remoteAddCourse = async (payload) => {
+    const result = await runRemote('正在创建课程...', () => api.master.createCourse({ title: payload.title, ageRange: payload.age || payload.ageRange || '', teachingGoal: payload.goal || payload.teachingGoal || '', materials: payload.materials || '', referenceText: payload.reference || payload.referenceText || '' }), '课程已创建')
+    if (!result) return null
+    const course = mapCourse(result)
+    courses.push(course)
+    return course
+  }
+
+  const remoteUpdateCourse = async (courseId, payload) => {
+    const current = courses.find((item) => sameId(item.id, courseId))
+    const result = await runRemote('正在保存课程...', () => api.master.updateCourse(courseId, {
+      title: payload.title, ageRange: payload.age || payload.ageRange || '', teachingGoal: payload.goal || payload.teachingGoal || '', materials: payload.materials || '', referenceText: payload.reference || payload.referenceText || '', status: apiEnabledStatus(payload.status), version: current?.version || 0
+    }), '课程信息已保存')
+    if (!result) return null
+    const course = mapCourse(result)
+    const index = courses.findIndex((item) => sameId(item.id, courseId))
+    courses.splice(index, 1, course)
+    return course
+  }
+
+  const remoteAddExternalLink = async (payload) => {
+    const result = await runRemote('正在创建外部课程链接...', () => api.master.createExternalLink({ courseId: payload.courseIds?.[0] ? String(payload.courseIds[0]) : payload.courseId ? String(payload.courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined }), '外部课程链接已创建')
+    if (!result) return null
+    const link = mapExternalLink(result)
+    externalLinks.push(link)
+    return link
+  }
+
+  const remoteUpdateExternalLink = async (linkId, payload) => {
+    const current = externalLinks.find((item) => sameId(item.id, linkId))
+    const result = await runRemote('正在保存外部课程链接...', () => api.master.updateExternalLink(linkId, {
+      courseId: payload.courseIds?.[0] ? String(payload.courseIds[0]) : payload.courseId ? String(payload.courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined, status: apiEnabledStatus(payload.status), version: current?.version || 0
+    }), '外部课程链接已保存')
+    if (!result) return null
+    const link = mapExternalLink(result)
+    const index = externalLinks.findIndex((item) => sameId(item.id, linkId))
+    externalLinks.splice(index, 1, link)
+    return link
+  }
+
+  const remoteAddTeacher = async (payload) => {
+    const result = await runRemote('正在创建老师资料...', () => api.master.createTeacher({ name: payload.name, phone: payload.phone || undefined, title: payload.role || '老师', note: '由系统设置创建', status: payload.status === '停用' ? 'DISABLED' : 'ACTIVE' }), '老师资料已创建')
+    if (!result) return null
+    const teacher = mapTeacher(result)
+    teachers.push(teacher)
+    return teacher
+  }
+
+  const remoteUpdateTeacher = async (teacherId, payload) => {
+    const current = teachers.find((item) => sameId(item.id, teacherId))
+    const result = await runRemote('正在保存老师资料...', () => api.master.updateTeacher(teacherId, { name: payload.name, phone: payload.phone || undefined, title: payload.role || payload.title || '老师', note: payload.note || '', status: payload.status === '停用' ? 'DISABLED' : 'ACTIVE', version: current?.version || 0 }), '老师资料已保存')
+    if (!result) return null
+    const teacher = mapTeacher(result)
+    const index = teachers.findIndex((item) => sameId(item.id, teacherId))
+    teachers.splice(index, 1, teacher)
+    return teacher
+  }
+
+  const remoteUpdateSetting = async (settingId, payload) => {
+    const providers = payload.value?.providers || []
+    if (!providers.length) {
+      notify('当前协议没有通用系统设置接口')
+      return null
+    }
+    for (const provider of providers) {
+      const providerType = provider.providerType || provider.type
+      if (!providerType) {
+        notify('缺少服务端提供的通道类型，无法保存配置')
+        return null
+      }
+      const config = {
+        ...(provider.config || {}),
+        endpoint: provider.endpoint || provider.config?.endpoint || '',
+        appKey: provider.appKey || provider.config?.appKey || '',
+        authType: provider.authType || provider.config?.authType || ''
+      }
+      if (!provider.id || String(provider.id).startsWith('provider-')) {
+        const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, status: provider.enabled ? 'ENABLED' : 'DISABLED' }))
+        if (!saved) return null
+      } else {
+        const saved = await runRemote('正在保存通道配置...', () => api.m5.updateProvider(provider.id, { name: provider.name, capabilities: provider.capabilities || [], config, status: provider.enabled ? 'ENABLED' : 'DISABLED', version: provider.version || 0 }))
+        if (!saved) return null
+      }
+    }
+    const latest = await runRemote('正在刷新通道配置...', () => api.m5.providers())
+    if (!latest) return null
+    mapProviderSetting(latest)
+    return settings[0]
+  }
+
+  const remoteTestProvider = async (provider) => {
+    if (!provider?.id || String(provider.id).startsWith('provider-')) {
+      notify('请先保存通道配置后再测试')
+      return null
+    }
+    const result = await runRemote('正在测试通道连接...', () => api.m5.testProvider(provider.id), '通道测试完成')
+    if (result) provider.tokenStatus = result.success ? '连接正常' : (result.message || '连接失败')
+    return result
+  }
+
+  const remoteAddTemplate = () => {
+    notify('当前一期模板接口只提供后端只读模板；暂不支持在此处新增模板')
+    return null
+  }
+
+  const remoteUpdateTemplate = () => {
+    notify('当前一期模板接口只提供后端只读模板；暂不支持在此处编辑模板')
+    return null
+  }
+
+  const pendingImportFile = ref(null)
+  const pendingImportMeta = reactive({ batchId: null, version: 0, source: '', dataType: '', mapping: {} })
+
+  const remoteStageImportFile = (file, source, dataType) => {
+    pendingImportFile.value = file
+    pendingImportMeta.source = source
+    pendingImportMeta.dataType = ({ 综合课表: 'COMBINED', 学生名单: 'STUDENTS', 班级课表: 'CLASSES' }[dataType] || dataType)
+    return true
+  }
+
+  const remotePreviewImport = async (mapping = {}) => {
+    if (!pendingImportFile.value) {
+      notify('请先选择 Excel 文件')
+      return false
+    }
+    const file = pendingImportFile.value
+    const result = await runRemote('正在上传并解析导入文件...', async () => {
+      const uploaded = await uploadFile(file, `import-${pendingImportMeta.dataType}`)
+      const batch = await api.imports.create({ fileId: String(uploaded.id), sourceType: pendingImportMeta.source === '小麦 Excel 导出' ? 'WHEAT_EXCEL' : pendingImportMeta.source === '小麦课表整理表' ? 'WHEAT_COPY' : 'MANUAL_TABLE', dataType: pendingImportMeta.dataType })
+      pendingImportMeta.batchId = batch.id
+      pendingImportMeta.version = Number(batch.version || 0)
+      pendingImportMeta.mapping = mapping
+      const preview = await api.imports.preview(batch.id, { version: pendingImportMeta.version, columnMapping: mapping })
+      const batchResult = preview.batch || preview
+      const rowPage = await api.imports.rows(batch.id)
+      const rows = rowPage?.items || preview.rows || preview.previewRows || []
+      replaceReactive(importBatches, [mapImportBatch(batchResult), ...importBatches.filter((item) => !sameId(item.id, batch.id))])
+      replaceReactive(importPreviewRows, rows.map(mapImportRow))
+      pendingImportMeta.version = Number(batchResult.version || pendingImportMeta.version)
+      return preview
+    }, '导入预览已生成')
+    return Boolean(result)
+  }
+
+  const remoteApplyImportRows = async () => {
+    if (!pendingImportMeta.batchId) {
+      notify('请先完成文件识别和预览')
+      return false
+    }
+    const skipRowIds = importPreviewRows.filter((row) => row.status !== '可导入').map((row) => String(row.id))
+    const result = await runRemote('正在确认导入...', () => api.imports.confirm(pendingImportMeta.batchId, { version: pendingImportMeta.version, skipRowIds }, createIdempotencyKey(`import-confirm:${pendingImportMeta.batchId}`)), '导入已确认')
+    if (!result) return false
+    replaceReactive(importBatches, [mapImportBatch(result), ...importBatches.filter((item) => !sameId(item.id, result.id))])
+    pendingImportMeta.batchId = null
+    pendingImportFile.value = null
+    await loadRemoteState()
+    return true
+  }
+
+  const remoteSaveQualityReview = async (payload) => {
+    if (!canQualityReview.value) {
+      notify('只有具备质量评分权限的账号可以评分')
+      return null
+    }
+    const score = Number(payload.score)
+    if (!Number.isFinite(score) || score < 0 || score > 10) {
+      notify('评分需要在 0-10 之间')
+      return null
+    }
+    const dashboard = supervisionDashboard.find((item) => sameId(item.lessonId, payload.lessonId))
+    const existing = qualityReviewForLesson(payload.lessonId) || dashboard?.review || (dashboard?.reviewId
+      ? { id: dashboard.reviewId, version: dashboard.reviewVersion || 0 }
+      : null)
+    const result = await runRemote('正在保存质量评分...', () => existing?.id
+      ? api.m6.updateQualityReview(existing.id, { score, comment: payload.comment?.trim() || '', reason: '更新课次评分', version: existing.version })
+      : api.m6.createQualityReview({ lessonId: String(payload.lessonId), score, comment: payload.comment?.trim() || '', version: payload.version }), '质量评分已保存')
+    if (!result) return null
+    const mapped = mapQualityReview(result)
+    const index = qualityReviews.findIndex((item) => sameId(item.id, mapped.id))
+    if (index >= 0) qualityReviews.splice(index, 1, mapped)
+    else qualityReviews.unshift(mapped)
+    if (dashboard) {
+      Object.assign(dashboard, {
+        reviewId: mapped.id,
+        reviewStatus: mapped.status,
+        score: mapped.score,
+        reviewedAt: mapped.reviewedAt,
+        reviewVersion: mapped.version,
+        review: mapped
+      })
+    }
+    return mapped
+  }
+
+  const remoteUpdateArchiveRecord = async (recordId, payload) => {
+    const current = archiveRecords.find((item) => sameId(item.id, recordId))
+    if (!current) return null
+    const result = await runRemote('正在保存作品档案...', () => api.archive.update(recordId, {
+      title: payload.title?.trim() || undefined,
+      description: payload.description?.trim() || undefined,
+      tags: payload.tags || [],
+      note: payload.note?.trim() || undefined,
+      mountingStatus: payload.framed ? 'MOUNTED' : 'UNMOUNTED',
+      mountedOn: payload.framedAt || undefined,
+      mountingFeeMinor: Math.round(Number(payload.frameFee || 0) * 100),
+      framerName: payload.framerName?.trim() || undefined,
+      mountingNote: payload.frameNote?.trim() || undefined,
+      version: current.version
+    }), '作品档案已保存')
+    if (!result) return null
+    const mapped = mapArchiveRecord(result)
+    if (mapped.fileId) {
+      const protectedUrl = await protectedFileUrl(mapped.fileId)
+      if (protectedUrl) mapped.artwork = protectedUrl
+    }
+    if (!mapped.artwork && current.artwork) mapped.artwork = current.artwork
+    const index = archiveRecords.findIndex((item) => sameId(item.id, recordId))
+    archiveRecords.splice(index, 1, mapped)
+    return mapped
+  }
+
+  const remoteCreateArchiveCollection = () => {
+    notify('当前一期没有归档集合发布接口，请选择作品进入制作中心')
+    return null
+  }
+
+  const remoteAddExtraTask = async (payload) => {
+    const ownerId = payload.ownerId || teachers.find((teacher) => teacher.name === payload.owner)?.id
+    const result = await runRemote('正在创建课外任务...', () => api.m6.createExtraTask({ relatedLessonId: payload.relatedLessonId ? String(payload.relatedLessonId) : undefined, title: payload.title, taskType: payload.taskType || '学生课外任务', content: payload.content || '', dueDate: payload.dueDate || undefined, status: apiExtraTaskStatus(payload.status), ownerId: ownerId ? String(ownerId) : undefined, note: payload.note || '' }), '课外任务已创建')
+    if (!result) return null
+    const task = mapExtraTask(result)
+    task.owner = result.owner || result.ownerName || teachers.find((teacher) => sameId(teacher.id, result.ownerId || ownerId))?.name || ''
+    extraTaskArchives.unshift(task)
+    return task
+  }
+
+  const remoteUpdateExtraTask = async (taskId, payload) => {
+    const current = extraTaskArchives.find((item) => sameId(item.id, taskId))
+    const ownerId = payload.ownerId || teachers.find((teacher) => teacher.name === payload.owner)?.id
+    const result = await runRemote('正在保存课外任务...', () => api.m6.updateExtraTask(taskId, { relatedLessonId: payload.relatedLessonId ? String(payload.relatedLessonId) : undefined, title: payload.title, taskType: payload.taskType, content: payload.content || '', dueDate: payload.dueDate || undefined, status: apiExtraTaskStatus(payload.status), ownerId: ownerId ? String(ownerId) : undefined, note: payload.note || '', version: current?.version || 0 }), '课外任务已保存')
+    if (!result) return null
+    const task = mapExtraTask(result)
+    task.owner = result.owner || result.ownerName || teachers.find((teacher) => sameId(teacher.id, result.ownerId || ownerId))?.name || ''
+    const index = extraTaskArchives.findIndex((item) => sameId(item.id, taskId))
+    extraTaskArchives.splice(index, 1, task)
+    return task
+  }
+
+  const remoteDeleteExtraTask = async (taskId) => {
+    const current = extraTaskArchives.find((item) => sameId(item.id, taskId))
+    if (!current) return false
+    const success = await runRemoteVoid('正在取消课外任务...', () => api.m6.deleteExtraTask(taskId, current.version), '课外任务已取消')
+    if (!success) return false
+    const index = extraTaskArchives.findIndex((item) => sameId(item.id, taskId))
+    if (index >= 0) extraTaskArchives.splice(index, 1)
+    return true
+  }
+
+  const remoteAddExtraTaskWork = async (extraTaskId, payload) => {
+    const file = payload.file || payload.artworkFile
+    const tags = Array.isArray(payload.tags) ? payload.tags : String(payload.tags || '').split(/[，,、]/).map((tag) => tag.trim()).filter(Boolean)
+    const result = await runRemote('正在上传并保存课外作品...', async () => {
+      let fileId = payload.fileId
+      if (file && !fileId) fileId = (await uploadFile(file, `extra-task-${extraTaskId}-artwork`)).id
+      if (!fileId) throw new Error('请先选择作品文件')
+      return api.m6.createExtraArtwork(extraTaskId, { studentId: payload.studentId ? String(payload.studentId) : undefined, fileId: String(fileId), dateValue: payload.dateValue || undefined, title: payload.title || '课外作品', description: payload.description || '', tags: JSON.stringify(tags), highlight: Boolean(payload.highlight), highlightNote: payload.highlightNote || '' })
+    }, '课外作品已保存')
+    if (result) {
+      const work = mapExtraArtwork(result)
+      work.artwork = file ? URL.createObjectURL(file) : await protectedFileUrl(work.fileId)
+      extraTaskWorks.unshift(work)
+    }
+    return result
+  }
+
+  const remoteUpdateExtraTaskWork = async (recordId, payload) => {
+    const current = extraTaskWorks.find((work) => sameId(work.id, recordId))
+    const tags = Array.isArray(payload.tags) ? payload.tags : String(payload.tags || '').split(/[，,、]/).map((tag) => tag.trim()).filter(Boolean)
+    const result = await runRemote('正在保存课外作品...', () => api.m6.updateExtraArtwork(recordId, { title: payload.title || '课外作品', description: payload.description || '', tags: JSON.stringify(tags), highlight: Boolean(payload.highlight), highlightNote: payload.highlightNote || '', version: payload.version ?? current?.version ?? 0 }), '课外作品已保存')
+    if (result) {
+      const index = extraTaskWorks.findIndex((work) => sameId(work.id, recordId))
+      if (index >= 0) extraTaskWorks.splice(index, 1, { ...extraTaskWorks[index], ...mapExtraArtwork(result) })
+    }
+    return result
+  }
+
+  const remoteDeleteExtraTaskWork = async (recordId) => {
+    const record = extraTaskWorks.find((item) => sameId(item.id, recordId))
+    const success = await runRemoteVoid('正在删除课外作品...', () => api.m6.deleteExtraArtwork(recordId, record?.version || 0), '课外作品已删除')
+    if (!success) return false
+    const index = extraTaskWorks.findIndex((work) => sameId(work.id, recordId))
+    if (index >= 0) extraTaskWorks.splice(index, 1)
+    return true
+  }
+
+  const remoteExtraTaskWorksForTask = (taskId) => extraTaskWorks.filter((record) => sameId(record.extraTaskId, taskId))
+
+  const remoteUseArtworkFromLibrary = () => {
+    notify('当前一期未接入全局范画库，请从本课次上传课堂资料')
+    return false
+  }
+
+  const remoteAddArtworkLibraryItem = () => {
+    notify('当前一期未接入全局范画库')
+    return null
+  }
+
+  onSessionChanged((me) => {
+    storedMe.value = me
+    if (!me) isLoggedIn.value = false
+  })
+
+  if (isLoggedIn.value) {
+    void loadRemoteState().catch((error) => {
+      remoteLoading.value = false
+      notify(remoteErrorMessage(error, '登录状态已失效，请重新登录'))
+    })
+  }
+
   // 制作中心（作品集 / 成长手册）与作品档案共用同一份归档数据
   const portfolioStudio = usePortfolioStudio({
     archiveRecords,
@@ -2406,22 +4169,28 @@ export function useDeliveryWorkflow() {
     school,
     currentUser,
     isAdmin,
+    canQualityReview,
+    canQualityRead,
     authorizedClassIds,
     canEditArchiveRecord,
     createArchiveCollection,
     notify,
     nowText
   })
+  portfolioStudioRef = portfolioStudio
+  const remoteParentShareUrl = computed(() => remoteStudentShareUrlFor(activeStudentId.value))
 
   return {
     ...portfolioStudio,
     school,
+    campuses,
     artworkLibrary,
     teachers,
     students,
     classes,
     courses,
     templates,
+    classTypes,
     tasks,
     lessonWorkspaces,
     activeWorkspace,
@@ -2430,19 +4199,22 @@ export function useDeliveryWorkflow() {
     archiveEditLogs,
     lessonStatusLogs,
     communicationRecords,
+    studentProfileFields,
+    studentProfileAudits,
     sessionStudents,
     archives,
     archiveRecords,
-    archiveCollections,
     aiCallLogs,
     extraTaskArchives,
+    extraTaskWorks,
     qualityReviews,
-    monthlyTeacherReviews,
     archiveFilter,
     filteredArchiveRecords,
     lessonArchiveRecords,
     teacherEffectArchiveRecords,
     supervisionLessonRecords,
+    terms,
+    teacherArchives,
     pendingQualityReviews,
     materials,
     referenceMaterials,
@@ -2452,9 +4224,12 @@ export function useDeliveryWorkflow() {
     displayConfig,
     externalLinks,
     wheatTraces,
+    todos,
     importBatches,
     importPreviewRows,
     settings,
+    providerTypeOptions,
+    permissionCatalog,
     cloudDriveSetting,
     enabledCloudProviders,
     activeTaskId,
@@ -2481,6 +4256,8 @@ export function useDeliveryWorkflow() {
     loginAccount,
     loginRoleOptions,
     isAdmin,
+    canQualityReview,
+    canQualityRead,
     authorizedClassIds,
     visibleTasks,
     visibleNavItems,
@@ -2498,21 +4275,14 @@ export function useDeliveryWorkflow() {
     permissionSummary,
     studentHistoryFor,
     communicationRecordsFor,
-    archiveCollectionsForRecord,
     archiveEditLogsForRecord,
     canEditArchiveRecord,
-    updateArchiveRecord,
-    createArchiveCollection,
-    copyArchiveCollectionLink,
+    updateArchiveRecord: remoteUpdateArchiveRecord,
+    createArchiveCollection: remoteCreateArchiveCollection,
     importStats,
     latestLessonDate,
-    availableLessonMonths,
     qualityReviewForLesson,
-    monthlyReviewForTeacher,
-    lessonsForTeacherMonth,
-    teacherMonthStats,
-    saveQualityReview,
-    saveMonthlyTeacherReview,
+    saveQualityReview: remoteSaveQualityReview,
     counts,
     steps,
     taskProgress,
@@ -2530,93 +4300,114 @@ export function useDeliveryWorkflow() {
     wecomSendTasks,
     wecomEnabled,
     wecomTaskFor,
-    pushParentTouch,
-    markWecomSendTask,
-    manualCopyWecomTask,
+    pushParentTouch: remotePushParentTouch,
+    markWecomSendTask: remoteMarkWecomSendTask,
+    retryWecomSendTask: remoteRetryWecomSendTask,
+    manualCopyWecomTask: remoteManualCopyWecomTask,
     manualCopyStudentLink,
-    parentShareUrl,
-    studentShareUrlFor,
+    parentShareUrl: remoteParentShareUrl,
+    studentShareUrlFor: remoteStudentShareUrlFor,
     qrText,
-    exportText,
-    fileNameFor,
-    selectTask,
-    transitionLesson,
-    loginAs,
-    verifyLogin,
-    loginWithRole,
-    loginWithForm,
-    clearLoginVerification,
-    logout,
-    setAttendance,
-    toggleMaterialVisible,
-    addMaterial,
-    uploadLessonMaterial,
-    removeLessonMaterial,
-    confirmNoLessonMaterials,
-    useArtworkFromLibrary,
-    addArtworkLibraryItem,
+    exportText: remoteExportText,
+    fileNameFor: remoteFileNameFor,
+    selectTask: remoteSelectTask,
+    transitionLesson: remoteTransitionLesson,
+    loginAs: () => {
+      notify('当前版本不支持本地角色切换，请使用服务端账号登录')
+      return false
+    },
+    verifyLogin: remoteVerifyLogin,
+    loginWithRole: remoteLoginWithRole,
+    loginWithForm: remoteLoginWithForm,
+    clearLoginVerification: remoteClearLoginVerification,
+    logout: remoteLogout,
+    savePreferences: remoteSavePreferences,
+    setAttendance: remoteSetAttendance,
+    toggleMaterialVisible: remoteToggleMaterialVisible,
+    addMaterial: remoteUploadLessonMaterial,
+    uploadLessonMaterial: remoteUploadLessonMaterial,
+    removeLessonMaterial: remoteRemoveLessonMaterial,
+    confirmNoLessonMaterials: remoteConfirmNoLessonMaterials,
+    useArtworkFromLibrary: remoteUseArtworkFromLibrary,
+    addArtworkLibraryItem: remoteAddArtworkLibraryItem,
     chooseImageTemplate,
     removeImageTemplate,
     chooseCommentTemplate,
     parseBulkRecord,
-    simulateVoice,
-    matchImages,
+    simulateVoice: () => notify('当前一期未接入语音转文字，请手工录入课堂记录'),
+    matchImages: () => notify('当前一期未接入智能图片匹配，请手工为学生上传作品'),
     confirmImages,
-    confirmCurrentImage,
-    processImages,
-    failCurrentImageProcess,
-    retryCurrentImageProcess,
-    generateOne,
-    generateAll,
-    confirmAll,
-    confirmCurrentComment,
-    toggleHighlight,
+    confirmCurrentImage: remoteConfirmCurrentImage,
+    processImages: remoteProcessImages,
+    failCurrentImageProcess: () => notify('图片处理失败请根据服务端任务状态重试'),
+    retryCurrentImageProcess: remoteRetryCurrentImageProcess,
+    generateOne: remoteGenerateOne,
+    generateAll: remoteGenerateAll,
+    confirmAll: remoteConfirmAll,
+    confirmCurrentComment: remoteConfirmCurrentComment,
+    saveSessionRecord: remoteSaveRecord,
+    toggleHighlight: remoteToggleHighlight,
     toggleHomeworkLink,
-    saveShareDraft,
-    generateSharePages,
-    revokeSharePage,
-    getLessonWorkspace,
-    isShareAccessible,
-    pushArchiveItem,
-    uploadDeliveryVideo,
-    skipDeliveryVideo,
-    archiveTeacherEffectImage,
-    generateWheatTraceTask,
-    archiveAll,
-    copyExport,
-    copyStudentLink,
-    updateImage,
-    removeStudentImage,
-    markTrace,
-    addLesson,
-    addStudent,
-    updateStudent,
-    addCommunicationRecord,
-    updateCommunicationRecord,
-    deleteCommunicationRecord,
-    addClass,
-    updateClass,
-    addCourse,
-    updateCourse,
-    addExternalLink,
-    updateExternalLink,
-    addTeacher,
-    updateTeacher,
-    applyImportRows,
-    updateSetting,
+    saveShareDraft: remoteSaveShareDraft,
+    generateSharePages: remoteGenerateSharePages,
+    revokeSharePage: remoteRevokeSharePage,
+    getLessonWorkspace: (lessonId) => lessonWorkspaces[String(lessonId)] || null,
+    isShareAccessible: () => false,
+    pushArchiveItem: remotePushArchiveItem,
+    archiveTeacherEffectImage: remoteArchiveTeacherEffectImage,
+    confirmTeacherEffect: remoteConfirmTeacherEffect,
+    retryTeacherEffect: remoteRetryTeacherEffect,
+    skipTeacherEffect: remoteSkipTeacherEffect,
+    generateWheatTraceTask: remoteGenerateWheatTraceTask,
+    archiveAll: remoteArchiveAll,
+    copyExport: remoteCopyExport,
+    copyStudentLink: remoteCopyStudentLink,
+    updateImage: remoteUpdateImage,
+    removeStudentImage: remoteRemoveStudentImage,
+    markTrace: remoteMarkTrace,
+    completeTodo: remoteCompleteTodo,
+    cancelTodo: remoteCancelTodo,
+    addLesson: remoteAddLesson,
+    addStudent: remoteAddStudent,
+    updateStudent: remoteUpdateStudent,
+    addCommunicationRecord: remoteAddCommunicationRecord,
+    updateCommunicationRecord: remoteUpdateCommunicationRecord,
+    deleteCommunicationRecord: remoteDeleteCommunicationRecord,
+    loadStudentProfile: remoteLoadStudentProfile,
+    studentProfileFor,
+    studentProfileFieldFor,
+    profileUiKey,
+    saveStudentProfile: remoteSaveStudentProfile,
+    loadStudentProfileAudits: remoteLoadStudentProfileAudits,
+    addClass: remoteAddClass,
+    updateClass: remoteUpdateClass,
+    addCourse: remoteAddCourse,
+    updateCourse: remoteUpdateCourse,
+    addExternalLink: remoteAddExternalLink,
+    updateExternalLink: remoteUpdateExternalLink,
+    addTeacher: remoteAddTeacher,
+    updateTeacher: remoteUpdateTeacher,
+    stageImportFile: remoteStageImportFile,
+    previewImport: remotePreviewImport,
+    applyImportRows: remoteApplyImportRows,
+    loadCommunicationRecords: remoteLoadCommunicationRecords,
+    updateSetting: remoteUpdateSetting,
+    testProvider: remoteTestProvider,
     toggleArchiveTarget,
-    addTemplate,
-    updateTemplate,
-    addExtraTask,
-    updateExtraTask,
-    extraTaskWorksForTask,
-    addExtraTaskWork,
-    updateExtraTaskWork,
-    deleteExtraTaskWork,
+    addTemplate: remoteAddTemplate,
+    updateTemplate: remoteUpdateTemplate,
+    addExtraTask: remoteAddExtraTask,
+    updateExtraTask: remoteUpdateExtraTask,
+    extraTaskWorksForTask: remoteExtraTaskWorksForTask,
+    addExtraTaskWork: remoteAddExtraTaskWork,
+    updateExtraTaskWork: remoteUpdateExtraTaskWork,
+    deleteExtraTaskWork: remoteDeleteExtraTaskWork,
     nextStep,
     prevStep,
     nowText,
     notify,
-    pulseComment
+    pulseComment,
+    remoteLoading,
+    remoteReady
   }
 }

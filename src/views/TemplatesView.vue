@@ -32,6 +32,7 @@ let cleanupMobileMedia = () => {}
 const list = computed(() => props.state.templates[activeType.value] || [])
 const selected = computed(() => list.value[selectedIndex.value] || list.value[0] || null)
 const activeLabel = computed(() => types.find((type) => type.id === activeType.value)?.label)
+const canWriteTemplates = false
 
 const blankDraft = () => {
   const map = {
@@ -68,17 +69,29 @@ const selectTemplate = (index) => {
 }
 
 const startNew = () => {
+  if (!canWriteTemplates) {
+    props.state.notify('当前一期模板接口仅支持只读加载，暂不支持新增或编辑')
+    return
+  }
   mode.value = 'new'
   draft.value = blankDraft()
   if (isMobileFlow.value) mobileStage.value = 'detail'
 }
 
 const startEdit = () => {
+  if (!canWriteTemplates) {
+    props.state.notify('当前一期模板接口仅支持只读加载，暂不支持新增或编辑')
+    return
+  }
   mode.value = 'edit'
   resetDraft()
 }
 
 const save = () => {
+  if (!canWriteTemplates) {
+    props.state.notify('当前一期模板接口仅支持只读加载，暂不支持保存')
+    return
+  }
   const saved = mode.value === 'new'
     ? props.state.addTemplate(activeType.value, draft.value)
     : props.state.updateTemplate(activeType.value, selectedIndex.value, draft.value)
@@ -144,10 +157,11 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
   <PageHead  title="模板配置">
     <div v-if="!isMobileFlow || mobileStage !== 'types'" class="button-pair">
-      <button class="secondary" @click="startEdit">编辑当前模板</button>
-      <button class="primary" @click="startNew">新增{{ activeLabel }}</button>
+      <button class="secondary" :disabled="!canWriteTemplates" @click="startEdit">编辑当前模板</button>
+      <button class="primary" :disabled="!canWriteTemplates" @click="startNew">新增{{ activeLabel }}</button>
     </div>
   </PageHead>
+  <div class="notice-box template-readonly-note">模板由服务端按 M1–M6 协议提供只读数据；当前一期暂不支持在前端新增或编辑模板。</div>
 
   <section class="template-workbench" :class="`mobile-template-stage-${mobileStage}`">
     <aside v-show="!isMobileFlow || mobileStage === 'types'" class="panel template-type-list">
@@ -196,6 +210,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         </div>
       </div>
 
+      <fieldset :disabled="!canWriteTemplates">
       <div v-if="activeType === 'comment'" class="form-grid">
         <label>模板名称<input v-model="draft.name" /></label>
         <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
@@ -237,6 +252,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <label>字体<input v-model="draft.font" /></label>
         <label>颜色<input v-model="draft.color" /></label>
       </div>
+      </fieldset>
     </section>
   </section>
 </template>

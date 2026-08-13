@@ -200,21 +200,5 @@ export const portfolioTemplates = [
 
 export const portfolioProjects = []
 
-export const exportJobs = [
-  {
-    id: 1,
-    sourceType: 'portfolio',
-    sourceId: null,
-    title: '彤彤 · 2026 春季作品册',
-    exportType: 'PDF',
-    status: '已导出',
-    pages: 6,
-    fileName: '大学城校区-彤彤-周二创想班-2026春季-作品册-v1.pdf',
-    fileUrl: 'system://exports/2026/06/tongtong-term-book.pdf',
-    cloudPath: '大学城校区/教学资料归档/作品册导出/2026春季',
-    createdBy: '林老师',
-    createdAt: '6月22日 20:14',
-    finishedAt: '6月22日 20:15',
-    failureReason: ''
-  }
-]
+// 导出记录由 `/portfolio/exports` 加载；浏览器端不再预置虚构下载地址。
+export const exportJobs = []

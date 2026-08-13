@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { sameId } from '../../services/mappers'
 
 const props = defineProps({
   tasks: {
@@ -7,7 +8,7 @@ const props = defineProps({
     required: true
   },
   activeTaskId: {
-    type: Number,
+    type: [Number, String],
     required: true
   },
   classes: {
@@ -45,7 +46,7 @@ const lessonDraft = ref({
   importedFrom: '手动补录'
 })
 
-const selectedClass = computed(() => props.classes.find((item) => item.id === Number(lessonDraft.value.classId)))
+const selectedClass = computed(() => props.classes.find((item) => sameId(item.id, lessonDraft.value.classId)))
 const classOptions = computed(() => props.classes.map((klass) => ({ label: klass.name, value: klass.id })))
 const teacherOptions = computed(() =>
   props.teachers.filter((item) => item.role === '老师').map((teacher) => ({ label: teacher.name, value: teacher.id }))
@@ -81,13 +82,13 @@ const saveLesson = () => {
       v-for="task in tasks"
       :key="task.id"
       class="task-card"
-      :class="{ active: task.id === activeTaskId }"
+      :class="{ active: sameId(task.id, activeTaskId) }"
       @click="$emit('select-task', task)"
     >
       <span class="time">{{ task.time }}</span>
       <span>
-        <strong>{{ classes.find((item) => item.id === task.classId).name }}</strong>
-        <small>{{ courses.find((item) => item.id === task.courseId).title }} · {{ task.teacher }} · {{ task.lessonType }}</small>
+        <strong>{{ classes.find((item) => sameId(item.id, task.classId))?.name || '未配置班级' }}</strong>
+        <small>{{ courses.find((item) => sameId(item.id, task.courseId))?.title || '待配置课程' }} · {{ task.teacher }} · {{ task.lessonType }}</small>
         <i class="mini-progress"><b :style="{ width: `${progressForTask(task)}%` }"></b></i>
       </span>
       <em>{{ task.status }} · {{ progressForTask(task) }}%</em>

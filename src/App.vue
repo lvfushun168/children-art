@@ -3,10 +3,9 @@ import { computed, onBeforeUnmount, onMounted, proxyRefs, ref, watch } from 'vue
 import SidebarNav from './components/layout/SidebarNav.vue'
 import TodoCenterDrawer from './components/layout/TodoCenterDrawer.vue'
 import UserMenu from './components/layout/UserMenu.vue'
-import { navGroups } from './data/mockData'
+import { navGroups } from './data/navigation'
 import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
 import ArchiveQueryView from './views/ArchiveQueryView.vue'
-import ArtworkLibraryView from './views/ArtworkLibraryView.vue'
 import ExternalLinksView from './views/ExternalLinksView.vue'
 import ImportCenterView from './views/ImportCenterView.vue'
 import ExtraTasksView from './views/ExtraTasksView.vue'
@@ -89,8 +88,9 @@ const pendingCount = computed(() => visibleTodayTasks.value.filter((task) => tas
 const wheatPendingCount = computed(() => state.wheatTraces.filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)).length)
 const importIssueCount = computed(() => state.importPreviewRows.filter((row) => row.status !== '可导入').length)
 const cloudIssueCount = computed(() => state.visibleTasks.filter((task) => task.cloudArchiveStatus === '同步失败').length)
-const reviewPendingCount = computed(() => state.isAdmin ? state.pendingQualityReviews.length : 0)
-const todoCount = computed(() => pendingCount.value + wheatPendingCount.value + importIssueCount.value + cloudIssueCount.value + reviewPendingCount.value)
+const reviewPendingCount = computed(() => state.canQualityReview ? state.pendingQualityReviews.length : 0)
+const serverTodoCount = computed(() => (state.todos || []).filter((todo) => !['已完成', '已取消'].includes(todo.status)).length)
+const todoCount = computed(() => pendingCount.value + wheatPendingCount.value + importIssueCount.value + cloudIssueCount.value + reviewPendingCount.value + serverTodoCount.value)
 const routeHash = ref(window.location.hash)
 const updateRouteHash = () => { routeHash.value = window.location.hash }
 const openImportCenter = (type = '综合课表') => {
@@ -146,6 +146,7 @@ onBeforeUnmount(() => {
 watch(activeTheme, (theme) => {
   applyTheme(theme)
   if (typeof window !== 'undefined') window.localStorage.setItem('children-art-theme', theme)
+  if (state.isLoggedIn && state.remoteReady) void state.savePreferences?.(theme)
 }, { immediate: true })
 
 watch(visibleNavIds, (ids) => {
@@ -157,10 +158,10 @@ watch(visibleNavIds, (ids) => {
 }, { immediate: true })
 
 const shareRoute = computed(() => {
-  const studentMatch = routeHash.value.match(/^#\/share\/student\/(\d+)\/(\d+)(?:\?token=([^&]+))?/)
-  if (studentMatch) return { type: 'student', lessonId: Number(studentMatch[1]), studentId: Number(studentMatch[2]), token: studentMatch[3] || '' }
-  const lessonMatch = routeHash.value.match(/^#\/share\/lesson\/(\d+)(?:\?token=([^&]+))?/)
-  if (lessonMatch) return { type: 'lesson', lessonId: Number(lessonMatch[1]), token: lessonMatch[2] || '' }
+  const studentMatch = routeHash.value.match(/^#\/share\/student\/([^/?#]+)\/([^/?#]+)(?:\?token=([^&]+))?/)
+  if (studentMatch) return { type: 'student', lessonId: studentMatch[1], studentId: studentMatch[2], token: studentMatch[3] || '' }
+  const lessonMatch = routeHash.value.match(/^#\/share\/lesson\/([^/?#]+)(?:\?token=([^&]+))?/)
+  if (lessonMatch) return { type: 'lesson', lessonId: lessonMatch[1], token: lessonMatch[2] || '' }
   return null
 })
 
@@ -222,7 +223,7 @@ const shareRoute = computed(() => {
 
       <TasksView v-if="showActivePage && activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @navigate="handleNavigate" />
 
-      <SupervisionBoardView v-if="showActivePage && activeNav === 'supervision' && state.isAdmin" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
+      <SupervisionBoardView v-if="showActivePage && activeNav === 'supervision' && state.canQualityRead" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ProductionCenterView
         v-if="showActivePage && activeNav === 'production'"
@@ -237,7 +238,7 @@ const shareRoute = computed(() => {
 
       <MasterDataView v-if="showActivePage && activeNav === 'classes'" :state="state" entity="classes" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-import="openImportCenter('综合课表')" />
 
-      <ArtworkLibraryView v-if="showActivePage && activeNav === 'courses'" :state="state" />
+      <MasterDataView v-if="showActivePage && activeNav === 'courses'" :state="state" entity="courses" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ImportCenterView v-if="showActivePage && activeNav === 'imports'" :state="state" :initial-type="activeImportType" />
 

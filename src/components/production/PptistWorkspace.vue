@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import '@lofcz/pptist/embed.css'
 import { installPptistChineseLocalization } from '../../services/pptistChineseLocale'
 import { pptistViewport } from '../../services/portfolioPptistAdapter'
+import { exportPortfolioPdf } from '../../services/portfolioPdfExporter'
 
 const props = defineProps({
   document: {
@@ -59,6 +60,23 @@ const applyDocument = async (document) => {
 }
 
 const currentDocument = () => controller.value?.getDocument?.() || props.document
+
+const pageElements = () => {
+  if (!hostRef.value) return []
+  const candidates = [
+    ...hostRef.value.querySelectorAll('[data-slide-id]'),
+    ...hostRef.value.querySelectorAll('.pptist-slide'),
+    ...hostRef.value.querySelectorAll('[class*="slide"]')
+  ]
+  return [...new Set(candidates)].filter((element) => element instanceof HTMLElement && element.getBoundingClientRect().width > 0)
+}
+
+const exportPdfBlob = async (fileName) => exportPortfolioPdf({
+  pageElements: pageElements(),
+  fileName,
+  exportedAt: new Date().toISOString(),
+  save: false
+})
 
 const syncActiveSlideId = () => {
   const slideId = controller.value?.getState?.()?.currentSlideId
@@ -153,7 +171,8 @@ const insertText = async (content, name = '素材文字') => {
 defineExpose({
   insertImage,
   insertText,
-  getDocument: currentDocument
+  getDocument: currentDocument,
+  exportPdfBlob
 })
 
 const mount = async () => {

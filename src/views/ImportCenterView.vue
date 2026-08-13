@@ -11,6 +11,7 @@ const mode = ref('home')
 const dataType = ref(props.initialType)
 const source = ref('小麦 Excel 导出')
 const fileName = ref('')
+const selectedFile = ref(null)
 const fieldMapping = ref({
   name: '学生姓名',
   className: '班级名称',
@@ -28,7 +29,7 @@ const rows = computed(() => {
 })
 const validRows = computed(() => rows.value.filter((row) => row.status === '可导入'))
 const warningRows = computed(() => rows.value.filter((row) => row.status !== '可导入'))
-const latestBatch = computed(() => props.state.importBatches[0])
+const latestBatch = computed(() => props.state.importBatches[0] || { source: '暂无导入记录', time: '', success: 0, failed: 0, note: '' })
 const columns = computed(() => {
   if (dataType.value === '学生名单') return ['学生姓名', '班级名称', '家长称呼', '手机号']
   if (dataType.value === '班级课表') return ['班级名称', '任课老师', '上课时间', '课程主题']
@@ -43,12 +44,19 @@ const startImport = () => {
 const handleFile = (event) => {
   const file = event.target.files?.[0]
   if (!file) return
+  selectedFile.value = file
   fileName.value = file.name
+  props.state.stageImportFile(file, source.value, dataType.value)
   mode.value = 'mapping'
 }
 
-const confirmImport = () => {
-  props.state.applyImportRows()
+const showPreview = async () => {
+  if (!(await props.state.previewImport(fieldMapping.value))) return
+  mode.value = 'preview'
+}
+
+const confirmImport = async () => {
+  if (!(await props.state.applyImportRows())) return
   mode.value = 'done'
 }
 
@@ -134,7 +142,7 @@ const mappingKey = (column) => {
           <AdaptiveSelect v-model="fieldMapping[mappingKey(column)]" :options="[column, '学生姓名', '班级名称', '任课老师', '上课时间', '课程主题']" />
         </label>
       </div>
-      <footer class="modal-actions"><button class="ghost" @click="mode = 'upload'">重新选择</button><button class="primary" @click="mode = 'preview'">查看导入结果</button></footer>
+      <footer class="modal-actions"><button class="ghost" @click="mode = 'upload'">重新选择</button><button class="primary" :disabled="!selectedFile" @click="showPreview">查看导入结果</button></footer>
     </section>
 
     <section v-if="mode === 'preview'" class="import-focus-step">

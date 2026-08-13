@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
+import { sameId } from '../services/mappers'
 
 const props = defineProps({
   state: {
@@ -85,7 +86,31 @@ const records = computed(() => {
   return props.state.courses
 })
 
-const selected = computed(() => records.value.find((item) => item.id === selectedId.value) || records.value[0] || null)
+const selected = computed(() => records.value.find((item) => sameId(item.id, selectedId.value)) || records.value[0] || null)
+
+const availableStudentProfileSections = computed(() => {
+  if (props.entity !== 'students') return []
+  const configuredFields = props.state.studentProfileFields || []
+  const resolveField = (field) => {
+    const remote = props.state.studentProfileFieldFor?.(field.key)
+    return remote ? { ...field, label: remote.label || field.label, fieldType: remote.fieldType, fieldId: remote.id } : null
+  }
+  const sections = studentProfileSections
+    .map((section) => ({ ...section, fields: section.fields.map(resolveField).filter(Boolean) }))
+    .filter((section) => section.fields.length)
+  const knownKeys = new Set(sections.flatMap((section) => section.fields.map((field) => field.key)))
+  const extraFields = configuredFields
+    .filter((field) => field.id && !knownKeys.has(props.state.profileUiKey?.(field.fieldKey) || field.fieldKey))
+    .map((field) => ({
+      key: props.state.profileUiKey?.(field.fieldKey) || field.fieldKey,
+      label: field.label || field.fieldKey,
+      hint: field.fieldType || 'CRM 字段',
+      fieldType: field.fieldType,
+      fieldId: field.id
+    }))
+  if (extraFields.length) sections.push({ title: '其他 CRM 档案字段', fields: extraFields })
+  return sections
+})
 
 const blankDraft = () => {
   if (props.entity === 'students') {
@@ -162,13 +187,28 @@ const communicationSummary = computed(() => ({
 }))
 
 const resetDraft = () => {
-  draft.value = mode.value === 'new' ? blankDraft() : cloneRecord(selected.value)
+  const base = mode.value === 'new' ? blankDraft() : cloneRecord(selected.value)
+  const profile = props.entity === 'students' && mode.value !== 'new' ? props.state.studentProfileFor?.(selected.value?.id) : null
+  draft.value = { ...base, ...(profile?.valueMap || {}) }
 }
 
 const resetCommunicationDraft = () => {
   communicationEditingId.value = null
   communicationView.value = 'list'
   communicationDraft.value = blankCommunicationDraft()
+}
+
+const hydrateStudentProfile = async (record) => {
+  if (props.entity !== 'students' || !record?.id || mode.value === 'new') return
+  await Promise.all([
+    props.state.loadStudentProfile?.(record.id),
+    (props.state.permissionCatalog || []).includes('crm.audit.read')
+      ? props.state.loadStudentProfileAudits?.(record.id)
+      : Promise.resolve([])
+  ])
+  if (!sameId(selectedId.value, record.id) || mode.value === 'new') return
+  const profile = props.state.studentProfileFor?.(record.id)
+  if (profile?.valueMap) draft.value = { ...draft.value, ...profile.valueMap }
 }
 
 watch(
@@ -180,13 +220,23 @@ watch(
     mobileShowingDetail.value = false
     resetDraft()
     resetCommunicationDraft()
+    void hydrateStudentProfile(records.value[0])
   },
   { immediate: true }
 )
 
+watch(records, (value) => {
+  if (!selectedId.value && value[0]) {
+    selectedId.value = value[0].id
+    draft.value = cloneRecord(value[0])
+    if (props.entity === 'students') void props.state.loadCommunicationRecords(value[0].id)
+  }
+}, { immediate: true })
+
 watch(selected, () => {
   if (mode.value !== 'new') resetDraft()
   resetCommunicationDraft()
+  void hydrateStudentProfile(selected.value)
 })
 
 const selectRecord = (record) => {
@@ -195,6 +245,7 @@ const selectRecord = (record) => {
   studentDetailTab.value = 'profile'
   draft.value = cloneRecord(record)
   resetCommunicationDraft()
+  if (props.entity === 'students') void props.state.loadCommunicationRecords(record.id)
   if (isMobileFlow.value) mobileShowingDetail.value = true
 }
 
@@ -211,17 +262,21 @@ const startEdit = () => {
   draft.value = cloneRecord(selected.value)
 }
 
-const save = () => {
+const save = async () => {
   if (props.entity === 'students') {
-    const saved = mode.value === 'new' ? props.state.addStudent(draft.value) : props.state.updateStudent(selected.value.id, draft.value)
+    const saved = mode.value === 'new' ? await props.state.addStudent(draft.value) : await props.state.updateStudent(selected.value.id, draft.value)
+    if (!saved) return
+    if (!(await props.state.saveStudentProfile?.(saved.id, draft.value))) return
     selectedId.value = saved.id
   }
   if (props.entity === 'classes') {
-    const saved = mode.value === 'new' ? props.state.addClass(draft.value) : props.state.updateClass(selected.value.id, draft.value)
+    const saved = mode.value === 'new' ? await props.state.addClass(draft.value) : await props.state.updateClass(selected.value.id, draft.value)
+    if (!saved) return
     selectedId.value = saved.id
   }
   if (props.entity === 'courses') {
-    const saved = mode.value === 'new' ? props.state.addCourse(draft.value) : props.state.updateCourse(selected.value.id, draft.value)
+    const saved = mode.value === 'new' ? await props.state.addCourse(draft.value) : await props.state.updateCourse(selected.value.id, draft.value)
+    if (!saved) return
     selectedId.value = saved.id
   }
   mode.value = 'detail'
@@ -229,7 +284,7 @@ const save = () => {
   resetDraft()
 }
 
-const saveCommunicationRecord = () => {
+const saveCommunicationRecord = async () => {
   if (!selected.value) return
   if (!communicationDraft.value.content.trim()) {
     props.state.notify('请填写沟通内容摘要')
@@ -240,8 +295,8 @@ const saveCommunicationRecord = () => {
     studentId: selected.value.id,
     recordedBy: communicationDraft.value.recordedBy || props.state.currentUser?.name || '当前用户'
   }
-  if (communicationEditingId.value) props.state.updateCommunicationRecord(communicationEditingId.value, payload)
-  else props.state.addCommunicationRecord(payload)
+  if (communicationEditingId.value) await props.state.updateCommunicationRecord(communicationEditingId.value, payload)
+  else await props.state.addCommunicationRecord(payload)
   resetCommunicationDraft()
 }
 
@@ -265,7 +320,7 @@ const returnToCommunicationList = () => {
 
 const deleteCommunicationRecord = (record) => {
   props.state.deleteCommunicationRecord(record.id)
-  if (communicationEditingId.value === record.id) resetCommunicationDraft()
+  if (sameId(communicationEditingId.value, record.id)) resetCommunicationDraft()
 }
 
 const returnToList = () => {
@@ -276,17 +331,12 @@ const returnToList = () => {
 
 const toggleStudentInClass = (studentId) => {
   const ids = draft.value.studentIds || []
-  draft.value.studentIds = ids.includes(studentId) ? ids.filter((id) => id !== studentId) : [...ids, studentId]
+  draft.value.studentIds = ids.some((id) => sameId(id, studentId)) ? ids.filter((id) => !sameId(id, studentId)) : [...ids, studentId]
 }
 
-const toggleCourseLink = (title) => {
-  const links = draft.value.onlineLinks || []
-  draft.value.onlineLinks = links.includes(title) ? links.filter((item) => item !== title) : [...links, title]
-}
-
-const className = (classId) => props.state.classes.find((item) => item.id === classId)?.name || '未分班'
-const courseTitle = (courseId) => props.state.courses.find((item) => item.id === courseId)?.title || '待配置'
-const teacherName = (teacherId) => props.state.teachers.find((item) => item.id === teacherId)?.name || '待配置'
+const className = (classId) => props.state.classes.find((item) => sameId(item.id, classId))?.name || '未分班'
+const courseTitle = (courseId) => props.state.courses.find((item) => sameId(item.id, courseId))?.title || '待配置'
+const teacherName = (teacherId) => props.state.teachers.find((item) => sameId(item.id, teacherId))?.name || '待配置'
 
 onMounted(() => {
   const media = window.matchMedia('(max-width: 680px)')
@@ -341,7 +391,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         v-for="record in records"
         :key="record.id"
         class="master-row"
-        :class="{ active: selected?.id === record.id && mode !== 'new' }"
+        :class="{ active: sameId(selected?.id, record.id) && mode !== 'new' }"
         @click="selectRecord(record)"
       >
         <strong>{{ record.name || record.title }}</strong>
@@ -397,14 +447,26 @@ onBeforeUnmount(() => cleanupMobileMedia())
             </div>
           </section>
 
-          <section v-for="section in studentProfileSections" :key="section.title" class="master-form-section">
-            <strong>{{ section.title }}</strong>
-            <div class="form-grid">
-              <label v-for="field in section.fields" :key="field.key">
-                {{ field.label }}
-                <input v-model="draft[field.key]" :placeholder="field.hint" />
-              </label>
-            </div>
+          <template v-if="availableStudentProfileSections.length">
+            <section v-for="section in availableStudentProfileSections" :key="section.title" class="master-form-section">
+              <strong>{{ section.title }}</strong>
+              <div class="form-grid">
+                <label v-for="field in section.fields" :key="field.key">
+                  {{ field.label }}
+                  <input v-model="draft[field.key]" :placeholder="field.hint" />
+                </label>
+              </div>
+            </section>
+          </template>
+          <div v-else class="notice-box">
+            <small>当前账号未加载到可持久化的 CRM 档案字段，档案字段由服务端定义。</small>
+          </div>
+          <section v-if="mode !== 'new' && state.studentProfileAudits?.[selected?.id]?.items?.length" class="master-form-section profile-audit-section">
+            <strong>CRM 档案变更记录</strong>
+            <article v-for="audit in state.studentProfileAudits[selected.id].items.slice(0, 8)" :key="audit.id" class="audit-row">
+              <div><span>{{ audit.fieldLabel || audit.fieldKey || '档案字段' }}</span><small>{{ audit.createdAt }} · {{ audit.changedByName || audit.changedBy || '系统' }}</small></div>
+              <em>{{ audit.summary || audit.changeSummary || '已更新' }}</em>
+            </article>
           </section>
         </template>
 
@@ -507,12 +569,18 @@ onBeforeUnmount(() => cleanupMobileMedia())
             状态
             <AdaptiveSelect v-model="draft.status" :options="['筹备中', '开班中', '停课', '结课']" />
           </label>
-          <label class="wide">家长群<input v-model="draft.group" /></label>
+          <label class="wide">
+            家长群
+            <input v-model="draft.group" disabled placeholder="当前协议不保存家长群信息" />
+          </label>
+        </div>
+        <div class="notice-box">
+          <small>家长群字段不在 M1–M6 班级接口中，本期仅保存班级、排课、老师、课程和学生名单。</small>
         </div>
         <div class="member-picker">
           <strong>学生名单</strong>
           <label v-for="student in state.students" :key="student.id" class="inline-check">
-            <input type="checkbox" :checked="draft.studentIds?.includes(student.id)" @change="toggleStudentInClass(student.id)" />
+            <input type="checkbox" :checked="draft.studentIds?.some((id) => sameId(id, student.id))" @change="toggleStudentInClass(student.id)" />
             <span>{{ student.name }} · {{ student.status }} · {{ className(student.classId) }}</span>
           </label>
         </div>
@@ -522,25 +590,21 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <div class="form-grid">
           <label>课程主题<input v-model="draft.title" /></label>
           <label>适用年龄<input v-model="draft.age" /></label>
-          <label>默认关注点<input v-model="draft.defaultFocus" /></label>
+          <label>默认关注点<input v-model="draft.defaultFocus" disabled placeholder="由课次/模板流程提供" /></label>
           <label>材料<input v-model="draft.materials" /></label>
           <label>
             课评模板
-            <AdaptiveSelect v-model="draft.commentTemplate" :options="state.templates.comment.map((template) => template.name)" />
+            <AdaptiveSelect v-model="draft.commentTemplate" :options="state.templates.comment.map((template) => template.name)" disabled />
           </label>
           <label>
             图片模板
-            <AdaptiveSelect v-model="draft.imageTemplate" :options="state.templates.image.map((template) => template.name)" />
+            <AdaptiveSelect v-model="draft.imageTemplate" :options="state.templates.image.map((template) => template.name)" disabled />
           </label>
           <label class="wide">教学目标<textarea v-model="draft.goal" rows="3" /></label>
           <label class="wide">AI 参考材料和特殊话术<textarea v-model="draft.reference" rows="5" /></label>
         </div>
-        <div class="member-picker">
-          <strong>可附带外部课程链接</strong>
-          <label v-for="link in state.externalLinks" :key="link.id" class="inline-check">
-            <input type="checkbox" :checked="draft.onlineLinks?.includes(link.title)" @change="toggleCourseLink(link.title)" />
-            <span>{{ link.title }} · {{ link.note }}</span>
-          </label>
+        <div class="notice-box">
+          <small>默认关注点、模板关联和课程链接不属于课程写接口字段。模板请在制作中心选择，外部课程链接请在“外部在线课程信息”中按单课程关联。</small>
         </div>
       </template>
     </section>

@@ -50,7 +50,7 @@ export const navItems = navGroups.flatMap((group) => group.items)
 export const school = {
   name: '梦地美术',
   campus: '大学城校区',
-  storage: 'system://works/2026/06',
+  storage: '',
   aiProvider: 'OpenAI 图文能力',
   objectStorage: '校区私有作品库',
   watermark: '梦地美术 · 大学城校区'
@@ -472,18 +472,6 @@ export const qualityReviews = [
     comment: '课评具体，家长展示内容清楚，课效图可直接进入月度归档。',
     status: '已评分',
     reviewedAt: '2026/7/27 15:35:00'
-  }
-]
-
-export const monthlyTeacherReviews = [
-  {
-    id: 1,
-    month: '2026-06',
-    teacher: '林老师',
-    reviewer: '王教务',
-    score: 8,
-    comment: '六月整体完成稳定，线描班归档质量较好，后续注意小麦留痕及时性。',
-    reviewedAt: '2026/6/30 18:00:00'
   }
 ]
 

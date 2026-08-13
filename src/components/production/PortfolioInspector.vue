@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { sameId } from '../../services/mappers'
 
 const props = defineProps({
   state: {
@@ -83,7 +84,7 @@ const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project,
             v-for="record in poolRecords"
             :key="record.id"
             class="pf-record-chip"
-            :class="{ selected: record.id === currentRecordId }"
+            :class="{ selected: sameId(record.id, currentRecordId) }"
             @click="chooseRecord(record.id)"
           >
             <img :src="record.artwork" :alt="record.studentName" />

@@ -2,16 +2,43 @@ import { computed, reactive, ref } from 'vue'
 import {
   bodySources,
   bookThemes,
-  exportJobs as exportJobSeed,
   pageSizes,
-  portfolioLayouts,
-  portfolioProjects as portfolioProjectSeed,
-  portfolioTemplates as portfolioTemplateSeed
+  portfolioLayouts
 } from '../data/portfolioData'
-import { createPortfolioPptistDocument, createTemplateFromPptistDocument } from '../services/portfolioPptistAdapter'
-import { createMockPortfolioService } from '../services/portfolioService'
+import { createPortfolioPptistDocument } from '../services/portfolioPptistAdapter'
+import { createPortfolioDraftService } from '../services/portfolioService'
+import { api } from '../services/api'
+import { createIdempotencyKey } from '../services/apiClient'
+import { fromApiId, mapArchiveRecord, mapFile, sameId } from '../services/mappers'
+import { putUploadSessionContent, sha256ForFile, uploadFile } from '../services/fileService'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
+
+const temporaryResourcePattern = /^(?:blob:|data:)/i
+const temporaryQueryPattern = /(?:[?&#]|^)(?:x-amz-signature|x-amz-credential|x-goog-signature|x-goog-credential|expires|signature|token|sig)=/i
+
+const sanitizeTemplateDeck = (deck) => {
+  const copy = clone(deck)
+  const visit = (value) => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+    if (value.type === 'image' && typeof value.src === 'string' && value.src) {
+      const temporary = temporaryResourcePattern.test(value.src) || temporaryQueryPattern.test(value.src)
+      if (value.name?.startsWith('slot:')) {
+        // 作品槽位会在打开新作品册时由当前归档记录重新填充，不能保存当前会话的 Blob URL。
+        value.src = ''
+      } else if (temporary) {
+        throw new Error('模板包含无法持久化的临时图片，请改用作品槽位或先上传正式素材')
+      }
+    }
+    Object.values(value).forEach(visit)
+  }
+  visit(copy)
+  return copy
+}
 
 export const layoutById = (layoutId) => portfolioLayouts.find((layout) => layout.id === layoutId)
 export const layoutsForType = (pageType) => portfolioLayouts.filter((layout) => layout.pageType === pageType)
@@ -26,6 +53,28 @@ const intersects = (a, b) =>
 
 const compactText = (value) => String(value || '').replace(/\s+/g, '')
 
+const mapPortfolioTemplate = (value = {}) => ({
+  ...value,
+  id: fromApiId(value.id),
+  name: value.name || '未命名模板',
+  desc: value.description || value.desc || '',
+  projectType: value.projectType || 'TERM_BOOK',
+  pageSize: value.pageSize || 'A4_LANDSCAPE',
+  slideCount: value.deck?.slides?.length || 0,
+  book: {
+    termLabel: '',
+    showDate: true,
+    showCourse: true,
+    showComment: true,
+    showHighlight: true,
+    showWatermark: true,
+    bodySource: 'feedback',
+    ...(value.book || {})
+  },
+  layouts: value.layouts || null,
+  version: Number(value.version || 0)
+})
+
 export function usePortfolioStudio(context) {
   const {
     archiveRecords,
@@ -39,9 +88,9 @@ export function usePortfolioStudio(context) {
     nowText
   } = context
 
-  const portfolioProjects = reactive(clone(portfolioProjectSeed))
-  const portfolioTemplates = reactive(clone(portfolioTemplateSeed))
-  const exportJobs = reactive(clone(exportJobSeed))
+  const portfolioProjects = reactive([])
+  const portfolioTemplates = reactive([])
+  const exportJobs = reactive([])
   const activePortfolioProjectId = ref(null)
   const portfolioFilter = reactive({
     studentId: 'all',
@@ -51,7 +100,7 @@ export function usePortfolioStudio(context) {
     highlightOnly: false
   })
 
-  const service = createMockPortfolioService({
+  const service = createPortfolioDraftService({
     archiveRecords,
     portfolioProjects,
     exportJobs,
@@ -63,17 +112,17 @@ export function usePortfolioStudio(context) {
 
   let seq = Date.now()
   const nextSeq = () => ++seq
-  const defaultTemplate = portfolioTemplates[0]
+  const defaultTemplate = null
 
-  const templateFor = (project) => portfolioTemplates.find((item) => item.id === project?.templateId) || defaultTemplate
-  const pageSizeFor = (project) => pageSizes[templateFor(project).pageSize] || pageSizes.A4_LANDSCAPE
-  const recordById = (recordId) => archiveRecords.find((record) => record.id === recordId)
-  const studentById = (studentId) => students.find((student) => student.id === Number(studentId))
-  const classById = (classId) => classes.find((klass) => klass.id === Number(classId))
+  const templateFor = (project) => portfolioTemplates.find((item) => sameId(item.id, project?.templateId)) || defaultTemplate
+  const pageSizeFor = (project) => pageSizes[templateFor(project)?.pageSize] || pageSizes.A4_LANDSCAPE
+  const recordById = (recordId) => archiveRecords.find((record) => sameId(record.id, recordId))
+  const studentById = (studentId) => students.find((student) => sameId(student.id, studentId))
+  const classById = (classId) => classes.find((klass) => sameId(klass.id, classId))
 
   const visiblePortfolioProjects = computed(() => service.listVisibleProjects())
   const activePortfolioProject = computed(() =>
-    visiblePortfolioProjects.value.find((project) => project.id === activePortfolioProjectId.value) || null
+    visiblePortfolioProjects.value.find((project) => sameId(project.id, activePortfolioProjectId.value)) || null
   )
   const portfolioStats = computed(() => ({
     total: visiblePortfolioProjects.value.length,
@@ -82,11 +131,29 @@ export function usePortfolioStudio(context) {
     jobs: exportJobs.length
   }))
 
+  const loadPortfolioData = async () => {
+    try {
+      const [templates, exports] = await Promise.all([api.portfolio.templates(), api.portfolio.exports({})])
+      portfolioTemplates.splice(0, portfolioTemplates.length, ...(templates || []).map(mapPortfolioTemplate))
+      exportJobs.splice(0, exportJobs.length, ...((exports?.items || []).map((value) => ({
+        ...value,
+        id: fromApiId(value.id),
+        fileName: value.fileName,
+        fileUrl: value.downloadUrl || '',
+        pageCount: value.pageCount,
+        exportedAt: value.exportedAt || '',
+        status: value.status || '已导出'
+      }))))
+    } catch (error) {
+      notify(error?.message || '制作中心数据加载失败')
+    }
+  }
+
   const portfolioRecordPool = computed(() =>
     service.listAccessibleRecords()
       .filter((record) => {
-        const studentOk = portfolioFilter.studentId === 'all' || record.studentId === Number(portfolioFilter.studentId)
-        const classOk = portfolioFilter.classId === 'all' || record.classId === Number(portfolioFilter.classId)
+        const studentOk = portfolioFilter.studentId === 'all' || sameId(record.studentId, portfolioFilter.studentId)
+        const classOk = portfolioFilter.classId === 'all' || sameId(record.classId, portfolioFilter.classId)
         const startOk = !portfolioFilter.dateStart || (record.dateValue || '') >= portfolioFilter.dateStart
         const endOk = !portfolioFilter.dateEnd || (record.dateValue || '') <= portfolioFilter.dateEnd
         const highlightOk = !portfolioFilter.highlightOnly || record.highlight
@@ -165,9 +232,19 @@ export function usePortfolioStudio(context) {
     activePortfolioProjectId.value = null
   }
 
+  const clearPortfolioSession = () => {
+    portfolioProjects.splice(0, portfolioProjects.length)
+    exportJobs.splice(0, exportJobs.length)
+    activePortfolioProjectId.value = null
+  }
+
   const createPortfolioProject = (payload = {}) => {
-    const template = portfolioTemplates.find((item) => item.id === payload.templateId) || defaultTemplate
-    const studentId = payload.studentId ? Number(payload.studentId) : null
+    const template = portfolioTemplates.find((item) => sameId(item.id, payload.templateId)) || defaultTemplate
+    if (!template) {
+      notify('当前校区还没有可用的作品集模板，请先由管理员配置模板')
+      return null
+    }
+    const studentId = payload.studentId || null
     const student = studentById(studentId)
     const klass = classById(payload.classId || student?.classId)
     const project = service.createProject({
@@ -194,7 +271,7 @@ export function usePortfolioStudio(context) {
 
   const removePortfolioProject = (project) => {
     service.removeProject(project)
-    if (activePortfolioProjectId.value === project.id) activePortfolioProjectId.value = null
+    if (sameId(activePortfolioProjectId.value, project.id)) activePortfolioProjectId.value = null
     notify(`已删除制作项目：${project.title}`)
   }
 
@@ -206,7 +283,7 @@ export function usePortfolioStudio(context) {
 
   const toggleProjectRecord = (project, recordId) => {
     if (!project) return
-    const index = project.recordIds.indexOf(recordId)
+    const index = project.recordIds.findIndex((id) => sameId(id, recordId))
     if (index >= 0) project.recordIds.splice(index, 1)
     else project.recordIds.push(recordId)
     service.touchProject(project)
@@ -215,13 +292,15 @@ export function usePortfolioStudio(context) {
   const selectAllPoolRecords = (project) => {
     if (!project) return
     const ids = portfolioRecordPool.value.map((record) => record.id)
-    const allPicked = ids.length && ids.every((id) => project.recordIds.includes(id))
-    project.recordIds = allPicked ? project.recordIds.filter((id) => !ids.includes(id)) : [...new Set([...project.recordIds, ...ids])]
+    const allPicked = ids.length && ids.every((id) => project.recordIds.some((recordId) => sameId(recordId, id)))
+    project.recordIds = allPicked
+      ? project.recordIds.filter((id) => !ids.some((recordId) => sameId(recordId, id)))
+      : [...new Set([...project.recordIds, ...ids].map(String))]
     service.touchProject(project)
   }
 
   const applyTemplate = (project, templateId) => {
-    const template = portfolioTemplates.find((item) => item.id === templateId)
+    const template = portfolioTemplates.find((item) => sameId(item.id, templateId))
     if (!project || !template) return
     project.templateId = template.id
     project.projectType = template.projectType
@@ -251,6 +330,7 @@ export function usePortfolioStudio(context) {
 
   const workLayoutForCount = (project, count) => {
     const template = templateFor(project)
+    if (!template?.layouts) return portfolioLayouts.find((layout) => layout.pageType === 'work') || portfolioLayouts[0]
     if (count >= 4) return layoutById(template.layouts.work4)
     if (count === 2) return layoutById(template.layouts.work2)
     return layoutById(template.layouts.work1)
@@ -259,6 +339,10 @@ export function usePortfolioStudio(context) {
   const autoPaginate = (project) => {
     if (!project) return
     const template = templateFor(project)
+    if (!template?.layouts) {
+      notify('当前模板缺少页面布局定义')
+      return
+    }
     const records = orderedProjectRecords(project)
     if (!records.length) {
       notify('请先选择要进入作品册的作品')
@@ -291,6 +375,8 @@ export function usePortfolioStudio(context) {
     if (!project) return null
     ensureProjectCopy(project)
     const template = templateFor(project)
+    if (!template) return null
+    if (template.deck?.slides?.length) return clone(template.deck)
     const records = orderedProjectRecords(project)
     const student = studentById(project.studentId)
     const klass = classById(project.classId || student?.classId)
@@ -304,6 +390,10 @@ export function usePortfolioStudio(context) {
       return null
     }
     project.deck = buildPortfolioDeck(project)
+    if (!project.deck) {
+      notify('当前模板没有可生成的页面结构')
+      return null
+    }
     project.status = '待导出'
     project.stage = 1
     service.touchProject(project)
@@ -320,16 +410,28 @@ export function usePortfolioStudio(context) {
   const savePortfolioDeckAsTemplate = (project, payload = {}) => {
     if (!project?.deck) return null
     const name = payload.name?.trim() || `${projectSubjectLabel(project)}作品册模板`
-    const template = createTemplateFromPptistDocument({
-      id: `custom-${nextSeq()}`,
-      name,
-      desc: payload.desc?.trim() || `由 ${project.title} 保存，可复用当前页面和元素位置`,
-      deck: project.deck,
-      termLabel: project.termLabel
-    })
-    portfolioTemplates.unshift(template)
-    notify(`已保存模板：${template.name}`)
-    return template
+    try {
+      const deck = sanitizeTemplateDeck(project.deck)
+      return api.portfolio.createTemplate({
+        name,
+        projectType: project.projectType || 'TERM_BOOK',
+        scopeType: 'USER',
+        description: payload.desc?.trim() || `由 ${project.title} 保存，可复用当前页面和元素位置`,
+        deck,
+        isDefault: false
+      }).then((saved) => {
+        const remoteTemplate = mapPortfolioTemplate(saved)
+        portfolioTemplates.unshift(remoteTemplate)
+        notify(`已保存模板：${remoteTemplate.name}`)
+        return remoteTemplate
+      }).catch((error) => {
+        notify(error?.message || '模板保存失败')
+        return null
+      })
+    } catch (error) {
+      notify(error?.message || '模板包含无法持久化的临时图片')
+      return null
+    }
   }
 
   const defaultCrop = () => ({ scale: 1, x: 50, y: 50 })
@@ -575,13 +677,37 @@ export function usePortfolioStudio(context) {
   const portfolioCloudPathFor = (project) =>
     `${school.campus}/教学资料归档/作品册导出/${projectDateRangeLabel(project)}/${projectClassLabel(project)}`
 
-  const recordPortfolioExport = (project, result) => {
-    const job = service.createExportRecord(project, {
-      ...result,
-      cloudPath: portfolioCloudPathFor(project)
-    })
-    notify(`PDF 已导出：${job.fileName}`)
-    return job
+  const recordPortfolioExport = async (project, result) => {
+    if (!project?.studentId || !result?.blob) {
+      notify('请先生成浏览器端 PDF 文件')
+      return null
+    }
+    try {
+      const blob = result.blob
+      const digest = await sha256ForFile(blob)
+      const session = await api.portfolio.createExportSession({
+        studentId: String(project.studentId),
+        classId: project.classId ? String(project.classId) : undefined,
+        termId: project.termId ? String(project.termId) : undefined,
+        dateStart: project.dateStart || undefined,
+        dateEnd: project.dateEnd || undefined,
+        templateId: project.templateId ? String(project.templateId) : undefined,
+        sourceRecordIds: orderedProjectRecords(project).map((record) => String(record.id)),
+        expectedSize: blob.size,
+        expectedSha256: digest,
+        requestedPageCount: result.pageCount
+      })
+      await putUploadSessionContent(session, blob, 'application/pdf')
+      const exportRecord = await api.portfolio.completeExport(session.fileUploadSessionId, { sizeBytes: blob.size, sha256: digest }, createIdempotencyKey(`portfolio-export:${project.studentId}:${digest}`))
+      const job = { ...exportRecord, id: fromApiId(exportRecord.id), fileName: exportRecord.fileName || result.fileName, fileUrl: exportRecord.downloadUrl || '', pageCount: exportRecord.pageCount || result.pageCount, exportedAt: exportRecord.exportedAt || new Date().toISOString(), status: '已导出' }
+      exportJobs.unshift(job)
+      project.status = '已导出'
+      notify(`PDF 已登记：${job.fileName}`)
+      return job
+    } catch (error) {
+      notify(error?.message || '作品集导出登记失败')
+      return null
+    }
   }
 
   return {
@@ -614,6 +740,7 @@ export function usePortfolioStudio(context) {
     createPortfolioProject,
     openPortfolioProject,
     closePortfolioProject,
+    clearPortfolioSession,
     removePortfolioProject,
     duplicatePortfolioProject,
     toggleProjectRecord,
@@ -641,6 +768,7 @@ export function usePortfolioStudio(context) {
     portfolioReadyFor,
     portfolioFileNameFor,
     portfolioCloudPathFor,
-    recordPortfolioExport
+    recordPortfolioExport,
+    loadPortfolioData
   }
 }

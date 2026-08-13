@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import TaskReport from './TaskReport.vue'
 import DeliveryPreview from './DeliveryPreview.vue'
+import { sameId } from '../../services/mappers'
 
 const props = defineProps({
   state: {
@@ -28,12 +29,13 @@ const resourceFilterOptions = computed(() => [
   '最近使用',
   ...Array.from(new Set(props.state.externalLinks.map((link) => link.platform))).filter(Boolean)
 ])
+const studentFor = (studentId) => props.state.students.find((item) => sameId(item.id, studentId)) || { name: '学生', parent: '' }
 const filteredExternalResources = computed(() => {
   const keyword = resourceSearch.value.trim().toLowerCase()
   return props.state.externalLinks.filter((link, index) => {
     const filterMatched =
       resourceFilter.value === '全部' ||
-      (resourceFilter.value === '同主题' && link.courseIds.includes(props.state.activeCourse.id)) ||
+      (resourceFilter.value === '同主题' && link.courseIds.some((courseId) => sameId(courseId, props.state.activeCourse.id))) ||
       (resourceFilter.value === '最近使用' && index < 3) ||
       link.platform === resourceFilter.value
     const keywordMatched = !keyword || `${link.title} ${link.note} ${link.platform}`.toLowerCase().includes(keyword)
@@ -54,8 +56,8 @@ const commentTemplateOptions = computed(() =>
     description: `${template.tone} · ${template.length}`
   }))
 )
-const currentRecordIndex = computed(() => props.state.attendingRows.findIndex((row) => row.studentId === props.state.activeStudentId))
-const currentReviewIndex = computed(() => props.state.attendingRows.findIndex((row) => row.studentId === props.state.activeStudentId))
+const currentRecordIndex = computed(() => props.state.attendingRows.findIndex((row) => sameId(row.studentId, props.state.activeStudentId)))
+const currentReviewIndex = computed(() => props.state.attendingRows.findIndex((row) => sameId(row.studentId, props.state.activeStudentId)))
 
 const moveRecordStudent = (direction) => {
   const rows = props.state.attendingRows
@@ -64,11 +66,12 @@ const moveRecordStudent = (direction) => {
   props.state.activeStudentId = rows[nextIndex].studentId
 }
 
-const saveRecordAndNext = () => {
+const saveRecordAndNext = async () => {
   if (!props.state.activeSessionStudent.record?.trim()) {
     props.state.notify('请先录入当前学生的课堂表现')
     return
   }
+  if (props.state.saveSessionRecord && !(await props.state.saveSessionRecord(props.state.activeSessionStudent))) return
   if (currentRecordIndex.value < props.state.attendingRows.length - 1) {
     props.state.notify(`已保存${props.state.activeStudent.name}的课堂记录`)
     moveRecordStudent(1)
@@ -201,11 +204,11 @@ const updateCommentTemplate = (index) => {
           <button
             v-for="row in state.sessionStudents"
             :key="`${row.lessonId}-${row.studentId}`"
-            :class="{ active: row.studentId === state.activeStudentId, absent: row.attendance !== '到课' }"
+            :class="{ active: sameId(row.studentId, state.activeStudentId), absent: row.attendance !== '到课' }"
             @click="state.activeStudentId = row.studentId"
           >
-            <strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong>
-            <span>{{ state.students.find((item) => item.id === row.studentId).parent }}</span>
+            <strong>{{ studentFor(row.studentId).name }}</strong>
+            <span>{{ studentFor(row.studentId).parent }}</span>
             <AdaptiveSelect
               :model-value="row.attendance"
               :options="attendanceOptions"
@@ -228,18 +231,21 @@ const updateCommentTemplate = (index) => {
           <article class="material-lane">
             <header>
               <div>
-                <span>范画步骤</span>
-                <strong>{{ state.counts.referenceMaterials }} 张图片</strong>
+                <span>范画、步骤与课堂媒体</span>
+                <strong>{{ state.counts.referenceMaterials }} 个文件</strong>
               </div>
               <div class="button-pair">
-                <label class="file-button material-upload-button">上传图片<input type="file" accept="image/*" multiple @change="state.uploadLessonMaterial($event, '范画')" /></label>
-                <button class="secondary" @click="showArtworkLibrary = true">从图库引用</button>
+                <label class="file-button material-upload-button">上传范画/步骤图<input type="file" accept="image/*" multiple @change="state.uploadLessonMaterial($event, '范画')" /></label>
+                <label class="file-button material-upload-button">上传课堂照片<input type="file" accept="image/*" multiple @change="state.uploadLessonMaterial($event, '课堂照片')" /></label>
+                <label class="file-button material-upload-button">上传课堂视频<input type="file" accept="video/*" @change="state.uploadLessonMaterial($event, '课堂视频')" /></label>
+                <button v-if="state.artworkLibrary.length" class="secondary" @click="showArtworkLibrary = true">从图库引用</button>
               </div>
             </header>
 
             <div class="material-gallery compact">
               <article v-for="material in state.referenceMaterials" :key="material.id" :class="{ hidden: !material.visible }">
-                <img :src="material.image" :alt="material.title" />
+                <video v-if="material.type === '课堂视频'" :src="material.image" controls preload="metadata" :aria-label="material.title" />
+                <img v-else :src="material.image" :alt="material.title" />
                 <div>
                   <span>{{ material.type }}</span>
                   <strong>{{ material.title }}</strong>
@@ -294,15 +300,15 @@ const updateCommentTemplate = (index) => {
               <button class="ghost" @click="showArtworkLibrary = false">关闭</button>
             </header>
             <section class="library-drawer-list">
-              <article v-for="item in state.artworkLibrary" :key="item.id" :class="{ selected: state.materials.some((material) => material.libraryId === item.id) }">
+            <article v-for="item in state.artworkLibrary" :key="item.id" :class="{ selected: state.materials.some((material) => sameId(material.libraryId, item.id)) }">
                 <img :src="item.image" :alt="item.title" />
                 <div>
                   <span>{{ item.type }} · {{ item.theme }}</span>
                   <strong>{{ item.title }}</strong>
                   <small>{{ item.uploader }} · 已使用 {{ item.usage }} 次</small>
                 </div>
-                <button class="secondary" :disabled="state.materials.some((material) => material.libraryId === item.id)" @click="state.useArtworkFromLibrary(item)">
-                  {{ state.materials.some((material) => material.libraryId === item.id) ? '已引用' : '引用' }}
+                <button class="secondary" :disabled="state.materials.some((material) => sameId(material.libraryId, item.id))" @click="state.useArtworkFromLibrary(item)">
+                  {{ state.materials.some((material) => sameId(material.libraryId, item.id)) ? '已引用' : '引用' }}
                 </button>
               </article>
             </section>
@@ -330,13 +336,13 @@ const updateCommentTemplate = (index) => {
             class="student-work-row"
           >
             <div class="student-work-person">
-              <strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong>
-              <small>{{ state.students.find((item) => item.id === row.studentId).parent }}</small>
+              <strong>{{ studentFor(row.studentId).name }}</strong>
+              <small>{{ studentFor(row.studentId).parent }}</small>
               <span>{{ row.attendance }}</span>
             </div>
             <div v-if="row.attendance === '到课'" class="work-thumbnails">
               <button v-for="(image, index) in (row.images || (row.image ? [row.image] : []))" :key="`${image}-${index}`" class="work-thumbnail" @click="openWorkPreview(row, index)">
-                <img :src="image" :alt="`${state.students.find((item) => item.id === row.studentId).name}作品${index + 1}`" />
+                <img :src="image" :alt="`${studentFor(row.studentId).name}作品${index + 1}`" />
               </button>
               <span v-if="!row.images?.length" class="work-empty">尚未上传作品</span>
             </div>
@@ -351,7 +357,7 @@ const updateCommentTemplate = (index) => {
         <div v-if="workPreview" class="modal-backdrop" @click.self="workPreview = null">
           <section class="work-preview-modal">
             <header class="modal-head">
-              <div><span>{{ state.students.find((item) => item.id === workPreview.row.studentId).name }}</span><strong>作品 {{ workPreview.index + 1 }}/{{ workPreview.row.images.length }}</strong></div>
+              <div><span>{{ studentFor(workPreview.row.studentId).name }}</span><strong>作品 {{ workPreview.index + 1 }}/{{ workPreview.row.images.length }}</strong></div>
               <button class="ghost" @click="workPreview = null">关闭</button>
             </header>
             <img :src="workPreview.row.images[workPreview.index]" alt="作品大图预览" />
@@ -377,8 +383,8 @@ const updateCommentTemplate = (index) => {
           </div>
         </div>
         <div class="record-student-tabs">
-          <button v-for="(row, index) in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ active: row.studentId === state.activeStudentId, done: row.record?.trim() }" @click="state.activeStudentId = row.studentId">
-            <b>{{ index + 1 }}</b><span><strong>{{ state.students.find((item) => item.id === row.studentId).name }}</strong><small>{{ row.record?.trim() ? '已记录' : '待记录' }}</small></span>
+          <button v-for="(row, index) in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ active: sameId(row.studentId, state.activeStudentId), done: row.record?.trim() }" @click="state.activeStudentId = row.studentId">
+            <b>{{ index + 1 }}</b><span><strong>{{ studentFor(row.studentId).name }}</strong><small>{{ row.record?.trim() ? '已记录' : '待记录' }}</small></span>
           </button>
         </div>
         <article v-if="state.activeSessionStudent" class="single-record-editor">
@@ -443,8 +449,8 @@ const updateCommentTemplate = (index) => {
             <button class="ghost" @click="generateStage = 'settings'">返回生成设置</button>
           </div>
           <div class="student-tabs review-student-tabs">
-            <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: row.studentId === state.activeStudentId, reviewed: row.confirmed && row.imageConfirmed }" @click="state.activeStudentId = row.studentId">
-              {{ state.students.find((item) => item.id === row.studentId).name }}{{ row.confirmed && row.imageConfirmed ? ' ✓' : '' }}
+            <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: sameId(row.studentId, state.activeStudentId), reviewed: row.confirmed && row.imageConfirmed }" @click="state.activeStudentId = row.studentId">
+              {{ studentFor(row.studentId).name }}{{ row.confirmed && row.imageConfirmed ? ' ✓' : '' }}
             </button>
           </div>
           <div class="generated-result-grid">
@@ -469,7 +475,7 @@ const updateCommentTemplate = (index) => {
             <article class="highlight-review-card">
               <div><span>高光作品</span><strong>{{ state.activeSessionStudent.highlight ? '已标记为本节高光' : '普通作品' }}</strong></div>
               <label class="inline-check"><input type="checkbox" :checked="state.activeSessionStudent.highlight" @change="state.toggleHighlight(state.activeSessionStudent)" /><span>将当前学生作品标记为高光</span></label>
-              <label v-if="state.activeSessionStudent.highlight">高光说明<textarea v-model="state.activeSessionStudent.highlightNote" rows="3" /></label>
+              <label v-if="state.activeSessionStudent.highlight">高光说明<textarea v-model="state.activeSessionStudent.highlightNote" rows="3" @blur="state.saveShareDraft?.('更新高光说明')" /></label>
             </article>
           </div>
           <div class="review-next-action"><button class="primary" @click="confirmStudentAndNext">{{ currentReviewIndex < state.attendingRows.length - 1 ? '确认并下一位' : '完成当前学生确认' }}</button></div>
@@ -556,10 +562,10 @@ const updateCommentTemplate = (index) => {
               </div>
             </section>
             <section class="resource-drawer-list">
-              <label v-for="link in filteredExternalResources" :key="link.id" class="resource-choice" :class="{ selected: state.homework.externalLinkIds.includes(link.id) }">
+              <label v-for="link in filteredExternalResources" :key="link.id" class="resource-choice" :class="{ selected: state.homework.externalLinkIds.some((id) => sameId(id, link.id)) }">
                 <input
                   type="checkbox"
-                  :checked="state.homework.externalLinkIds.includes(link.id)"
+                  :checked="state.homework.externalLinkIds.some((id) => sameId(id, link.id))"
                   @change="state.toggleHomeworkLink(link.id)"
                 />
                 <span>
@@ -587,8 +593,8 @@ const updateCommentTemplate = (index) => {
               <button class="ghost" @click="showSharePreview = false">关闭</button>
             </header>
             <div class="student-tabs review-student-tabs">
-              <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: row.studentId === state.activeStudentId }" @click="state.activeStudentId = row.studentId">
-                {{ state.students.find((item) => item.id === row.studentId).name }}
+              <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: sameId(row.studentId, state.activeStudentId) }" @click="state.activeStudentId = row.studentId">
+                {{ studentFor(row.studentId).name }}
               </button>
             </div>
             <DeliveryPreview
@@ -621,7 +627,7 @@ const updateCommentTemplate = (index) => {
             <span>第 7 步</span>
             <strong>归档留痕与交付收口</strong>
           </div>
-          <button class="primary" :disabled="state.isProcessing || !state.archiveChecklistReady" @click="state.archiveAll">
+          <button class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">
             完成本节归档交付
           </button>
         </div>
@@ -640,7 +646,7 @@ const updateCommentTemplate = (index) => {
             </div>
             <div v-else-if="!state.archiveChecklistReady" class="archive-result-status">
               <strong>待完成项</strong>
-              <small>{{ state.archiveChecklistPending.join('、') }}</small>
+              <small>{{ state.archiveChecklistPending.join('、') }}；最终是否允许归档以服务端完成检查为准</small>
             </div>
             <div v-else class="archive-result-status">
               <strong>归档交付清单已就绪</strong>
@@ -664,8 +670,8 @@ const updateCommentTemplate = (index) => {
                   <summary>学生访问凭证（企微不可用时人工发送兜底）</summary>
                   <div v-for="row in state.attendingRows" :key="`touch-${row.lessonId}-${row.studentId}`" class="touch-fallback-row">
                     <div>
-                      <strong>{{ state.students.find((entry) => entry.id === row.studentId).name }}</strong>
-                      <small>{{ state.students.find((entry) => entry.id === row.studentId).parent }} · 展示页 V{{ state.sharePage.publishedVersion }}</small>
+                      <strong>{{ studentFor(row.studentId).name }}</strong>
+                      <small>{{ studentFor(row.studentId).parent }} · 展示页 V{{ state.sharePage.publishedVersion }}</small>
                     </div>
                     <span class="credential-status">链接已生成</span>
                     <span class="qr-code mini">QR</span>
@@ -676,11 +682,12 @@ const updateCommentTemplate = (index) => {
               <div class="archive-check-actions">
                 <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.pushParentTouch">{{ state.isArchiveDone(item.item) ? '已创建触达' : item.action }}</button>
                 <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已同步' || item.item.status === '已跳过'" @click="state.pushArchiveItem(item.key)">{{ item.item.status === '已同步' ? '已同步' : item.action }}</button>
-                <template v-if="item.key === 'deliveryVideo'">
-                  <label class="secondary file-button archive-video-upload" :class="{ disabled: state.isProcessing }">上传视频<input type="file" accept="video/*" :disabled="state.isProcessing" @change="state.uploadDeliveryVideo" /></label>
-                  <button class="ghost" :disabled="state.isProcessing || item.item.status === '已跳过'" @click="state.skipDeliveryVideo">本节无需</button>
+                <template v-if="item.key === 'teacherEffectArchive'">
+                  <button v-if="!state.activeWorkspace.teacherEffect || ['DRAFT', 'FAILED'].includes(state.activeWorkspace.teacherEffect.status)" class="secondary" :disabled="state.isProcessing" @click="state.archiveTeacherEffectImage">{{ state.activeWorkspace.teacherEffect?.status === 'FAILED' ? '重新生成' : item.action }}</button>
+                  <button v-if="state.activeWorkspace.teacherEffect?.status === 'GENERATED'" class="secondary" :disabled="state.isProcessing" @click="state.confirmTeacherEffect">确认课效图</button>
+                  <button v-if="state.activeWorkspace.teacherEffect?.status === 'FAILED'" class="ghost" :disabled="state.isProcessing" @click="state.retryTeacherEffect">重试任务</button>
+                  <span v-if="['CONFIRMED', 'SKIPPED'].includes(state.activeWorkspace.teacherEffect?.status)" class="status-pill">{{ item.item.status }}</span>
                 </template>
-                <button v-if="item.key === 'teacherEffectArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已归档' || item.item.status === '已跳过'" @click="state.archiveTeacherEffectImage">{{ item.item.status === '已归档' ? '已归档' : item.action }}</button>
                 <button v-if="item.key === 'wheatTrace'" class="secondary" :disabled="state.isProcessing || item.item.status === '已生成'" @click="state.generateWheatTraceTask">{{ item.item.status === '已生成' ? '已生成' : item.action }}</button>
               </div>
             </article>
@@ -692,7 +699,7 @@ const updateCommentTemplate = (index) => {
       <footer class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
         <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 4 && (state.counts.confirmed < state.counts.attend || state.counts.imageConfirmed < state.counts.attend)" @click="state.nextStep">下一步</button>
-        <button v-else class="primary" :disabled="state.isProcessing || !state.archiveChecklistReady" @click="state.archiveAll">完成归档交付</button>
+        <button v-else class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">完成归档交付</button>
       </footer>
     </template>
   </section>

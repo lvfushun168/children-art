@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
+import { sameId } from '../services/mappers'
 
 const props = defineProps({
   state: {
@@ -23,12 +24,12 @@ const workError = ref('')
 const isMobileFlow = ref(false)
 const mobileShowingDetail = ref(false)
 let cleanupMobileMedia = () => {}
-const selected = computed(() => props.state.extraTaskArchives.find((task) => task.id === selectedId.value) || props.state.extraTaskArchives[0])
+const selected = computed(() => props.state.extraTaskArchives.find((task) => sameId(task.id, selectedId.value)) || props.state.extraTaskArchives[0])
 const selectedWorks = computed(() => selected.value ? props.state.extraTaskWorksForTask(selected.value.id) : [])
 
 const lessonOptions = computed(() =>
   props.state.tasks.map((task) => {
-    const klass = props.state.classes.find((item) => item.id === task.classId)
+    const klass = props.state.classes.find((item) => sameId(item.id, task.classId))
     return { id: task.id, label: `${task.date} ${task.time} · ${klass?.name || '班级'} · ${task.teacher}` }
   })
 )
@@ -47,12 +48,12 @@ const blankDraft = () => ({
 const draft = ref(blankDraft())
 const studentOptions = computed(() =>
   props.state.students.map((student) => {
-    const klass = props.state.classes.find((item) => item.id === student.classId)
+    const klass = props.state.classes.find((item) => sameId(item.id, student.classId))
     return { label: `${student.name} · ${klass?.name || '未归属班级'}`, value: student.id }
   })
 )
 const defaultWorkDate = () => {
-  const relatedLesson = props.state.tasks.find((task) => task.id === Number(selected.value?.relatedLessonId))
+  const relatedLesson = props.state.tasks.find((task) => sameId(task.id, selected.value?.relatedLessonId))
   return relatedLesson?.dateValue || new Date().toISOString().slice(0, 10)
 }
 const blankWorkDraft = () => ({
@@ -104,10 +105,11 @@ const startEdit = () => {
   resetDraft()
 }
 
-const save = () => {
+const save = async () => {
   const saved = mode.value === 'new'
-    ? props.state.addExtraTask(draft.value)
-    : props.state.updateExtraTask(selected.value.id, draft.value)
+    ? await props.state.addExtraTask(draft.value)
+    : await props.state.updateExtraTask(selected.value.id, draft.value)
+  if (!saved) return
   selectedId.value = saved.id
   mode.value = 'detail'
   if (isMobileFlow.value) mobileShowingDetail.value = true
@@ -117,6 +119,7 @@ const save = () => {
 const handleWorkImage = (event) => {
   const file = event.target.files?.[0]
   if (!file) return
+  workDraft.value.artworkFile = file
   workDraft.value.artwork = URL.createObjectURL(file)
   if (!workDraft.value.title) workDraft.value.title = file.name.replace(/\.[^.]+$/, '')
 }
@@ -141,7 +144,8 @@ const startEditWork = (record) => {
     tagsText: (record.tags || []).join('、'),
     note: record.note || '',
     highlight: Boolean(record.highlight),
-    highlightNote: record.highlightNote || ''
+    highlightNote: record.highlightNote || '',
+    version: record.version
   }
 }
 
@@ -150,7 +154,7 @@ const cancelWorkEdit = () => {
   resetWorkDraft()
 }
 
-const saveWork = () => {
+const saveWork = async () => {
   workError.value = ''
   if (!workDraft.value.studentId) {
     workError.value = '请选择学生。'
@@ -165,17 +169,17 @@ const saveWork = () => {
     tags: workDraft.value.tagsText.split(/[，,、]/)
   }
   const saved = workMode.value === 'new'
-    ? props.state.addExtraTaskWork(selected.value.id, payload)
-    : props.state.updateExtraTaskWork(editingWorkId.value, payload)
+    ? await props.state.addExtraTaskWork(selected.value.id, payload)
+    : await props.state.updateExtraTaskWork(editingWorkId.value, payload)
   if (!saved) return
   workMode.value = 'list'
   resetWorkDraft()
 }
 
 const deleteWork = (record) => {
-  if (!window.confirm(`确定删除「${record.title}」吗？删除后学生作品档案中也会同步移除。`)) return
+  if (!window.confirm(`确定删除「${record.title}」吗？删除后课外作品档案中也会同步移除。`)) return
   props.state.deleteExtraTaskWork(record.id)
-  if (editingWorkId.value === record.id) cancelWorkEdit()
+  if (sameId(editingWorkId.value, record.id)) cancelWorkEdit()
 }
 
 const returnToList = () => {
@@ -238,7 +242,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         v-for="task in state.extraTaskArchives"
         :key="task.id"
         class="master-row"
-        :class="{ active: selected?.id === task.id && mode !== 'new' }"
+        :class="{ active: sameId(selected?.id, task.id) && mode !== 'new' }"
         @click="selectTask(task)"
       >
         <strong>{{ task.title }}</strong>
@@ -282,7 +286,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <label>预计完成<input v-model="draft.dueDate" /></label>
         <label>
           状态
-          <AdaptiveSelect v-model="draft.status" :options="['待发布', '已发布', '待归档', '已归档', '异常']" />
+          <AdaptiveSelect v-model="draft.status" :options="['待发布', '已发布', '进行中', '待归档', '已归档', '已取消']" />
         </label>
         <label class="wide">任务内容<textarea v-model="draft.content" rows="5" /></label>
         <label class="wide">归档备注<textarea v-model="draft.note" rows="4" /></label>
@@ -293,7 +297,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <div class="section-head">
             <div>
               <span>{{ workMode === 'new' ? '新增交付作品' : '编辑交付作品' }}</span>
-              <strong>保存后同步进入学生作品档案</strong>
+              <strong>保存后写入服务端课外作品档案</strong>
             </div>
           </div>
           <div class="form-grid">
@@ -302,11 +306,17 @@ onBeforeUnmount(() => cleanupMobileMedia())
               <AdaptiveSelect v-model="workDraft.studentId" :options="studentOptions" />
             </label>
             <label>交付日期<input v-model="workDraft.dateValue" type="date" /></label>
-            <label class="wide file-button extra-task-file">选择作品图片<input type="file" accept="image/*" @change="handleWorkImage" /></label>
+            <label class="wide file-button extra-task-file" :class="{ disabled: workMode === 'edit' }">
+              {{ workMode === 'edit' ? '编辑接口不支持替换图片' : '选择作品图片' }}
+              <input type="file" accept="image/*" :disabled="workMode === 'edit'" @change="handleWorkImage" />
+            </label>
             <label class="wide">作品标题<input v-model="workDraft.title" placeholder="例如：浩浩的课外小鱼练习" /></label>
             <label class="wide">作品说明<textarea v-model="workDraft.description" rows="3" /></label>
             <label class="wide">标签<input v-model="workDraft.tagsText" placeholder="使用逗号或顿号分隔" /></label>
             <label class="wide">档案备注<textarea v-model="workDraft.note" rows="3" /></label>
+          </div>
+          <div v-if="workMode === 'edit'" class="notice-box">
+            <small>当前 M6 课外作品修改接口只保存标题、说明、标签和高光元数据；如需更换文件，请新建一条课外作品记录。</small>
           </div>
           <figure v-if="workDraft.artwork" class="extra-task-work-preview">
             <img :src="workDraft.artwork" alt="课外作品预览" />
@@ -321,7 +331,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <p v-if="workError">{{ workError }}</p>
             <div>
               <button class="ghost" @click="cancelWorkEdit">取消</button>
-              <button class="primary" @click="saveWork">保存到作品档案</button>
+              <button class="primary" @click="saveWork">保存课外作品</button>
             </div>
           </div>
         </div>

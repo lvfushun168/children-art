@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import { sameId } from '../../services/mappers'
 
 const props = defineProps({
   state: {
@@ -26,8 +27,9 @@ const wheatTodos = computed(() => props.state.wheatTraces.filter((trace) => trac
 const importTodos = computed(() => props.state.importPreviewRows.filter((row) => row.status !== '可导入'))
 const cloudTodos = computed(() => props.state.visibleTasks.filter((task) => task.cloudArchiveStatus === '同步失败'))
 const wecomTodos = computed(() => props.state.wecomSendTasks.filter((task) => ['待老师确认发送', '发送失败'].includes(task.status)))
-const reviewTodos = computed(() => props.state.isAdmin ? props.state.pendingQualityReviews : [])
-const totalCount = computed(() => pendingLessons.value.length + wheatTodos.value.length + importTodos.value.length + cloudTodos.value.length + wecomTodos.value.length + reviewTodos.value.length)
+const reviewTodos = computed(() => props.state.canQualityReview ? props.state.pendingQualityReviews : [])
+const serverTodos = computed(() => (props.state.todos || []).filter((todo) => !['已完成', '已取消'].includes(todo.status)))
+const totalCount = computed(() => pendingLessons.value.length + wheatTodos.value.length + importTodos.value.length + cloudTodos.value.length + wecomTodos.value.length + reviewTodos.value.length + serverTodos.value.length)
 const categories = computed(() => [
   { id: 'all', label: '全部', count: totalCount.value },
   { id: 'lessons', label: '今日课后', count: pendingLessons.value.length },
@@ -35,12 +37,13 @@ const categories = computed(() => [
   { id: 'wecom', label: '企微发送', count: wecomTodos.value.length },
   { id: 'wheat', label: '小麦留痕', count: wheatTodos.value.length },
   { id: 'cloud', label: '网盘同步', count: cloudTodos.value.length },
-  { id: 'imports', label: '导入异常', count: importTodos.value.length }
+  { id: 'imports', label: '导入异常', count: importTodos.value.length },
+  { id: 'server', label: '服务端任务', count: serverTodos.value.length }
 ])
 const showGroup = (id) => activeCategory.value === 'all' || activeCategory.value === id
 
-const klassName = (task) => props.state.classes.find((item) => item.id === task.classId)?.name || '未命名班级'
-const courseName = (task) => props.state.courses.find((item) => item.id === task.courseId)?.title || '未命名课程'
+const klassName = (task) => props.state.classes.find((item) => sameId(item.id, task.classId))?.name || '未命名班级'
+const courseName = (task) => props.state.courses.find((item) => sameId(item.id, task.courseId))?.title || '未命名课程'
 
 const updateTrace = (trace, status) => {
   if (props.state.markTrace(trace, status, reasons[trace.id] || '')) reasons[trace.id] = ''
@@ -59,6 +62,10 @@ const openSupervision = () => {
   emit('open-supervision')
   emit('close')
 }
+
+const serverTodoLesson = (todo) => props.state.visibleTasks.find((task) => sameId(task.id, todo.lessonId))
+const completeServerTodo = (todo) => props.state.completeTodo?.(todo)
+const cancelServerTodo = (todo) => props.state.cancelTodo?.(todo, reasons[`todo-${todo.id}`] || '')
 </script>
 
 <template>
@@ -119,11 +126,12 @@ const openSupervision = () => {
                 <small v-if="task.failureReason">失败原因：{{ task.failureReason }}</small>
               </div>
               <em>{{ task.status }}</em>
-              <input v-model="reasons[`wecom-${task.id}`]" placeholder="发送失败原因（标记失败时必填）" />
+              <input v-model="reasons[`wecom-${task.id}`]" placeholder="取消触达原因（必填）" />
               <div class="button-pair">
                 <button class="secondary" @click="updateWecomTask(task, '已发送')">已确认发送</button>
                 <button class="ghost" @click="state.manualCopyWecomTask(task)">复制链接人工发送</button>
-                <button v-if="task.status !== '发送失败'" class="ghost" @click="updateWecomTask(task, '发送失败')">发送失败</button>
+                <button v-if="task.status === '发送失败'" class="ghost" @click="state.retryWecomSendTask(task)">重试发送</button>
+                <button v-if="task.status !== '发送失败'" class="ghost" @click="updateWecomTask(task, '已取消')">取消触达</button>
               </div>
             </article>
             <small v-if="!wecomTodos.length" class="empty-note">暂无待确认的企微触达任务。</small>
@@ -168,6 +176,25 @@ const openSupervision = () => {
               <em>{{ row.status }}</em>
             </article>
             <small v-if="!importTodos.length" class="empty-note">暂无导入异常。</small>
+          </section>
+
+          <section v-if="showGroup('server')" class="todo-group">
+            <div class="mini-head"><div><span>服务端任务</span><strong>{{ serverTodos.length }} 条待处理</strong></div></div>
+            <article v-for="todo in serverTodos" :key="`todo-${todo.id}`" class="todo-trace-row">
+              <div>
+                <strong>{{ todo.title || todo.todoType }}</strong>
+                <small>{{ todo.description || '服务端生成的工作任务' }}<span v-if="todo.dueAt"> · 截止 {{ todo.dueAt }}</span></small>
+                <small v-if="serverTodoLesson(todo)">课次：{{ serverTodoLesson(todo).date }} {{ serverTodoLesson(todo).time }}</small>
+              </div>
+              <em>{{ todo.status }}</em>
+              <input v-model="reasons[`todo-${todo.id}`]" placeholder="取消原因（可选完成或必填取消）" />
+              <div class="button-pair">
+                <button v-if="serverTodoLesson(todo)" class="ghost" @click="goTask(serverTodoLesson(todo))">打开课次</button>
+                <button class="secondary" @click="completeServerTodo(todo)">完成</button>
+                <button class="ghost" @click="cancelServerTodo(todo)">取消</button>
+              </div>
+            </article>
+            <small v-if="!serverTodos.length" class="empty-note">暂无服务端待办。</small>
           </section>
         </div>
       </div>

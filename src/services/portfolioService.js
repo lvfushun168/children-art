@@ -2,7 +2,7 @@ const clone = (value) => JSON.parse(JSON.stringify(value))
 
 const nextId = (items) => Math.max(0, ...items.map((item) => Number(item.id) || 0)) + 1
 
-export function createMockPortfolioService(context) {
+export function createPortfolioDraftService(context) {
   const {
     archiveRecords,
     portfolioProjects,
@@ -57,7 +57,7 @@ export function createMockPortfolioService(context) {
   }
 
   const removeProject = (project) => {
-    const index = portfolioProjects.findIndex((item) => item.id === project.id)
+    const index = portfolioProjects.findIndex((item) => String(item.id) === String(project.id))
     if (index >= 0) portfolioProjects.splice(index, 1)
   }
 

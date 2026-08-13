@@ -1,7 +1,7 @@
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 
-export async function exportPortfolioPdf({ pageElements, fileName, exportedAt }) {
+export async function exportPortfolioPdf({ pageElements, fileName, exportedAt, save = false }) {
   const elements = pageElements.filter(Boolean)
   if (!elements.length) throw new Error('没有可导出的页面')
 
@@ -26,10 +26,11 @@ export async function exportPortfolioPdf({ pageElements, fileName, exportedAt })
 
   const blob = pdf.output('blob')
   const fileUrl = URL.createObjectURL(blob)
-  pdf.save(fileName)
+  if (save) pdf.save(fileName)
   return {
     fileName,
     fileUrl,
+    blob,
     pageCount: elements.length,
     exportedAt
   }

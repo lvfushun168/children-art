@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import TaskList from '../components/tasks/TaskList.vue'
 import TaskWizard from '../components/tasks/TaskWizard.vue'
+import { sameId } from '../services/mappers'
 
 const props = defineProps({
   state: {
@@ -53,7 +54,7 @@ watch(() => props.openWorkspaceSignal, (signal) => {
       </div>
       <button v-if="nextTask" class="primary hero-action" @click="openTask(nextTask)">
         {{ state.progressForTask(nextTask) ? '继续处理' : '开始处理' }}
-        <small>{{ nextTask.time }} · {{ state.classes.find((item) => item.id === nextTask.classId)?.name }}</small>
+        <small>{{ nextTask.time }} · {{ state.classes.find((item) => sameId(item.id, nextTask.classId))?.name }}</small>
       </button>
     </section>
     <div class="today-summary">

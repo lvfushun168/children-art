@@ -185,6 +185,7 @@ const confirmImport = async () => {
       <div>
         <span>导入新的数据</span>
         <strong>选择 Excel 后系统会自动读取并生成预览</strong>
+        <small>预览确认前不会写入学生、班级或课次数据</small>
       </div>
       <button class="primary" type="button" @click="startImport">选择文件</button>
     </section>

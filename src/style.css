@@ -997,9 +997,10 @@ label {
 
 .module-hub-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
-  max-width: 980px;
+  width: 100%;
+  max-width: none;
 }
 
 .module-entry-card {
@@ -4955,8 +4956,31 @@ textarea:focus,
 }
 
 .settings-layout {
-  grid-template-columns: 260px minmax(420px, 1fr) 420px;
+  grid-template-columns: 260px minmax(420px, 1fr);
   align-items: start;
+}
+
+.permission-settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  max-width: 1180px;
+  align-items: start;
+}
+
+.permission-settings-panel {
+  min-width: 0;
+  padding: 18px;
+}
+
+.permission-settings-note {
+  margin: -4px 0 14px;
+  color: var(--color-muted);
+}
+
+.permission-settings-list {
+  display: grid;
+  gap: 10px;
 }
 
 .archive-query-layout {

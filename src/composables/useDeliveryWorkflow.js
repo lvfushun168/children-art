@@ -364,6 +364,7 @@ export function useDeliveryWorkflow() {
       extraTasks: ['extra-task.read'],
       imports: ['import.create', 'import.preview', 'import.confirm'],
       templates: ['lesson.read'],
+      permissions: ['identity.user.manage', 'identity.role.manage'],
       settings: ['identity.user.manage', 'configuration.provider.read', 'configuration.manage']
     }
     return Object.entries(requiredPermissions)

@@ -40,6 +40,7 @@ export const navGroups = [
     items: [
       { id: 'imports', label: '数据导入', mark: '导' },
       { id: 'templates', label: '模板配置', mark: '配' },
+      { id: 'permissions', label: '权限配置', mark: '权' },
       { id: 'settings', label: '系统配置', mark: '系' }
     ]
   }

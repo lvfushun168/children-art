@@ -80,27 +80,6 @@ const testCloudProvider = async (provider) => {
   await props.state.testProvider(provider)
 }
 
-const newTeacher = ref({ name: '', phone: '', role: '老师', status: '启用' })
-
-const addTeacher = async () => {
-  const teacher = await props.state.addTeacher(newTeacher.value)
-  if (!teacher) return null
-  newTeacher.value = { name: '', phone: '', role: '老师', status: '启用' }
-  return teacher
-}
-
-const teacherHasClass = (teacher, classId) => props.state.classes.some((klass) =>
-  sameId(klass.id, classId) && sameId(klass.teacherId, teacher.id)
-)
-
-const saveTeacher = async (teacher) => {
-  await props.state.updateTeacher(teacher.id, teacher)
-}
-
-const openAccounts = () => {
-  mobileStage.value = 'accounts'
-}
-
 const returnToList = () => {
   draft.value = clone(selected() || {})
   mobileStage.value = 'list'
@@ -161,10 +140,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <strong>{{ setting.name }}</strong>
         <span>{{ setting.status }}</span>
       </button>
-      <button v-if="isMobileFlow" class="master-row" @click="openAccounts">
-        <strong>账号、角色与授权</strong>
-        <span>{{ state.teachers.length }} 个账号</span>
-      </button>
     </aside>
 
     <section v-show="!isMobileFlow || mobileStage === 'detail'" class="panel">
@@ -216,40 +191,5 @@ onBeforeUnmount(() => cleanupMobileMedia())
       </div>
     </section>
 
-    <aside v-show="!isMobileFlow || mobileStage === 'accounts'" class="panel">
-      <div class="section-head">
-        <div>
-          <span>账号、角色与授权</span>
-          <strong>{{ state.teachers.length }} 个账号</strong>
-        </div>
-      </div>
-      <div v-for="teacher in state.teachers" :key="teacher.id" class="teacher-row">
-        <input v-model="teacher.name" />
-        <input v-model="teacher.phone" />
-        <AdaptiveSelect v-model="teacher.role" :options="['老师', '管理员']" />
-        <AdaptiveSelect v-model="teacher.status" :options="['启用', '停用']" />
-        <div class="permission-picker">
-          <strong>班级关系（只读）</strong>
-          <label v-for="klass in state.classes" :key="klass.id" class="inline-check">
-            <input
-              type="checkbox"
-              disabled
-              :checked="teacherHasClass(teacher, klass.id)"
-            />
-            <span>{{ klass.name }}</span>
-          </label>
-        </div>
-        <div class="teacher-row-actions">
-          <small>权限以服务端 me.permissions 为准；班级归属请在班级资料中调整。</small>
-          <button class="ghost" type="button" @click="saveTeacher(teacher)">保存资料</button>
-        </div>
-      </div>
-      <div class="teacher-row new">
-        <input v-model="newTeacher.name" placeholder="姓名" />
-        <input v-model="newTeacher.phone" placeholder="手机号" />
-        <AdaptiveSelect v-model="newTeacher.role" :options="['老师', '管理员']" />
-        <button class="primary" @click="addTeacher">新增</button>
-      </div>
-    </aside>
   </section>
 </template>

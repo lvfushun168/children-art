@@ -13,6 +13,7 @@ import LoginView from './views/LoginView.vue'
 import MasterDataView from './views/MasterDataView.vue'
 import ModuleHubView from './views/ModuleHubView.vue'
 import ParentSharePage from './views/ParentSharePage.vue'
+import PermissionSettingsView from './views/PermissionSettingsView.vue'
 import ProductionCenterView from './views/ProductionCenterView.vue'
 import SupervisionBoardView from './views/SupervisionBoardView.vue'
 import SystemSettingsView from './views/SystemSettingsView.vue'
@@ -48,7 +49,7 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['tasks', 'supervision', 'production', 'archives', 'students', 'classes', 'externalLinks', 'extraTasks', 'templates', 'settings'])
+const navIdsWithLocalBack = new Set(['tasks', 'supervision', 'production', 'archives', 'students', 'classes', 'externalLinks', 'extraTasks', 'templates', 'permissions', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || mobileLevel.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
 const mobileGroupEntries = computed(() =>
@@ -245,6 +246,8 @@ const shareRoute = computed(() => {
       <ExternalLinksView v-if="showActivePage && activeNav === 'externalLinks'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <TemplatesView v-if="showActivePage && activeNav === 'templates'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
+
+      <PermissionSettingsView v-if="showActivePage && activeNav === 'permissions' && state.isAdmin" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ArchiveQueryView v-if="showActivePage && activeNav === 'archives'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @create-portfolio="openProductionCenter" />
 

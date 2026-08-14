@@ -10,7 +10,7 @@ globalThis.window = {
   }
 }
 
-const { clearSession, getAccessToken, request, setSession } = await import('../src/services/apiClient.js')
+const { clearSession, createIdempotencyKey, getAccessToken, request, setSession } = await import('../src/services/apiClient.js')
 const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCourse, mapExternalLink, mapFeedback, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, sameId } = await import('../src/services/mappers.js')
 
 const response = (status, payload, contentType = 'application/json') => ({
@@ -40,6 +40,30 @@ test('unwraps API envelopes and adds idempotency keys to writes', async () => {
   assert.deepEqual(result, { id: '7' })
   assert.match(received.headers['Idempotency-Key'], /^children-art:/)
   assert.equal(JSON.parse(received.body).name, '小明')
+})
+
+test('keeps idempotency keys ASCII-safe for Chinese filenames and labels', () => {
+  const key = createIdempotencyKey('file:小麦导出:在读学员名单.xls')
+
+  assert.match(key, /^[\x00-\x7F]+$/)
+  assert.match(key, /^children-art:file%3A%E5%B0%8F%E9%BA%A6%E5%AF%BC%E5%87%BA%3A/)
+})
+
+test('sanitizes caller-provided idempotency keys before fetch', async () => {
+  let received
+  globalThis.fetch = async (_url, options) => {
+    received = options
+    return response(200, { data: { ok: true }, meta: {}, error: null })
+  }
+
+  await request('/imports/1/confirm', {
+    method: 'POST',
+    body: { version: 1 },
+    idempotencyKey: '导入:在读学员名单.xls'
+  })
+
+  assert.match(received.headers['Idempotency-Key'], /^[\x00-\x7F]+$/)
+  assert.match(received.headers['Idempotency-Key'], /^%E5%AF%BC%E5%85%A5%3A/)
 })
 
 test('refreshes once for concurrent 401 responses and retries both requests', async () => {

@@ -2522,8 +2522,19 @@ export function useDeliveryWorkflow() {
     id: fromApiId(value.id),
     source: value.originalFilename || value.sourceType || '数据导入',
     time: displayDateTime(value.createdAt),
+    statusCode: value.status || '',
+    statusLabel: ({
+      UPLOADED: '待识别',
+      PARSING: '识别中',
+      PREVIEW_READY: '待确认',
+      IMPORTING: '写入中',
+      IMPORTED: '已完成',
+      FAILED: '失败'
+    }[value.status] || value.status || ''),
+    readyRows: Number(value.readyRows || 0),
+    importedRows: Number(value.importedRows || 0),
+    failed: Number(value.invalidRows || 0) + Number(value.duplicateRows || 0),
     success: Number(value.importedRows || value.readyRows || 0),
-    failed: Number(value.invalidRows || value.duplicateRows || 0),
     note: value.failedStage || value.status || '',
     version: Number(value.version || 0)
   })
@@ -3957,6 +3968,9 @@ export function useDeliveryWorkflow() {
 
   const remoteStageImportFile = (file, source, dataType) => {
     pendingImportFile.value = file
+    pendingImportMeta.batchId = null
+    pendingImportMeta.version = 0
+    pendingImportMeta.mapping = {}
     pendingImportMeta.source = source
     pendingImportMeta.dataType = ({ 综合课表: 'COMBINED', 学生名单: 'STUDENTS', 班级课表: 'CLASSES' }[dataType] || dataType)
     return true
@@ -3969,10 +3983,16 @@ export function useDeliveryWorkflow() {
     }
     const file = pendingImportFile.value
     const result = await runRemote('正在上传并解析导入文件...', async () => {
-      const uploaded = await uploadFile(file, `import-${pendingImportMeta.dataType}`)
-      const batch = await api.imports.create({ fileId: String(uploaded.id), sourceType: pendingImportMeta.source === '小麦 Excel 导出' ? 'WHEAT_EXCEL' : pendingImportMeta.source === '小麦课表整理表' ? 'WHEAT_COPY' : 'MANUAL_TABLE', dataType: pendingImportMeta.dataType })
-      pendingImportMeta.batchId = batch.id
-      pendingImportMeta.version = Number(batch.version || 0)
+      let batch
+      if (pendingImportMeta.batchId) {
+        batch = await api.imports.get(pendingImportMeta.batchId)
+        pendingImportMeta.version = Number(batch.version || pendingImportMeta.version || 0)
+      } else {
+        const uploaded = await uploadFile(file, `import-${pendingImportMeta.dataType}`)
+        batch = await api.imports.create({ fileId: String(uploaded.id), sourceType: pendingImportMeta.source === '小麦 Excel 导出' ? 'WHEAT_EXCEL' : pendingImportMeta.source === '小麦课表整理表' ? 'WHEAT_COPY' : 'MANUAL_TABLE', dataType: pendingImportMeta.dataType })
+        pendingImportMeta.batchId = batch.id
+        pendingImportMeta.version = Number(batch.version || 0)
+      }
       pendingImportMeta.mapping = mapping
       const preview = await api.imports.preview(batch.id, { version: pendingImportMeta.version, columnMapping: mapping })
       const batchResult = preview.batch || preview

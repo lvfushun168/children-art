@@ -23,7 +23,7 @@ export const uploadFile = async (file, purpose = 'lesson-asset', options = {}) =
   const completed = await api.files.completeUpload(session.fileUploadSessionId || session.sessionId, {
     sizeBytes: file.size,
     sha256: digest
-  }, options.idempotencyKey || createIdempotencyKey(`file:${purpose}:${file.name}`))
+  }, options.idempotencyKey || createIdempotencyKey(`file:${purpose}`))
   return mapFile(completed || { ...session, id: fileId, sizeBytes: file.size, sha256: digest, originalFilename: file.name, mediaType: file.type })
 }
 

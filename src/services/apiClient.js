@@ -81,11 +81,23 @@ export const clearSession = () => {
   emitSession(null)
 }
 
+const toHeaderSafeValue = (value, fallback = 'request') => {
+  const text = String(value ?? fallback)
+  if (/^[\t\x20-\x7E]*$/.test(text)) return text
+  try {
+    // Idempotency-Key is an HTTP header. Keep user-controlled scope values
+    // ASCII-only so fetch does not reject filenames or labels containing CJK.
+    return encodeURIComponent(text)
+  } catch {
+    return fallback
+  }
+}
+
 export const createIdempotencyKey = (scope = 'request') => {
   const uuid = typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-  return `children-art:${scope}:${uuid}`
+  return `children-art:${toHeaderSafeValue(scope)}:${uuid}`
 }
 
 const isWriteMethod = (method) => !['GET', 'HEAD', 'OPTIONS'].includes(String(method || 'GET').toUpperCase())
@@ -183,7 +195,7 @@ export const request = async (path, options = {}, retry = true) => {
   const token = getAccessToken()
   if (auth && token) requestHeaders.Authorization = `Bearer ${token}`
   if (isWriteMethod(upperMethod) && !requestHeaders['Idempotency-Key'] && idempotencyKey !== false) {
-    requestHeaders['Idempotency-Key'] = idempotencyKey || createIdempotencyKey(`${upperMethod}:${path}`)
+    requestHeaders['Idempotency-Key'] = toHeaderSafeValue(idempotencyKey || createIdempotencyKey(`${upperMethod}:${path}`))
   }
 
   let requestBody = body

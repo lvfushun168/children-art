@@ -161,6 +161,7 @@ export const api = {
     cloudJobs: (params) => page('/cloud-archive-jobs', params),
     retryCloud: (jobId, body, key) => request(`/cloud-archive-jobs/${id(jobId)}/retry`, { method: 'POST', body, idempotencyKey: key }),
     providers: (params) => request(`/configuration/providers${queryString(params)}`),
+    providerGroups: () => request('/configuration/provider-groups'),
     providerTypes: () => request('/configuration/provider-types'),
     createProvider: (body) => request('/configuration/providers', { method: 'POST', body }),
     updateProvider: (providerId, body) => request(`/configuration/providers/${id(providerId)}`, { method: 'PUT', body }),

@@ -106,6 +106,7 @@ export function useDeliveryWorkflow() {
   const importBatches = reactive([])
   const importPreviewRows = reactive([])
   const settings = reactive([])
+  const providerGroups = reactive([])
   const qualityReviews = reactive([])
   const terms = reactive([])
   const supervisionDashboard = reactive([])
@@ -2559,22 +2560,85 @@ export function useDeliveryWorkflow() {
     }
   }
 
-  const mapProviderSetting = (providers = []) => {
-    const mapped = providers.map((provider) => ({
+  const mapProviderCategory = (provider = {}) => {
+    const category = String(provider.category || '').trim().toUpperCase()
+    if (['CLOUD', 'WECOM', 'AI', 'OTHER'].includes(category)) return category
+    const type = String(provider.providerType || provider.type || '').trim().toUpperCase()
+    if (type.includes('WECOM') || type.includes('WE_COM') || type.includes('WECHAT')) return 'WECOM'
+    if (type.includes('AI') || type.includes('OPENAI') || type.includes('CLAUDE') || type.includes('DEEPSEEK')) return 'AI'
+    return 'CLOUD'
+  }
+
+  const mapProvider = (provider = {}) => {
+    const providerType = provider.providerType || provider.type || ''
+    return {
       ...provider,
+      category: mapProviderCategory({ ...provider, providerType }),
       endpoint: provider.endpoint || provider.config?.endpoint || '',
       appKey: provider.appKey || provider.config?.appKey || '',
       authType: provider.authType || provider.config?.authType || '',
       id: fromApiId(provider.id),
-      type: provider.providerType || provider.type || '',
-      providerType: provider.providerType || provider.type || '',
+      type: providerType,
+      providerType,
       version: Number(provider.version || 0),
       name: provider.name,
       enabled: ['ENABLED', '启用', 'ACTIVE'].includes(provider.status),
       status: ['ENABLED', 'ACTIVE'].includes(provider.status) ? '已启用' : provider.status || '未启用',
       tokenStatus: provider.secretStatus || (provider.secretRefPresent ? '已配置' : '未配置')
+    }
+  }
+
+  const providerGroupDefinitions = [
+    { key: 'cloud', name: '网盘配置', category: 'CLOUD' },
+    { key: 'wecom', name: '企业微信配置', category: 'WECOM' },
+    { key: 'ai', name: 'AI 配置', category: 'AI' }
+  ]
+
+  const providerGroupStatusLabel = (providers = []) => {
+    if (!providers.length) return '未配置'
+    return providers.some((provider) => provider.enabled) ? '已启用' : '未启用'
+  }
+
+  const mapProviderGroupsFromProviders = (providers = []) => {
+    replaceReactive(providerGroups, providerGroupDefinitions.map((definition) => {
+      const groupProviders = providers.filter((provider) => provider.category === definition.category)
+      return {
+        id: definition.key,
+        key: definition.key,
+        name: definition.name,
+        category: definition.category.toLowerCase(),
+        status: providerGroupStatusLabel(groupProviders),
+        value: {
+          providers: groupProviders,
+          directoryRule: '',
+          defaultArchiveTargets: []
+        }
+      }
     }))
+  }
+
+  const mapProviderGroups = (groups = []) => {
+    replaceReactive(providerGroups, groups.map((group) => {
+      const providers = (group.providers || []).map(mapProvider)
+      return {
+        ...group,
+        id: group.key || group.id,
+        name: group.name,
+        category: String(group.category || '').toLowerCase(),
+        status: ['ENABLED', 'ACTIVE'].includes(group.status) ? '已启用' : group.status === 'UNCONFIGURED' ? '未配置' : ['DISABLED', '停用'].includes(group.status) ? '未启用' : group.status || providerGroupStatusLabel(providers),
+        value: {
+          providers,
+          directoryRule: group.directoryRule || '',
+          defaultArchiveTargets: group.defaultArchiveTargets || []
+        }
+      }
+    }))
+  }
+
+  const mapProviderSetting = (providers = []) => {
+    const mapped = providers.map(mapProvider)
     replaceReactive(settings, [{ id: 'providers', type: 'cloudDrive', name: '第三方通道配置', status: mapped.some((item) => item.enabled) ? '已启用' : '未启用', value: { providers: mapped }, version: 0 }])
+    mapProviderGroupsFromProviders(mapped)
   }
 
   const mergeSharePageForWorkspace = (workspace, page) => {
@@ -2591,6 +2655,7 @@ export function useDeliveryWorkflow() {
   }
 
   const providerTypeOptions = computed(() => providerCatalog.cloud)
+  const providerTypeCatalog = computed(() => providerCatalog)
 
   const statusForArchiveItem = (value) => ({
     PENDING: '待处理', QUEUED: '创建中', CREATING: '创建中', RUNNING: '推送中', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SUCCEEDED: '已同步', SYNCED: '已同步', COMPLETED: '已归档', SKIPPED: '已跳过', FAILED: '发送失败', CANCELED: '已取消'
@@ -2776,7 +2841,8 @@ export function useDeliveryWorkflow() {
       api.auth.permissions(),
       api.m6.profileFields(),
       api.todo.list(),
-      api.archive.teacherArchives()
+      api.archive.teacherArchives(),
+      api.m5.providerGroups()
     ])
     const valueAt = (index) => results[index].status === 'fulfilled' ? results[index].value : null
     if (results[0].status === 'rejected') {
@@ -2829,6 +2895,7 @@ export function useDeliveryWorkflow() {
     replaceReactive(terms, (valueAt(14)?.items || []).map(mapTerm))
     replaceReactive(supervisionDashboard, (valueAt(15)?.items || []).map(mapSupervisionLesson))
     Object.assign(providerCatalog, valueAt(16) || {})
+    if (valueAt(21)) mapProviderGroups(valueAt(21))
     replaceReactive(permissionCatalog, valueAt(17) || [])
     replaceReactive(studentProfileFields, (valueAt(18) || []).map(mapProfileField))
     replaceReactive(todos, (valueAt(19) || []).map(mapTodo))
@@ -4249,7 +4316,9 @@ export function useDeliveryWorkflow() {
     importBatches,
     importPreviewRows,
     settings,
+    providerGroups,
     providerTypeOptions,
+    providerTypeCatalog,
     permissionCatalog,
     cloudDriveSetting,
     enabledCloudProviders,

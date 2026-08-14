@@ -15,15 +15,73 @@ const props = defineProps({
 })
 defineEmits(['backToGroup'])
 
-const selectedId = ref(props.state.settings[0]?.id || null)
+const providerGroupDefinitions = [
+  { id: 'cloud', name: '网盘配置', category: 'cloud', providerLabel: '网盘' },
+  { id: 'wecom', name: '企业微信配置', category: 'wecom', providerLabel: '企业微信' },
+  { id: 'ai', name: 'AI 配置', category: 'ai', providerLabel: 'AI' }
+]
+
+const selectedId = ref(null)
 const isMobileFlow = ref(false)
 const mobileStage = ref('list')
 let cleanupMobileMedia = () => {}
-const selected = () => props.state.settings.find((item) => sameId(item.id, selectedId.value))
 const clone = (value) => JSON.parse(JSON.stringify(value))
-const draft = ref(clone(selected() || {}))
 
-watch(() => props.state.settings, (settings) => {
+const providerCategory = (provider = {}) => {
+  const backendCategory = String(provider.category || '').trim().toLowerCase()
+  if (providerGroupDefinitions.some((group) => group.category === backendCategory)) return backendCategory
+  const type = String(provider.providerType || provider.type || '').trim().toUpperCase()
+  if (type.includes('WECOM') || type.includes('WE_COM') || type.includes('WECHAT') || type.includes('企业微信')) return 'wecom'
+  if (type.includes('AI') || type.includes('OPENAI') || type.includes('CLAUDE') || type.includes('DEEPSEEK')) return 'ai'
+  return 'cloud'
+}
+
+const providerLabelForCategory = (category) => providerGroupDefinitions.find((group) => group.category === category)?.providerLabel || '通道'
+const baseProviderSetting = computed(() => props.state.settings.find((setting) => Array.isArray(setting.value?.providers)))
+const allProviders = computed(() => baseProviderSetting.value?.value?.providers || [])
+const backendProviderSettings = computed(() => props.state.providerGroups || [])
+const providerSettings = computed(() => {
+  if (backendProviderSettings.value.length) {
+    return backendProviderSettings.value.map((group) => {
+      const category = String(group.category || '').toLowerCase()
+      const providers = group.value?.providers || group.providers || []
+      return {
+        ...group,
+        id: group.id || group.key,
+        category,
+        providerLabel: group.providerLabel || providerLabelForCategory(category),
+        value: {
+          ...(group.value || {}),
+          providers,
+          directoryRule: group.value?.directoryRule || '',
+          defaultArchiveTargets: group.value?.defaultArchiveTargets || []
+        }
+      }
+    })
+  }
+  const base = baseProviderSetting.value
+  if (!base) return []
+  return providerGroupDefinitions.map((group) => {
+    const providers = allProviders.value.filter((provider) => providerCategory(provider) === group.category)
+    return {
+      ...base,
+      id: group.id,
+      name: group.name,
+      category: group.category,
+      providerLabel: group.providerLabel,
+      status: providers.length ? (providers.some((provider) => provider.enabled) ? '已启用' : '未启用') : '未配置',
+      value: {
+        ...(base.value || {}),
+        providers
+      }
+    }
+  })
+})
+
+const selected = () => providerSettings.value.find((item) => sameId(item.id, selectedId.value))
+const draft = ref({})
+
+watch(providerSettings, (settings) => {
   if (!settings.length) {
     selectedId.value = null
     draft.value = {}
@@ -42,18 +100,35 @@ const selectSetting = (setting) => {
 }
 
 const save = () => {
-  if (!isCloudDrive.value) {
+  if (!isProviderSetting.value) {
     props.state.notify('当前一期没有通用系统设置持久化接口')
+    return
+  }
+  if (!draft.value.value?.providers?.length) {
+    props.state.notify(`请先添加${currentProviderLabel.value}通道`)
     return
   }
   props.state.updateSetting(selectedId.value, draft.value)
 }
 
-const isCloudDrive = computed(() => draft.value.type === 'cloudDrive')
-const providerTypes = computed(() => props.state.providerTypeOptions || [])
+const selectedGroup = computed(() => providerSettings.value.find((group) => sameId(group.id, selectedId.value)) || providerGroupDefinitions.find((group) => group.id === selectedId.value) || providerGroupDefinitions[0])
+const currentProviderLabel = computed(() => selectedGroup.value?.providerLabel || '通道')
+const isCloudCategory = computed(() => selectedGroup.value?.category === 'cloud')
+const isProviderSetting = computed(() => Boolean(draft.value.category))
+const canSave = computed(() => Boolean(isProviderSetting.value && draft.value.value?.providers?.length))
+const providerTypeCatalog = computed(() => props.state.providerTypeCatalog || {
+  cloud: props.state.providerTypeOptions || [],
+  wecom: [],
+  ai: []
+})
+const providerTypes = computed(() => {
+  const options = providerTypeCatalog.value?.[selectedGroup.value?.category] || []
+  if (options.length) return options
+  return [...new Set((draft.value.value?.providers || []).map((provider) => provider.providerType || provider.type).filter(Boolean))]
+})
 const authTypes = ['OAuth2', 'Access Token', 'AK/SK', '自定义签名']
 
-const addCloudProvider = () => {
+const addProvider = () => {
   if (!draft.value.value?.providers) {
     draft.value.value = {
       providers: [],
@@ -62,11 +137,12 @@ const addCloudProvider = () => {
     }
   }
   const id = `provider-${Date.now()}`
+  const providerType = providerTypes.value[0] || ''
   draft.value.value.providers.push({
     id,
-    name: '新的网盘',
-    type: providerTypes.value[0] || '',
-    providerType: providerTypes.value[0] || '',
+    name: `新的${currentProviderLabel.value}`,
+    type: providerType,
+    providerType,
     authType: 'Access Token',
     endpoint: '',
     appKey: '',
@@ -76,7 +152,12 @@ const addCloudProvider = () => {
   })
 }
 
-const testCloudProvider = async (provider) => {
+const setProviderType = (provider, value) => {
+  provider.type = value
+  provider.providerType = value
+}
+
+const testProvider = async (provider) => {
   await props.state.testProvider(provider)
 }
 
@@ -119,7 +200,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
   </button>
 
   <PageHead eyebrow="后台配置" title="系统配置">
-    <button v-if="!isMobileFlow || mobileStage === 'detail'" class="primary" :disabled="!isCloudDrive" @click="save">保存当前配置</button>
+    <button v-if="!isMobileFlow || mobileStage === 'detail'" class="primary" :disabled="!canSave" @click="save">保存当前配置</button>
   </PageHead>
 
   <section class="settings-layout" :class="`mobile-settings-stage-${mobileStage}`">
@@ -127,11 +208,11 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <div class="section-head">
         <div>
           <span>配置项</span>
-          <strong>{{ state.settings.length }} 项</strong>
+          <strong>{{ providerSettings.length }} 项</strong>
         </div>
       </div>
       <button
-        v-for="setting in state.settings"
+        v-for="setting in providerSettings"
         :key="setting.id"
         class="master-row"
         :class="{ active: sameId(setting.id, selectedId) }"
@@ -146,32 +227,28 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <div class="section-head">
         <div>
           <span>配置详情</span>
-          <strong>{{ draft.name }}</strong>
+          <strong>{{ draft.name || '请选择配置项' }}</strong>
         </div>
       </div>
-      <div v-if="!isCloudDrive" class="form-grid">
-        <div class="notice-box">当前一期没有通用系统设置持久化接口，此处仅展示服务端返回内容。</div>
-        <label>配置名称<input v-model="draft.name" /></label>
-        <label>状态<input v-model="draft.status" /></label>
-        <label class="wide">配置值<textarea v-model="draft.value" rows="5" /></label>
-      </div>
+      <div v-if="!isProviderSetting" class="notice-box">暂无可配置的第三方通道。</div>
       <div v-else class="cloud-setting-panel">
         <div class="form-grid">
-          <label>配置名称<input v-model="draft.name" /></label>
-          <label>状态<AdaptiveSelect v-model="draft.status" :options="['已启用', '停用', '待配置']" /></label>
-          <label class="wide">默认归档目录规则<input v-model="draft.value.directoryRule" disabled placeholder="由服务端归档规则决定" /></label>
+          <label>配置名称<input :value="draft.name" disabled /></label>
+          <label>当前状态<input :value="draft.status" disabled /></label>
+          <label v-if="isCloudCategory" class="wide">默认归档目录规则<input v-model="draft.value.directoryRule" disabled placeholder="由服务端归档规则决定" /></label>
         </div>
         <div class="section-head compact">
           <div>
-            <span>网盘通道</span>
+            <span>{{ currentProviderLabel }}通道</span>
             <strong>{{ draft.value.providers.length }} 个接口</strong>
           </div>
-          <button class="secondary" :disabled="!providerTypes.length" @click="addCloudProvider">新增网盘</button>
+          <button class="secondary" :disabled="!providerTypes.length" @click="addProvider">新增{{ currentProviderLabel }}</button>
         </div>
+        <div v-if="!draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道，可点击右上角新增。</div>
         <article v-for="provider in draft.value.providers" :key="provider.id" class="cloud-provider-card">
           <div class="cloud-provider-head">
-            <label>网盘名称<input v-model="provider.name" /></label>
-            <label>网盘类型<AdaptiveSelect v-model="provider.type" :options="providerTypes" /></label>
+            <label>{{ currentProviderLabel }}名称<input v-model="provider.name" /></label>
+            <label>{{ currentProviderLabel }}类型<AdaptiveSelect :model-value="provider.providerType || provider.type" :options="providerTypes" @update:model-value="setProviderType(provider, $event)" /></label>
             <label>授权方式<AdaptiveSelect v-model="provider.authType" :options="authTypes" /></label>
           </div>
           <div class="form-grid">
@@ -180,14 +257,12 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <label>授权状态<input v-model="provider.tokenStatus" disabled /></label>
           </div>
           <div class="cloud-provider-actions">
-            <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该网盘</span></label>
-            <label class="inline-check"><input v-model="provider.archiveDefault" type="checkbox" disabled /> <span>课次归档默认勾选（服务端规则）</span></label>
-            <button class="ghost" @click="testCloudProvider(provider)">测试连接</button>
+            <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该{{ currentProviderLabel }}</span></label>
+            <label v-if="isCloudCategory" class="inline-check"><input v-model="provider.archiveDefault" type="checkbox" disabled /> <span>课次归档默认勾选（服务端规则）</span></label>
+            <button class="ghost" @click="testProvider(provider)">测试连接</button>
           </div>
         </article>
-        <div class="notice-box">
-          <small>当前协议只持久化通道名称、类型、能力、连接配置和启停状态；授权状态与目录默认勾选由服务端管理。</small>
-        </div>
+
       </div>
     </section>
 

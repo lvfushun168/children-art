@@ -101,7 +101,7 @@ const selectSetting = (setting) => {
 
 const save = () => {
   if (!isProviderSetting.value) {
-    props.state.notify('当前一期没有通用系统设置持久化接口')
+    props.state.notify('当前配置不可保存')
     return
   }
   if (!draft.value.value?.providers?.length) {
@@ -235,7 +235,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <div class="form-grid">
           <label>配置名称<input :value="draft.name" disabled /></label>
           <label>当前状态<input :value="draft.status" disabled /></label>
-          <label v-if="isCloudCategory" class="wide">默认归档目录规则<input v-model="draft.value.directoryRule" disabled placeholder="由服务端归档规则决定" /></label>
+          <label v-if="isCloudCategory" class="wide">默认归档目录规则<input v-model="draft.value.directoryRule" disabled /></label>
         </div>
         <div class="section-head compact">
           <div>
@@ -244,7 +244,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           </div>
           <button class="secondary" :disabled="!providerTypes.length" @click="addProvider">新增{{ currentProviderLabel }}</button>
         </div>
-        <div v-if="!draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道，可点击右上角新增。</div>
+        <div v-if="!draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道。</div>
         <article v-for="provider in draft.value.providers" :key="provider.id" class="cloud-provider-card">
           <div class="cloud-provider-head">
             <label>{{ currentProviderLabel }}名称<input v-model="provider.name" /></label>
@@ -258,7 +258,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           </div>
           <div class="cloud-provider-actions">
             <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该{{ currentProviderLabel }}</span></label>
-            <label v-if="isCloudCategory" class="inline-check"><input v-model="provider.archiveDefault" type="checkbox" disabled /> <span>课次归档默认勾选（服务端规则）</span></label>
+            <label v-if="isCloudCategory" class="inline-check"><input v-model="provider.archiveDefault" type="checkbox" disabled /> <span>课次归档默认勾选</span></label>
             <button class="ghost" @click="testProvider(provider)">测试连接</button>
           </div>
         </article>

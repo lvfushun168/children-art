@@ -297,7 +297,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <div class="section-head">
             <div>
               <span>{{ workMode === 'new' ? '新增交付作品' : '编辑交付作品' }}</span>
-              <strong>保存后写入服务端课外作品档案</strong>
             </div>
           </div>
           <div class="form-grid">
@@ -307,16 +306,13 @@ onBeforeUnmount(() => cleanupMobileMedia())
             </label>
             <label>交付日期<input v-model="workDraft.dateValue" type="date" /></label>
             <label class="wide file-button extra-task-file" :class="{ disabled: workMode === 'edit' }">
-              {{ workMode === 'edit' ? '编辑接口不支持替换图片' : '选择作品图片' }}
+              选择作品图片
               <input type="file" accept="image/*" :disabled="workMode === 'edit'" @change="handleWorkImage" />
             </label>
             <label class="wide">作品标题<input v-model="workDraft.title" placeholder="例如：浩浩的课外小鱼练习" /></label>
             <label class="wide">作品说明<textarea v-model="workDraft.description" rows="3" /></label>
             <label class="wide">标签<input v-model="workDraft.tagsText" placeholder="使用逗号或顿号分隔" /></label>
             <label class="wide">档案备注<textarea v-model="workDraft.note" rows="3" /></label>
-          </div>
-          <div v-if="workMode === 'edit'" class="notice-box">
-            <small>当前 M6 课外作品修改接口只保存标题、说明、标签和高光元数据；如需更换文件，请新建一条课外作品记录。</small>
           </div>
           <figure v-if="workDraft.artwork" class="extra-task-work-preview">
             <img :src="workDraft.artwork" alt="课外作品预览" />
@@ -338,7 +334,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
         <template v-else>
           <div v-if="!selectedWorks.length" class="notice-box">
-            <small>还没有归档交付作品。老师收到家长发来的图片后，可直接在这里上传并关联学生。</small>
+            <small>暂无归档交付作品。</small>
           </div>
           <div v-else class="extra-task-work-grid">
             <article v-for="work in selectedWorks" :key="work.id" class="archive-block extra-task-work-card">

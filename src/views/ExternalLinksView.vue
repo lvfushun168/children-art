@@ -167,10 +167,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <label class="wide">备注<textarea v-model="draft.note" rows="4" /></label>
       </div>
 
-      <div class="notice-box">
-        <small>平台分类不在 M1–M6 外部课程链接协议中，本期仅保存标题、地址、备注、单个课程关联和启停状态。</small>
-      </div>
-
       <div class="member-picker">
         <strong>适用课程主题</strong>
         <label v-for="course in state.courses" :key="course.id" class="inline-check">

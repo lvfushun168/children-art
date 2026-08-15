@@ -104,7 +104,7 @@ defineEmits(['copy-export'])
         {{ activeSessionStudent.imageConfirmed ? '老师已确认' : '待老师确认' }}
       </small>
       <small v-if="displayConfig.showLessonType">
-        {{ activeTask.lessonType }} · 本信息仅为课后展示记录，不作为正式财务或课消依据
+        {{ activeTask.lessonType }}
       </small>
       <p>{{ activeSessionStudent.comment || '暂无课评' }}</p>
       <div v-if="displayConfig.showHighlight && activeSessionStudent.highlight" class="highlight-note">

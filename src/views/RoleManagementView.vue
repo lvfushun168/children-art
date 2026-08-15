@@ -136,21 +136,12 @@ onMounted(loadData)
   </PageHead>
 
   <section class="identity-page">
-    <section class="panel identity-intro-panel">
-      <div>
-        <span>标准 RBAC</span>
-        <strong>账号绑定角色，角色授予功能权限</strong>
-      </div>
-      <small>数据范围按账号的机构/校区归属执行，不在角色权限中展开班级关系。</small>
-    </section>
-
     <section class="panel identity-list-panel">
       <div class="section-head">
         <div>
           <span>角色列表</span>
           <strong>{{ state.identityRoles.length }} 个角色</strong>
         </div>
-        <small>系统角色不可删除</small>
       </div>
 
       <div v-if="state.identityLoading.roles" class="identity-empty">正在加载角色...</div>
@@ -160,7 +151,6 @@ onMounted(loadData)
       </div>
       <div v-else-if="!state.identityRoles.length" class="identity-empty">
         <strong>暂无角色</strong>
-        <span>可以创建一个自定义角色。</span>
       </div>
 
       <div v-else class="identity-role-list">
@@ -203,7 +193,6 @@ onMounted(loadData)
         <label><span>角色键</span><input v-model="roleForm.roleKey" required :disabled="roleForm.id || roleForm.system" pattern="[a-z][a-z0-9_.-]{1,99}" placeholder="例如：academic_admin" /></label>
         <label><span>角色说明</span><textarea v-model="roleForm.description" rows="4" placeholder="说明这个角色可以做什么" /></label>
         <label v-if="roleForm.id"><span>状态</span><AdaptiveSelect v-model="roleForm.status" :options="identityStatusOptions" /></label>
-        <p v-if="roleForm.system" class="identity-drawer-note">系统角色由系统保护，角色键不可修改，也不能删除。</p>
         <div class="drawer-actions">
           <button class="ghost" type="button" @click="closeRoleEditor">取消</button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">保存角色</button>
@@ -221,7 +210,6 @@ onMounted(loadData)
         </div>
         <button class="icon-button" type="button" aria-label="关闭" @click="closePermissionDrawer">×</button>
       </div>
-      <p class="identity-drawer-note">这里用于变更角色的功能权限。点击模块名称展开权限明细，勾选后点击“保存权限”生效；班级、老师、学生等数据范围不属于一期角色权限。</p>
       <div v-if="state.identityLoading.permissions" class="identity-empty">正在加载权限资源...</div>
       <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">{{ state.identityErrors.permissions }}</div>
       <div v-else class="identity-permission-groups">

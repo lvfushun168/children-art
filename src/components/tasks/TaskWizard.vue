@@ -424,7 +424,6 @@ const updateCommentTemplate = (index) => {
                 作品图片
                 <AdaptiveMultiSelect v-model="state.selectedImageTemplates" :options="imageTemplateOptions" placeholder="选择图片处理效果" />
               </label>
-              <small>可多选；未选择时生成会使用原图策略。</small>
               <div class="selected-template-tags compact-tags">
                 <span v-for="index in state.selectedImageTemplates" :key="index" class="template-static-tag">
                   {{ state.templates.image[index]?.name }}
@@ -551,7 +550,6 @@ const updateCommentTemplate = (index) => {
               <div>
                 <span>延伸资源</span>
                 <strong>选择课后任务附件</strong>
-                <small>可选，不会自动关联；选中的资源会随家长展示页发布。</small>
               </div>
               <button class="ghost" @click="showResourceDrawer = false">关闭</button>
             </header>
@@ -588,7 +586,6 @@ const updateCommentTemplate = (index) => {
               <div>
                 <span>家长展示页草稿</span>
                 <strong>{{ state.activeStudent?.name || '未选择学生' }}</strong>
-                <small>草稿 V{{ state.sharePage.draftVersion }} · 发布与推送在第 7 步归档时执行</small>
               </div>
               <button class="ghost" @click="showSharePreview = false">关闭</button>
             </header>
@@ -646,7 +643,7 @@ const updateCommentTemplate = (index) => {
             </div>
             <div v-else-if="!state.archiveChecklistReady" class="archive-result-status">
               <strong>待完成项</strong>
-              <small>{{ state.archiveChecklistPending.join('、') }}；最终是否允许归档以服务端完成检查为准</small>
+              <small>{{ state.archiveChecklistPending.join('、') }}</small>
             </div>
             <div v-else class="archive-result-status">
               <strong>归档交付清单已就绪</strong>

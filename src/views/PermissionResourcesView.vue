@@ -57,7 +57,6 @@ onMounted(loadResources)
         <span>系统资源目录</span>
         <strong>菜单、按钮和操作权限</strong>
       </div>
-      <small>资源由后端维护并按模块提供，角色管理只负责分配这些已登记的功能权限。</small>
     </section>
 
     <section class="panel identity-list-panel">

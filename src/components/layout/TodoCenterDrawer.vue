@@ -183,7 +183,7 @@ const cancelServerTodo = (todo) => props.state.cancelTodo?.(todo, reasons[`todo-
             <article v-for="todo in serverTodos" :key="`todo-${todo.id}`" class="todo-trace-row">
               <div>
                 <strong>{{ todo.title || todo.todoType }}</strong>
-                <small>{{ todo.description || '服务端生成的工作任务' }}<span v-if="todo.dueAt"> · 截止 {{ todo.dueAt }}</span></small>
+                <small>{{ todo.description || '待处理任务' }}<span v-if="todo.dueAt"> · 截止 {{ todo.dueAt }}</span></small>
                 <small v-if="serverTodoLesson(todo)">课次：{{ serverTodoLesson(todo).date }} {{ serverTodoLesson(todo).time }}</small>
               </div>
               <em>{{ todo.status }}</em>

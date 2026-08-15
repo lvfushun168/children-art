@@ -241,7 +241,6 @@ export function useDeliveryWorkflow() {
   }
 
   const persistSharePage = (lessonId, page) => {
-    // 家长展示草稿由后端保存；不再写入 localStorage。
     return page
   }
 
@@ -934,24 +933,23 @@ export function useDeliveryWorkflow() {
     return warnings
   })
 
-  // 「待老师确认发送」「发送失败」按 PRD 属于正常触达留痕，不阻断课次归档完成；发送失败另行进入待办中心。
   const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工触达', '发送失败']
   const archiveWorkingStatuses = ['推送中', '生成中', '创建中']
   const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
   const isArchiveWorking = (item) => archiveWorkingStatuses.includes(item.status)
   const studentArchivePathPreview = computed(() =>
-    activeWorkspace.value.cloudJobs?.find((job) => job.targetPath)?.targetPath || '云盘目录由服务端按机构归档规则生成'
+    activeWorkspace.value.cloudJobs?.find((job) => job.targetPath)?.targetPath || '待生成'
   )
   const teacherEffectPathPreview = computed(() =>
-    activeWorkspace.value.teacherEffect?.outputFileId ? '课效图文件已由服务端生成' : '归档路径由服务端按机构规则生成'
+    activeWorkspace.value.teacherEffect?.outputFileId ? '已生成' : '待生成'
   )
   const archiveChecklistItems = computed(() => [
     {
       key: 'parentTouch',
       title: '家长展示发布与企微触达',
       meta: wecomEnabled.value
-        ? '发布展示页快照并创建企业微信触达任务 · 链接随触达记录留档'
-        : '企业微信未启用 · 发布展示页后请复制链接人工发送',
+        ? '发布展示页快照并创建企业微信触达任务'
+        : '企业微信未启用',
       action: '创建企微待推送',
       required: true,
       item: archiveChecklist.value.parentTouch
@@ -1182,7 +1180,6 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  // 保留给内部演示和旧入口调用，正式登录仍需经过手机号、密码和角色两步验证。
   const loginAs = (teacherId) => {
     const teacher = teachers.find((item) => item.id === Number(teacherId))
     if (!teacher) return false
@@ -1865,8 +1862,8 @@ export function useDeliveryWorkflow() {
           method: wecomEnabled.value ? '企业微信客户触达' : '人工触达',
           sentCount: 0,
           detail: wecomEnabled.value
-            ? `已创建 ${attendingRows.value.length} 个企微触达任务，请在企业微信中确认发送；家长链接已随触达记录留档`
-            : `企业微信未启用，已生成 ${attendingRows.value.length} 个学生链接，请展开下方链接复制后人工发送`
+            ? `已创建 ${attendingRows.value.length} 个企微触达任务`
+            : `企业微信未启用，已生成 ${attendingRows.value.length} 个学生链接`
         })
         addStatusLog(
           '家长触达',
@@ -3874,7 +3871,6 @@ export function useDeliveryWorkflow() {
     const task = activeTask.value
     if (!task?.id) return false
 
-    // 归档前先把当前页面上的草稿编辑提交到服务端，再提交协议要求的触达和留痕命令。
     if (!(await remoteSaveShareDraft('归档前保存展示草稿'))) return false
     const lessonTouchTasks = wecomSendTasks.filter((item) => sameId(item.lessonId, task.id))
     const touchReady = attendingRows.value.every((row) => lessonTouchTasks.some((item) =>
@@ -4226,7 +4222,7 @@ export function useDeliveryWorkflow() {
   const remoteUpdateSetting = async (settingId, payload) => {
     const providers = payload.value?.providers || []
     if (!providers.length) {
-      notify('当前协议没有通用系统设置接口')
+      notify('请先添加配置通道')
       return null
     }
     for (const provider of providers) {
@@ -4266,12 +4262,12 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteAddTemplate = () => {
-    notify('当前一期模板接口只提供后端只读模板；暂不支持在此处新增模板')
+    notify('模板暂不可新增')
     return null
   }
 
   const remoteUpdateTemplate = () => {
-    notify('当前一期模板接口只提供后端只读模板；暂不支持在此处编辑模板')
+    notify('模板暂不可编辑')
     return null
   }
 
@@ -4396,7 +4392,7 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteCreateArchiveCollection = () => {
-    notify('当前一期没有归档集合发布接口，请选择作品进入制作中心')
+    notify('归档集合暂不可发布')
     return null
   }
 
@@ -4472,12 +4468,12 @@ export function useDeliveryWorkflow() {
   const remoteExtraTaskWorksForTask = (taskId) => extraTaskWorks.filter((record) => sameId(record.extraTaskId, taskId))
 
   const remoteUseArtworkFromLibrary = () => {
-    notify('当前一期未接入全局范画库，请从本课次上传课堂资料')
+    notify('范画库暂不可用')
     return false
   }
 
   const remoteAddArtworkLibraryItem = () => {
-    notify('当前一期未接入全局范画库')
+    notify('范画库暂不可新增')
     return null
   }
 
@@ -4493,7 +4489,6 @@ export function useDeliveryWorkflow() {
     })
   }
 
-  // 制作中心（作品集 / 成长手册）与作品档案共用同一份归档数据
   const portfolioStudio = usePortfolioStudio({
     archiveRecords,
     students,
@@ -4659,7 +4654,7 @@ export function useDeliveryWorkflow() {
     selectTask: remoteSelectTask,
     transitionLesson: remoteTransitionLesson,
     loginAs: () => {
-      notify('当前版本不支持本地角色切换，请使用服务端账号登录')
+      notify('请使用服务端账号登录')
       return false
     },
     verifyLogin: remoteVerifyLogin,
@@ -4680,8 +4675,8 @@ export function useDeliveryWorkflow() {
     removeImageTemplate,
     chooseCommentTemplate,
     parseBulkRecord,
-    simulateVoice: () => notify('当前一期未接入语音转文字，请手工录入课堂记录'),
-    matchImages: () => notify('当前一期未接入智能图片匹配，请手工为学生上传作品'),
+    simulateVoice: () => notify('语音转文字暂不可用，请手工录入课堂记录'),
+    matchImages: () => notify('图片匹配暂不可用，请手工上传作品'),
     confirmImages,
     confirmCurrentImage: remoteConfirmCurrentImage,
     processImages: remoteProcessImages,

@@ -74,10 +74,9 @@ const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project,
           <span>当前图片</span>
           <strong>{{ resolved.record ? resolved.record.studentName : '空图位' }}</strong>
         </div>
-        <p v-if="resolved.record" class="pf-inspector-note">
+        <p v-if="resolved.record" class="pf-inspector-meta">
           {{ resolved.record.title || resolved.record.course }} · {{ resolved.record.date }}
         </p>
-        <p v-else class="pf-inspector-note missing">从下方素材池选一件作品放进来。</p>
 
         <div class="pf-record-picker">
           <button
@@ -157,7 +156,7 @@ const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project,
             去第 {{ issue.pageNos[0] }} 页
           </button>
         </article>
-        <p v-if="!issues.length" class="pf-inspector-note">没有发现缺图、缺文字或孔位遮挡问题。</p>
+        <p v-if="!issues.length" class="pf-inspector-status">没有发现缺图、缺文字或孔位遮挡问题。</p>
       </section>
 
       <section class="pf-inspector-group">

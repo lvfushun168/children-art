@@ -62,10 +62,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="permission-list">
-        <span>授权班级</span>
-        <strong>{{ permissionSummary.visibleClasses.join('、') || '全部班级' }}</strong>
-      </div>
+
 
       <section class="user-option-group compact">
         <span>界面主题</span>

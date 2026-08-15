@@ -176,7 +176,6 @@ const confirmImport = async () => {
       </div>
       <div v-if="latestBatch.failed" class="import-attention">
         <strong>{{ latestBatch.failed }} 条数据需要留意</strong>
-        <small>开始新导入后，系统会重新读取并生成预览。</small>
       </div>
       <div v-else-if="latestBatch.statusCode === 'IMPORTED'" class="import-complete">✓ 已全部完成</div>
     </section>
@@ -185,7 +184,6 @@ const confirmImport = async () => {
       <div>
         <span>导入新的数据</span>
         <strong>选择 Excel 后系统会自动读取并生成预览</strong>
-        <small>预览确认前不会写入学生、班级或课次数据</small>
       </div>
       <button class="primary" type="button" @click="startImport">选择文件</button>
     </section>
@@ -205,7 +203,6 @@ const confirmImport = async () => {
       <div class="import-step-copy">
         <span>数据导入</span>
         <h2>选择文件，系统会自动生成预览</h2>
-        <p>确认预览结果后才会写入基础数据。标准小麦导出表格不需要手动配置字段。</p>
       </div>
 
       <div class="import-type-picker">
@@ -236,7 +233,7 @@ const confirmImport = async () => {
       </div>
 
       <details v-if="showMapping && mappingFields.length" class="import-mapping-fallback" open>
-        <summary>字段映射（仅在非标准表头时使用）</summary>
+        <summary>字段映射</summary>
         <div class="mapping-grid">
           <label v-for="field in mappingFields" :key="field.key">
             {{ field.label }}<em v-if="field.required">必填</em>
@@ -253,7 +250,6 @@ const confirmImport = async () => {
       <h2>{{ processingTitle }}</h2>
       <p>{{ processingDetail }}</p>
       <div class="import-processing-file">{{ fileName }}</div>
-      <small>请不要重复选择文件或关闭当前页面。</small>
     </section>
 
     <section v-else-if="mode === 'preview'" class="import-focus-step">

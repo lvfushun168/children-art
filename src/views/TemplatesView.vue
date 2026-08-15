@@ -70,7 +70,7 @@ const selectTemplate = (index) => {
 
 const startNew = () => {
   if (!canWriteTemplates) {
-    props.state.notify('当前一期模板接口仅支持只读加载，暂不支持新增或编辑')
+    props.state.notify('模板暂不可新增')
     return
   }
   mode.value = 'new'
@@ -80,7 +80,7 @@ const startNew = () => {
 
 const startEdit = () => {
   if (!canWriteTemplates) {
-    props.state.notify('当前一期模板接口仅支持只读加载，暂不支持新增或编辑')
+    props.state.notify('模板暂不可编辑')
     return
   }
   mode.value = 'edit'
@@ -89,7 +89,7 @@ const startEdit = () => {
 
 const save = () => {
   if (!canWriteTemplates) {
-    props.state.notify('当前一期模板接口仅支持只读加载，暂不支持保存')
+    props.state.notify('模板暂不可保存')
     return
   }
   const saved = mode.value === 'new'
@@ -161,8 +161,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <button class="primary" :disabled="!canWriteTemplates" @click="startNew">新增{{ activeLabel }}</button>
     </div>
   </PageHead>
-  <div class="notice-box template-readonly-note">模板由服务端按 M1–M6 协议提供只读数据；当前一期暂不支持在前端新增或编辑模板。</div>
-
   <section class="template-workbench" :class="`mobile-template-stage-${mobileStage}`">
     <aside v-show="!isMobileFlow || mobileStage === 'types'" class="panel template-type-list">
       <button

@@ -38,7 +38,6 @@ const campusOptions = computed(() => (props.state.campuses || [])
   .filter((campus) => campus.status !== 'DISABLED')
   .map((campus) => ({ value: campus.id, label: campus.name, description: campus.code })))
 
-const currentCampusName = computed(() => props.state.school?.campus || props.state.campuses?.[0]?.name || '当前校区')
 const totalPages = computed(() => Math.max(1, Math.ceil(Number(props.state.identityUserPage?.total || 0) / pageSize)))
 const isEditing = computed(() => Boolean(userForm.value?.id))
 const canAssignRoles = computed(() => Boolean(props.state.canManageIdentityRoles))
@@ -77,11 +76,6 @@ const applyFilters = () => loadUsers(1)
 const roleNamesFor = (user) => user.roles?.map((role) => role.name).filter(Boolean).join('、') || '未绑定角色'
 const campusNamesFor = (user) => user.campuses?.map((campus) => campus.name).filter(Boolean).join('、') || '未配置校区'
 const permissionCountFor = (user) => new Set((user.roles || []).flatMap((role) => role.permissions || [])).size
-const roleDescriptionFor = (user) => {
-  const roles = user.roles || []
-  const descriptions = roles.map((role) => role.description).filter(Boolean)
-  return descriptions[0] || (permissionCountFor(user) ? '由角色计算有效功能权限' : '暂无功能权限')
-}
 
 const openUserForm = (user = null) => {
   if (user) {
@@ -205,7 +199,6 @@ onMounted(loadPage)
         <AdaptiveSelect v-model="statusInput" placeholder="全部状态" :options="[{ value: '', label: '全部状态' }, ...identityStatusOptions]" />
         <button class="secondary" type="submit">查询</button>
       </form>
-      <small>当前按{{ currentCampusName }}查询账号，数据范围以校区归属为准。</small>
     </section>
 
     <section class="panel identity-list-panel">
@@ -214,7 +207,6 @@ onMounted(loadPage)
           <span>账号列表</span>
           <strong>{{ state.identityUserPage.total || 0 }} 个账号</strong>
         </div>
-        <small>账号功能权限由角色计算</small>
       </div>
 
       <div v-if="state.identityLoading.users" class="identity-empty">正在加载账号...</div>
@@ -224,7 +216,6 @@ onMounted(loadPage)
       </div>
       <div v-else-if="!state.identityUsers.length" class="identity-empty">
         <strong>暂无账号</strong>
-        <span>可以先创建一个老师或管理员账号。</span>
       </div>
 
       <div v-else class="identity-user-list">
@@ -250,7 +241,6 @@ onMounted(loadPage)
             <div>
               <span>有效功能权限</span>
               <strong>{{ permissionCountFor(user) }} 项</strong>
-              <small>{{ roleDescriptionFor(user) }}</small>
             </div>
           </div>
 
@@ -291,7 +281,6 @@ onMounted(loadPage)
         <label v-if="isEditing"><span>账号状态</span><AdaptiveSelect v-model="userForm.status" :options="identityStatusOptions" /></label>
         <label><span>角色</span><AdaptiveMultiSelect v-model="userForm.roleIds" :options="roleOptions" placeholder="请选择角色" :disabled="!canAssignRoles" /></label>
         <label><span>可访问校区</span><AdaptiveMultiSelect v-model="userForm.campusIds" :options="campusOptions" placeholder="请选择校区" /></label>
-        <p class="identity-drawer-note">一期数据权限以机构/校区为边界，班级关系请在班级资料中维护。</p>
         <div class="drawer-actions">
           <button class="ghost" type="button" @click="closeDrawer">取消</button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">保存</button>
@@ -300,7 +289,6 @@ onMounted(loadPage)
 
       <form v-else-if="drawer === 'roles'" class="identity-form" @submit.prevent="saveRoles">
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>{{ selectedUser?.phone }}</span></div>
-        <p class="identity-drawer-note">只通过角色授予功能权限，不提供账号级直接授权。</p>
         <label><span>绑定角色</span><AdaptiveMultiSelect v-model="selectedRoleIds" :options="roleOptions" placeholder="请选择角色" /></label>
         <div class="drawer-actions">
           <button class="ghost" type="button" @click="closeDrawer">取消</button>
@@ -310,7 +298,6 @@ onMounted(loadPage)
 
       <form v-else-if="drawer === 'memberships'" class="identity-form" @submit.prevent="saveMemberships">
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>可访问校区</span></div>
-        <p class="identity-drawer-note">一期只配置校区数据范围；班级归属由基础信息维护，不在这里配置。</p>
         <div v-if="membershipLoading" class="identity-empty">正在读取数据范围...</div>
         <div v-else class="identity-check-grid">
           <label v-for="campus in campusOptions" :key="campus.value" class="identity-check">
@@ -327,7 +314,6 @@ onMounted(loadPage)
       <form v-else class="identity-form" @submit.prevent="resetPassword">
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>{{ selectedUser?.phone }}</span></div>
         <label><span>新密码</span><input v-model="passwordForm.password" type="password" minlength="6" required /></label>
-        <p class="identity-drawer-note">重置后账号需要使用新密码登录。</p>
         <div class="drawer-actions">
           <button class="ghost" type="button" @click="closeDrawer">取消</button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">确认重置</button>

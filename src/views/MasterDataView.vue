@@ -458,9 +458,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
               </div>
             </section>
           </template>
-          <div v-else class="notice-box">
-            <small>当前账号未加载到可持久化的 CRM 档案字段，档案字段由服务端定义。</small>
-          </div>
           <section v-if="mode !== 'new' && state.studentProfileAudits?.[selected?.id]?.items?.length" class="master-form-section profile-audit-section">
             <strong>CRM 档案变更记录</strong>
             <article v-for="audit in state.studentProfileAudits[selected.id].items.slice(0, 8)" :key="audit.id" class="audit-row">
@@ -571,11 +568,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
           </label>
           <label class="wide">
             家长群
-            <input v-model="draft.group" disabled placeholder="当前协议不保存家长群信息" />
+            <input v-model="draft.group" disabled />
           </label>
-        </div>
-        <div class="notice-box">
-          <small>家长群字段不在 M1–M6 班级接口中，本期仅保存班级、排课、老师、课程和学生名单。</small>
         </div>
         <div class="member-picker">
           <strong>学生名单</strong>
@@ -590,7 +584,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <div class="form-grid">
           <label>课程主题<input v-model="draft.title" /></label>
           <label>适用年龄<input v-model="draft.age" /></label>
-          <label>默认关注点<input v-model="draft.defaultFocus" disabled placeholder="由课次/模板流程提供" /></label>
+          <label>默认关注点<input v-model="draft.defaultFocus" disabled /></label>
           <label>材料<input v-model="draft.materials" /></label>
           <label>
             课评模板
@@ -602,9 +596,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
           </label>
           <label class="wide">教学目标<textarea v-model="draft.goal" rows="3" /></label>
           <label class="wide">AI 参考材料和特殊话术<textarea v-model="draft.reference" rows="5" /></label>
-        </div>
-        <div class="notice-box">
-          <small>默认关注点、模板关联和课程链接不属于课程写接口字段。模板请在制作中心选择，外部课程链接请在“外部在线课程信息”中按单课程关联。</small>
         </div>
       </template>
     </section>

@@ -98,9 +98,6 @@ onMounted(async () => {
         </article>
       </section>
 
-      <footer class="parent-footer">
-        <small>{{ content.disclaimer || '本展示页仅用于家长查看课堂成果。' }}</small>
-      </footer>
     </template>
   </main>
 </template>

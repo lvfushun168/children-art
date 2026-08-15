@@ -48,8 +48,6 @@ const saveTeacher = async (teacher) => {
           <strong>{{ state.teachers.length }} 个账号</strong>
         </div>
       </div>
-      <p class="permission-settings-note">管理账号角色和授权班级关系；最终权限以服务端 me.permissions 为准。</p>
-
       <div class="permission-settings-list">
         <article v-for="teacher in state.teachers" :key="teacher.id" class="teacher-row">
           <input v-model="teacher.name" aria-label="姓名" />
@@ -64,7 +62,6 @@ const saveTeacher = async (teacher) => {
             </label>
           </div>
           <div class="teacher-row-actions">
-            <small>班级归属请在班级资料中调整。</small>
             <button class="ghost" type="button" @click="saveTeacher(teacher)">保存资料</button>
           </div>
         </article>

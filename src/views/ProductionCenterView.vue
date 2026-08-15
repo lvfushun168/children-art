@@ -142,7 +142,7 @@ const confirmCreate = () => {
     return
   }
   if (!selectedTemplate.value) {
-    props.state.notify('当前没有可用的服务端作品集模板')
+    props.state.notify('当前没有可用的作品集模板')
     return
   }
   const created = props.state.createPortfolioProject({
@@ -378,7 +378,7 @@ watch(
                 <em v-if="record.highlight">高光</em>
               </article>
               <div v-if="!selectedStudentRecords.length" class="notice-box">
-                <small>选择学生后，这里会显示本次可进入作品册的作品。</small>
+                <small>暂无可用作品。</small>
               </div>
             </div>
           </section>
@@ -426,7 +426,7 @@ watch(
             <section class="pc-create-preview">
               <div>
                 <span>将使用模板</span>
-                <strong>{{ selectedTemplate?.name || '暂无服务端模板' }}</strong>
+                <strong>{{ selectedTemplate?.name || '暂无作品集模板' }}</strong>
                 <small>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</small>
               </div>
               <button class="primary" :disabled="!selectedStudentRecords.length || !selectedTemplate" @click="confirmCreate">进入 PPT 工作台</button>
@@ -503,7 +503,6 @@ watch(
               <strong>{{ exportFileName }}</strong>
               <small>{{ state.portfolioCloudPathFor(project) }}</small>
             </div>
-            <small>PDF/PPT 导出请使用工作台内置导出菜单；需要复用本次排版时，可在顶部保存为模板。</small>
           </section>
         </aside>
       </section>
@@ -523,7 +522,6 @@ watch(
         模板名称
         <input v-model="templateName" placeholder="例如：彤彤春季成长册模板" />
       </label>
-      <p>保存后，下次选择学生和学期时可以复用当前页面、文字和图片位置，再自动替换为新学生作品。</p>
       <div class="modal-actions">
         <button v-if="leaveAfterTemplateDecision" class="ghost" @click="skipTemplateSave">不保存，返回模板选择</button>
         <button v-else class="ghost" @click="showTemplateSaveDialog = false">取消</button>

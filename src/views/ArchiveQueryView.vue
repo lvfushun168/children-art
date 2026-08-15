@@ -57,7 +57,6 @@ const canEditSelectedWork = computed(() => props.state.canEditArchiveRecord(sele
 const hasUnsavedWorkChanges = computed(() => isEditingWork.value && JSON.stringify(workDraft) !== initialWorkDraft.value)
 const visibleSelectedCount = computed(() => props.state.filteredArchiveRecords.filter((record) => selectedRecordIds.value.some((id) => sameId(id, record.id))).length)
 const allVisibleSelected = computed(() => props.state.filteredArchiveRecords.length > 0 && visibleSelectedCount.value === props.state.filteredArchiveRecords.length)
-// 勾选的作品全部属于同一个学生时，制作中心可以直接按学生建成长手册
 const singleStudentSelection = computed(() => {
   const ids = [...new Set(selectedRecords.value.map((record) => record.studentId))]
   return ids.length === 1 ? props.state.students.find((student) => sameId(student.id, ids[0])) : null
@@ -261,7 +260,6 @@ const openEffectDrawer = (effect) => {
   showEffectDrawer.value = true
 }
 
-// 作品集与成长手册统一由制作中心生产，这里只负责把选料结果带过去
 const sendSelectionToProduction = () => {
   if (!selectedRecords.value.length) return
   emit('createPortfolio', {
@@ -358,7 +356,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div v-if="selectedRecordIds.length" class="archive-selection-bar">
         <span>
           <strong>已选 {{ selectedRecordIds.length }} 件作品</strong>
-          <small>选定归档记录将进入制作中心生成并登记 PDF</small>
         </span>
         <div class="archive-selection-actions">
           <button class="primary" @click="sendSelectionToProduction">
@@ -545,7 +542,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <article class="archive-block highlight">
             <strong>{{ workDraft.highlight ? '高光作品' : '非高光作品' }}</strong>
             <p>{{ workDraft.highlightNote || '当前归档快照没有高光说明。' }}</p>
-            <small>高光状态来自课次归档快照，本期归档接口不支持在此修改。</small>
           </article>
         </section>
         <section class="archive-detail-group archive-edit-section">
@@ -567,7 +563,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
             </label>
             <label class="wide">装裱备注<textarea v-model="workDraft.frameNote" rows="3" /></label>
           </div>
-          <small class="archive-protocol-note">当前接口不接收自定义更正原因，服务端会统一记录归档元数据变更审计。</small>
         </section>
       </template>
       <template v-else>
@@ -624,7 +619,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <strong>高光状态</strong>
           <p>当前作品未标记为高光。</p>
         </article>
-        <small class="archive-protocol-note">作品集和成长手册请在制作中心基于选定归档记录生成；本页面不再创建本地虚拟归档集合。</small>
       </section>
       <section v-if="!isEditingWork && (selected.updatedAt || selectedWorkLogs.length)" class="archive-detail-group">
         <span>变更记录</span>
@@ -748,7 +742,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <section class="archive-detail-group">
         <span>云盘路径</span>
         <article class="archive-block">
-          <p>{{ selectedEffect.cloudPath || '服务端当前未返回可展示的云盘路径。' }}</p>
+          <p>{{ selectedEffect.cloudPath || '暂无云盘路径。' }}</p>
         </article>
       </section>
     </aside>

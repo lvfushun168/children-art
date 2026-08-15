@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
+import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import { sameId } from '../services/mappers'
 
 const props = defineProps({
@@ -138,6 +139,7 @@ const startEditWork = (record) => {
   workDraft.value = {
     studentId: record.studentId,
     dateValue: record.dateValue || defaultWorkDate(),
+    fileId: record.fileId || null,
     artwork: record.artwork || '',
     title: record.title || '',
     description: record.description || '',
@@ -315,7 +317,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <label class="wide">档案备注<textarea v-model="workDraft.note" rows="3" /></label>
           </div>
           <figure v-if="workDraft.artwork" class="extra-task-work-preview">
-            <img :src="workDraft.artwork" alt="课外作品预览" />
+            <ProtectedMedia :file-id="workDraft.fileId" :src="workDraft.artwork" alt="课外作品预览" />
             <figcaption>归档预览</figcaption>
           </figure>
           <label class="archive-toggle-row">
@@ -338,7 +340,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           </div>
           <div v-else class="extra-task-work-grid">
             <article v-for="work in selectedWorks" :key="work.id" class="archive-block extra-task-work-card">
-              <img :src="work.artwork" :alt="work.title" />
+              <ProtectedMedia :file-id="work.fileId" :src="work.artwork" :alt="work.title" />
               <div>
                 <span>{{ work.studentName }} · {{ work.date }}</span>
                 <strong>{{ work.title }}</strong>

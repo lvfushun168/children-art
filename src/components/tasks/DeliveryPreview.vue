@@ -1,4 +1,6 @@
 <script setup>
+import ProtectedMedia from '../common/ProtectedMedia.vue'
+
 defineProps({
   activeStudent: {
     type: Object,
@@ -95,7 +97,7 @@ defineEmits(['copy-export'])
           raw: activeImageTemplate.ratio === '原比例'
         }"
       >
-        <img :src="activeSessionStudent.image" :alt="activeStudent.name" />
+        <ProtectedMedia :file-id="activeSessionStudent.processedFileId || activeSessionStudent.originalFileId || activeSessionStudent.imageFileIds?.[0]" :src="activeSessionStudent.image" :alt="activeStudent.name" />
         <span v-if="activeImageTemplate.watermark !== '隐藏水印'">{{ school.name }}</span>
       </div>
       <strong>{{ activeStudent.name }} · {{ activeCourse.title }}</strong>
@@ -112,7 +114,7 @@ defineEmits(['copy-export'])
         <small>{{ activeSessionStudent.highlightNote }}</small>
       </div>
       <div v-if="displayConfig.showMaterials" class="preview-materials">
-        <img v-for="material in materials.filter((item) => item.visible)" :key="material.id" :src="material.image" :alt="material.title" />
+        <ProtectedMedia v-for="material in materials.filter((item) => item.visible)" :key="material.id" :file-id="material.fileId" :src="material.image" :alt="material.title" />
       </div>
       <div v-if="displayConfig.showHomework" class="homework-preview">
         <strong>课后任务</strong>

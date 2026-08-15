@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import TaskReport from './TaskReport.vue'
 import DeliveryPreview from './DeliveryPreview.vue'
+import ProtectedMedia from '../common/ProtectedMedia.vue'
 import { sameId } from '../../services/mappers'
 
 const props = defineProps({
@@ -58,6 +59,11 @@ const commentTemplateOptions = computed(() =>
 )
 const currentRecordIndex = computed(() => props.state.attendingRows.findIndex((row) => sameId(row.studentId, props.state.activeStudentId)))
 const currentReviewIndex = computed(() => props.state.attendingRows.findIndex((row) => sameId(row.studentId, props.state.activeStudentId)))
+const workImages = (row) => {
+  const fileIds = Array.isArray(row?.imageFileIds) ? row.imageFileIds.filter(Boolean) : []
+  if (fileIds.length) return fileIds.map((fileId, index) => ({ fileId, src: row.images?.[index] || '' }))
+  return (row?.images || (row?.image ? [row.image] : [])).map((src) => ({ fileId: null, src }))
+}
 
 const moveRecordStudent = (direction) => {
   const rows = props.state.attendingRows
@@ -92,15 +98,16 @@ const openWorkPreview = (row, index) => {
 
 const moveWorkPreview = (direction) => {
   if (!workPreview.value) return
-  const images = workPreview.value.row.images || []
+  const images = workImages(workPreview.value.row)
   workPreview.value.index = (workPreview.value.index + direction + images.length) % images.length
 }
 
 const removePreviewedWork = () => {
   const { row, index } = workPreview.value
   props.state.removeStudentImage(row, index)
-  if (!row.images.length) workPreview.value = null
-  else workPreview.value.index = Math.min(index, row.images.length - 1)
+  const images = workImages(row)
+  if (!images.length) workPreview.value = null
+  else workPreview.value.index = Math.min(index, images.length - 1)
 }
 
 watch(() => props.state.activeTask.id, () => {
@@ -115,6 +122,7 @@ watch(() => props.state.activeTask.id, () => {
 })
 
 watch(() => props.state.currentStep, (step) => {
+  if (step === 3) void props.state.loadTemplates?.()
   if (step !== 4) return
   if (props.state.counts.comments === props.state.counts.attend && props.state.counts.attend > 0) generateStage.value = 'review'
   else generateStage.value = 'settings'
@@ -244,8 +252,8 @@ const updateCommentTemplate = (index) => {
 
             <div class="material-gallery compact">
               <article v-for="material in state.referenceMaterials" :key="material.id" :class="{ hidden: !material.visible }">
-                <video v-if="material.type === '课堂视频'" :src="material.image" controls preload="metadata" :aria-label="material.title" />
-                <img v-else :src="material.image" :alt="material.title" />
+                <ProtectedMedia v-if="material.type === '课堂视频'" tag="video" :file-id="material.fileId" :src="material.image" controls preload="metadata" :aria-label="material.title" />
+                <ProtectedMedia v-else :file-id="material.fileId" :src="material.image" :alt="material.title" />
                 <div>
                   <span>{{ material.type }}</span>
                   <strong>{{ material.title }}</strong>
@@ -341,14 +349,14 @@ const updateCommentTemplate = (index) => {
               <span>{{ row.attendance }}</span>
             </div>
             <div v-if="row.attendance === '到课'" class="work-thumbnails">
-              <button v-for="(image, index) in (row.images || (row.image ? [row.image] : []))" :key="`${image}-${index}`" class="work-thumbnail" @click="openWorkPreview(row, index)">
-                <img :src="image" :alt="`${studentFor(row.studentId).name}作品${index + 1}`" />
+              <button v-for="(image, index) in workImages(row)" :key="`${image.fileId || image.src}-${index}`" class="work-thumbnail" @click="openWorkPreview(row, index)">
+                <ProtectedMedia :file-id="image.fileId" :src="image.src" :alt="`${studentFor(row.studentId).name}作品${index + 1}`" />
               </button>
-              <span v-if="!row.images?.length" class="work-empty">尚未上传作品</span>
+              <span v-if="!workImages(row).length" class="work-empty">尚未上传作品</span>
             </div>
             <div v-else class="work-absent-status">本节无需上传</div>
             <div class="student-work-action">
-              <strong v-if="row.attendance === '到课'" :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${row.images?.length || 1} 张` : '待上传' }}</strong>
+              <strong v-if="row.attendance === '到课'" :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${workImages(row).length || 1} 张` : '待上传' }}</strong>
               <label v-if="row.attendance === '到课'" class="file-button add-work-button">{{ row.imageMatched ? '继续添加' : '上传作品' }}<input type="file" accept="image/*" multiple @change="state.updateImage($event, row)" /></label>
             </div>
           </article>
@@ -357,14 +365,18 @@ const updateCommentTemplate = (index) => {
         <div v-if="workPreview" class="modal-backdrop" @click.self="workPreview = null">
           <section class="work-preview-modal">
             <header class="modal-head">
-              <div><span>{{ studentFor(workPreview.row.studentId).name }}</span><strong>作品 {{ workPreview.index + 1 }}/{{ workPreview.row.images.length }}</strong></div>
+              <div><span>{{ studentFor(workPreview.row.studentId).name }}</span><strong>作品 {{ workPreview.index + 1 }}/{{ workImages(workPreview.row).length }}</strong></div>
               <button class="ghost" @click="workPreview = null">关闭</button>
             </header>
-            <img :src="workPreview.row.images[workPreview.index]" alt="作品大图预览" />
+            <ProtectedMedia
+              :file-id="workImages(workPreview.row)[workPreview.index]?.fileId"
+              :src="workImages(workPreview.row)[workPreview.index]?.src"
+              alt="作品大图预览"
+            />
             <footer class="work-preview-actions">
               <div class="button-pair">
-                <button class="ghost" :disabled="workPreview.row.images.length < 2" @click="moveWorkPreview(-1)">上一张</button>
-                <button class="ghost" :disabled="workPreview.row.images.length < 2" @click="moveWorkPreview(1)">下一张</button>
+                <button class="ghost" :disabled="workImages(workPreview.row).length < 2" @click="moveWorkPreview(-1)">上一张</button>
+                <button class="ghost" :disabled="workImages(workPreview.row).length < 2" @click="moveWorkPreview(1)">下一张</button>
               </div>
               <div class="button-pair">
                 <button class="ghost danger-action" @click="removePreviewedWork">删除这张</button>
@@ -455,11 +467,15 @@ const updateCommentTemplate = (index) => {
           <div class="generated-result-grid">
             <article class="generated-image-result">
               <div class="result-card-head"><div><span>作品图片</span><strong>{{ state.activeSessionStudent.imageConfirmed ? '已采用' : '待确认' }}</strong></div></div>
-              <img :src="state.activeSessionStudent.processedImage || state.activeSessionStudent.originalImage || state.activeSessionStudent.image" alt="生成后的作品图片" />
+              <ProtectedMedia
+                :file-id="state.activeSessionStudent.processedFileId || state.activeSessionStudent.originalFileId || state.activeSessionStudent.imageFileIds?.[0]"
+                :src="state.activeSessionStudent.processedImage || state.activeSessionStudent.originalImage || state.activeSessionStudent.image"
+                alt="生成后的作品图片"
+              />
               <small v-if="state.activeSessionStudent.imageProcessError" class="missing-text">{{ state.activeSessionStudent.imageProcessError }}</small>
               <div class="result-actions">
-                <button class="primary" :disabled="!state.activeSessionStudent.processedImage" @click="state.confirmCurrentImage('processed')">使用处理图</button>
-                <button class="ghost" @click="state.confirmCurrentImage('original')">使用原图</button>
+                <button class="primary" :disabled="!state.activeSessionStudent.processedFileId && !state.activeSessionStudent.processedImage" @click="state.confirmCurrentImage('processed')">使用处理图</button>
+                <button class="ghost" :disabled="!state.activeSessionStudent.originalFileId && !state.activeSessionStudent.originalImage" @click="state.confirmCurrentImage('original')">使用原图</button>
                 <button class="secondary" :disabled="state.isProcessing" @click="state.retryCurrentImageProcess">重新处理</button>
               </div>
             </article>

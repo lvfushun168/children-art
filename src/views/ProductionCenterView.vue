@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
 import PptistWorkspace from '../components/production/PptistWorkspace.vue'
+import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import { sameId } from '../services/mappers'
 
 const props = defineProps({
@@ -370,7 +371,7 @@ watch(
             </div>
             <div class="pc-record-list">
               <article v-for="record in selectedStudentRecords" :key="record.id" class="pc-record-row">
-                <img :src="record.artwork" :alt="record.course" />
+                <ProtectedMedia :file-id="record.fileId" :src="record.artwork" :alt="record.course" />
                 <div>
                   <strong>{{ record.course }}</strong>
                   <small>{{ record.date }} · {{ record.className }}</small>
@@ -484,7 +485,7 @@ watch(
               draggable="true"
               @dragstart="onRecordDragStart($event, record)"
             >
-              <img :src="record.artwork" :alt="record.course" />
+              <ProtectedMedia :file-id="record.fileId" :src="record.artwork" :alt="record.course" />
               <div>
                 <strong>{{ record.course }}</strong>
                 <small>{{ record.date }} · {{ record.className }}</small>

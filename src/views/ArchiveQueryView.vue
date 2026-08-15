@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
+import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import { sameId } from '../services/mappers'
 
 const props = defineProps({
@@ -373,7 +374,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <label class="archive-pick" @click.stop>
           <input type="checkbox" :checked="selectedRecordIds.some((id) => sameId(id, record.id))" @change="toggleRecord(record)" />
         </label>
-        <img :src="record.artwork" :alt="record.studentName" />
+        <ProtectedMedia :file-id="record.fileId" :src="record.artwork" :alt="record.studentName" />
         <span>
           <strong>{{ record.title || `${record.studentName} · ${record.course}` }}</strong>
           <small>{{ record.date }} {{ record.time }} · {{ record.className }} · {{ record.teacher }}</small>
@@ -511,7 +512,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </div>
       </header>
       <figure class="archive-image-readonly">
-        <img class="archive-main-image" :src="selected.artwork" :alt="selected.studentName" />
+        <ProtectedMedia class="archive-main-image" :file-id="selected.fileId" :src="selected.artwork" :alt="selected.studentName" />
         <figcaption>归档原图 · 只读</figcaption>
       </figure>
       <section class="archive-detail-group">
@@ -687,7 +688,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>备课与课堂资料</span>
         <div v-if="selectedLessonAssets.length" class="lesson-asset-grid">
           <article v-for="asset in selectedLessonAssets" :key="asset.id">
-            <img v-if="asset.image" :src="asset.image" :alt="asset.title" />
+            <ProtectedMedia v-if="asset.image || asset.fileId" :file-id="asset.fileId" :src="asset.image" :alt="asset.title" />
             <div v-else class="file-tile">{{ asset.fileExt || 'FILE' }}</div>
             <span>{{ asset.type }} · {{ asset.archiveRole }}</span>
             <strong>{{ asset.title }}</strong>
@@ -703,7 +704,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>学生作品概览</span>
         <div class="lesson-work-grid">
           <article v-for="work in selectedLessonWorks" :key="work.id || work.studentId" :class="{ missing: !work.imageMatched }">
-            <img v-if="work.artwork" :src="work.artwork" :alt="work.studentName" />
+            <ProtectedMedia v-if="work.artwork || work.fileId" :file-id="work.fileId" :src="work.artwork" :alt="work.studentName" />
             <div v-else class="file-tile">缺图</div>
             <strong>{{ work.studentName }}</strong>
             <small>{{ work.course || selectedLesson.course }}</small>
@@ -727,7 +728,12 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <div>
           <strong>{{ selectedEffect.title }}</strong>
         </div>
-        <img v-if="selectedEffect.cover" :src="selectedEffect.cover" :alt="selectedEffect.title" />
+        <ProtectedMedia
+          v-if="selectedEffect.cover || selectedEffect.outputFileId || selectedEffect.fileId"
+          :file-id="selectedEffect.outputFileId || selectedEffect.fileId"
+          :src="selectedEffect.cover"
+          :alt="selectedEffect.title"
+        />
         <div v-else class="file-tile">长图</div>
       </section>
       <section class="archive-detail-group">

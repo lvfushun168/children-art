@@ -54,7 +54,7 @@ watch(() => props.openWorkspaceSignal, (signal) => {
       </div>
       <button v-if="nextTask" class="primary hero-action" @click="openTask(nextTask)">
         {{ state.progressForTask(nextTask) ? '继续处理' : '开始处理' }}
-        <small>{{ nextTask.time }} · {{ state.classes.find((item) => sameId(item.id, nextTask.classId))?.name }}</small>
+        <small>{{ nextTask.time }} · {{ nextTask.className || state.classes.find((item) => sameId(item.id, nextTask.classId))?.name }}</small>
       </button>
     </section>
     <div class="today-summary">
@@ -69,6 +69,7 @@ watch(() => props.openWorkspaceSignal, (signal) => {
       :classes="state.classes"
       :courses="state.courses"
       :teachers="state.teachers"
+      :load-references="() => state.ensurePageData?.('tasks')"
       :progress-for-task="state.progressForTask"
       @select-task="openTask"
       @add-lesson="state.addLesson"

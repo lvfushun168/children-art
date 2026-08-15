@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import ProtectedMedia from '../common/ProtectedMedia.vue'
 import { sameId } from '../../services/mappers'
 
 const props = defineProps({
@@ -86,7 +87,7 @@ const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project,
             :class="{ selected: sameId(record.id, currentRecordId) }"
             @click="chooseRecord(record.id)"
           >
-            <img :src="record.artwork" :alt="record.studentName" />
+            <ProtectedMedia :file-id="record.fileId" :src="record.artwork" :alt="record.studentName" />
             <small>{{ record.date }}</small>
           </button>
         </div>

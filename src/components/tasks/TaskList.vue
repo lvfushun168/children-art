@@ -23,6 +23,10 @@ const props = defineProps({
     type: Array,
     required: true
   },
+  loadReferences: {
+    type: Function,
+    default: null
+  },
   progressForTask: {
     type: Function,
     required: true
@@ -45,6 +49,11 @@ const lessonDraft = ref({
   status: '待处理',
   importedFrom: '手动补录'
 })
+
+const openLessonDialog = async () => {
+  try { await props.loadReferences?.() } catch { /* dialog can still show its empty state */ }
+  showLessonDialog.value = true
+}
 
 const selectedClass = computed(() => props.classes.find((item) => sameId(item.id, lessonDraft.value.classId)))
 const classOptions = computed(() => props.classes.map((klass) => ({ label: klass.name, value: klass.id })))
@@ -76,7 +85,7 @@ const saveLesson = () => {
         <span>课表生成</span>
         <strong>{{ tasks.length }} 个课后任务</strong>
       </div>
-      <button class="secondary" @click="showLessonDialog = true">补录课次</button>
+      <button class="secondary" @click="openLessonDialog">补录课次</button>
     </div>
     <button
       v-for="task in tasks"
@@ -87,8 +96,8 @@ const saveLesson = () => {
     >
       <span class="time">{{ task.time }}</span>
       <span>
-        <strong>{{ classes.find((item) => sameId(item.id, task.classId))?.name || '未配置班级' }}</strong>
-        <small>{{ courses.find((item) => sameId(item.id, task.courseId))?.title || '待配置课程' }} · {{ task.teacher }} · {{ task.lessonType }}</small>
+        <strong>{{ task.className || classes.find((item) => sameId(item.id, task.classId))?.name || '未配置班级' }}</strong>
+        <small>{{ task.courseTitle || courses.find((item) => sameId(item.id, task.courseId))?.title || '待配置课程' }} · {{ task.teacher }} · {{ task.lessonType }}</small>
         <i class="mini-progress"><b :style="{ width: `${progressForTask(task)}%` }"></b></i>
       </span>
       <em>{{ task.status }} · {{ progressForTask(task) }}%</em>

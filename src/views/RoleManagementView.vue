@@ -60,7 +60,7 @@ const loadData = async () => {
   await Promise.all([
     props.state.loadIdentityRoles(),
     props.state.loadIdentityPermissions(),
-    props.state.loadIdentityUsers({ page: 1, pageSize: 200 })
+    props.state.loadIdentityUsers({ page: 1, pageSize: 20 })
   ])
 }
 

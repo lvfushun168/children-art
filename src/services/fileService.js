@@ -1,6 +1,6 @@
-import { api } from './api'
-import { createIdempotencyKey } from './apiClient'
-import { mapFile } from './mappers'
+import { api } from './api.js'
+import { createIdempotencyKey } from './apiClient.js'
+import { mapFile } from './mappers.js'
 
 const sha256 = async (file) => {
   const buffer = await file.arrayBuffer()

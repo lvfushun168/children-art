@@ -210,6 +210,21 @@ export const mapLesson = (value = {}) => ({
   sourceType: value.sourceType || '',
   exceptionType: value.exceptionType || '',
   exceptionReason: value.exceptionReason || '',
+  wheat: value.wheat ? {
+    ...value.wheat,
+    id: safeUiId(value.wheat.id),
+    status: value.wheat.status || '',
+    todoStatus: value.wheat.todoStatus || '',
+    version: Number(value.wheat.version || 0)
+  } : null,
+  deliverySummary: value.deliverySummary ? {
+    totalStudents: Number(value.deliverySummary.totalStudents || 0),
+    attendedStudents: Number(value.deliverySummary.attendedStudents || 0),
+    artworkReady: Number(value.deliverySummary.artworkReady || 0),
+    feedbackConfirmed: Number(value.deliverySummary.feedbackConfirmed || 0),
+    shareReady: Number(value.deliverySummary.shareReady || 0),
+    archived: Boolean(value.deliverySummary.archived)
+  } : null,
   archived: lessonStatus[value.status] === '已完成',
   version: Number(value.version || 0)
 })
@@ -230,7 +245,9 @@ export const mapAsset = (value = {}) => ({
   studentId: safeUiId(value.studentId),
   type: assetType[value.assetType] || value.assetType || '课堂照片',
   visible: value.visible !== false,
-  image: value.file?.downloadUrl || value.image || '',
+  // FileSnapshot.downloadUrl points to the protected content endpoint. Keep it
+  // as metadata; ProtectedMedia loads it only when the element is visible.
+  image: value.image || '',
   file: value.file ? mapFile(value.file) : null,
   version: Number(value.version || 0)
 })
@@ -245,6 +262,7 @@ export const mapArtworkVersion = (value = {}) => ({
   versionKindLabel: versionKind[value.versionKind] || value.versionKind || '',
   statusLabel: artworkStatus[value.status] || value.status || '',
   file: value.file ? mapFile(value.file) : null,
+  job: value.job ? mapJob(value.job) : null,
   createdAt: displayDateTime(value.createdAt)
 })
 export const mapArtwork = (value = {}) => ({
@@ -258,6 +276,7 @@ export const mapArtwork = (value = {}) => ({
   statusLabel: artworkStatus[value.status] || value.status || '已绑定',
   confirmationStatus: value.confirmationStatus || 'PENDING',
   confirmationStatusLabel: artworkConfirmationStatus[value.confirmationStatus] || value.confirmationStatus || '待确认',
+  job: value.job ? mapJob(value.job) : null,
   versions: Array.isArray(value.versions) ? value.versions.map(mapArtworkVersion) : [],
   confirmedAt: displayDateTime(value.confirmedAt),
   version: Number(value.version || 0)
@@ -505,7 +524,7 @@ export const mapWheat = (value = {}) => {
     lessonId: safeUiId(source.lessonId),
     status: ({ PENDING: '待处理', MANUALLY_COMPLETED: '已人工处理', NOT_REQUIRED: '无需处理', EXCEPTION: '异常' }[source.status] || source.status || '待处理'),
     version: Number(source.version || 0),
-    todo: value.todo || null
+    todo: value.todo ? mapTodo(value.todo) : null
   }
 }
 
@@ -533,6 +552,6 @@ export const mapTodo = (value = {}) => ({
 export const mapPage = (value, mapper) => ({
   items: Array.isArray(value?.items) ? value.items.map(mapper) : [],
   page: Number(value?.page || 1),
-  pageSize: Number(value?.pageSize || 200),
+  pageSize: Number(value?.pageSize || 20),
   total: Number(value?.total || 0)
 })

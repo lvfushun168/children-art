@@ -160,6 +160,15 @@ watch(visibleNavIds, (ids) => {
   }
 }, { immediate: true })
 
+watch([activeNav, () => state.isLoggedIn], ([nav, loggedIn]) => {
+  if (!loggedIn || !nav) return
+  // 今日课次页只依赖 shell 中的今日课次。班级/学生/课程等主数据在真正打开课次时再取。
+  if (nav === 'tasks') return
+  void state.ensurePageData?.(nav).catch(() => {
+    // 页面自己的空态和错误提示负责展示加载失败，不阻断其他模块。
+  })
+}, { immediate: true })
+
 const shareRoute = computed(() => {
   const studentMatch = routeHash.value.match(/^#\/share\/student\/([^/?#]+)\/([^/?#]+)(?:\?token=([^&]+))?/)
   if (studentMatch) return { type: 'student', lessonId: studentMatch[1], studentId: studentMatch[2], token: studentMatch[3] || '' }

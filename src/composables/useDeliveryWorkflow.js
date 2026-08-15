@@ -8,6 +8,7 @@ import {
   getAccessToken,
   getSession,
   onSessionChanged,
+  recordApiCacheHit,
   setSession,
   updateStoredMe
 } from '../services/apiClient'
@@ -57,7 +58,8 @@ import {
   toApiLessonType,
   toApiWheatCommand
 } from '../services/mappers'
-import { loadProtectedBlobUrl, sha256ForFile, uploadFile } from '../services/fileService'
+import { sha256ForFile, uploadFile } from '../services/fileService'
+import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -141,6 +143,19 @@ export function useDeliveryWorkflow() {
   const pendingAuth = ref(null)
   const remoteLoading = ref(false)
   const remoteReady = ref(false)
+  const pageLoading = reactive({})
+  const pageLoaded = reactive({})
+  const pageErrors = reactive({})
+  const shellSummary = reactive({ pendingLessons: 0, wheatPending: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })
+  const shellPages = reactive({
+    lessons: { page: 1, pageSize: 20, total: 0 },
+    wheatTraces: { page: 1, pageSize: 20, total: 0 },
+    todos: { page: 1, pageSize: 20, total: 0 }
+  })
+  // Every server-backed list keeps its own page contract even when the first
+  // screen only renders page one. This prevents components from having to
+  // infer totals from the currently loaded array.
+  const pageMeta = reactive({})
   const processingAction = ref('')
   const toast = ref('')
   const previewPulse = ref(false)
@@ -372,7 +387,7 @@ export function useDeliveryWorkflow() {
     return [...new Set([...(currentUser.value?.classes || []), ...assigned])]
   })
   const visibleTasks = computed(() =>
-    tasks.filter((task) => isAdmin.value || authorizedClassIds.value.some((id) => sameId(id, task.classId)) || task.teacher === currentUser.value?.name)
+    tasks.filter((task) => isAdmin.value || !classes.length || authorizedClassIds.value.some((id) => sameId(id, task.classId)) || task.teacher === currentUser.value?.name)
   )
   const visibleNavItems = computed(() => {
     const permissions = new Set(storedMe.value?.permissions || [])
@@ -399,12 +414,16 @@ export function useDeliveryWorkflow() {
       .map(([navId]) => navId)
   })
   const activeTask = computed(() => visibleTasks.value.find((task) => sameId(task.id, activeTaskId.value)) || visibleTasks.value[0] || {
-    id: null, classId: null, courseId: null, teacherId: null, teacher: '', date: '', dateValue: '', time: '', lessonType: '其他', status: '待处理', version: 0, wheatStatus: '未生成'
+    id: null, classId: null, className: '', courseId: null, courseTitle: '', teacherId: null, teacher: '', date: '', dateValue: '', time: '', lessonType: '其他', status: '待处理', version: 0, wheatStatus: '未生成'
   })
-  const activeClass = computed(() => classes.find((item) => sameId(item.id, activeTask.value?.classId)) || { id: null, name: '未选择班级', studentIds: [], time: '' })
-  const activeCourse = computed(() => courses.find((item) => sameId(item.id, activeTask.value?.courseId)) || { id: null, title: '待配置', materials: '', defaultFocus: '' })
+  const activeClass = computed(() => classes.find((item) => sameId(item.id, activeTask.value?.classId)) || { id: activeTask.value?.classId || null, name: activeTask.value?.className || '未选择班级', studentIds: [], time: '' })
+  const activeCourse = computed(() => courses.find((item) => sameId(item.id, activeTask.value?.courseId)) || { id: activeTask.value?.courseId || null, title: activeTask.value?.courseTitle || '待配置', materials: '', defaultFocus: '' })
   const activeSessionStudent = computed(() => sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value)))
-  const activeStudent = computed(() => students.find((item) => sameId(item.id, activeStudentId.value)))
+  const activeStudent = computed(() => students.find((item) => sameId(item.id, activeStudentId.value)) || sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value)) && {
+    id: activeStudentId.value,
+    name: sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value))?.studentName || '未命名学生',
+    parent: sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value))?.parent || ''
+  })
   const classStudents = computed(() => (activeClass.value.studentIds || []).map((id) => students.find((item) => sameId(item.id, id))).filter(Boolean))
   const attendingRows = computed(() => sessionStudents.value.filter((item) => item.attendance === '到课'))
   const activeImageTemplates = computed(() => {
@@ -498,6 +517,7 @@ export function useDeliveryWorkflow() {
           lessonId: task.id,
           studentId: row.studentId,
           studentName: student?.name || '学生',
+          fileId: row.processedFileId || row.originalFileId || row.imageFileIds?.[0] || null,
           artwork: row.image,
           feedback: row.comment,
           highlight: row.highlight,
@@ -651,6 +671,10 @@ export function useDeliveryWorkflow() {
         detail: lesson.teacherEffect.detail || '课效长图已生成',
         cloudPath: lesson.teacherEffect.detail?.includes('教学资料归档') ? lesson.teacherEffect.detail : '',
         cover: lesson.studentWorks.find((work) => work.artwork)?.artwork || lesson.referenceMaterials.find((material) => material.image)?.image || '',
+        outputFileId: lesson.teacherEffect?.outputFileId
+          || lesson.studentWorks.find((work) => work.artwork || work.fileId)?.fileId
+          || lesson.referenceMaterials.find((material) => material.image || material.fileId)?.fileId
+          || null,
         sourceWorks: lesson.studentWorks,
         sourceLesson: lesson
       }))
@@ -2488,7 +2512,7 @@ export function useDeliveryWorkflow() {
     return error?.message || fallback
   }
 
-  const runRemote = async (label, action, success = '') => {
+  const runRemote = async (label, action, success = '', onConflict = null) => {
     processingAction.value = label
     try {
       const result = await action()
@@ -2497,7 +2521,9 @@ export function useDeliveryWorkflow() {
     } catch (error) {
       if (error?.status === 409 && remoteReady.value) {
         try {
-          await loadRemoteState()
+          if (typeof onConflict === 'function') await onConflict()
+          else if (activeTaskId.value) await refreshRemoteLesson(activeTaskId.value, { force: true })
+          else await refreshWorkbenchSummary()
         } catch {
           // 原始冲突信息仍由统一错误提示展示。
         }
@@ -2509,7 +2535,7 @@ export function useDeliveryWorkflow() {
     }
   }
 
-  const runRemoteVoid = async (label, action, success = '') => {
+  const runRemoteVoid = async (label, action, success = '', onConflict = null) => {
     processingAction.value = label
     try {
       await action()
@@ -2518,7 +2544,9 @@ export function useDeliveryWorkflow() {
     } catch (error) {
       if (error?.status === 409 && remoteReady.value) {
         try {
-          await loadRemoteState()
+          if (typeof onConflict === 'function') await onConflict()
+          else if (activeTaskId.value) await refreshRemoteLesson(activeTaskId.value, { force: true })
+          else await refreshWorkbenchSummary()
         } catch {
           // 原始冲突信息仍由统一错误提示展示。
         }
@@ -2737,19 +2765,6 @@ export function useDeliveryWorkflow() {
     return mapIdentityRole(outcome.value)
   }
 
-  const fileUrlCache = new Map()
-  const protectedFileUrl = async (fileId) => {
-    if (!fileId) return ''
-    const key = String(fileId)
-    if (!fileUrlCache.has(key)) fileUrlCache.set(key, loadProtectedBlobUrl(fileId))
-    try {
-      return await fileUrlCache.get(key)
-    } catch {
-      fileUrlCache.delete(key)
-      return ''
-    }
-  }
-
   const mapImportBatch = (value = {}) => ({
     ...value,
     id: fromApiId(value.id),
@@ -2892,38 +2907,23 @@ export function useDeliveryWorkflow() {
     PENDING: '待处理', QUEUED: '创建中', CREATING: '创建中', RUNNING: '推送中', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SUCCEEDED: '已同步', SYNCED: '已同步', COMPLETED: '已归档', SKIPPED: '已跳过', FAILED: '发送失败', CANCELED: '已取消'
   }[value] || value || '待处理')
 
-  const refreshRemoteLesson = async (lessonId) => {
-    if (!lessonId) return null
-    const results = await Promise.allSettled([
-      api.lessons.get(lessonId),
-      api.lessons.workspace(lessonId),
-      api.lessons.attendance(lessonId),
-      api.assets.list(lessonId),
-      api.assets.artworks(lessonId),
-      api.feedback.list(lessonId),
-      api.parent.draft(lessonId),
-      api.parent.touchTasksForLesson(lessonId),
-      api.todo.wheat(lessonId),
-      api.m5.teacherEffect(lessonId),
-      api.m5.cloudJobs({ lessonId }),
-      api.archive.versions(lessonId)
-    ])
-    const valueAt = (index) => results[index].status === 'fulfilled' ? results[index].value : null
-    const lesson = mapLesson(valueAt(0) || tasks.find((item) => sameId(item.id, lessonId)) || {})
+  const applyRemoteLesson = async (lessonId, value) => {
+    const lesson = mapLesson(value?.lesson || tasks.find((item) => sameId(item.id, lessonId)) || {})
     if (lesson.id) {
       const existing = tasks.findIndex((item) => sameId(item.id, lesson.id))
       if (existing >= 0) tasks.splice(existing, 1, { ...tasks[existing], ...lesson })
       else tasks.unshift(lesson)
     }
-    const attendance = (valueAt(2) || valueAt(1)?.attendance || []).map(mapAttendance)
-    const assets = (valueAt(3) || valueAt(1)?.m3?.assets || []).map(mapAsset)
-    const artworks = (valueAt(4) || valueAt(1)?.m3?.artworks || []).map(mapArtwork)
-    const feedbacks = (valueAt(5) || valueAt(1)?.m3?.feedbacks || []).map(mapFeedback)
-    const artworkJobResults = await Promise.allSettled(artworks.filter((artwork) => artwork.id).map((artwork) => api.jobs.list({ businessObjectType: 'ARTWORK', businessObjectId: String(artwork.id) })))
-    const artworkJobs = new Map(artworkJobResults.map((result, index) => [String(artworks.filter((artwork) => artwork.id)[index]?.id), result.status === 'fulfilled' ? (result.value || []).map(mapJob) : []]))
-    const draft = mapSharePage(valueAt(6) || {})
+    const assetsModule = value?.assets || value?.m3?.asset || value?.m3?.assets || {}
+    const feedbackModule = value?.feedback || value?.m3?.feedback || {}
+    const parentModule = value?.parentDelivery || value?.m3?.parentDelivery || {}
+    const attendance = (value?.attendance || []).map(mapAttendance)
+    const assets = (assetsModule.classroomMaterials || assetsModule.assets || []).map(mapAsset)
+    const artworks = (assetsModule.artworks || []).map(mapArtwork)
+    const feedbacks = (feedbackModule.feedbacks || []).map(mapFeedback)
+    const draft = mapSharePage(parentModule.sharePage || {})
     const currentDraft = draft.draftSnapshot || {}
-    const touchTasks = (valueAt(7) || []).map((value) => {
+    const touchTasks = (parentModule.touchTasks || []).map((value) => {
       const task = mapTouchTask(value)
       const student = students.find((item) => sameId(item.id, task.studentId))
       return {
@@ -2934,10 +2934,10 @@ export function useDeliveryWorkflow() {
         lesson: `${lesson.date} ${lesson.time} · ${lesson.className || ''}`.trim()
       }
     })
-    const wheat = mapWheat(valueAt(8) || {})
-    const teacherEffect = valueAt(9) || {}
-    const cloudJobs = valueAt(10)?.items || valueAt(10) || []
-    const archiveVersions = (valueAt(11) || []).map(mapArchiveVersion)
+    const wheat = mapWheat(parentModule.wheatTrace || {})
+    const teacherEffect = value?.teacherEffect?.teacherEffect || value?.m3?.teacherEffect?.teacherEffect || {}
+    const cloudJobs = value?.cloudArchive?.jobs || value?.m3?.cloudArchive?.jobs || []
+    const archiveVersions = (value?.archive?.versions || []).map(mapArchiveVersion)
     const workspace = ensureLessonWorkspace(lesson)
     const draftDisplayConfig = {
       ...workspace.displayConfig,
@@ -2954,17 +2954,15 @@ export function useDeliveryWorkflow() {
       if (!assetsByStudent.has(key)) assetsByStudent.set(key, [])
       assetsByStudent.get(key).push(asset)
     })
-    const rows = await Promise.all(attendance.map(async (attendanceRow) => {
+    const rows = attendance.map((attendanceRow) => {
       const artwork = artworkByStudent.get(String(attendanceRow.studentId))
       const feedback = feedbackByStudent.get(String(attendanceRow.studentId))
       const studentAssets = assetsByStudent.get(String(attendanceRow.studentId)) || []
       const versions = artwork?.versions || []
-      const latestArtworkJob = (artworkJobs.get(String(artwork?.id)) || []).at(-1)
+      const latestVersionJob = versions.filter((version) => version.jobId).at(-1)
       const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || versions.at(-1)
       const processedVersion = versions.find((version) => version.versionKind === 'PROCESSED') || selectedVersion
       const originalVersion = versions.find((version) => version.versionKind === 'ORIGINAL') || selectedVersion
-      const files = await Promise.all([...studentAssets.map((asset) => asset.fileId), selectedVersion?.fileId].filter(Boolean).map(protectedFileUrl))
-      const imageUrls = files.filter(Boolean)
       return {
         id: attendanceRow.studentId,
         lessonId: lesson.id,
@@ -2972,10 +2970,13 @@ export function useDeliveryWorkflow() {
         attendance: attendanceRow.attendance,
         attendanceVersion: attendanceRow.version,
         note: attendanceRow.note || '',
-        images: imageUrls,
-        image: imageUrls[0] || '',
-        originalImage: await protectedFileUrl(originalVersion?.fileId) || imageUrls[0] || '',
-        processedImage: await protectedFileUrl(processedVersion?.fileId) || '',
+        imageFileIds: [...studentAssets.map((asset) => asset.fileId), selectedVersion?.fileId].filter(Boolean),
+        images: [],
+        image: '',
+        originalImage: '',
+        processedImage: '',
+        originalFileId: originalVersion?.fileId || null,
+        processedFileId: processedVersion?.fileId || null,
         imageMatched: Boolean(artwork || studentAssets.length),
         imageConfirmed: artwork?.confirmationStatus === 'CONFIRMED' || artwork?.status === 'CONFIRMED',
         artworkId: artwork?.id || null,
@@ -2984,8 +2985,8 @@ export function useDeliveryWorkflow() {
         originalVersionId: originalVersion?.id || null,
         processedVersionId: processedVersion?.id || null,
         processed: Boolean(processedVersion && processedVersion.versionKind === 'PROCESSED'),
-        imageProcessStatus: latestArtworkJob?.statusLabel || artwork?.statusLabel || '未处理',
-        imageProcessError: latestArtworkJob?.failureReason || artwork?.failureReason || '',
+        imageProcessStatus: artwork?.job?.statusLabel || latestVersionJob?.job?.statusLabel || artwork?.statusLabel || '未处理',
+        imageProcessError: artwork?.job?.failureReason || latestVersionJob?.job?.failureReason || artwork?.failureReason || '',
         record: feedback?.classroomRecord || '',
         comment: feedback?.content || '',
         feedbackId: feedback?.id || null,
@@ -2997,18 +2998,18 @@ export function useDeliveryWorkflow() {
         shareReady: Boolean(draft.accessLinks?.some((link) => sameId(link.studentId, attendanceRow.studentId))),
         archived: lesson.status === '已完成'
       }
-    }))
-    const materialItems = await Promise.all(assets.filter((asset) => !asset.studentId).map(async (asset) => ({
+    })
+    const materialItems = assets.filter((asset) => !asset.studentId).map((asset) => ({
       ...asset,
-      image: await protectedFileUrl(asset.fileId) || asset.image,
+      image: '',
       lessonId: lesson.id
-    })))
-    const homeworkData = draft.homework || draft.publishedSnapshot?.homework || {}
+    }))
+    const homeworkData = parentModule.homework || draft.homework || draft.publishedSnapshot?.homework || {}
     Object.assign(workspace, {
       lessonId: lesson.id,
       studentDeliveries: rows,
       materials: materialItems,
-      materialsConfirmedEmpty: Boolean(valueAt(1)?.m3?.materialsConfirmedEmpty),
+      materialsConfirmedEmpty: Boolean(assetsModule.materialsConfirmedEmpty),
       materialsVersion: workspace.materialsVersion ?? null,
       homework: { ...workspace.homework, ...homeworkData, externalLinkIds: fromApiIds(homeworkData.externalLinkIds || []) },
       displayConfig: draftDisplayConfig,
@@ -3016,9 +3017,9 @@ export function useDeliveryWorkflow() {
       teacherEffect,
       cloudJobs,
       archiveVersions,
-      artworkJobs: Object.fromEntries([...artworkJobs.entries()]),
-      completion: valueAt(1)?.completion || valueAt(1)?.completionCheck || null,
-      availableCommands: valueAt(1)?.availableCommands || []
+      artworkJobs: {},
+      completion: value?.completion || value?.completionCheck || null,
+      availableCommands: value?.availableCommands || []
     })
     const touchStatus = touchTasks.length && touchTasks.every((task) => ['已发送', '人工触达'].includes(task.status)) ? '已发送' : touchTasks.some((task) => task.status === '发送失败') ? '发送失败' : touchTasks.length ? '待老师确认发送' : '待创建'
     Object.assign(workspace.archiveChecklist, {
@@ -3032,14 +3033,57 @@ export function useDeliveryWorkflow() {
     return workspace
   }
 
+  const lessonWorkspacePromises = new Map()
+  const lessonWorkspaceControllers = new Map()
+  const lessonWorkspaceEpochs = new Map()
+  const lessonWorkspaceLoaded = new Set()
+  const refreshRemoteLesson = async (lessonId, { force = false } = {}) => {
+    if (!lessonId) return null
+    const key = String(lessonId)
+    if (!force && lessonWorkspacePromises.has(key)) return lessonWorkspacePromises.get(key)
+    if (force) lessonWorkspaceControllers.get(key)?.abort()
+    const epoch = (lessonWorkspaceEpochs.get(key) || 0) + 1
+    lessonWorkspaceEpochs.set(key, epoch)
+    const controller = new AbortController()
+    const promise = (async () => {
+      try {
+        const value = await api.lessons.workspace(lessonId, { signal: controller.signal })
+        if (controller.signal.aborted || lessonWorkspaceEpochs.get(key) !== epoch) return null
+        const workspace = applyRemoteLesson(lessonId, value)
+        lessonWorkspaceLoaded.add(key)
+        return workspace
+      } catch (error) {
+        if (controller.signal.aborted) return null
+        throw error
+      }
+    })()
+    lessonWorkspacePromises.set(key, promise)
+    lessonWorkspaceControllers.set(key, controller)
+    promise.finally(() => {
+      if (lessonWorkspacePromises.get(key) === promise) lessonWorkspacePromises.delete(key)
+      if (lessonWorkspaceControllers.get(key) === controller) lessonWorkspaceControllers.delete(key)
+    }).catch(() => {})
+    return promise
+  }
+
+  const loadLessonWorkspace = async (lessonId, { force = false } = {}) => {
+    const key = String(lessonId || '')
+    if (!key) return null
+    if (!force && lessonWorkspaceLoaded.has(key) && lessonWorkspaces[key]) {
+      recordApiCacheHit(`/api/v1/lessons/${encodeURIComponent(key)}/workspace`)
+      return lessonWorkspaces[key]
+    }
+    return refreshRemoteLesson(lessonId, { force })
+  }
+
   const waitForJobs = async (jobIds = [], lessonId) => {
     const pendingIds = jobIds.filter(Boolean).map(String)
     if (!pendingIds.length) return
     const terminal = new Set(['SUCCEEDED', 'FAILED', 'CANCELED', 'STALE'])
     for (let attempt = 0; attempt < 6; attempt += 1) {
       if (attempt > 0) await wait(700)
-      const results = await Promise.allSettled(pendingIds.map((jobId) => api.jobs.get(jobId)))
-      const snapshots = results.filter((result) => result.status === 'fulfilled').map((result) => result.value)
+      const results = await Promise.allSettled([api.jobs.list({ ids: pendingIds })])
+      const snapshots = results[0]?.status === 'fulfilled' ? (results[0].value || []) : []
       if (!snapshots.length) break
       if (snapshots.length && snapshots.every((job) => terminal.has(job.status))) break
     }
@@ -3048,108 +3092,267 @@ export function useDeliveryWorkflow() {
 
   let portfolioStudioRef = null
 
-  const loadRemoteState = async () => {
-    if (!isLoggedIn.value) return
-    remoteLoading.value = true
-    const results = await Promise.allSettled([
-      api.auth.me(),
-      api.master.campuses(),
-      api.master.teachers(),
-      api.master.students(),
-      api.master.classes(),
-      api.master.classTypes(),
-      api.master.courses(),
-      api.master.externalLinks(),
-      api.lessons.list(),
-      api.archive.records(),
-      api.m6.qualityReviews(),
-      api.m5.providers(),
-      api.m6.extraTasks(),
-      api.imports.list(),
-      api.master.terms(),
-      api.m6.supervision(),
-      api.m5.providerTypes(),
-      api.auth.permissions(),
-      api.m6.profileFields(),
-      api.todo.list(),
-      api.archive.teacherArchives(),
-      api.m5.providerGroups()
-    ])
-    const valueAt = (index) => results[index].status === 'fulfilled' ? results[index].value : null
-    if (results[0].status === 'rejected') {
-      remoteLoading.value = false
-      throw results[0].reason
+  const applyMe = (me) => {
+    if (!me) return
+    if (storedMe.value?.activeCampusId && me.activeCampusId
+      && !sameId(storedMe.value.activeCampusId, me.activeCampusId)) {
+      clearProtectedMediaCache()
     }
-    const me = valueAt(0)
-    if (me) {
-      storedMe.value = me
-      updateStoredMe(me)
-      currentUserId.value = me.user?.id || null
-      const campus = me.campuses?.find((item) => sameId(item.id, me.activeCampusId)) || me.campuses?.[0]
-      if (campus) Object.assign(school, { campus: campus.name, address: campus.address || '' })
-    }
-    replaceReactive(campuses, (valueAt(1)?.items || []).map(mapCampus))
-    replaceReactive(teachers, (valueAt(2)?.items || []).map(mapTeacher))
-    replaceReactive(students, (valueAt(3)?.items || []).map(mapStudent))
-    const classTypeMap = new Map((valueAt(5)?.items || []).map((item) => [String(item.id), item.name]))
-    replaceReactive(classTypes, (valueAt(5)?.items || []).map((item) => ({ ...item, id: fromApiId(item.id), version: Number(item.version || 0) })))
-    replaceReactive(classes, (valueAt(4)?.items || []).map((item) => ({ ...mapClass(item), classType: classTypeMap.get(String(item.classTypeId)) || '' })))
-    replaceReactive(courses, (valueAt(6)?.items || []).map(mapCourse))
-    replaceReactive(externalLinks, (valueAt(7)?.items || []).map(mapExternalLink))
-    replaceReactive(tasks, (valueAt(8)?.items || []).map(mapLesson))
-    const remoteArchiveRecords = (valueAt(9)?.items || []).map(mapArchiveRecord)
-    await Promise.all(remoteArchiveRecords.map(async (record) => {
-      if (record.fileId) {
-        const protectedUrl = await protectedFileUrl(record.fileId)
-        if (protectedUrl) record.artwork = protectedUrl
-      }
-      return record
-    }))
-    replaceReactive(archiveRecords, remoteArchiveRecords)
-    replaceReactive(qualityReviews, (valueAt(10)?.items || []).map(mapQualityReview))
-    mapProviderSetting(valueAt(11) || [])
-    replaceReactive(extraTaskArchives, (valueAt(12)?.items || []).map((value) => ({
-      ...mapExtraTask(value),
-      owner: value.owner || value.ownerName || teachers.find((teacher) => sameId(teacher.id, value.ownerId))?.name || ''
-    })))
-    const extraArtworkResults = await Promise.allSettled(extraTaskArchives.map((task) => api.m6.extraArtworks(task.id)))
-    const remoteExtraWorks = (await Promise.all(extraArtworkResults.map(async (result) => {
-      if (result.status !== 'fulfilled') return []
-      return Promise.all((result.value || []).map(async (value) => {
-        const work = mapExtraArtwork(value)
-        work.artwork = await protectedFileUrl(work.fileId)
-        return work
-      }))
-    }))).flat()
-    replaceReactive(extraTaskWorks, remoteExtraWorks)
-    replaceReactive(importBatches, (valueAt(13)?.items || []).map(mapImportBatch))
-    replaceReactive(terms, (valueAt(14)?.items || []).map(mapTerm))
-    replaceReactive(supervisionDashboard, (valueAt(15)?.items || []).map(mapSupervisionLesson))
-    Object.assign(providerCatalog, valueAt(16) || {})
-    if (valueAt(21)) mapProviderGroups(valueAt(21))
-    replaceReactive(permissionCatalog, (valueAt(17) || [])
-      .map((permission) => typeof permission === 'string' ? permission : permission?.permissionKey)
-      .filter(Boolean))
-    replaceReactive(studentProfileFields, (valueAt(18) || []).map(mapProfileField))
-    replaceReactive(todos, (valueAt(19) || []).map(mapTodo))
-    replaceReactive(teacherArchives, (valueAt(20)?.items || []).map(mapTeacherArchive))
-    await Promise.all(teacherArchives.map(async (archive) => {
-      if (archive.outputFileId) archive.cover = await protectedFileUrl(archive.outputFileId)
-      return archive
-    }))
-    const wheatResults = await Promise.allSettled(tasks.map((task) => api.todo.wheat(task.id)))
-    replaceReactive(wheatTraces, wheatResults
-      .map((result) => result.status === 'fulfilled' ? mapWheat(result.value) : null)
-      .filter((trace) => trace?.id))
-    const [feedbackTemplates, imageTemplates, promptTemplates] = await Promise.allSettled([api.feedback.templates(), api.feedback.imageTemplates(), api.feedback.promptTemplates()])
-    templates.comment = feedbackTemplates.status === 'fulfilled' ? feedbackTemplates.value.map((item) => ({ ...item, id: item.id, name: item.name, length: item.lengthHint, version: item.version })) : []
-    templates.image = imageTemplates.status === 'fulfilled' ? imageTemplates.value.map((item) => ({ ...item, id: item.id, name: item.name, version: item.version })) : []
-    templates.prompt = promptTemplates.status === 'fulfilled' ? promptTemplates.value.map((item) => ({ ...item, id: item.id, name: item.name, version: item.version })) : []
+    storedMe.value = me
+    updateStoredMe(me)
+    currentUserId.value = me.user?.id || null
+    const campus = me.campuses?.find((item) => sameId(item.id, me.activeCampusId)) || me.campuses?.[0]
+    if (campus) Object.assign(school, { campus: campus.name, address: campus.address || '' })
+  }
+
+  const mapWheatListItem = (value = {}) => {
+    const wheat = mapWheat(value.wheat?.wheat || value.wheat || value)
+    const todo = value.todo || value.wheat?.todo
+    const lesson = value.lesson || {}
+    return wheat.id ? {
+      ...wheat,
+      todo: todo ? mapTodo(todo) : null,
+      lesson: lesson.className ? `${lesson.className}${lesson.courseTitle ? ` · ${lesson.courseTitle}` : ''}` : '',
+      course: lesson.courseTitle || '',
+      teacher: lesson.teacherName || ''
+    } : null
+  }
+
+  const updatePageMeta = (target, page) => {
+    Object.assign(target, {
+      page: Number(page?.page || 1),
+      pageSize: Number(page?.pageSize || 20),
+      total: Number(page?.total || 0)
+    })
+  }
+
+  const updateListPageMeta = (key, page) => {
+    if (!pageMeta[key]) pageMeta[key] = { page: 1, pageSize: 20, total: 0 }
+    updatePageMeta(pageMeta[key], page)
+  }
+
+  const refreshWorkbenchSummary = async () => {
+    if (!isLoggedIn.value) return null
+    const value = await api.workbench.summary()
+    if (value) Object.assign(shellSummary, value)
+    return shellSummary
+  }
+
+  const refreshTodayLessons = async () => {
+    if (!isLoggedIn.value) return null
+    const page = mapPage(await api.lessons.today({ page: 1, pageSize: 20 }), mapLesson)
+    replaceReactive(tasks, page.items)
+    updatePageMeta(shellPages.lessons, page)
+    updateListPageMeta('tasks', page)
     if (!activeTaskId.value && tasks[0]) activeTaskId.value = tasks[0].id
-    remoteReady.value = true
-    if (activeTaskId.value) await refreshRemoteLesson(activeTaskId.value)
-    await portfolioStudioRef?.loadPortfolioData?.()
-    remoteLoading.value = false
+    return page
+  }
+
+  const refreshWheatTraces = async () => {
+    if (!isLoggedIn.value) return null
+    const page = mapPage(await api.todo.wheatTraces({ status: ['PENDING', 'EXCEPTION'], page: 1, pageSize: 20 }), mapWheatListItem)
+    replaceReactive(wheatTraces, page.items.filter(Boolean))
+    updatePageMeta(shellPages.wheatTraces, page)
+    updateListPageMeta('wheatTraces', page)
+    return page
+  }
+
+  const refreshTodos = async () => {
+    if (!isLoggedIn.value) return null
+    const page = mapPage(await api.todo.list({ status: 'OPEN', page: 1, pageSize: 20 }), mapTodo)
+    replaceReactive(todos, page.items)
+    updatePageMeta(shellPages.todos, page)
+    updateListPageMeta('todos', page)
+    return page
+  }
+
+  const loadShellData = async ({ force = false, initialMe = null } = {}) => {
+    if (!isLoggedIn.value) return null
+    if (remoteReady.value && !force && pageLoaded.shell) return shellSummary
+    remoteLoading.value = true
+    try {
+      const results = await Promise.allSettled([
+        initialMe ? Promise.resolve(initialMe) : api.auth.me(),
+        api.lessons.today({ page: 1, pageSize: 20 }),
+        api.todo.wheatTraces({ status: ['PENDING', 'EXCEPTION'], page: 1, pageSize: 20 }),
+        api.todo.list({ status: 'OPEN', page: 1, pageSize: 20 }),
+        api.workbench.summary()
+      ])
+      if (results[0].status === 'rejected') throw results[0].reason
+      const valueAt = (index) => results[index].status === 'fulfilled' ? results[index].value : null
+      applyMe(valueAt(0))
+      const lessonPage = mapPage(valueAt(1), mapLesson)
+      replaceReactive(tasks, lessonPage.items)
+      updatePageMeta(shellPages.lessons, lessonPage)
+      updateListPageMeta('tasks', lessonPage)
+      const wheatPage = mapPage(valueAt(2), mapWheatListItem)
+      replaceReactive(wheatTraces, wheatPage.items.filter(Boolean))
+      updatePageMeta(shellPages.wheatTraces, wheatPage)
+      updateListPageMeta('wheatTraces', wheatPage)
+      const todoPage = mapPage(valueAt(3), mapTodo)
+      replaceReactive(todos, todoPage.items)
+      updatePageMeta(shellPages.todos, todoPage)
+      updateListPageMeta('todos', todoPage)
+      if (valueAt(4)) Object.assign(shellSummary, valueAt(4))
+      if (!activeTaskId.value && tasks[0]) activeTaskId.value = tasks[0].id
+      pageLoaded.shell = true
+      remoteReady.value = true
+      return shellSummary
+    } finally {
+      remoteLoading.value = false
+    }
+  }
+
+  const loadTemplates = async ({ force = false } = {}) => {
+    if (pageLoaded.templates && !force) return templates
+    const value = await api.workbench.templates()
+    templates.comment = (value?.comment || []).map((item) => ({ ...item, length: item.hint || item.lengthHint || '', tone: item.category || item.tone || '' }))
+    templates.image = (value?.image || []).map((item) => ({ ...item }))
+    templates.prompt = (value?.prompt || []).map((item) => ({ ...item }))
+    pageLoaded.templates = true
+    return templates
+  }
+
+  const pagePromises = new Map()
+  const loadPageData = async (pageName, { force = false } = {}) => {
+    if (!isLoggedIn.value) return null
+    if (pageLoaded[pageName] && !force) return true
+    if (pagePromises.has(pageName) && !force) return pagePromises.get(pageName)
+    const load = (async () => {
+      pageLoading[pageName] = true
+      pageErrors[pageName] = ''
+      try {
+        switch (pageName) {
+          case 'tasks': {
+            // Keep opening a lesson within five JSON requests: four small reference
+            // pages plus the single aggregated workspace request. Class types are
+            // only needed by the lesson-maintenance dialog and are loaded with that
+            // page instead of adding another request to the delivery workflow.
+            const [teacherPage, studentPage, classPage, coursePage] = await Promise.all([
+              api.master.teachers({ page: 1, pageSize: 20 }), api.master.students({ page: 1, pageSize: 20 }),
+              api.master.classes({ page: 1, pageSize: 20 }), api.master.courses({ page: 1, pageSize: 20 })
+            ])
+            const mappedTeachers = mapPage(teacherPage, mapTeacher)
+            const mappedStudents = mapPage(studentPage, mapStudent)
+            const mappedClasses = mapPage(classPage, mapClass)
+            const mappedCourses = mapPage(coursePage, mapCourse)
+            replaceReactive(teachers, mappedTeachers.items)
+            replaceReactive(students, mappedStudents.items)
+            replaceReactive(classes, mappedClasses.items)
+            replaceReactive(courses, mappedCourses.items)
+            updateListPageMeta('teachers', mappedTeachers)
+            updateListPageMeta('students', mappedStudents)
+            updateListPageMeta('classes', mappedClasses)
+            updateListPageMeta('courses', mappedCourses)
+            break
+          }
+          case 'students': {
+            const page = mapPage(await api.master.students({ page: 1, pageSize: 20 }), mapStudent)
+            replaceReactive(students, page.items)
+            updateListPageMeta('students', page)
+            break
+          }
+          case 'classes': {
+            const page = mapPage(await api.master.classes({ page: 1, pageSize: 20 }), mapClass)
+            replaceReactive(classes, page.items)
+            updateListPageMeta('classes', page)
+            break
+          }
+          case 'courses': {
+            const page = mapPage(await api.master.courses({ page: 1, pageSize: 20 }), mapCourse)
+            replaceReactive(courses, page.items)
+            updateListPageMeta('courses', page)
+            break
+          }
+          case 'externalLinks': {
+            const page = mapPage(await api.master.externalLinks({ page: 1, pageSize: 20 }), mapExternalLink)
+            replaceReactive(externalLinks, page.items)
+            updateListPageMeta('externalLinks', page)
+            break
+          }
+          case 'supervision': {
+            const page = mapPage(await api.m6.supervision({ page: 1, pageSize: 20 }), mapSupervisionLesson)
+            replaceReactive(supervisionDashboard, page.items)
+            updateListPageMeta('supervision', page)
+            break
+          }
+          case 'archives': {
+            const page = mapPage(await api.archive.records({ page: 1, pageSize: 20 }), mapArchiveRecord)
+            replaceReactive(archiveRecords, page.items)
+            updateListPageMeta('archives', page)
+            break
+          }
+          case 'imports': {
+            const page = mapPage(await api.imports.list({ page: 1, pageSize: 20 }), mapImportBatch)
+            replaceReactive(importBatches, page.items)
+            updateListPageMeta('imports', page)
+            break
+          }
+          case 'extraTasks': {
+            const page = mapPage(await api.m6.extraTasks({ page: 1, pageSize: 20 }), mapExtraTask)
+            replaceReactive(extraTaskArchives, page.items)
+            updateListPageMeta('extraTasks', page)
+            break
+          }
+          case 'templates': await loadTemplates({ force }); break
+          case 'production': {
+            const [archivePage, , studentPage, classPage] = await Promise.all([
+              api.archive.records({ page: 1, pageSize: 20 }),
+              portfolioStudioRef?.loadPortfolioData?.(),
+              api.master.students({ page: 1, pageSize: 20 }),
+              api.master.classes({ page: 1, pageSize: 20 })
+            ])
+            const mappedArchives = mapPage(archivePage, mapArchiveRecord)
+            const mappedStudents = mapPage(studentPage, mapStudent)
+            const mappedClasses = mapPage(classPage, mapClass)
+            replaceReactive(archiveRecords, mappedArchives.items)
+            pageLoaded.archives = true
+            replaceReactive(students, mappedStudents.items)
+            replaceReactive(classes, mappedClasses.items)
+            updateListPageMeta('archives', mappedArchives)
+            updateListPageMeta('students', mappedStudents)
+            updateListPageMeta('classes', mappedClasses)
+            break
+          }
+          case 'settings': {
+            const [providers, providerTypes, groups] = await Promise.all([api.m5.providers({ page: 1, pageSize: 20 }), api.m5.providerTypes(), api.m5.providerGroups()])
+            mapProviderSetting(providers?.items || providers || [])
+            Object.assign(providerCatalog, providerTypes || {})
+            if (groups) mapProviderGroups(groups)
+            break
+          }
+          case 'permissions': {
+            const values = await api.auth.permissions()
+            replaceReactive(permissionCatalog, (values || []).map((permission) => typeof permission === 'string' ? permission : permission?.permissionKey).filter(Boolean))
+            break
+          }
+          default: break
+        }
+        pageLoaded[pageName] = true
+        return true
+      } catch (error) {
+        pageErrors[pageName] = remoteErrorMessage(error, '页面数据加载失败')
+        throw error
+      } finally {
+        pageLoading[pageName] = false
+        pagePromises.delete(pageName)
+      }
+    })()
+    pagePromises.set(pageName, load)
+    return load
+  }
+
+  const invalidateResource = async (key, { lessonId = null, force = true } = {}) => {
+    switch (key) {
+      case 'workbench.summary': return refreshWorkbenchSummary()
+      case 'lessons.today': return refreshTodayLessons()
+      case 'wheat-traces': return refreshWheatTraces()
+      case 'todos': return refreshTodos()
+      case 'lesson.workspace': return lessonId ? refreshRemoteLesson(lessonId, { force }) : null
+      case 'archive.records': return loadPageData('archives', { force })
+      case 'imports': return loadPageData('imports', { force })
+      default: return loadPageData(key, { force })
+    }
   }
 
   const remoteVerifyLogin = async () => {
@@ -3173,7 +3376,7 @@ export function useDeliveryWorkflow() {
     currentUserId.value = pendingAuth.value.me.user?.id || null
     isLoggedIn.value = true
     try {
-      await loadRemoteState()
+      await loadShellData({ initialMe: pendingAuth.value.me })
     } catch (error) {
       notify(remoteErrorMessage(error, '登录后加载数据失败'))
       return false
@@ -3203,6 +3406,12 @@ export function useDeliveryWorkflow() {
       // 服务端会话失效时仍清理本地凭据。
     }
     clearSession()
+    lessonWorkspaceControllers.forEach((controller) => controller.abort())
+    lessonWorkspaceControllers.clear()
+    lessonWorkspacePromises.clear()
+    lessonWorkspaceEpochs.clear()
+    lessonWorkspaceLoaded.clear()
+    clearProtectedMediaCache()
     portfolioStudioRef?.clearPortfolioSession?.()
     storedMe.value = null
     pendingAuth.value = null
@@ -3240,6 +3449,13 @@ export function useDeliveryWorkflow() {
     Object.keys(studentProfiles).forEach((key) => delete studentProfiles[key])
     Object.keys(studentProfileAudits).forEach((key) => delete studentProfileAudits[key])
     Object.keys(lessonWorkspaces).forEach((key) => delete lessonWorkspaces[key])
+    Object.keys(pageLoaded).forEach((key) => delete pageLoaded[key])
+    Object.keys(pageErrors).forEach((key) => delete pageErrors[key])
+    Object.keys(pageMeta).forEach((key) => delete pageMeta[key])
+    Object.assign(shellSummary, { pendingLessons: 0, wheatPending: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })
+    Object.assign(shellPages.lessons, { page: 1, pageSize: 20, total: 0 })
+    Object.assign(shellPages.wheatTraces, { page: 1, pageSize: 20, total: 0 })
+    Object.assign(shellPages.todos, { page: 1, pageSize: 20, total: 0 })
     activeTaskId.value = null
     notify('已退出登录')
   }
@@ -3251,7 +3467,7 @@ export function useDeliveryWorkflow() {
       language: preferences.language || 'zh-CN',
       timezone: preferences.timezone || 'Asia/Shanghai',
       version: Number(preferences.version || 0)
-    }))
+    }), '', () => api.auth.me().then((me) => { applyMe(me); return me }))
     if (!result) return false
     storedMe.value = { ...storedMe.value, preferences: result }
     updateStoredMe(storedMe.value)
@@ -3263,7 +3479,8 @@ export function useDeliveryWorkflow() {
     activeTaskId.value = task.id
     const workspace = ensureLessonWorkspace(task)
     if (workspace) workspace.currentStep = 0
-    return runRemote('正在加载课次工作区...', () => refreshRemoteLesson(task.id))
+    if (!pageLoaded.tasks) await loadPageData('tasks')
+    return runRemote('正在加载课次工作区...', () => loadLessonWorkspace(task.id))
   }
 
   const remoteTransitionLesson = async (action, reason = '', exceptionType = '') => {
@@ -3312,16 +3529,18 @@ export function useDeliveryWorkflow() {
     event.target.value = ''
     if (!files.length || !activeTask.value?.id) return false
     const result = await runRemote('正在上传课堂资料...', async () => {
+      const items = []
       for (const file of files) {
         const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-asset`)
-        await api.assets.create(activeTask.value.id, {
+        items.push({
           fileId: String(uploaded.id),
           assetType: toApiAssetType(type),
           title: file.name,
           visible: type !== '课堂视频',
-          sortOrder: materials.value.length
+          sortOrder: materials.value.length + items.length
         })
       }
+      await api.assets.createBatch(activeTask.value.id, items)
       await refreshRemoteLesson(activeTask.value.id)
       return true
     }, `已上传 ${files.length} 个课堂资料`)
@@ -3352,10 +3571,13 @@ export function useDeliveryWorkflow() {
     event.target.value = ''
     if (!files.length || !row?.studentId || !activeTask.value?.id) return
     await runRemote('正在上传学生作品...', async () => {
+      const items = []
+      const baseSortOrder = Number(row.imageFileIds?.length || row.images?.length || 0)
       for (const file of files) {
         const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-artwork-${row.studentId}`)
-        await api.assets.createArtwork(activeTask.value.id, { studentId: String(row.studentId), fileId: String(uploaded.id), sortOrder: replaceIndex === null ? row.images.length : replaceIndex })
+        items.push({ studentId: String(row.studentId), fileId: String(uploaded.id), sortOrder: replaceIndex === null ? baseSortOrder + items.length : replaceIndex })
       }
+      await api.assets.createArtworksBatch(activeTask.value.id, items)
       await refreshRemoteLesson(activeTask.value.id)
     }, `已为${students.find((item) => sameId(item.id, row.studentId))?.name || '学生'}上传作品`)
   }
@@ -3389,14 +3611,11 @@ export function useDeliveryWorkflow() {
       return false
     }
     const result = await runRemote('正在提交图片处理任务...', async () => {
-      const jobIds = []
-      for (const row of rows) {
-        const job = await api.assets.processArtwork(row.artworkId, {
-          templateKey: activeImageTemplate.value?.templateKey || activeImageTemplate.value?.name || undefined,
-          parameters: JSON.stringify({})
-        })
-        if (job?.jobId) jobIds.push(job.jobId)
-      }
+      const jobs = await api.assets.processArtworksBatch(activeTask.value.id, rows.map((row) => row.artworkId), {
+        templateKey: activeImageTemplate.value?.templateKey || activeImageTemplate.value?.name || undefined,
+        parameters: JSON.stringify({})
+      })
+      const jobIds = (Array.isArray(jobs) ? jobs : jobs?.items || []).map((job) => job?.jobId).filter(Boolean)
       await waitForJobs(jobIds, activeTask.value.id)
       return true
     }, '图片处理任务已提交')
@@ -3444,7 +3663,7 @@ export function useDeliveryWorkflow() {
       return false
     }
     const result = await runRemote('正在保存课堂记录并生成全班 1v1 课评...', async () => {
-      for (const row of rows) await api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row))
+      await api.feedback.saveBatch(activeTask.value.id, rows.map((row) => ({ studentId: String(row.studentId), ...feedbackBodyFor(row) })))
       const generation = await api.feedback.generate(activeTask.value.id, {
         templateId: templates.comment[selectedCommentTemplate.value]?.id,
         promptTemplateId: templates.prompt[0]?.id
@@ -3477,19 +3696,25 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteConfirmAll = async () => {
-    const previousStudentId = activeStudentId.value
-    let success = true
-    try {
-      for (const row of attendingRows.value) {
-        if (row.comment?.trim()) {
-          activeStudentId.value = row.studentId
-          if (!await remoteConfirmCurrentComment()) success = false
-        }
-      }
-    } finally {
-      activeStudentId.value = previousStudentId
+    const rows = attendingRows.value.filter((row) => row.comment?.trim())
+    if (!rows.length) {
+      notify('没有可确认的课评')
+      return false
     }
-    return success
+    const result = await runRemote('正在批量保存并确认课评...', async () => {
+      const saved = await api.feedback.saveBatch(activeTask.value.id, rows.map((row) => ({ studentId: String(row.studentId), ...feedbackBodyFor(row) })))
+      const savedItems = Array.isArray(saved) ? saved : saved?.items || []
+      const confirmations = savedItems.filter((item) => item?.id && (item.currentVersionId || item.confirmedVersionId)).map((item) => ({
+        feedbackId: String(item.id),
+        versionId: String(item.currentVersionId || item.confirmedVersionId),
+        version: Number(item.version || 0)
+      }))
+      if (!confirmations.length) throw new Error('没有可确认的课评版本')
+      return api.feedback.confirmBatch(activeTask.value.id, confirmations)
+    }, '全班课评已确认')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
   }
 
   const remoteSaveRecord = async (row) => {
@@ -3747,7 +3972,11 @@ export function useDeliveryWorkflow() {
     if (!activeTask.value?.id) return false
     const result = await runRemote('正在创建小麦留痕...', () => api.todo.createWheat(activeTask.value.id, createIdempotencyKey(`wheat:${activeTask.value.id}`)), '小麦留痕已创建')
     if (!result) return false
-    await refreshRemoteLesson(activeTask.value.id)
+    await Promise.all([
+      invalidateResource('lesson.workspace', { lessonId: activeTask.value.id }),
+      invalidateResource('wheat-traces'),
+      invalidateResource('workbench.summary')
+    ])
     return true
   }
 
@@ -3758,7 +3987,11 @@ export function useDeliveryWorkflow() {
       command, reason: reason.trim() || undefined, version: trace.version, exceptionType: status === '异常' ? 'OTHER' : undefined
     }))
     if (!result) return false
-    await refreshRemoteLesson(trace.lessonId)
+    await Promise.all([
+      invalidateResource('lesson.workspace', { lessonId: trace.lessonId }),
+      invalidateResource('wheat-traces'),
+      invalidateResource('workbench.summary')
+    ])
     return true
   }
 
@@ -3770,6 +4003,11 @@ export function useDeliveryWorkflow() {
     const index = todos.findIndex((item) => sameId(item.id, todo.id))
     if (index >= 0) todos.splice(index, 1, mapped)
     else todos.push(mapped)
+    await Promise.all([
+      invalidateResource('todos'),
+      invalidateResource('workbench.summary'),
+      todo.lessonId ? invalidateResource('lesson.workspace', { lessonId: todo.lessonId }) : Promise.resolve()
+    ])
     return true
   }
 
@@ -3784,6 +4022,11 @@ export function useDeliveryWorkflow() {
     const index = todos.findIndex((item) => sameId(item.id, todo.id))
     if (index >= 0) todos.splice(index, 1, mapped)
     else todos.push(mapped)
+    await Promise.all([
+      invalidateResource('todos'),
+      invalidateResource('workbench.summary'),
+      todo.lessonId ? invalidateResource('lesson.workspace', { lessonId: todo.lessonId }) : Promise.resolve()
+    ])
     return true
   }
 
@@ -3889,8 +4132,12 @@ export function useDeliveryWorkflow() {
     }
     const result = await runRemote('正在完成本节归档交付...', () => api.lessons.archiveCommit(task.id, { version: completion.lessonVersion ?? task.version }, createIdempotencyKey(`archive-commit:${task.id}`)), '本节课已完成归档交付')
     if (!result) return false
-    await loadRemoteState()
-    await refreshRemoteLesson(task.id)
+    await Promise.all([
+      invalidateResource('lesson.workspace', { lessonId: task.id }),
+      invalidateResource('archive.records'),
+      invalidateResource('lessons.today'),
+      invalidateResource('workbench.summary')
+    ])
     return true
   }
 
@@ -3912,7 +4159,7 @@ export function useDeliveryWorkflow() {
       classId: String(payload.classId), teacherId: payload.teacherId ? String(payload.teacherId) : undefined, courseId: payload.courseId ? String(payload.courseId) : undefined,
       dateValue: payload.dateValue, startTime: String(payload.time || '00:00').slice(0, 5), endTime: payload.endTime || undefined,
       lessonType: toApiLessonType(payload.lessonType || '其他'), sourceType: apiLessonSource(payload.importedFrom), sourceAttendanceCount: payload.sourceAttendanceCount
-    }), '课次已创建')
+    }), '课次已创建', () => Promise.all([invalidateResource('lessons.today'), invalidateResource('workbench.summary')]))
     if (!result) return null
     const lesson = mapLesson(result)
     tasks.unshift(lesson)
@@ -3965,7 +4212,7 @@ export function useDeliveryWorkflow() {
         student.classId = assigned[0] || null
       }
       return student
-    }, '学生已创建')
+    }, '学生已创建', () => Promise.all([invalidateResource('students'), invalidateResource('classes')]))
     if (!result) return null
     students.push(result)
     return result
@@ -3988,7 +4235,7 @@ export function useDeliveryWorkflow() {
         student.classId = assigned[0] || null
       }
       return student
-    }, '学生信息已保存')
+    }, '学生信息已保存', () => Promise.all([invalidateResource('students'), invalidateResource('classes')]))
     if (!result) return null
     const index = students.findIndex((item) => sameId(item.id, studentId))
     students.splice(index, 1, result)
@@ -4108,7 +4355,7 @@ export function useDeliveryWorkflow() {
     const result = await runRemote('正在新增沟通记录...', () => api.m6.createCommunication(payload.studentId, {
       contactPerson: payload.contactPerson || undefined, contactRole: payload.contactRole || undefined, contactMethod: payload.contactMethod,
       content: payload.content, followUpAction: payload.followUpAction || undefined, recordedAt: payload.recordedAt ? new Date(payload.recordedAt).toISOString() : undefined
-    }), '沟通记录已新增')
+    }), '沟通记录已新增', () => remoteLoadCommunicationRecords(payload.studentId))
     if (!result) return null
     await remoteLoadCommunicationRecords(payload.studentId)
     return result
@@ -4120,7 +4367,7 @@ export function useDeliveryWorkflow() {
       contactPerson: payload.contactPerson || undefined, contactRole: payload.contactRole || undefined, contactMethod: payload.contactMethod,
       content: payload.content, followUpAction: payload.followUpAction || undefined, recordedAt: payload.recordedAt ? new Date(payload.recordedAt).toISOString() : undefined,
       version: current?.version || 0
-    }), '沟通记录已保存')
+    }), '沟通记录已保存', () => remoteLoadCommunicationRecords(payload.studentId || current?.studentId))
     if (!result) return null
     await remoteLoadCommunicationRecords(payload.studentId || current?.studentId)
     return result
@@ -4129,7 +4376,7 @@ export function useDeliveryWorkflow() {
   const remoteDeleteCommunicationRecord = async (recordId) => {
     const current = communicationRecords.find((item) => sameId(item.id, recordId))
     if (!current) return null
-    const success = await runRemoteVoid('正在删除沟通记录...', () => api.m6.deleteCommunication(recordId, current.version), '沟通记录已删除')
+    const success = await runRemoteVoid('正在删除沟通记录...', () => api.m6.deleteCommunication(recordId, current.version), '沟通记录已删除', () => remoteLoadCommunicationRecords(current.studentId))
     if (!success) return null
     await remoteLoadCommunicationRecords(current.studentId)
     return current
@@ -4140,7 +4387,7 @@ export function useDeliveryWorkflow() {
       classTypeId: payload.classTypeId ? String(payload.classTypeId) : undefined, teacherId: payload.teacherId ? String(payload.teacherId) : undefined,
       courseId: payload.courseId ? String(payload.courseId) : undefined, name: payload.name, scheduleText: payload.time || payload.scheduleText || '',
       status: apiClassStatus(payload.status), studentIds: (payload.studentIds || []).map(String)
-    }), '班级已创建')
+    }), '班级已创建', () => invalidateResource('classes'))
     if (!result) return null
     const klass = mapClass(result)
     classes.push(klass)
@@ -4153,7 +4400,7 @@ export function useDeliveryWorkflow() {
       classTypeId: payload.classTypeId ? String(payload.classTypeId) : undefined, teacherId: payload.teacherId ? String(payload.teacherId) : undefined,
       courseId: payload.courseId ? String(payload.courseId) : undefined, name: payload.name, scheduleText: payload.time || payload.scheduleText || '',
       status: apiClassStatus(payload.status), studentIds: (payload.studentIds || []).map(String), version: current?.version || 0
-    }), '班级信息已保存')
+    }), '班级信息已保存', () => invalidateResource('classes'))
     if (!result) return null
     const klass = mapClass(result)
     const index = classes.findIndex((item) => sameId(item.id, classId))
@@ -4162,7 +4409,7 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteAddCourse = async (payload) => {
-    const result = await runRemote('正在创建课程...', () => api.master.createCourse({ title: payload.title, ageRange: payload.age || payload.ageRange || '', teachingGoal: payload.goal || payload.teachingGoal || '', materials: payload.materials || '', referenceText: payload.reference || payload.referenceText || '' }), '课程已创建')
+    const result = await runRemote('正在创建课程...', () => api.master.createCourse({ title: payload.title, ageRange: payload.age || payload.ageRange || '', teachingGoal: payload.goal || payload.teachingGoal || '', materials: payload.materials || '', referenceText: payload.reference || payload.referenceText || '' }), '课程已创建', () => invalidateResource('courses'))
     if (!result) return null
     const course = mapCourse(result)
     courses.push(course)
@@ -4173,7 +4420,7 @@ export function useDeliveryWorkflow() {
     const current = courses.find((item) => sameId(item.id, courseId))
     const result = await runRemote('正在保存课程...', () => api.master.updateCourse(courseId, {
       title: payload.title, ageRange: payload.age || payload.ageRange || '', teachingGoal: payload.goal || payload.teachingGoal || '', materials: payload.materials || '', referenceText: payload.reference || payload.referenceText || '', status: apiEnabledStatus(payload.status), version: current?.version || 0
-    }), '课程信息已保存')
+    }), '课程信息已保存', () => invalidateResource('courses'))
     if (!result) return null
     const course = mapCourse(result)
     const index = courses.findIndex((item) => sameId(item.id, courseId))
@@ -4182,7 +4429,7 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteAddExternalLink = async (payload) => {
-    const result = await runRemote('正在创建外部课程链接...', () => api.master.createExternalLink({ courseId: payload.courseIds?.[0] ? String(payload.courseIds[0]) : payload.courseId ? String(payload.courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined }), '外部课程链接已创建')
+    const result = await runRemote('正在创建外部课程链接...', () => api.master.createExternalLink({ courseId: payload.courseIds?.[0] ? String(payload.courseIds[0]) : payload.courseId ? String(payload.courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined }), '外部课程链接已创建', () => invalidateResource('externalLinks'))
     if (!result) return null
     const link = mapExternalLink(result)
     externalLinks.push(link)
@@ -4193,7 +4440,7 @@ export function useDeliveryWorkflow() {
     const current = externalLinks.find((item) => sameId(item.id, linkId))
     const result = await runRemote('正在保存外部课程链接...', () => api.master.updateExternalLink(linkId, {
       courseId: payload.courseIds?.[0] ? String(payload.courseIds[0]) : payload.courseId ? String(payload.courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined, status: apiEnabledStatus(payload.status), version: current?.version || 0
-    }), '外部课程链接已保存')
+    }), '外部课程链接已保存', () => invalidateResource('externalLinks'))
     if (!result) return null
     const link = mapExternalLink(result)
     const index = externalLinks.findIndex((item) => sameId(item.id, linkId))
@@ -4202,7 +4449,7 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteAddTeacher = async (payload) => {
-    const result = await runRemote('正在创建老师资料...', () => api.master.createTeacher({ name: payload.name, phone: payload.phone || undefined, title: payload.role || '老师', note: '由系统设置创建', status: payload.status === '停用' ? 'DISABLED' : 'ACTIVE' }), '老师资料已创建')
+    const result = await runRemote('正在创建老师资料...', () => api.master.createTeacher({ name: payload.name, phone: payload.phone || undefined, title: payload.role || '老师', note: '由系统设置创建', status: payload.status === '停用' ? 'DISABLED' : 'ACTIVE' }), '老师资料已创建', () => invalidateResource('teachers'))
     if (!result) return null
     const teacher = mapTeacher(result)
     teachers.push(teacher)
@@ -4211,7 +4458,7 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateTeacher = async (teacherId, payload) => {
     const current = teachers.find((item) => sameId(item.id, teacherId))
-    const result = await runRemote('正在保存老师资料...', () => api.master.updateTeacher(teacherId, { name: payload.name, phone: payload.phone || undefined, title: payload.role || payload.title || '老师', note: payload.note || '', status: payload.status === '停用' ? 'DISABLED' : 'ACTIVE', version: current?.version || 0 }), '老师资料已保存')
+    const result = await runRemote('正在保存老师资料...', () => api.master.updateTeacher(teacherId, { name: payload.name, phone: payload.phone || undefined, title: payload.role || payload.title || '老师', note: payload.note || '', status: payload.status === '停用' ? 'DISABLED' : 'ACTIVE', version: current?.version || 0 }), '老师资料已保存', () => invalidateResource('teachers'))
     if (!result) return null
     const teacher = mapTeacher(result)
     const index = teachers.findIndex((item) => sameId(item.id, teacherId))
@@ -4238,14 +4485,14 @@ export function useDeliveryWorkflow() {
         authType: provider.authType || provider.config?.authType || ''
       }
       if (!provider.id || String(provider.id).startsWith('provider-')) {
-        const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, status: provider.enabled ? 'ENABLED' : 'DISABLED' }))
+        const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
         if (!saved) return null
       } else {
-        const saved = await runRemote('正在保存通道配置...', () => api.m5.updateProvider(provider.id, { name: provider.name, capabilities: provider.capabilities || [], config, status: provider.enabled ? 'ENABLED' : 'DISABLED', version: provider.version || 0 }))
+        const saved = await runRemote('正在保存通道配置...', () => api.m5.updateProvider(provider.id, { name: provider.name, capabilities: provider.capabilities || [], config, status: provider.enabled ? 'ENABLED' : 'DISABLED', version: provider.version || 0 }), '', () => invalidateResource('settings'))
         if (!saved) return null
       }
     }
-    const latest = await runRemote('正在刷新通道配置...', () => api.m5.providers())
+    const latest = await runRemote('正在刷新通道配置...', () => api.m5.providers(), '', () => invalidateResource('settings'))
     if (!latest) return null
     mapProviderSetting(latest)
     return settings[0]
@@ -4256,7 +4503,7 @@ export function useDeliveryWorkflow() {
       notify('请先保存通道配置后再测试')
       return null
     }
-    const result = await runRemote('正在测试通道连接...', () => api.m5.testProvider(provider.id), '通道测试完成')
+    const result = await runRemote('正在测试通道连接...', () => api.m5.testProvider(provider.id), '通道测试完成', () => invalidateResource('settings'))
     if (result) provider.tokenStatus = result.success ? '连接正常' : (result.message || '连接失败')
     return result
   }
@@ -4310,7 +4557,7 @@ export function useDeliveryWorkflow() {
       replaceReactive(importPreviewRows, rows.map(mapImportRow))
       pendingImportMeta.version = Number(batchResult.version || pendingImportMeta.version)
       return preview
-    }, '导入预览已生成')
+    }, '导入预览已生成', () => invalidateResource('imports'))
     return Boolean(result)
   }
 
@@ -4320,12 +4567,16 @@ export function useDeliveryWorkflow() {
       return false
     }
     const skipRowIds = importPreviewRows.filter((row) => row.status !== '可导入').map((row) => String(row.id))
-    const result = await runRemote('正在确认导入...', () => api.imports.confirm(pendingImportMeta.batchId, { version: pendingImportMeta.version, skipRowIds }, createIdempotencyKey(`import-confirm:${pendingImportMeta.batchId}`)), '导入已确认')
+    const result = await runRemote('正在确认导入...', () => api.imports.confirm(pendingImportMeta.batchId, { version: pendingImportMeta.version, skipRowIds }, createIdempotencyKey(`import-confirm:${pendingImportMeta.batchId}`)), '导入已确认', () => Promise.all([invalidateResource('imports'), invalidateResource('lessons.today'), invalidateResource('workbench.summary')]))
     if (!result) return false
     replaceReactive(importBatches, [mapImportBatch(result), ...importBatches.filter((item) => !sameId(item.id, result.id))])
     pendingImportMeta.batchId = null
     pendingImportFile.value = null
-    await loadRemoteState()
+    await Promise.all([
+      invalidateResource('imports'),
+      invalidateResource('lessons.today'),
+      invalidateResource('workbench.summary')
+    ])
     return true
   }
 
@@ -4345,7 +4596,7 @@ export function useDeliveryWorkflow() {
       : null)
     const result = await runRemote('正在保存质量评分...', () => existing?.id
       ? api.m6.updateQualityReview(existing.id, { score, comment: payload.comment?.trim() || '', reason: '更新课次评分', version: existing.version })
-      : api.m6.createQualityReview({ lessonId: String(payload.lessonId), score, comment: payload.comment?.trim() || '', version: payload.version }), '质量评分已保存')
+      : api.m6.createQualityReview({ lessonId: String(payload.lessonId), score, comment: payload.comment?.trim() || '', version: payload.version }), '质量评分已保存', () => invalidateResource('supervision'))
     if (!result) return null
     const mapped = mapQualityReview(result)
     const index = qualityReviews.findIndex((item) => sameId(item.id, mapped.id))
@@ -4378,13 +4629,9 @@ export function useDeliveryWorkflow() {
       framerName: payload.framerName?.trim() || undefined,
       mountingNote: payload.frameNote?.trim() || undefined,
       version: current.version
-    }), '作品档案已保存')
+    }), '作品档案已保存', () => invalidateResource('archive.records'))
     if (!result) return null
     const mapped = mapArchiveRecord(result)
-    if (mapped.fileId) {
-      const protectedUrl = await protectedFileUrl(mapped.fileId)
-      if (protectedUrl) mapped.artwork = protectedUrl
-    }
     if (!mapped.artwork && current.artwork) mapped.artwork = current.artwork
     const index = archiveRecords.findIndex((item) => sameId(item.id, recordId))
     archiveRecords.splice(index, 1, mapped)
@@ -4398,7 +4645,7 @@ export function useDeliveryWorkflow() {
 
   const remoteAddExtraTask = async (payload) => {
     const ownerId = payload.ownerId || teachers.find((teacher) => teacher.name === payload.owner)?.id
-    const result = await runRemote('正在创建课外任务...', () => api.m6.createExtraTask({ relatedLessonId: payload.relatedLessonId ? String(payload.relatedLessonId) : undefined, title: payload.title, taskType: payload.taskType || '学生课外任务', content: payload.content || '', dueDate: payload.dueDate || undefined, status: apiExtraTaskStatus(payload.status), ownerId: ownerId ? String(ownerId) : undefined, note: payload.note || '' }), '课外任务已创建')
+    const result = await runRemote('正在创建课外任务...', () => api.m6.createExtraTask({ relatedLessonId: payload.relatedLessonId ? String(payload.relatedLessonId) : undefined, title: payload.title, taskType: payload.taskType || '学生课外任务', content: payload.content || '', dueDate: payload.dueDate || undefined, status: apiExtraTaskStatus(payload.status), ownerId: ownerId ? String(ownerId) : undefined, note: payload.note || '' }), '课外任务已创建', () => invalidateResource('extraTasks'))
     if (!result) return null
     const task = mapExtraTask(result)
     task.owner = result.owner || result.ownerName || teachers.find((teacher) => sameId(teacher.id, result.ownerId || ownerId))?.name || ''
@@ -4409,7 +4656,7 @@ export function useDeliveryWorkflow() {
   const remoteUpdateExtraTask = async (taskId, payload) => {
     const current = extraTaskArchives.find((item) => sameId(item.id, taskId))
     const ownerId = payload.ownerId || teachers.find((teacher) => teacher.name === payload.owner)?.id
-    const result = await runRemote('正在保存课外任务...', () => api.m6.updateExtraTask(taskId, { relatedLessonId: payload.relatedLessonId ? String(payload.relatedLessonId) : undefined, title: payload.title, taskType: payload.taskType, content: payload.content || '', dueDate: payload.dueDate || undefined, status: apiExtraTaskStatus(payload.status), ownerId: ownerId ? String(ownerId) : undefined, note: payload.note || '', version: current?.version || 0 }), '课外任务已保存')
+    const result = await runRemote('正在保存课外任务...', () => api.m6.updateExtraTask(taskId, { relatedLessonId: payload.relatedLessonId ? String(payload.relatedLessonId) : undefined, title: payload.title, taskType: payload.taskType, content: payload.content || '', dueDate: payload.dueDate || undefined, status: apiExtraTaskStatus(payload.status), ownerId: ownerId ? String(ownerId) : undefined, note: payload.note || '', version: current?.version || 0 }), '课外任务已保存', () => invalidateResource('extraTasks'))
     if (!result) return null
     const task = mapExtraTask(result)
     task.owner = result.owner || result.ownerName || teachers.find((teacher) => sameId(teacher.id, result.ownerId || ownerId))?.name || ''
@@ -4421,7 +4668,7 @@ export function useDeliveryWorkflow() {
   const remoteDeleteExtraTask = async (taskId) => {
     const current = extraTaskArchives.find((item) => sameId(item.id, taskId))
     if (!current) return false
-    const success = await runRemoteVoid('正在取消课外任务...', () => api.m6.deleteExtraTask(taskId, current.version), '课外任务已取消')
+    const success = await runRemoteVoid('正在取消课外任务...', () => api.m6.deleteExtraTask(taskId, current.version), '课外任务已取消', () => invalidateResource('extraTasks'))
     if (!success) return false
     const index = extraTaskArchives.findIndex((item) => sameId(item.id, taskId))
     if (index >= 0) extraTaskArchives.splice(index, 1)
@@ -4436,10 +4683,10 @@ export function useDeliveryWorkflow() {
       if (file && !fileId) fileId = (await uploadFile(file, `extra-task-${extraTaskId}-artwork`)).id
       if (!fileId) throw new Error('请先选择作品文件')
       return api.m6.createExtraArtwork(extraTaskId, { studentId: payload.studentId ? String(payload.studentId) : undefined, fileId: String(fileId), dateValue: payload.dateValue || undefined, title: payload.title || '课外作品', description: payload.description || '', tags: JSON.stringify(tags), highlight: Boolean(payload.highlight), highlightNote: payload.highlightNote || '' })
-    }, '课外作品已保存')
+    }, '课外作品已保存', () => invalidateResource('extraTasks'))
     if (result) {
       const work = mapExtraArtwork(result)
-      work.artwork = file ? URL.createObjectURL(file) : await protectedFileUrl(work.fileId)
+      work.artwork = file ? URL.createObjectURL(file) : ''
       extraTaskWorks.unshift(work)
     }
     return result
@@ -4448,7 +4695,7 @@ export function useDeliveryWorkflow() {
   const remoteUpdateExtraTaskWork = async (recordId, payload) => {
     const current = extraTaskWorks.find((work) => sameId(work.id, recordId))
     const tags = Array.isArray(payload.tags) ? payload.tags : String(payload.tags || '').split(/[，,、]/).map((tag) => tag.trim()).filter(Boolean)
-    const result = await runRemote('正在保存课外作品...', () => api.m6.updateExtraArtwork(recordId, { title: payload.title || '课外作品', description: payload.description || '', tags: JSON.stringify(tags), highlight: Boolean(payload.highlight), highlightNote: payload.highlightNote || '', version: payload.version ?? current?.version ?? 0 }), '课外作品已保存')
+    const result = await runRemote('正在保存课外作品...', () => api.m6.updateExtraArtwork(recordId, { title: payload.title || '课外作品', description: payload.description || '', tags: JSON.stringify(tags), highlight: Boolean(payload.highlight), highlightNote: payload.highlightNote || '', version: payload.version ?? current?.version ?? 0 }), '课外作品已保存', () => invalidateResource('extraTasks'))
     if (result) {
       const index = extraTaskWorks.findIndex((work) => sameId(work.id, recordId))
       if (index >= 0) extraTaskWorks.splice(index, 1, { ...extraTaskWorks[index], ...mapExtraArtwork(result) })
@@ -4458,7 +4705,7 @@ export function useDeliveryWorkflow() {
 
   const remoteDeleteExtraTaskWork = async (recordId) => {
     const record = extraTaskWorks.find((item) => sameId(item.id, recordId))
-    const success = await runRemoteVoid('正在删除课外作品...', () => api.m6.deleteExtraArtwork(recordId, record?.version || 0), '课外作品已删除')
+    const success = await runRemoteVoid('正在删除课外作品...', () => api.m6.deleteExtraArtwork(recordId, record?.version || 0), '课外作品已删除', () => invalidateResource('extraTasks'))
     if (!success) return false
     const index = extraTaskWorks.findIndex((work) => sameId(work.id, recordId))
     if (index >= 0) extraTaskWorks.splice(index, 1)
@@ -4483,7 +4730,7 @@ export function useDeliveryWorkflow() {
   })
 
   if (isLoggedIn.value) {
-    void loadRemoteState().catch((error) => {
+    void loadShellData().catch((error) => {
       remoteLoading.value = false
       notify(remoteErrorMessage(error, '登录状态已失效，请重新登录'))
     })
@@ -4761,6 +5008,17 @@ export function useDeliveryWorkflow() {
     notify,
     pulseComment,
     remoteLoading,
-    remoteReady
+    remoteReady,
+    ensurePageData: loadPageData,
+    loadShellData,
+    loadLessonWorkspace,
+    loadTemplates,
+    pageLoading,
+    pageLoaded,
+    pageErrors,
+    pageMeta,
+    shellSummary,
+    shellPages,
+    invalidateResource
   }
 }

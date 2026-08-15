@@ -10,8 +10,10 @@ globalThis.window = {
   }
 }
 
-const { clearSession, createIdempotencyKey, getAccessToken, request, setSession } = await import('../src/services/apiClient.js')
-const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCourse, mapExternalLink, mapFeedback, mapIdentityPermission, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, sameId } = await import('../src/services/mappers.js')
+const { clearSession, createIdempotencyKey, getAccessToken, getApiRequestStats, onApiRequest, pageParams, queryString, request, resetApiRequestStats, setSession } = await import('../src/services/apiClient.js')
+const { api } = await import('../src/services/api.js')
+const { clearProtectedMediaCache, protectedMediaUrl } = await import('../src/services/protectedMediaCache.js')
+const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCourse, mapExternalLink, mapFeedback, mapIdentityPermission, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
 
 const response = (status, payload, contentType = 'application/json') => ({
   status,
@@ -25,6 +27,7 @@ const response = (status, payload, contentType = 'application/json') => ({
 
 test.afterEach(() => {
   clearSession()
+  clearProtectedMediaCache()
   delete globalThis.fetch
 })
 
@@ -184,6 +187,13 @@ test('maps archive, todo and teacher archive DTOs without losing string IDs', ()
   assert.equal(teacherArchive.time, '18:30')
 })
 
+test('maps paged wheat list items with direct wheat, todo and lesson modules', () => {
+  const wheat = mapWheat({ id: '21', lessonId: '22', status: 'PENDING', version: 3 })
+  const todo = mapTodo({ id: '23', lessonId: '22', todoType: 'WHEAT_TRACE', status: 'OPEN' })
+  assert.equal(wheat.lessonId, 22)
+  assert.equal(todo.id, 23)
+})
+
 test('maps supervision and quality review enums', () => {
   const dashboard = mapSupervisionLesson({
     lessonId: '9007199254740993',
@@ -214,12 +224,14 @@ test('maps artwork, feedback, job and share DTOs while preserving protocol codes
     status: 'ACTIVE',
     confirmationStatus: 'CONFIRMED',
     selectedVersionId: '14',
+    job: { id: '16', status: 'RUNNING', progressPercent: 40 },
     versions: [{ id: '14', versionKind: 'PROCESSED', status: 'SUCCEEDED', fileId: '15' }]
   })
   assert.equal(artwork.id, '9007199254740993')
   assert.equal(artwork.confirmationStatus, 'CONFIRMED')
   assert.equal(artwork.confirmationStatusLabel, '已确认')
   assert.equal(artwork.versions[0].versionKindLabel, '处理版')
+  assert.equal(artwork.job.statusLabel, '处理中')
 
   const feedback = mapFeedback({ id: '16', studentId: '13', status: 'CONFIRMED', content: '很好', version: 2 })
   assert.equal(feedback.id, 16)
@@ -232,4 +244,61 @@ test('maps artwork, feedback, job and share DTOs while preserving protocol codes
   assert.equal(share.status, '已发布')
   assert.equal(share.statusCode, 'PUBLISHED')
   assert.equal(share.studentTokens['13'], 'token')
+})
+
+test('defaults paged requests to twenty rows and repeats wheat status filters', async () => {
+  assert.equal(pageParams().pageSize, 20)
+  assert.equal(new URLSearchParams(queryString({ status: ['PENDING', 'EXCEPTION'] }).slice(1)).getAll('status').length, 2)
+  let calledUrl = ''
+  globalThis.fetch = async (url) => {
+    calledUrl = url
+    return response(200, { data: { items: [], page: 1, pageSize: 20, total: 0 }, meta: {}, error: null })
+  }
+
+  await api.todo.wheatTraces({ status: ['PENDING', 'EXCEPTION'] })
+
+  const parsed = new URL(calledUrl, 'http://localhost')
+  assert.equal(parsed.searchParams.get('pageSize'), '20')
+  assert.deepEqual(parsed.searchParams.getAll('status'), ['PENDING', 'EXCEPTION'])
+
+  await api.jobs.list({ ids: ['job-1', 'job-2'] })
+  const jobsUrl = new URL(calledUrl, 'http://localhost')
+  assert.deepEqual(jobsUrl.searchParams.getAll('ids'), ['job-1', 'job-2'])
+})
+
+test('observes duplicate GETs and sends batch workflow request bodies', async () => {
+  resetApiRequestStats()
+  const events = []
+  const unsubscribe = onApiRequest((event) => events.push(event))
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return response(200, { data: [], meta: {}, error: null })
+  }
+
+  await request('/request-observer-test')
+  await request('/request-observer-test')
+  await api.feedback.saveBatch('11', [{ studentId: '22', content: '很好' }])
+  await api.assets.processArtworksBatch('11', ['31', '32'], { templateKey: 'bright' })
+  unsubscribe()
+
+  assert.equal(getApiRequestStats().find((item) => item.key.endsWith('request-observer-test'))?.count, 2)
+  assert.equal(events.filter((event) => event.path.endsWith('request-observer-test')).length, 2)
+  assert.deepEqual(JSON.parse(calls[2].options.body), { items: [{ studentId: '22', content: '很好' }] })
+  assert.deepEqual(JSON.parse(calls[3].options.body), { artworkIds: ['31', '32'], templateKey: 'bright' })
+})
+
+test('deduplicates protected file content requests by file ID', async () => {
+  let contentRequests = 0
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith('/files/42/content')) contentRequests += 1
+    return response(200, new Blob(['image']), 'image/jpeg')
+  }
+
+  const first = protectedMediaUrl('42')
+  const second = protectedMediaUrl('42')
+  assert.equal(await first, await second)
+  assert.equal(contentRequests, 1)
+  assert.equal(getApiRequestStats().find((item) => item.key.endsWith('/api/v1/files/42/content'))?.cacheHits, 1)
+  clearProtectedMediaCache()
 })

@@ -5,6 +5,8 @@ const SESSION_KEY = 'children-art-session'
 
 let refreshPromise = null
 const listeners = new Set()
+const requestListeners = new Set()
+const requestStats = new Map()
 
 const isBrowser = typeof window !== 'undefined'
 
@@ -57,6 +59,40 @@ export const getSession = () => {
 export const onSessionChanged = (listener) => {
   listeners.add(listener)
   return () => listeners.delete(listener)
+}
+
+export const onApiRequest = (listener) => {
+  requestListeners.add(listener)
+  return () => requestListeners.delete(listener)
+}
+
+export const getApiRequestStats = () => [...requestStats.entries()].map(([key, value]) => ({ key, ...value }))
+export const resetApiRequestStats = () => requestStats.clear()
+
+const notifyApiRequest = (event) => {
+  const key = `${event.method} ${event.path}`
+  const previous = requestStats.get(key) || { count: 0, cacheHits: 0, totalMs: 0, lastAt: 0 }
+  const now = Date.now()
+  const next = {
+    ...previous,
+    count: previous.count + (event.cached ? 0 : 1),
+    cacheHits: previous.cacheHits + (event.cached ? 1 : 0),
+    totalMs: previous.totalMs + (event.durationMs || 0),
+    lastAt: now
+  }
+  requestStats.set(key, next)
+  requestListeners.forEach((listener) => {
+    try { listener({ ...event, count: next.count, averageMs: next.count ? next.totalMs / next.count : 0 }) } catch { /* observer must not affect requests */ }
+  })
+  if (typeof import.meta !== 'undefined' && import.meta.env?.DEV && !event.cached && event.method === 'GET'
+    && previous.lastAt && now - previous.lastAt < 5000) {
+    console.warn(`[api] duplicate GET ${event.path} (${next.count})`)
+  }
+}
+
+/** Records a cache hit without creating a network request entry. */
+export const recordApiCacheHit = (path, method = 'GET') => {
+  notifyApiRequest({ method: String(method).toUpperCase(), path: String(path), status: 200, ok: true, cached: true, durationMs: 0 })
 }
 
 const emitSession = (session) => listeners.forEach((listener) => listener(session))
@@ -191,6 +227,13 @@ export const request = async (path, options = {}, retry = true) => {
   } = options
   const url = resolveUrl(path)
   const upperMethod = String(method).toUpperCase()
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  const requestPath = (() => {
+    try {
+      const parsed = new URL(url, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+      return `${parsed.pathname}${parsed.search}`
+    } catch { return String(path) }
+  })()
   const requestHeaders = { ...jsonHeaders, ...headers }
   const token = getAccessToken()
   if (auth && token) requestHeaders.Authorization = `Bearer ${token}`
@@ -208,8 +251,11 @@ export const request = async (path, options = {}, retry = true) => {
   try {
     response = await fetch(url, { method: upperMethod, headers: requestHeaders, body: requestBody, signal })
   } catch (error) {
+    notifyApiRequest({ method: upperMethod, path: requestPath, url, status: 0, ok: false, cached: false, durationMs: (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt })
     throw new ApiError(error?.message || '网络连接失败', { code: 'NETWORK_ERROR', url })
   }
+
+  notifyApiRequest({ method: upperMethod, path: requestPath, url, status: response.status, ok: response.ok, cached: false, durationMs: (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt })
 
   if (response.status === 401 && auth && retry && !String(path).includes('/auth/')) {
     await refreshAccessToken()
@@ -232,4 +278,4 @@ export const queryString = (params = {}) => {
   return value ? `?${value}` : ''
 }
 
-export const pageParams = (params = {}) => ({ page: 1, pageSize: 200, ...params })
+export const pageParams = (params = {}) => ({ page: 1, pageSize: 20, ...params })

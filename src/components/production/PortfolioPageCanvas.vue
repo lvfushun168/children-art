@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import ProtectedMedia from '../common/ProtectedMedia.vue'
 
 const props = defineProps({
   project: {
@@ -115,7 +116,13 @@ const onDrop = (slot, event) => {
       @drop.prevent="editable && onDrop(entry.slot, $event)"
     >
       <template v-if="entry.slot.type === 'image'">
-        <img v-if="!entry.resolved.empty" :src="entry.resolved.imageUrl" :style="imageStyle(entry.resolved.crop)" alt="" />
+        <ProtectedMedia
+          v-if="!entry.resolved.empty"
+          :file-id="entry.resolved.record?.fileId"
+          :src="entry.resolved.imageUrl"
+          :style="imageStyle(entry.resolved.crop)"
+          alt=""
+        />
         <span v-else class="pf-empty-slot">空图位</span>
       </template>
       <template v-else>

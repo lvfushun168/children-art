@@ -1,9 +1,13 @@
-import { pageParams, queryString, request } from './apiClient'
+import { pageParams, queryString, request } from './apiClient.js'
 
 const id = (value) => (value === null || value === undefined || value === '' ? undefined : String(value))
 const page = (path, params = {}) => request(`${path}${queryString(pageParams(params))}`)
 
 export const api = {
+  workbench: {
+    summary: () => request('/workbench/summary'),
+    templates: () => request('/workbench/templates')
+  },
   auth: {
     login: (body) => request('/auth/login', { method: 'POST', body, auth: false }),
     refresh: (body) => request('/auth/refresh', { method: 'POST', body, auth: false }),
@@ -81,28 +85,35 @@ export const api = {
     updateAttendance: (lessonId, studentId, body) => request(`/lessons/${id(lessonId)}/attendance/${id(studentId)}`, { method: 'PATCH', body }),
     transition: (lessonId, body) => request(`/lessons/${id(lessonId)}/status-transitions`, { method: 'POST', body }),
     completion: (lessonId) => request(`/lessons/${id(lessonId)}/completion-check`),
-    workspace: (lessonId) => request(`/lessons/${id(lessonId)}/workspace`),
+    workspace: (lessonId, options = {}) => request(`/lessons/${id(lessonId)}/workspace`, options),
     archiveCommit: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/archive/commit`, { method: 'POST', body, idempotencyKey: key })
   },
   assets: {
     list: (lessonId) => request(`/lessons/${id(lessonId)}/assets`),
     create: (lessonId, body) => request(`/lessons/${id(lessonId)}/assets`, { method: 'POST', body }),
+    createBatch: (lessonId, items) => request(`/lessons/${id(lessonId)}/assets/batch`, { method: 'POST', body: { items } }),
     update: (assetId, body) => request(`/assets/${id(assetId)}`, { method: 'PATCH', body }),
     remove: (assetId, version) => request(`/assets/${id(assetId)}${queryString({ version })}`, { method: 'DELETE' }),
     emptyConfirmation: (lessonId, body) => request(`/lessons/${id(lessonId)}/assets/empty-confirmation`, { method: 'PUT', body }),
     artworks: (lessonId) => request(`/lessons/${id(lessonId)}/artworks`),
     createArtwork: (lessonId, body) => request(`/lessons/${id(lessonId)}/artworks`, { method: 'POST', body }),
+    createArtworksBatch: (lessonId, items) => request(`/lessons/${id(lessonId)}/artworks/batch`, { method: 'POST', body: { items } }),
     updateArtwork: (artworkId, body) => request(`/artworks/${id(artworkId)}`, { method: 'PATCH', body }),
     removeArtwork: (artworkId, version) => request(`/artworks/${id(artworkId)}${queryString({ version })}`, { method: 'DELETE' }),
     removeArtworkVersion: (artworkId, versionId, version) => request(`/artworks/${id(artworkId)}/versions/${id(versionId)}${queryString({ version })}`, { method: 'DELETE' }),
     confirmArtwork: (artworkId, body) => request(`/artworks/${id(artworkId)}/confirm`, { method: 'POST', body }),
-    processArtwork: (artworkId, body) => request(`/artworks/${id(artworkId)}/process-jobs`, { method: 'POST', body })
+    processArtwork: (artworkId, body) => request(`/artworks/${id(artworkId)}/process-jobs`, { method: 'POST', body }),
+    processArtworksBatch: (lessonId, artworkIds, body = {}) => request(`/lessons/${id(lessonId)}/artworks/process-jobs`, {
+      method: 'POST', body: { artworkIds: artworkIds.map(id), ...body }
+    })
   },
   feedback: {
     list: (lessonId) => request(`/lessons/${id(lessonId)}/feedbacks`),
     saveForStudent: (lessonId, studentId, body) => request(`/lessons/${id(lessonId)}/feedbacks/${id(studentId)}`, { method: 'PUT', body }),
+    saveBatch: (lessonId, items) => request(`/lessons/${id(lessonId)}/feedbacks/batch`, { method: 'PUT', body: { items } }),
     update: (feedbackId, body) => request(`/feedbacks/${id(feedbackId)}`, { method: 'PATCH', body }),
     confirm: (feedbackId, body) => request(`/feedbacks/${id(feedbackId)}/confirm`, { method: 'POST', body }),
+    confirmBatch: (lessonId, items) => request(`/lessons/${id(lessonId)}/feedbacks/confirm-batch`, { method: 'POST', body: { items } }),
     versions: (feedbackId) => request(`/feedbacks/${id(feedbackId)}/versions`),
     generate: (lessonId, body) => request(`/lessons/${id(lessonId)}/feedbacks/generate`, { method: 'POST', body }),
     regenerate: (feedbackId, body) => request(`/feedbacks/${id(feedbackId)}/regenerate`, { method: 'POST', body }),
@@ -141,7 +152,8 @@ export const api = {
     teacherArchives: (params) => page('/teacher-archives', params)
   },
   todo: {
-    list: (params) => request(`/todos${queryString(params)}`),
+    list: (params) => page('/todos', params),
+    wheatTraces: (params) => page('/wheat-traces', params),
     complete: (todoId, body) => request(`/todos/${id(todoId)}/complete`, { method: 'POST', body }),
     cancel: (todoId, body) => request(`/todos/${id(todoId)}/cancel`, { method: 'POST', body }),
     wheat: (lessonId) => request(`/lessons/${id(lessonId)}/wheat-trace`),

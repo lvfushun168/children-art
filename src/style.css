@@ -5241,6 +5241,7 @@ textarea:focus,
 
 .identity-check input,
 .identity-permission-check input {
+  width: auto;
   flex: 0 0 auto;
   margin-top: 2px;
 }

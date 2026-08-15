@@ -49,14 +49,24 @@ export const toApiWheatCommand = (value) => ({
 }[value] || value)
 
 export const mapCampus = (value = {}) => ({ ...value, id: safeUiId(value.id), organizationId: safeUiId(value.organizationId), version: Number(value.version || 0) })
-export const mapIdentityPermission = (value = {}) => ({
-  ...value,
-  id: safeUiId(value.id),
-  permissionKey: value.permissionKey || '',
-  module: value.module || 'other',
-  description: value.description || '',
-  status: value.status || 'ENABLED'
-})
+export const mapIdentityPermission = (value = {}) => {
+  const source = typeof value === 'string' ? { permissionKey: value } : (value || {})
+  const permissionKey = String(
+    source.permissionKey || source.permission_key || source.key || source.code || ''
+  ).trim()
+  const description = String(
+    source.description || source.name || source.label || permissionKey
+  ).trim()
+
+  return {
+    ...source,
+    id: safeUiId(source.id ?? source.permissionId ?? source.permission_id),
+    permissionKey,
+    module: String(source.module || source.moduleKey || source.module_key || source.group || 'other').trim() || 'other',
+    description: description || permissionKey,
+    status: source.status || 'ENABLED'
+  }
+}
 export const mapIdentityRole = (value = {}) => ({
   ...value,
   id: safeUiId(value.id),

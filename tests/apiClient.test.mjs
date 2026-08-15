@@ -11,7 +11,7 @@ globalThis.window = {
 }
 
 const { clearSession, createIdempotencyKey, getAccessToken, request, setSession } = await import('../src/services/apiClient.js')
-const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCourse, mapExternalLink, mapFeedback, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, sameId } = await import('../src/services/mappers.js')
+const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCourse, mapExternalLink, mapFeedback, mapIdentityPermission, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, sameId } = await import('../src/services/mappers.js')
 
 const response = (status, payload, contentType = 'application/json') => ({
   status,
@@ -115,6 +115,22 @@ test('maps protocol IDs, statuses and pages into stable view values', () => {
     pageSize: 20,
     total: 41
   })
+})
+
+test('keeps identity permission points visible across API field shapes', () => {
+  const permission = mapIdentityPermission({
+    id: '7',
+    permission_key: 'lesson.read',
+    module_key: 'lesson',
+    label: '读取课次',
+    status: 'ENABLED'
+  })
+
+  assert.equal(permission.id, 7)
+  assert.equal(permission.permissionKey, 'lesson.read')
+  assert.equal(permission.module, 'lesson')
+  assert.equal(permission.description, '读取课次')
+  assert.equal(mapIdentityPermission('lesson.edit').description, 'lesson.edit')
 })
 
 test('maps master data and touch-task DTOs to protocol-safe view models', () => {

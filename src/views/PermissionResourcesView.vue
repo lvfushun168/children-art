@@ -90,8 +90,8 @@ onMounted(loadResources)
           <div v-if="openedModules[group.module]" class="identity-resource-table">
             <article v-for="permission in group.permissions" :key="permission.permissionKey">
               <div>
-                <strong>{{ permission.description || permission.permissionKey }}</strong>
-                <small>{{ permission.permissionKey }}</small>
+                <strong>{{ permission.description || permission.permissionKey || '未命名权限' }}</strong>
+                <small v-if="permission.permissionKey">{{ permission.permissionKey }}</small>
               </div>
               <span class="identity-status" :class="identityStatusClass(permission.status)">{{ identityStatusLabel(permission.status) }}</span>
             </article>

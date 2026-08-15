@@ -228,8 +228,8 @@ onMounted(loadData)
             <label v-for="permission in group.permissions" :key="permission.permissionKey" class="identity-permission-check" :class="{ disabled: permission.status !== 'ENABLED' }">
               <input v-model="selectedPermissionKeys" type="checkbox" :value="permission.permissionKey" :disabled="permission.status !== 'ENABLED'" />
               <span>
-                <strong>{{ permission.description || permission.permissionKey }}</strong>
-                <small>{{ permission.permissionKey }}</small>
+                <strong>{{ permission.description || permission.permissionKey || '未命名权限' }}</strong>
+                <small v-if="permission.permissionKey">{{ permission.permissionKey }}</small>
               </span>
             </label>
           </div>

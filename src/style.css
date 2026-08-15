@@ -6336,27 +6336,25 @@ textarea:focus,
   gap: 8px;
 }
 
-.archive-filter {
-  align-items: center;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 8px;
-  background: var(--color-surface);
+.master-list > .section-head {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
 }
 
-.archive-filter button {
-  min-height: 30px;
-  padding: 0 8px;
-  border-radius: 6px;
-  color: var(--color-muted);
+.archive-filter {
+  grid-template-columns: auto minmax(124px, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
   font-size: 12px;
   font-weight: 800;
 }
 
-.archive-filter button.active {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
+.archive-filter .adaptive-select-trigger {
+  min-height: 36px;
+  padding: 7px 9px;
 }
 
 .master-row {

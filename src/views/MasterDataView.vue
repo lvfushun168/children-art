@@ -215,6 +215,11 @@ const resetCommunicationDraft = () => {
 }
 
 const archiveStateLabel = computed(() => ({ ACTIVE: '当前数据', ARCHIVED: '已归档', ALL: '全部' }[archiveState.value] || '当前数据'))
+const archiveStateOptions = [
+  { label: '当前数据', value: 'ACTIVE' },
+  { label: '已归档', value: 'ARCHIVED' },
+  { label: '全部', value: 'ALL' }
+]
 const availableIdentityUsers = computed(() => (props.state.identityUsers || [])
   .filter((user) => user.status === '启用' || user.status === 'ENABLED' || user.status === 'ACTIVE')
   .map((user) => ({ label: `${user.displayName || user.username || user.phone || '未命名账号'}${user.phone ? ` · ${user.phone}` : ''}`, value: user.id })))
@@ -454,14 +459,12 @@ onBeforeUnmount(() => cleanupMobileMedia())
     <aside v-show="!isMobileFlow || !mobileShowingDetail" class="master-list panel">
       <div class="section-head">
         <div>
-          <span>数据列表</span>
-          <strong>{{ records.length }} 条记录 · {{ archiveStateLabel }}</strong>
+          <strong>{{ records.length }}条记录</strong>
         </div>
-        <div class="button-pair archive-filter" role="tablist" aria-label="归档筛选">
-          <button v-for="option in [{ label: '当前数据', value: 'ACTIVE' }, { label: '已归档', value: 'ARCHIVED' }, { label: '全部', value: 'ALL' }]" :key="option.value" type="button" :class="{ active: archiveState === option.value }" @click="reloadArchiveState(option.value)">
-            {{ option.label }}
-          </button>
-        </div>
+        <label class="archive-filter">
+          <span>归档状态</span>
+          <AdaptiveSelect :model-value="archiveState" :options="archiveStateOptions" @update:model-value="reloadArchiveState" />
+        </label>
       </div>
       <button
         v-for="record in records"

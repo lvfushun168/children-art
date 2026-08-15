@@ -28,6 +28,7 @@ const communicationView = ref('list')
 const communicationEditingId = ref(null)
 const communicationMethodFilter = ref('全部方式')
 const communicationFollowFilter = ref('全部记录')
+const archiveState = ref('ACTIVE')
 let cleanupMobileMedia = () => {}
 
 const studentProfileSections = [
@@ -73,6 +74,7 @@ const studentProfileBlank = () =>
 
 const config = computed(() => {
   const map = {
+    teachers: { title: '老师管理', action: '新增老师', empty: '暂无老师' },
     students: { title: '学生管理', action: '新增学生', empty: '暂无学生' },
     classes: { title: '班级管理', action: '新增班级', empty: '暂无班级' },
     courses: { title: '课程资料', action: '新增课程', empty: '暂无课程' }
@@ -81,10 +83,13 @@ const config = computed(() => {
 })
 
 const records = computed(() => {
+  if (props.entity === 'teachers') return props.state.teachers
   if (props.entity === 'students') return props.state.students
   if (props.entity === 'classes') return props.state.classes
   return props.state.courses
 })
+
+const activeItems = (items = []) => items.filter((item) => !item.archived)
 
 const selected = computed(() => records.value.find((item) => sameId(item.id, selectedId.value)) || records.value[0] || null)
 
@@ -113,6 +118,17 @@ const availableStudentProfileSections = computed(() => {
 })
 
 const blankDraft = () => {
+  if (props.entity === 'teachers') {
+    return {
+      name: '',
+      phone: '',
+      role: '老师',
+      title: '老师',
+      status: '启用',
+      note: '',
+      userId: null
+    }
+  }
   if (props.entity === 'students') {
     return {
       name: '',
@@ -120,7 +136,7 @@ const blankDraft = () => {
       age: 6,
       parent: '',
       phone: '',
-      classId: props.state.classes[0]?.id,
+      classId: activeItems(props.state.classes)[0]?.id,
       status: '在读',
       note: '',
       ...studentProfileBlank()
@@ -130,8 +146,8 @@ const blankDraft = () => {
     return {
       name: '',
       time: '每周五 18:30',
-      teacherId: props.state.teachers[0]?.id,
-      courseId: props.state.courses[0]?.id,
+      teacherId: activeItems(props.state.teachers)[0]?.id,
+      courseId: activeItems(props.state.courses)[0]?.id,
       group: '',
       status: '筹备中',
       studentIds: []
@@ -198,6 +214,26 @@ const resetCommunicationDraft = () => {
   communicationDraft.value = blankCommunicationDraft()
 }
 
+const archiveStateLabel = computed(() => ({ ACTIVE: '当前数据', ARCHIVED: '已归档', ALL: '全部' }[archiveState.value] || '当前数据'))
+const availableIdentityUsers = computed(() => (props.state.identityUsers || [])
+  .filter((user) => user.status === '启用' || user.status === 'ENABLED' || user.status === 'ACTIVE')
+  .map((user) => ({ label: `${user.displayName || user.username || user.phone || '未命名账号'}${user.phone ? ` · ${user.phone}` : ''}`, value: user.id })))
+const selectedReferenceCount = computed(() => {
+  if (!selected.value) return 0
+  if (props.entity === 'teachers') return (props.state.classes || []).filter((item) => sameId(item.teacherId, selected.value.id)).length
+  if (props.entity === 'students') return (props.state.classes || []).filter((item) => (item.studentIds || []).some((id) => sameId(id, selected.value.id))).length
+  if (props.entity === 'classes') return (props.state.tasks || []).filter((item) => sameId(item.classId, selected.value.id)).length
+  return (props.state.classes || []).filter((item) => sameId(item.courseId, selected.value.id)).length
+})
+
+const reloadArchiveState = async (value = archiveState.value) => {
+  archiveState.value = value
+  await props.state.loadMasterData?.(props.entity, { archiveState: value, force: true })
+  selectedId.value = records.value[0]?.id || null
+  mode.value = selectedId.value ? 'detail' : value === 'ACTIVE' ? 'new' : 'detail'
+  resetDraft()
+}
+
 const hydrateStudentProfile = async (record) => {
   if (props.entity !== 'students' || !record?.id || mode.value === 'new') return
   await Promise.all([
@@ -214,6 +250,7 @@ const hydrateStudentProfile = async (record) => {
 watch(
   () => props.entity,
   () => {
+    archiveState.value = 'ACTIVE'
     selectedId.value = records.value[0]?.id || null
     mode.value = 'detail'
     studentDetailTab.value = 'profile'
@@ -221,6 +258,8 @@ watch(
     resetDraft()
     resetCommunicationDraft()
     void hydrateStudentProfile(records.value[0])
+    void props.state.loadMasterData?.(props.entity, { archiveState: archiveState.value, force: false })
+    if (props.entity === 'teachers') void props.state.loadIdentityUsers?.({ page: 1, pageSize: 100, status: 'ENABLED' })
   },
   { immediate: true }
 )
@@ -263,6 +302,15 @@ const startEdit = () => {
 }
 
 const save = async () => {
+  if (props.entity === 'teachers') {
+    let saved = mode.value === 'new' ? await props.state.addTeacher(draft.value) : await props.state.updateTeacher(selected.value.id, draft.value)
+    if (!saved) return
+    if (String(draft.value.userId || '') !== String(saved.userId || '')) {
+      saved = await props.state.bindTeacherAccount(saved.id, draft.value.userId || null, saved.version)
+      if (!saved) return
+    }
+    selectedId.value = saved.id
+  }
   if (props.entity === 'students') {
     const saved = mode.value === 'new' ? await props.state.addStudent(draft.value) : await props.state.updateStudent(selected.value.id, draft.value)
     if (!saved) return
@@ -282,6 +330,29 @@ const save = async () => {
   mode.value = 'detail'
   if (isMobileFlow.value) mobileShowingDetail.value = true
   resetDraft()
+}
+
+const archiveSelected = async () => {
+  if (!selected.value || selected.value.archived) return
+  const reason = window.prompt(`归档“${selected.value.name || selected.value.title}”的原因（可选）`, selected.value.archiveReason || '')
+  if (reason === null) return
+  if (selectedReferenceCount.value > 0 && !window.confirm(`该数据当前被 ${selectedReferenceCount.value} 条业务关系引用，归档不会删除引用，是否继续？`)) return
+  const saved = await props.state.archiveMasterData?.(props.entity, selected.value.id, reason)
+  if (saved) {
+    selectedId.value = records.value[0]?.id || null
+    mode.value = selectedId.value ? 'detail' : archiveState.value === 'ACTIVE' ? 'new' : 'detail'
+    resetDraft()
+  }
+}
+
+const restoreSelected = async () => {
+  if (!selected.value || !selected.value.archived) return
+  const saved = await props.state.restoreMasterData?.(props.entity, selected.value.id, selected.value.version)
+  if (saved) {
+    selectedId.value = records.value[0]?.id || null
+    mode.value = selectedId.value ? 'detail' : archiveState.value === 'ACTIVE' ? 'new' : 'detail'
+    resetDraft()
+  }
 }
 
 const saveCommunicationRecord = async () => {
@@ -375,7 +446,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
   <PageHead :eyebrow="config.eyebrow" :title="config.title">
     <div class="button-pair">
       <button v-if="state.isAdmin" class="secondary" @click="$emit('open-import')">导入数据</button>
-      <button class="primary" @click="startNew">{{ config.action }}</button>
+      <button class="primary" :disabled="archiveState !== 'ACTIVE'" @click="startNew">{{ config.action }}</button>
     </div>
   </PageHead>
 
@@ -384,7 +455,12 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <div class="section-head">
         <div>
           <span>数据列表</span>
-          <strong>{{ records.length }} 条记录</strong>
+          <strong>{{ records.length }} 条记录 · {{ archiveStateLabel }}</strong>
+        </div>
+        <div class="button-pair archive-filter" role="tablist" aria-label="归档筛选">
+          <button v-for="option in [{ label: '当前数据', value: 'ACTIVE' }, { label: '已归档', value: 'ARCHIVED' }, { label: '全部', value: 'ALL' }]" :key="option.value" type="button" :class="{ active: archiveState === option.value }" @click="reloadArchiveState(option.value)">
+            {{ option.label }}
+          </button>
         </div>
       </div>
       <button
@@ -395,9 +471,11 @@ onBeforeUnmount(() => cleanupMobileMedia())
         @click="selectRecord(record)"
       >
         <strong>{{ record.name || record.title }}</strong>
+        <span v-if="entity === 'teachers'">{{ record.role }} · {{ record.userId ? '已绑定账号' : '未绑定账号' }} · {{ record.status }}</span>
         <span v-if="entity === 'students'">{{ className(record.classId) }} · {{ record.status }}</span>
         <span v-if="entity === 'classes'">{{ record.time }} · {{ record.status }}</span>
         <span v-if="entity === 'courses'">{{ record.age }} · {{ record.defaultFocus }}</span>
+        <em v-if="record.archived" class="status-tag">已归档</em>
       </button>
       <div v-if="!records.length" class="notice-box">
         <small>{{ config.empty }}</small>
@@ -411,11 +489,41 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <strong>{{ mode === 'new' ? config.action : selected?.name || selected?.title }}</strong>
         </div>
         <div class="button-pair">
-          <button v-if="mode === 'detail' && (entity !== 'students' || studentDetailTab === 'profile')" class="secondary" @click="startEdit">编辑</button>
+          <button v-if="mode === 'detail' && !selected?.archived && (entity !== 'students' || studentDetailTab === 'profile')" class="secondary" @click="startEdit">编辑</button>
+          <button v-if="mode === 'detail' && selected?.archived" class="secondary" type="button" @click="restoreSelected">恢复</button>
+          <button v-if="mode === 'detail' && selected && !selected.archived" class="danger-text" type="button" @click="archiveSelected">归档</button>
           <button v-if="mode !== 'detail'" class="ghost" @click="mode = 'detail'; resetDraft()">取消</button>
           <button v-if="mode !== 'detail'" class="primary" @click="save">保存</button>
         </div>
       </div>
+
+      <section v-if="selected?.archived && mode === 'detail'" class="notice-box archive-notice">
+        <strong>该{{ entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程' }}已归档</strong>
+        <small>历史引用不会被修改；{{ selected.archiveReason ? `归档原因：${selected.archiveReason}` : '恢复后才可用于新建或编辑业务。' }}</small>
+      </section>
+
+      <template v-if="entity === 'teachers'">
+        <div class="form-grid">
+          <label>姓名<input v-model="draft.name" /></label>
+          <label>手机号<input v-model="draft.phone" /></label>
+          <label>职称<input v-model="draft.role" /></label>
+          <label>
+            状态
+            <AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" />
+          </label>
+          <label class="wide">
+            绑定已有账号
+            <AdaptiveSelect v-model="draft.userId" :options="[{ label: '未绑定账号', value: null }, ...availableIdentityUsers]" />
+            <small>账号创建和停用仍在“账号管理”中完成。</small>
+          </label>
+          <label class="wide">备注<textarea v-model="draft.note" rows="4" /></label>
+        </div>
+        <div v-if="mode === 'detail'" class="master-form-section">
+          <strong>账号关联</strong>
+          <p v-if="selected?.userId">已关联账号：{{ state.identityUsers.find((user) => sameId(user.id, selected.userId))?.displayName || selected.userId }}</p>
+          <p v-else>未绑定账号。绑定后，课后工作台会通过当前账号对应的老师档案识别身份。</p>
+        </div>
+      </template>
 
       <template v-if="entity === 'students'">
         <div v-if="mode !== 'new'" class="student-detail-tabs">
@@ -435,7 +543,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
               <label>年龄<input v-model="draft.age" type="number" /></label>
               <label>
                 所属班级
-                <AdaptiveSelect v-model="draft.classId" :options="state.classes.map((klass) => ({ label: klass.name, value: klass.id }))" />
+                <AdaptiveSelect v-model="draft.classId" :options="activeItems(state.classes).map((klass) => ({ label: klass.name, value: klass.id }))" />
               </label>
               <label>家长称呼<input v-model="draft.parent" /></label>
               <label>家长电话<input v-model="draft.phone" /></label>
@@ -556,11 +664,11 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <label>上课时间<input v-model="draft.time" /></label>
           <label>
             任课老师
-            <AdaptiveSelect v-model="draft.teacherId" :options="state.teachers.map((teacher) => ({ label: teacher.name, value: teacher.id }))" />
+            <AdaptiveSelect v-model="draft.teacherId" :options="activeItems(state.teachers).map((teacher) => ({ label: teacher.name, value: teacher.id }))" />
           </label>
           <label>
             默认课程
-            <AdaptiveSelect v-model="draft.courseId" :options="state.courses.map((course) => ({ label: course.title, value: course.id }))" />
+            <AdaptiveSelect v-model="draft.courseId" :options="activeItems(state.courses).map((course) => ({ label: course.title, value: course.id }))" />
           </label>
           <label>
             状态
@@ -573,7 +681,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         </div>
         <div class="member-picker">
           <strong>学生名单</strong>
-          <label v-for="student in state.students" :key="student.id" class="inline-check">
+          <label v-for="student in activeItems(state.students)" :key="student.id" class="inline-check">
             <input type="checkbox" :checked="draft.studentIds?.some((id) => sameId(id, student.id))" @change="toggleStudentInClass(student.id)" />
             <span>{{ student.name }} · {{ student.status }} · {{ className(student.classId) }}</span>
           </label>

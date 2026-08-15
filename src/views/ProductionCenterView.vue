@@ -101,7 +101,7 @@ const estimatedSlides = computed(() => {
   return pages
 })
 const studentOptions = computed(() =>
-  props.state.students.map((student) => ({
+  props.state.students.filter((student) => !student.archived).map((student) => ({
     label: `${student.name} · ${props.state.classes.find((klass) => sameId(klass.id, student.classId))?.name || '未分班'}`,
     value: student.id
   }))

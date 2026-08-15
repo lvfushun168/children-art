@@ -431,7 +431,13 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       >
         <span>
           <strong>{{ lesson.date }} {{ lesson.time }} · {{ lesson.course }}</strong>
-          <small>{{ lesson.className }}（{{ lesson.classType }}） · {{ lesson.teacher }} · {{ lesson.lessonType }}</small>
+          <small>
+            {{ lesson.className }}（{{ lesson.classType }}）
+            <em v-if="lesson.classArchived" class="archived-reference">班级已归档</em>
+            · {{ lesson.teacher }}
+            <em v-if="lesson.teacherArchived" class="archived-reference">老师已归档</em>
+            · {{ lesson.lessonType }}
+          </small>
         </span>
         <div>
           <em>{{ lesson.materials.length }} 份资料</em>
@@ -671,8 +677,8 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>课次信息</span>
         <div class="archive-meta">
           <span>{{ selectedLesson.date }} {{ selectedLesson.time || '未记录时间' }}</span>
-          <span>{{ selectedLesson.teacher }}</span>
-          <span>{{ selectedLesson.className }}（{{ selectedLesson.classType }}）</span>
+          <span>{{ selectedLesson.teacher }}<em v-if="selectedLesson.teacherArchived" class="archived-reference">（已归档）</em></span>
+          <span>{{ selectedLesson.className }}（{{ selectedLesson.classType }}）<em v-if="selectedLesson.classArchived" class="archived-reference">（已归档）</em></span>
           <span>{{ selectedLesson.lessonType }}</span>
         </div>
       </section>

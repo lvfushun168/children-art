@@ -108,7 +108,10 @@ export const mapTeacher = (value = {}) => ({
   availableRoles: value.availableRoles || (value.role ? [value.role] : ['老师']),
   classes: fromApiIds(value.classIds || value.classes || []),
   campusIds: fromApiIds(value.campusIds),
-  status: value.status === 'ACTIVE' ? '启用' : value.status === 'DISABLED' ? '停用' : (value.status || '启用'),
+  status: ({ ENABLED: '启用', ACTIVE: '启用', DISABLED: '停用' }[value.status] || value.status || '启用'),
+  archived: Boolean(value.archivedAt || value.archived),
+  archivedAt: value.archivedAt || null,
+  archiveReason: value.archiveReason || '',
   version: Number(value.version || 0)
 })
 export const mapStudent = (value = {}) => ({
@@ -118,7 +121,10 @@ export const mapStudent = (value = {}) => ({
   classIds: fromApiIds(value.classIds),
   parent: value.parent ?? value.parentName ?? '',
   phone: value.phone ?? value.parentPhone ?? '',
-  status: ({ ACTIVE: '在读', SUSPENDED: '停课', LEAVE: '请假', REFUNDED: '退费' }[value.status] || value.status || '在读'),
+  status: ({ ACTIVE: '在读', ENROLLED: '在读', SUSPENDED: '停课', ON_LEAVE: '请假', LEAVE: '请假', REFUNDED: '退费', GRADUATED: '退费', DISABLED: '停课' }[value.status] || value.status || '在读'),
+  archived: Boolean(value.archivedAt || value.archived),
+  archivedAt: value.archivedAt || null,
+  archiveReason: value.archiveReason || '',
   version: Number(value.version || 0)
 })
 export const mapProfileField = (value = {}) => ({
@@ -165,6 +171,9 @@ export const mapClass = (value = {}) => ({
   time: value.time || value.scheduleText || '',
   scheduleText: value.scheduleText || value.time || '',
   status: ({ PREPARING: '筹备中', ACTIVE: '开班中', SUSPENDED: '停课', COMPLETED: '结课' }[value.status] || value.status || '开班中'),
+  archived: Boolean(value.archivedAt || value.archived),
+  archivedAt: value.archivedAt || null,
+  archiveReason: value.archiveReason || '',
   version: Number(value.version || 0)
 })
 export const mapCourse = (value = {}) => ({
@@ -175,6 +184,9 @@ export const mapCourse = (value = {}) => ({
   reference: value.reference || value.referenceText || '',
   defaultFocus: value.defaultFocus || '色彩',
   status: ({ ACTIVE: '启用', ENABLED: '启用', DISABLED: '停用' }[value.status] || value.status || '启用'),
+  archived: Boolean(value.archivedAt || value.archived),
+  archivedAt: value.archivedAt || null,
+  archiveReason: value.archiveReason || '',
   version: Number(value.version || 0)
 })
 export const mapTerm = (value = {}) => ({
@@ -205,6 +217,9 @@ export const mapLesson = (value = {}) => ({
   time: displayTime(value.startTime),
   endTime: displayTime(value.endTime),
   teacher: value.teacherName || '',
+  classArchived: Boolean(value.classArchived),
+  teacherArchived: Boolean(value.teacherArchived),
+  courseArchived: Boolean(value.courseArchived),
   lessonType: lessonType[value.lessonType] || value.lessonType || '其他',
   status: lessonStatus[value.status] || value.status || '待处理',
   sourceType: value.sourceType || '',
@@ -233,6 +248,7 @@ export const mapAttendance = (value = {}) => ({
   id: safeUiId(value.id),
   lessonId: safeUiId(value.lessonId),
   studentId: safeUiId(value.studentId),
+  studentArchived: Boolean(value.studentArchived),
   attendance: attendanceStatus[value.status] || value.status || '未标记',
   version: Number(value.version || 0)
 })

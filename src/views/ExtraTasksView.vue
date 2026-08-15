@@ -48,7 +48,7 @@ const blankDraft = () => ({
 
 const draft = ref(blankDraft())
 const studentOptions = computed(() =>
-  props.state.students.map((student) => {
+  props.state.students.filter((student) => !student.archived).map((student) => {
     const klass = props.state.classes.find((item) => sameId(item.id, student.classId))
     return { label: `${student.name} · ${klass?.name || '未归属班级'}`, value: student.id }
   })
@@ -277,10 +277,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
           任务类型
           <AdaptiveSelect v-model="draft.taskType" :options="['学生课外任务', '亲子观察任务', '学生课外作品', '材料准备提醒', '其他']" />
         </label>
-        <label>
-          发布老师
-          <AdaptiveSelect v-model="draft.owner" :options="state.teachers.map((teacher) => teacher.name)" />
-        </label>
+          <label>
+            发布老师
+            <AdaptiveSelect v-model="draft.owner" :options="state.teachers.filter((teacher) => !teacher.archived).map((teacher) => teacher.name)" />
+          </label>
         <label>
           关联课次
           <AdaptiveSelect v-model="draft.relatedLessonId" :options="[{ label: '无归属课次', value: '' }, ...lessonOptions.map((lesson) => ({ label: lesson.label, value: lesson.id }))]" />

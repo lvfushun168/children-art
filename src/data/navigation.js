@@ -13,9 +13,10 @@ export const navGroups = [
   {
     id: 'basic',
     label: '基础信息',
-    description: '学生、班级、课程与课程链接',
+    description: '老师、学生、班级、课程与课程链接',
     mark: '信',
     items: [
+      { id: 'teachers', label: '老师', mark: '师' },
       { id: 'students', label: '学生', mark: '生' },
       { id: 'classes', label: '班级', mark: '班' },
       { id: 'externalLinks', label: '外链', mark: '链' }

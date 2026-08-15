@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 
 const props = defineProps({
@@ -15,6 +15,7 @@ const selectedFile = ref(null)
 const importError = ref('')
 const operation = ref('preview')
 const showMapping = ref(false)
+const teacherSelections = ref({})
 const fieldMapping = ref({
   name: '学生姓名',
   classNames: '所在班级',
@@ -36,6 +37,11 @@ watch(dataType, () => {
   if (selectedFile.value && mode.value === 'select' && !isBusy.value) {
     props.state.stageImportFile(selectedFile.value, dataSource, dataType.value)
   }
+})
+
+onMounted(() => {
+  void props.state.loadMasterData?.('teachers', { archiveState: 'ACTIVE', force: false })
+  void props.state.loadTeacherSourceMappings?.({ sourceType: 'WHEAT_EXCEL' })
 })
 
 const isBusy = computed(() => mode.value === 'processing')
@@ -94,11 +100,52 @@ const relationText = (row) => {
   return row.className || row.teacher || row.course || '待识别'
 }
 
+const teacherMatchLabels = {
+  MATCHED: '已匹配',
+  UNMATCHED: '老师未匹配',
+  AMBIGUOUS: '同名老师冲突',
+  ARCHIVED: '老师已归档'
+}
+const isTeacherRow = (row) => row.type !== 'student' && Boolean(row.teacher)
+const teacherMatchLabel = (row) => teacherMatchLabels[row.teacherMatchStatus] || (isTeacherRow(row) ? '待检查' : '')
+const teacherOptions = (row) => {
+  const candidates = (Array.isArray(row.teacherCandidates) ? row.teacherCandidates : []).filter((teacher) => !teacher.archived)
+  const available = candidates.length
+    ? candidates
+    : (props.state.teachers || []).filter((teacher) => !teacher.archived && teacher.status === '启用')
+  return available.map((teacher) => ({
+    label: `${teacher.name || teacher.displayName || '未命名老师'}${teacher.userId ? ' · 已绑定账号' : ' · 未绑定账号'}`,
+    value: teacher.id
+  }))
+}
+const selectedTeacherId = (row) => teacherSelections.value[row.id] || (row.teacherMatchStatus === 'MATCHED' ? row.teacherId : null)
+const saveTeacherMapping = async (row) => {
+  const teacherId = selectedTeacherId(row)
+  if (!row.teacher || !teacherId) {
+    props.state.notify('请先选择要关联的系统老师')
+    return
+  }
+  await props.state.loadTeacherSourceMappings?.()
+  const normalized = String(row.teacher).replace(/\s+/g, '').toLowerCase()
+  const current = (props.state.teacherSourceMappings || []).find((mapping) =>
+    String(mapping.sourceType || 'WHEAT_EXCEL') === 'WHEAT_EXCEL' &&
+    String(mapping.sourceName || '').replace(/\s+/g, '').toLowerCase() === normalized
+  )
+  const saved = await props.state.saveTeacherSourceMapping?.({
+    sourceType: 'WHEAT_EXCEL',
+    sourceName: row.teacher,
+    teacherId,
+    version: current?.version || 0
+  })
+  if (saved) await readPreview()
+}
+
 const resetSelection = () => {
   fileName.value = ''
   selectedFile.value = null
   importError.value = ''
   showMapping.value = false
+  teacherSelections.value = {}
   operation.value = 'preview'
 }
 
@@ -263,11 +310,22 @@ const confirmImport = async () => {
         <article><span>可以导入</span><strong>{{ validRows.length }}</strong></article>
         <article><span>暂不导入</span><strong>{{ warningRows.length }}</strong></article>
       </div>
+      <div class="notice-box">
+        <strong>异常行不会写入，正常行仍可导入。</strong>
+        <small>老师未匹配、同名冲突或已归档的班级/课次行需要先选择系统老师并保存映射，再重新检查当前批次。</small>
+      </div>
       <div class="preview-table">
         <div class="preview-row head"><strong>名称</strong><strong>关联信息</strong><strong>结果</strong><strong>说明</strong></div>
         <div v-for="row in rows" :key="row.id" class="preview-row" :class="row.status">
           <span>{{ row.name }}</span>
-          <span>{{ relationText(row) }}</span>
+          <span>
+            {{ relationText(row) }}
+            <small v-if="isTeacherRow(row)" class="teacher-match-line">老师：{{ row.teacher }} · {{ teacherMatchLabel(row) }}</small>
+            <template v-if="isTeacherRow(row) && row.teacherMatchStatus !== 'MATCHED'">
+              <AdaptiveSelect v-model="teacherSelections[row.id]" :options="[{ label: '选择系统老师', value: null }, ...teacherOptions(row)]" />
+              <button class="ghost" type="button" :disabled="!selectedTeacherId(row)" @click="saveTeacherMapping(row)">选择并保存映射</button>
+            </template>
+          </span>
           <span>{{ row.status }}</span>
           <span>{{ row.issue || '可以写入' }}</span>
         </div>

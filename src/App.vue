@@ -51,7 +51,7 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['tasks', 'supervision', 'production', 'archives', 'students', 'classes', 'courses', 'externalLinks', 'extraTasks', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
+const navIdsWithLocalBack = new Set(['tasks', 'supervision', 'production', 'archives', 'teachers', 'students', 'classes', 'courses', 'externalLinks', 'extraTasks', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || mobileLevel.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
 const mobileGroupEntries = computed(() =>
@@ -247,6 +247,8 @@ const shareRoute = computed(() => {
       />
 
       <MasterDataView v-if="showActivePage && activeNav === 'students'" :state="state" entity="students" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-import="openImportCenter('学生名单')" />
+
+      <MasterDataView v-if="showActivePage && activeNav === 'teachers'" :state="state" entity="teachers" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <MasterDataView v-if="showActivePage && activeNav === 'classes'" :state="state" entity="classes" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-import="openImportCenter('综合课表')" />
 

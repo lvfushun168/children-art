@@ -122,6 +122,9 @@ export function useDeliveryWorkflow() {
   const identityUsers = reactive([])
   const identityRoles = reactive([])
   const identityPermissions = reactive([])
+  const currentTeacherProfile = ref(null)
+  const masterArchiveState = reactive({ teachers: 'ACTIVE', students: 'ACTIVE', classes: 'ACTIVE', courses: 'ACTIVE' })
+  const teacherSourceMappings = reactive([])
   const identityUserPage = reactive({ page: 1, pageSize: 20, total: 0 })
   const identityUserQuery = ref('')
   const identityUserStatus = ref('')
@@ -324,20 +327,28 @@ export function useDeliveryWorkflow() {
     const user = storedMe.value?.user
     if (user) {
       const role = activeLoginRole.value || storedMe.value?.roles?.[0]?.name || storedMe.value?.roles?.[0]?.roleKey || '老师'
+      const teacherId = currentTeacherProfile.value?.id || null
       return {
         id: fromApiId(user.id),
         name: user.displayName || user.username || user.phone || '',
         username: user.username,
         phone: user.phone,
         role,
+        teacherId,
+        teacherLinked: Boolean(teacherId),
         roles: storedMe.value?.roles || [],
         permissions: storedMe.value?.permissions || [],
-        classes: tasks.filter((task) => sameId(task.teacherId, user.teacherId) || task.teacher === user.displayName).map((task) => task.classId)
+        classes: classes.filter((klass) => sameId(klass.teacherId, teacherId)).map((klass) => klass.id)
       }
     }
     const teacher = teachers.find((item) => sameId(item.id, currentUserId.value))
     if (!teacher) return null
-    return !activeLoginRole.value || activeLoginRole.value === teacher.role ? teacher : { ...teacher, role: activeLoginRole.value }
+    return {
+      ...teacher,
+      teacherId: teacher.id,
+      teacherLinked: true,
+      role: !activeLoginRole.value || activeLoginRole.value === teacher.role ? teacher.role : activeLoginRole.value
+    }
   })
   const isAdmin = computed(() => {
     const permissions = storedMe.value?.permissions || []
@@ -382,12 +393,15 @@ export function useDeliveryWorkflow() {
   })
   const authorizedClassIds = computed(() => {
     if (isAdmin.value) return classes.map((klass) => klass.id)
-    const teacher = teachers.find((item) => sameId(item.userId, currentUserId.value) || sameId(item.id, currentUserId.value))
-    const assigned = classes.filter((klass) => sameId(klass.teacherId, teacher?.id)).map((klass) => klass.id)
-    return [...new Set([...(currentUser.value?.classes || []), ...assigned])]
+    const assigned = classes.filter((klass) => sameId(klass.teacherId, currentTeacherProfile.value?.id)).map((klass) => klass.id)
+    const lessonAssigned = tasks
+      .filter((task) => sameId(task.teacherId, currentTeacherProfile.value?.id))
+      .map((task) => task.classId)
+      .filter(Boolean)
+    return [...new Set([...(currentUser.value?.classes || []), ...assigned, ...lessonAssigned])]
   })
   const visibleTasks = computed(() =>
-    tasks.filter((task) => isAdmin.value || !classes.length || authorizedClassIds.value.some((id) => sameId(id, task.classId)) || task.teacher === currentUser.value?.name)
+    tasks.filter((task) => isAdmin.value || authorizedClassIds.value.some((id) => sameId(id, task.classId)))
   )
   const visibleNavItems = computed(() => {
     const permissions = new Set(storedMe.value?.permissions || [])
@@ -398,6 +412,7 @@ export function useDeliveryWorkflow() {
       production: ['portfolio.template.read', 'portfolio.export'],
       students: ['masterdata.read'],
       classes: ['masterdata.read'],
+      teachers: ['masterdata.read'],
       externalLinks: ['masterdata.read'],
       courses: ['masterdata.read'],
       archives: ['archive.read'],
@@ -516,7 +531,7 @@ export function useDeliveryWorkflow() {
           id: `${task.id}-${row.studentId}`,
           lessonId: task.id,
           studentId: row.studentId,
-          studentName: student?.name || '学生',
+          studentName: student?.name || row.studentName || '学生',
           fileId: row.processedFileId || row.originalFileId || row.imageFileIds?.[0] || null,
           artwork: row.image,
           feedback: row.comment,
@@ -547,9 +562,12 @@ export function useDeliveryWorkflow() {
         time: task.time,
         classId: task.classId,
         className: klass?.name || '班级',
+        classArchived: Boolean(task.classArchived || klass?.archived),
         classType: klass?.classType || '固定班',
         teacher: task.teacher,
-        course: course?.title || '课程主题',
+        teacherArchived: Boolean(task.teacherArchived),
+        course: course?.title || task.courseTitle || task.course || '课程主题',
+        courseArchived: Boolean(task.courseArchived || course?.archived),
         lessonType: task.lessonType,
         status: task.status,
         progress: progressForTask(task),
@@ -762,7 +780,7 @@ export function useDeliveryWorkflow() {
   const archiveEditLogsForRecord = (recordId) => archiveEditLogs.filter((log) => log.recordId === recordId)
   const canEditArchiveRecord = (record) => Boolean(
     record &&
-    (isAdmin.value || record.teacher === currentUser.value?.name || authorizedClassIds.value.some((id) => sameId(id, record.classId)))
+    (isAdmin.value || authorizedClassIds.value.some((id) => sameId(id, record.classId)))
   )
   const archiveFieldLabels = {
     title: '作品标题',
@@ -1154,7 +1172,7 @@ export function useDeliveryWorkflow() {
   }
 
   const selectTask = (task) => {
-    if (!isAdmin.value && !authorizedClassIds.value.some((id) => sameId(id, task.classId)) && task.teacher !== currentUser.value?.name) {
+    if (!isAdmin.value && !authorizedClassIds.value.some((id) => sameId(id, task.classId))) {
       notify('无权限查看该课次，请联系管理员授权班级')
       return
     }
@@ -2796,6 +2814,9 @@ export function useDeliveryWorkflow() {
       name: normalized.name || normalized.studentName || normalized.className || normalized.title || value.rawValues?.name || '',
       className: normalized.className || normalized.class_name || value.rawValues?.className || '',
       teacher: normalized.teacher || normalized.teacherName || value.rawValues?.teacher || '',
+      teacherId: fromApiId(normalized.teacherId || value.teacherId),
+      teacherMatchStatus: normalized.teacherMatchStatus || value.teacherMatchStatus || '',
+      teacherCandidates: Array.isArray(normalized.teacherCandidates) ? normalized.teacherCandidates : Array.isArray(value.teacherCandidates) ? value.teacherCandidates : [],
       time: normalized.time || normalized.scheduleText || value.rawValues?.time || '',
       course: normalized.course || normalized.courseTitle || value.rawValues?.course || '',
       nickname: normalized.nickname || '',
@@ -2967,6 +2988,8 @@ export function useDeliveryWorkflow() {
         id: attendanceRow.studentId,
         lessonId: lesson.id,
         studentId: attendanceRow.studentId,
+        studentName: attendanceRow.studentName || '',
+        studentArchived: Boolean(attendanceRow.studentArchived),
         attendance: attendanceRow.attendance,
         attendanceVersion: attendanceRow.version,
         note: attendanceRow.note || '',
@@ -3131,6 +3154,68 @@ export function useDeliveryWorkflow() {
     updatePageMeta(pageMeta[key], page)
   }
 
+  const masterCollectionFor = (entity) => ({ teachers, students, classes, courses }[entity] || null)
+  const masterMapperFor = (entity) => ({ teachers: mapTeacher, students: mapStudent, classes: mapClass, courses: mapCourse }[entity] || null)
+  const masterApiFor = (entity) => ({
+    teachers: api.master.teachers,
+    students: api.master.students,
+    classes: api.master.classes,
+    courses: api.master.courses
+  }[entity] || null)
+
+  const loadMasterData = async (entity, { archiveState = masterArchiveState[entity] || 'ACTIVE', force = true } = {}) => {
+    const collection = masterCollectionFor(entity)
+    const mapper = masterMapperFor(entity)
+    const loader = masterApiFor(entity)
+    if (!collection || !mapper || !loader || !isLoggedIn.value) return null
+    if (!force && pageLoaded[`master:${entity}:${archiveState}`]) return pageMeta[entity]
+    const pageKey = `master:${entity}`
+    pageLoading[pageKey] = true
+    pageErrors[pageKey] = ''
+    try {
+      const result = mapPage(await loader({ page: 1, pageSize: 50, archiveState }), mapper)
+      replaceReactive(collection, result.items)
+      masterArchiveState[entity] = archiveState
+      updateListPageMeta(entity, result)
+      pageLoaded[`master:${entity}:${archiveState}`] = true
+      return result
+    } catch (error) {
+      pageErrors[pageKey] = remoteErrorMessage(error, '基础数据加载失败')
+      throw error
+    } finally {
+      pageLoading[pageKey] = false
+    }
+  }
+
+  const loadCurrentTeacherProfile = async () => {
+    if (!isLoggedIn.value) return null
+    try {
+      const value = mapTeacher(await api.master.currentTeacher())
+      currentTeacherProfile.value = value
+      return value
+    } catch {
+      currentTeacherProfile.value = null
+      return null
+    }
+  }
+
+  const loadTeacherSourceMappings = async (params = {}) => {
+    try {
+      const values = await api.master.teacherSourceMappings(params)
+      replaceReactive(teacherSourceMappings, Array.isArray(values) ? values.map((value) => ({
+        ...value,
+        id: fromApiId(value.id),
+        teacherId: fromApiId(value.teacherId),
+        teacherUserId: fromApiId(value.teacherUserId),
+        version: Number(value.version || 0)
+      })) : [])
+      return teacherSourceMappings
+    } catch (error) {
+      notify(remoteErrorMessage(error, '老师来源映射加载失败'))
+      return null
+    }
+  }
+
   const refreshWorkbenchSummary = async () => {
     if (!isLoggedIn.value) return null
     const value = await api.workbench.summary()
@@ -3181,6 +3266,7 @@ export function useDeliveryWorkflow() {
       if (results[0].status === 'rejected') throw results[0].reason
       const valueAt = (index) => results[index].status === 'fulfilled' ? results[index].value : null
       applyMe(valueAt(0))
+      await loadCurrentTeacherProfile()
       const lessonPage = mapPage(valueAt(1), mapLesson)
       replaceReactive(tasks, lessonPage.items)
       updatePageMeta(shellPages.lessons, lessonPage)
@@ -3244,24 +3330,20 @@ export function useDeliveryWorkflow() {
             updateListPageMeta('students', mappedStudents)
             updateListPageMeta('classes', mappedClasses)
             updateListPageMeta('courses', mappedCourses)
+            await loadCurrentTeacherProfile()
             break
           }
+          case 'teachers': await loadMasterData('teachers', { archiveState: masterArchiveState.teachers, force }); break
           case 'students': {
-            const page = mapPage(await api.master.students({ page: 1, pageSize: 20 }), mapStudent)
-            replaceReactive(students, page.items)
-            updateListPageMeta('students', page)
+            await loadMasterData('students', { archiveState: masterArchiveState.students, force })
             break
           }
           case 'classes': {
-            const page = mapPage(await api.master.classes({ page: 1, pageSize: 20 }), mapClass)
-            replaceReactive(classes, page.items)
-            updateListPageMeta('classes', page)
+            await loadMasterData('classes', { archiveState: masterArchiveState.classes, force })
             break
           }
           case 'courses': {
-            const page = mapPage(await api.master.courses({ page: 1, pageSize: 20 }), mapCourse)
-            replaceReactive(courses, page.items)
-            updateListPageMeta('courses', page)
+            await loadMasterData('courses', { archiveState: masterArchiveState.courses, force })
             break
           }
           case 'externalLinks': {
@@ -3439,6 +3521,9 @@ export function useDeliveryWorkflow() {
     replaceReactive(identityUsers)
     replaceReactive(identityRoles)
     replaceReactive(identityPermissions)
+    replaceReactive(teacherSourceMappings)
+    currentTeacherProfile.value = null
+    Object.assign(masterArchiveState, { teachers: 'ACTIVE', students: 'ACTIVE', classes: 'ACTIVE', courses: 'ACTIVE' })
     Object.assign(identityUserPage, { page: 1, pageSize: 20, total: 0 })
     identityUserQuery.value = ''
     identityUserStatus.value = ''
@@ -4449,21 +4534,85 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteAddTeacher = async (payload) => {
-    const result = await runRemote('正在创建老师资料...', () => api.master.createTeacher({ name: payload.name, phone: payload.phone || undefined, title: payload.role || '老师', note: '由系统设置创建', status: payload.status === '停用' ? 'DISABLED' : 'ACTIVE' }), '老师资料已创建', () => invalidateResource('teachers'))
+    const result = await runRemote('正在创建老师资料...', () => api.master.createTeacher({ name: payload.name, phone: payload.phone || undefined, title: payload.role || '老师', note: payload.note || '由系统设置创建', status: payload.status === '停用' ? 'DISABLED' : 'ENABLED' }), '老师资料已创建', () => invalidateResource('teachers'))
     if (!result) return null
     const teacher = mapTeacher(result)
-    teachers.push(teacher)
+    const index = teachers.findIndex((item) => sameId(item.id, teacher.id))
+    if (index >= 0) teachers.splice(index, 1, teacher)
+    else teachers.push(teacher)
     return teacher
   }
 
   const remoteUpdateTeacher = async (teacherId, payload) => {
     const current = teachers.find((item) => sameId(item.id, teacherId))
-    const result = await runRemote('正在保存老师资料...', () => api.master.updateTeacher(teacherId, { name: payload.name, phone: payload.phone || undefined, title: payload.role || payload.title || '老师', note: payload.note || '', status: payload.status === '停用' ? 'DISABLED' : 'ACTIVE', version: current?.version || 0 }), '老师资料已保存', () => invalidateResource('teachers'))
+    const result = await runRemote('正在保存老师资料...', () => api.master.updateTeacher(teacherId, { name: payload.name, phone: payload.phone || undefined, title: payload.role || payload.title || '老师', note: payload.note || '', status: payload.status === '停用' ? 'DISABLED' : 'ENABLED', version: current?.version || 0 }), '老师资料已保存', () => invalidateResource('teachers'))
     if (!result) return null
     const teacher = mapTeacher(result)
     const index = teachers.findIndex((item) => sameId(item.id, teacherId))
     teachers.splice(index, 1, teacher)
     return teacher
+  }
+
+  const remoteBindTeacherAccount = async (teacherId, userId, version) => {
+    const current = teachers.find((item) => sameId(item.id, teacherId))
+    const result = await runRemote('正在保存老师账号关联...', () => api.master.bindTeacherAccount(teacherId, {
+      userId: userId === null || userId === undefined || userId === '' ? null : String(userId),
+      version: Number(version ?? current?.version ?? 0)
+    }), '老师账号关联已保存', () => loadMasterData('teachers', { archiveState: masterArchiveState.teachers, force: true }))
+    if (!result) return null
+    const teacher = mapTeacher(result)
+    const index = teachers.findIndex((item) => sameId(item.id, teacherId))
+    if (index >= 0) teachers.splice(index, 1, teacher)
+    if (sameId(currentTeacherProfile.value?.id, teacherId)) currentTeacherProfile.value = teacher
+    return teacher
+  }
+
+  const remoteSaveTeacherSourceMapping = async (payload = {}) => {
+    const sourceName = String(payload.sourceName || '').trim()
+    const current = teacherSourceMappings.find((mapping) =>
+      String(mapping.sourceType || '') === String(payload.sourceType || '') &&
+      String(mapping.sourceName || '').replace(/\s+/g, '').toLowerCase() === sourceName.replace(/\s+/g, '').toLowerCase()
+    )
+    const result = await runRemote('正在保存老师来源映射...', () => api.master.saveTeacherSourceMapping({
+      sourceType: payload.sourceType || 'WHEAT_EXCEL',
+      sourceName,
+      teacherId: String(payload.teacherId),
+      version: Number(payload.version ?? current?.version ?? 0)
+    }), '老师来源映射已保存')
+    if (!result) return null
+    await loadTeacherSourceMappings()
+    return result
+  }
+
+  const masterArchiveApi = {
+    teachers: { archive: api.master.archiveTeacher, restore: api.master.restoreTeacher },
+    students: { archive: api.master.archiveStudent, restore: api.master.restoreStudent },
+    classes: { archive: api.master.archiveClass, restore: api.master.restoreClass },
+    courses: { archive: api.master.archiveCourse, restore: api.master.restoreCourse }
+  }
+
+  const remoteArchiveMasterData = async (entity, recordId, reason = '') => {
+    const record = masterCollectionFor(entity)?.find((item) => sameId(item.id, recordId))
+    const endpoint = masterArchiveApi[entity]?.archive
+    if (!record || !endpoint) return null
+    const result = await runRemote(`正在归档${entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程'}...`,
+      () => endpoint(recordId, { version: Number(record.version || 0), reason: String(reason || '').trim() || undefined }),
+      '已完成归档')
+    if (!result) return null
+    await loadMasterData(entity, { archiveState: masterArchiveState[entity], force: true })
+    return result
+  }
+
+  const remoteRestoreMasterData = async (entity, recordId, version) => {
+    const record = masterCollectionFor(entity)?.find((item) => sameId(item.id, recordId))
+    const endpoint = masterArchiveApi[entity]?.restore
+    if (!record || !endpoint) return null
+    const result = await runRemote(`正在恢复${entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程'}...`,
+      () => endpoint(recordId, { version: Number(version ?? record.version ?? 0) }),
+      '已恢复到有效数据')
+    if (!result) return null
+    await loadMasterData(entity, { archiveState: masterArchiveState[entity], force: true })
+    return result
   }
 
   const remoteUpdateSetting = async (settingId, payload) => {
@@ -4809,6 +4958,9 @@ export function useDeliveryWorkflow() {
     identityUsers,
     identityRoles,
     identityPermissions,
+    currentTeacherProfile,
+    masterArchiveState,
+    teacherSourceMappings,
     identityUserPage,
     identityUserQuery,
     identityUserStatus,
@@ -4975,6 +5127,13 @@ export function useDeliveryWorkflow() {
     updateExternalLink: remoteUpdateExternalLink,
     addTeacher: remoteAddTeacher,
     updateTeacher: remoteUpdateTeacher,
+    bindTeacherAccount: remoteBindTeacherAccount,
+    archiveMasterData: remoteArchiveMasterData,
+    restoreMasterData: remoteRestoreMasterData,
+    loadMasterData,
+    loadCurrentTeacherProfile,
+    loadTeacherSourceMappings,
+    saveTeacherSourceMapping: remoteSaveTeacherSourceMapping,
     loadIdentityUsers,
     loadIdentityRoles,
     loadIdentityPermissions,

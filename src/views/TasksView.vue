@@ -46,6 +46,10 @@ watch(() => props.openWorkspaceSignal, (signal) => {
   <template v-if="!workspaceOpen">
     <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
     <PageHead eyebrow="老师工作台" :title="`${state.currentUser?.name || '老师'}，今天辛苦了`" />
+    <section v-if="!state.isAdmin && !state.currentUser?.teacherLinked" class="notice-box" role="alert">
+      <strong>当前账号尚未关联老师档案</strong>
+      <small>请联系管理员在“基础信息 → 老师”中绑定已有账号，关联完成后才能看到本人课次。</small>
+    </section>
     <section class="today-hero">
       <div>
         <span>今日课后</span>

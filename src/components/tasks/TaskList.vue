@@ -42,9 +42,9 @@ const importSourceOptions = ['手动补录', '小麦课表复制', '小麦 Excel
 const lessonDraft = ref({
   dateValue: '2026-06-21',
   time: '20:10',
-  classId: props.classes[0]?.id,
-  teacherId: props.teachers.find((item) => item.role === '老师')?.id,
-  courseId: props.courses[0]?.id,
+  classId: props.classes.find((item) => !item.archived)?.id,
+  teacherId: props.teachers.find((item) => !item.archived && item.role === '老师')?.id,
+  courseId: props.courses.find((item) => !item.archived)?.id,
   lessonType: '收费课',
   status: '待处理',
   importedFrom: '手动补录'
@@ -56,11 +56,14 @@ const openLessonDialog = async () => {
 }
 
 const selectedClass = computed(() => props.classes.find((item) => sameId(item.id, lessonDraft.value.classId)))
-const classOptions = computed(() => props.classes.map((klass) => ({ label: klass.name, value: klass.id })))
+const activeClasses = computed(() => props.classes.filter((klass) => !klass.archived))
+const activeTeachers = computed(() => props.teachers.filter((teacher) => !teacher.archived))
+const activeCourses = computed(() => props.courses.filter((course) => !course.archived))
+const classOptions = computed(() => activeClasses.value.map((klass) => ({ label: klass.name, value: klass.id })))
 const teacherOptions = computed(() =>
-  props.teachers.filter((item) => item.role === '老师').map((teacher) => ({ label: teacher.name, value: teacher.id }))
+  activeTeachers.value.filter((item) => item.role === '老师').map((teacher) => ({ label: teacher.name, value: teacher.id }))
 )
-const courseOptions = computed(() => props.courses.map((course) => ({ label: course.title, value: course.id })))
+const courseOptions = computed(() => activeCourses.value.map((course) => ({ label: course.title, value: course.id })))
 
 watch(
   () => lessonDraft.value.classId,
@@ -96,8 +99,17 @@ const saveLesson = () => {
     >
       <span class="time">{{ task.time }}</span>
       <span>
-        <strong>{{ task.className || classes.find((item) => sameId(item.id, task.classId))?.name || '未配置班级' }}</strong>
-        <small>{{ task.courseTitle || courses.find((item) => sameId(item.id, task.courseId))?.title || '待配置课程' }} · {{ task.teacher }} · {{ task.lessonType }}</small>
+        <strong>
+          {{ task.className || classes.find((item) => sameId(item.id, task.classId))?.name || '未配置班级' }}
+          <em v-if="task.classArchived" class="archived-reference">已归档</em>
+        </strong>
+        <small>
+          {{ task.courseTitle || courses.find((item) => sameId(item.id, task.courseId))?.title || '待配置课程' }}
+          <em v-if="task.courseArchived" class="archived-reference">已归档</em>
+          · {{ task.teacher }}
+          <em v-if="task.teacherArchived" class="archived-reference">已归档</em>
+          · {{ task.lessonType }}
+        </small>
         <i class="mini-progress"><b :style="{ width: `${progressForTask(task)}%` }"></b></i>
       </span>
       <em>{{ task.status }} · {{ progressForTask(task) }}%</em>

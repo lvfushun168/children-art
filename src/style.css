@@ -6336,6 +6336,29 @@ textarea:focus,
   gap: 8px;
 }
 
+.archive-filter {
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.archive-filter button {
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.archive-filter button.active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
 .master-row {
   display: grid;
   gap: 4px;
@@ -6360,6 +6383,30 @@ textarea:focus,
 .teacher-row span {
   color: var(--color-muted);
   font-size: 13px;
+}
+
+.master-row .status-tag {
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning-text);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.archived-reference {
+  color: var(--color-status-warning-text);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.teacher-match-line {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
 .master-detail {

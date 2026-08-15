@@ -30,7 +30,12 @@ const resourceFilterOptions = computed(() => [
   '最近使用',
   ...Array.from(new Set(props.state.externalLinks.map((link) => link.platform))).filter(Boolean)
 ])
-const studentFor = (studentId) => props.state.students.find((item) => sameId(item.id, studentId)) || { name: '学生', parent: '' }
+const studentFor = (studentId) => {
+  const activeStudent = props.state.students.find((item) => sameId(item.id, studentId))
+  if (activeStudent) return activeStudent
+  const sessionStudent = props.state.sessionStudents?.find((item) => sameId(item.studentId, studentId))
+  return sessionStudent ? { name: sessionStudent.studentName || '学生', parent: sessionStudent.parent || '' } : { name: '学生', parent: '' }
+}
 const filteredExternalResources = computed(() => {
   const keyword = resourceSearch.value.trim().toLowerCase()
   return props.state.externalLinks.filter((link, index) => {
@@ -215,7 +220,7 @@ const updateCommentTemplate = (index) => {
             :class="{ active: sameId(row.studentId, state.activeStudentId), absent: row.attendance !== '到课' }"
             @click="state.activeStudentId = row.studentId"
           >
-            <strong>{{ studentFor(row.studentId).name }}</strong>
+            <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
             <span>{{ studentFor(row.studentId).parent }}</span>
             <AdaptiveSelect
               :model-value="row.attendance"
@@ -344,7 +349,7 @@ const updateCommentTemplate = (index) => {
             class="student-work-row"
           >
             <div class="student-work-person">
-              <strong>{{ studentFor(row.studentId).name }}</strong>
+              <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
               <small>{{ studentFor(row.studentId).parent }}</small>
               <span>{{ row.attendance }}</span>
             </div>
@@ -365,7 +370,7 @@ const updateCommentTemplate = (index) => {
         <div v-if="workPreview" class="modal-backdrop" @click.self="workPreview = null">
           <section class="work-preview-modal">
             <header class="modal-head">
-              <div><span>{{ studentFor(workPreview.row.studentId).name }}</span><strong>作品 {{ workPreview.index + 1 }}/{{ workImages(workPreview.row).length }}</strong></div>
+              <div><span>{{ studentFor(workPreview.row.studentId).name }}<em v-if="workPreview.row.studentArchived" class="archived-reference">（已归档）</em></span><strong>作品 {{ workPreview.index + 1 }}/{{ workImages(workPreview.row).length }}</strong></div>
               <button class="ghost" @click="workPreview = null">关闭</button>
             </header>
             <ProtectedMedia
@@ -396,7 +401,7 @@ const updateCommentTemplate = (index) => {
         </div>
         <div class="record-student-tabs">
           <button v-for="(row, index) in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ active: sameId(row.studentId, state.activeStudentId), done: row.record?.trim() }" @click="state.activeStudentId = row.studentId">
-            <b>{{ index + 1 }}</b><span><strong>{{ studentFor(row.studentId).name }}</strong><small>{{ row.record?.trim() ? '已记录' : '待记录' }}</small></span>
+            <b>{{ index + 1 }}</b><span><strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong><small>{{ row.record?.trim() ? '已记录' : '待记录' }}</small></span>
           </button>
         </div>
         <article v-if="state.activeSessionStudent" class="single-record-editor">
@@ -461,7 +466,7 @@ const updateCommentTemplate = (index) => {
           </div>
           <div class="student-tabs review-student-tabs">
             <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: sameId(row.studentId, state.activeStudentId), reviewed: row.confirmed && row.imageConfirmed }" @click="state.activeStudentId = row.studentId">
-              {{ studentFor(row.studentId).name }}{{ row.confirmed && row.imageConfirmed ? ' ✓' : '' }}
+              {{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em>{{ row.confirmed && row.imageConfirmed ? ' ✓' : '' }}
             </button>
           </div>
           <div class="generated-result-grid">
@@ -607,7 +612,7 @@ const updateCommentTemplate = (index) => {
             </header>
             <div class="student-tabs review-student-tabs">
               <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: sameId(row.studentId, state.activeStudentId) }" @click="state.activeStudentId = row.studentId">
-                {{ studentFor(row.studentId).name }}
+                {{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em>
               </button>
             </div>
             <DeliveryPreview
@@ -683,7 +688,7 @@ const updateCommentTemplate = (index) => {
                   <summary>学生访问凭证（企微不可用时人工发送兜底）</summary>
                   <div v-for="row in state.attendingRows" :key="`touch-${row.lessonId}-${row.studentId}`" class="touch-fallback-row">
                     <div>
-                      <strong>{{ studentFor(row.studentId).name }}</strong>
+                      <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
                       <small>{{ studentFor(row.studentId).parent }} · 展示页 V{{ state.sharePage.publishedVersion }}</small>
                     </div>
                     <span class="credential-status">链接已生成</span>

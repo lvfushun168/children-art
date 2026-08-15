@@ -1288,24 +1288,49 @@ h2 {
 }
 
 .processing-bar {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 35;
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0;
   padding: 10px 12px;
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  border-radius: 999px;
   background: var(--color-primary-soft);
   color: var(--color-primary);
-  animation: soft-enter 0.24s ease both;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  pointer-events: none;
+  animation: toast-in 0.24s ease both;
+}
+
+.processing-bar strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .processing-bar span {
   width: 16px;
   height: 16px;
+  flex: 0 0 16px;
   border: 3px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
   border-top-color: var(--color-primary);
   border-radius: 999px;
   animation: spin 0.9s linear infinite;
+}
+
+@media (max-width: 680px) {
+  .processing-bar {
+    top: 12px;
+    max-width: calc(100vw - 24px);
+    padding: 9px 12px;
+  }
 }
 
 .wizard-head {
@@ -1466,7 +1491,9 @@ h2 {
   background: var(--color-surface-muted);
 }
 
-.roster-table button {
+.roster-table > button {
+  position: relative;
+  z-index: 0;
   display: grid;
   grid-template-columns: 110px 1fr auto;
   gap: 10px;
@@ -1479,12 +1506,20 @@ h2 {
   text-align: left;
 }
 
-.roster-table button.active {
+.roster-table > button:focus-within {
+  z-index: 2;
+}
+
+.roster-table > button:has(.adaptive-select.open) {
+  z-index: 2;
+}
+
+.roster-table > button.active {
   outline: 2px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
   background: var(--color-primary-soft);
 }
 
-.roster-table button.absent,
+.roster-table > button.absent,
 .work-card.absent {
   opacity: 0.58;
 }
@@ -9262,7 +9297,7 @@ textarea:focus,
     gap: 3px;
   }
 
-  .app-shell-mobile .roster-table button {
+  .app-shell-mobile .roster-table > button {
     grid-template-columns: 1fr;
     gap: 8px;
     min-height: 0;

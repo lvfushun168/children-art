@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
 import ProtectedMedia from '../components/common/ProtectedMedia.vue'
+import PaginationBar from '../components/common/PaginationBar.vue'
 import { sameId } from '../services/mappers'
 
 const props = defineProps({
@@ -24,11 +25,14 @@ const archiveTabs = [
   { id: 'teacherEffects', label: '老师课效档案' }
 ]
 
-const activeTab = ref('home')
-const selectedId = ref(props.state.filteredArchiveRecords[0]?.id || null)
+const activeTab = ref('studentWorks')
+const selectedId = ref(null)
+const detailRecord = ref(null)
 const selectedRecordIds = ref([])
-const selectedLessonId = ref(props.state.lessonArchiveRecords[0]?.id || null)
-const selectedEffectId = ref(props.state.teacherEffectArchiveRecords[0]?.id || null)
+const selectedLessonId = ref(null)
+const selectedEffectId = ref(null)
+const lessonDetail = ref(null)
+const effectDetail = ref(null)
 const showWorkDrawer = ref(false)
 const showLessonDrawer = ref(false)
 const showEffectDrawer = ref(false)
@@ -36,7 +40,7 @@ const isEditingWork = ref(false)
 const workEditError = ref('')
 const initialWorkDraft = ref('')
 const lessonFilter = reactive({ classId: 'all', teacher: 'all', dateStart: '', dateEnd: '' })
-const effectFilter = reactive({ teacher: 'all', classId: 'all', dateStart: '', dateEnd: '' })
+const effectFilter = reactive({ teacher: 'all', classId: 'all', classTypeId: 'all', status: 'all', dateStart: '', dateEnd: '' })
 const workDraft = reactive({
   title: '',
   description: '',
@@ -51,13 +55,25 @@ const workDraft = reactive({
   externalFramerName: '',
   frameNote: ''
 })
-const selected = computed(() => props.state.filteredArchiveRecords.find((record) => sameId(record.id, selectedId.value)) || props.state.filteredArchiveRecords[0])
-const selectedRecords = computed(() => selectedRecordIds.value.map((id) => props.state.archiveRecords.find((record) => sameId(record.id, id))).filter(Boolean))
+const workPage = computed(() => props.state.directoryPages?.archiveRecords || { items: [], page: 1, pageSize: 20, total: 0 })
+const lessonPage = computed(() => props.state.directoryPages?.classroomArchives || { items: [], page: 1, pageSize: 20, total: 0 })
+const effectPage = computed(() => props.state.directoryPages?.teacherArchives || { items: [], page: 1, pageSize: 20, total: 0 })
+const workRecords = computed(() => workPage.value.items || [])
+const lessonRecords = computed(() => lessonPage.value.items || [])
+const effectRecords = computed(() => effectPage.value.items || [])
+const selected = computed(() => detailRecord.value || workRecords.value.find((record) => sameId(record.id, selectedId.value)) || null)
+const selectedRecords = computed(() => selectedRecordIds.value.map((id) => workRecords.value.find((record) => sameId(record.id, id))).filter(Boolean))
 const selectedWorkLogs = computed(() => (selected.value ? props.state.archiveEditLogsForRecord(selected.value.id) : []))
-const canEditSelectedWork = computed(() => props.state.canEditArchiveRecord(selected.value))
+const canEditSelectedWork = computed(() => {
+  if (!selected.value) return false
+  if (selected.value.sourceType === 'extraTask') {
+    return Boolean(props.state.canEditExtraTaskArtwork?.value ?? props.state.canEditExtraTaskArtwork)
+  }
+  return props.state.canEditArchiveRecord(selected.value)
+})
 const hasUnsavedWorkChanges = computed(() => isEditingWork.value && JSON.stringify(workDraft) !== initialWorkDraft.value)
-const visibleSelectedCount = computed(() => props.state.filteredArchiveRecords.filter((record) => selectedRecordIds.value.some((id) => sameId(id, record.id))).length)
-const allVisibleSelected = computed(() => props.state.filteredArchiveRecords.length > 0 && visibleSelectedCount.value === props.state.filteredArchiveRecords.length)
+const visibleSelectedCount = computed(() => workRecords.value.filter((record) => selectedRecordIds.value.some((id) => sameId(id, record.id))).length)
+const allVisibleSelected = computed(() => workRecords.value.length > 0 && visibleSelectedCount.value === workRecords.value.length)
 const singleStudentSelection = computed(() => {
   const ids = [...new Set(selectedRecords.value.map((record) => record.studentId))]
   return ids.length === 1 ? props.state.students.find((student) => sameId(student.id, ids[0])) : null
@@ -65,37 +81,24 @@ const singleStudentSelection = computed(() => {
 const isWithinDateRange = (value, start, end) =>
   Boolean(value && (!start || value >= start) && (!end || value <= end))
 
-const filteredLessonArchives = computed(() =>
-  props.state.lessonArchiveRecords.filter((lesson) => {
-    const classOk = lessonFilter.classId === 'all' || sameId(lesson.classId, lessonFilter.classId)
-    const teacherOk = lessonFilter.teacher === 'all' || lesson.teacher === lessonFilter.teacher
-    const dateOk = isWithinDateRange(lesson.dateValue, lessonFilter.dateStart, lessonFilter.dateEnd)
-    return classOk && teacherOk && dateOk
-  })
-)
-const selectedLesson = computed(() => filteredLessonArchives.value.find((lesson) => sameId(lesson.id, selectedLessonId.value)) || filteredLessonArchives.value[0])
+const filteredLessonArchives = computed(() => lessonRecords.value)
+const selectedLesson = computed(() => lessonDetail.value || filteredLessonArchives.value.find((lesson) => sameId(lesson.id, selectedLessonId.value)) || null)
 const selectedLessonAssets = computed(() => selectedLesson.value?.materials || [])
 const selectedLessonWorks = computed(() => selectedLesson.value?.studentWorks || [])
 
-const filteredTeacherEffects = computed(() =>
-  props.state.teacherEffectArchiveRecords.filter((effect) => {
-    const classOk = effectFilter.classId === 'all' || sameId(effect.sourceLesson.classId, effectFilter.classId)
-    const teacherOk = effectFilter.teacher === 'all' || effect.teacher === effectFilter.teacher
-    const dateOk = isWithinDateRange(effect.dateValue, effectFilter.dateStart, effectFilter.dateEnd)
-    return classOk && teacherOk && dateOk
-  })
-)
-const selectedEffect = computed(() => filteredTeacherEffects.value.find((effect) => sameId(effect.id, selectedEffectId.value)) || filteredTeacherEffects.value[0])
+const filteredTeacherEffects = computed(() => effectRecords.value)
+const selectedEffect = computed(() => effectDetail.value || filteredTeacherEffects.value.find((effect) => sameId(effect.id, selectedEffectId.value)) || null)
 
 const archiveStats = computed(() => ({
-  works: props.state.archiveRecords.length,
-  lessons: props.state.lessonArchiveRecords.length,
-  effects: props.state.teacherEffectArchiveRecords.length
+  works: workPage.value.total,
+  lessons: lessonPage.value.total,
+  effects: effectPage.value.total
 }))
 const activeArchive = computed(() => archiveTabs.find((tab) => tab.id === activeTab.value))
+const archiveReferencesLoaded = ref(false)
 const teacherFilterOptions = computed(() => [
   { label: '全部老师', value: 'all' },
-  ...props.state.teachers.filter((item) => item.role === '老师').map((teacher) => ({ label: teacher.name, value: teacher.name }))
+  ...props.state.teachers.filter((item) => item.role === '老师' || item.name).map((teacher) => ({ label: teacher.name, value: teacher.id }))
 ])
 const classFilterOptions = computed(() => [
   { label: '全部班级', value: 'all' },
@@ -115,6 +118,15 @@ const sourceTypeOptions = [
   { label: '课堂作品', value: 'lesson' },
   { label: '课外作品', value: 'extraTask' }
 ]
+const effectStatusOptions = [
+  { label: '全部状态', value: 'all' },
+  { label: '已生成', value: 'GENERATED' }, { label: '已确认', value: 'CONFIRMED' },
+  { label: '已跳过', value: 'SKIPPED' }, { label: '失败', value: 'FAILED' }
+]
+const classTypeOptions = computed(() => [
+  { label: '全部班型', value: 'all' },
+  ...(props.state.classTypes || []).map((item) => ({ label: item.name, value: item.id }))
+])
 const framerOptions = computed(() => [
   { label: '请选择', value: '' },
   ...props.state.teachers
@@ -123,27 +135,54 @@ const framerOptions = computed(() => [
   { label: '其他人员或外部机构', value: 'external' }
 ])
 
-const archiveCountFor = (id) => {
-  if (id === 'studentWorks') return `${archiveStats.value.works} 条学生作品`
-  if (id === 'lessons') return `${archiveStats.value.lessons} 节课堂档案`
-  return `${archiveStats.value.effects} 张课效长图`
+const sourceParam = (value) => ({ all: 'ALL', lesson: 'LESSON', extraTask: 'EXTRA_TASK' }[value] || 'ALL')
+const mountingParam = (value) => ({ all: undefined, framed: 'MOUNTED', unframed: 'UNMOUNTED' }[value])
+const loadStudentWorks = async (page = 1) => {
+  selectedId.value = null
+  detailRecord.value = null
+  selectedRecordIds.value = []
+  await props.state.loadDirectoryPage?.('archiveRecords', {
+    page,
+    pageSize: 20,
+    sourceType: sourceParam(props.state.archiveFilter.sourceType),
+    studentId: props.state.archiveFilter.studentId === 'all' ? undefined : props.state.archiveFilter.studentId,
+    classId: props.state.archiveFilter.classId === 'all' ? undefined : props.state.archiveFilter.classId,
+    teacherId: props.state.archiveFilter.teacher === 'all' ? undefined : props.state.archiveFilter.teacher,
+    dateFrom: props.state.archiveFilter.dateStart || undefined,
+    dateTo: props.state.archiveFilter.dateEnd || undefined,
+    highlight: props.state.archiveFilter.highlightOnly ? true : undefined,
+    mountingStatus: mountingParam(props.state.archiveFilter.frameStatus)
+  })
 }
-
-watch(filteredLessonArchives, (records) => {
-  if (!records.some((record) => sameId(record.id, selectedLessonId.value))) selectedLessonId.value = records[0]?.id || null
-}, { immediate: true })
-
-watch(filteredTeacherEffects, (records) => {
-  if (!records.some((record) => sameId(record.id, selectedEffectId.value))) selectedEffectId.value = records[0]?.id || null
-}, { immediate: true })
-
-const selectFirstIfMissing = () => {
-  if (!props.state.filteredArchiveRecords.some((record) => sameId(record.id, selectedId.value))) {
-    selectedId.value = props.state.filteredArchiveRecords[0]?.id || null
-  }
-  const visibleIds = props.state.filteredArchiveRecords.map((record) => record.id)
-  selectedRecordIds.value = selectedRecordIds.value.filter((id) => visibleIds.some((visibleId) => sameId(visibleId, id)))
+const loadLessonArchives = async (page = 1) => {
+  selectedLessonId.value = null
+  lessonDetail.value = null
+  await props.state.loadDirectoryPage?.('classroomArchives', {
+    page,
+    pageSize: 20,
+    status: 'COMPLETED',
+    archived: true,
+    classId: lessonFilter.classId === 'all' ? undefined : lessonFilter.classId,
+    teacherId: lessonFilter.teacher === 'all' ? undefined : lessonFilter.teacher,
+    dateFrom: lessonFilter.dateStart || undefined,
+    dateTo: lessonFilter.dateEnd || undefined
+  })
 }
+const loadTeacherEffects = async (page = 1) => {
+  selectedEffectId.value = null
+  effectDetail.value = null
+  await props.state.loadDirectoryPage?.('teacherArchives', {
+    page,
+    pageSize: 20,
+    teacherId: effectFilter.teacher === 'all' ? undefined : effectFilter.teacher,
+    classId: effectFilter.classId === 'all' ? undefined : effectFilter.classId,
+    classTypeId: effectFilter.classTypeId === 'all' ? undefined : effectFilter.classTypeId,
+    status: effectFilter.status === 'all' ? undefined : effectFilter.status,
+    dateFrom: effectFilter.dateStart || undefined,
+    dateTo: effectFilter.dateEnd || undefined
+  })
+}
+const selectFirstIfMissing = () => loadStudentWorks(1)
 
 const toggleRecord = (record) => {
   selectedId.value = record.id
@@ -153,7 +192,7 @@ const toggleRecord = (record) => {
 }
 
 const toggleAllVisible = () => {
-  const visibleIds = props.state.filteredArchiveRecords.map((record) => record.id)
+  const visibleIds = workRecords.value.map((record) => record.id)
   if (allVisibleSelected.value) {
     selectedRecordIds.value = selectedRecordIds.value.filter((id) => !visibleIds.some((visibleId) => sameId(visibleId, id)))
     return
@@ -161,11 +200,18 @@ const toggleAllVisible = () => {
   selectedRecordIds.value = [...new Set([...selectedRecordIds.value, ...visibleIds])]
 }
 
-const openWorkDrawer = (record) => {
+const openWorkDrawer = async (record) => {
   selectedId.value = record.id
+  detailRecord.value = null
   isEditingWork.value = false
   workEditError.value = ''
   showWorkDrawer.value = true
+  try {
+    const detail = await props.state.loadDirectoryDetail?.('archiveRecords', record)
+    if (sameId(selectedId.value, record.id)) detailRecord.value = { ...record, ...(detail || {}) }
+  } catch {
+    detailRecord.value = record
+  }
 }
 
 const loadWorkDraft = () => {
@@ -234,31 +280,70 @@ const saveWorkEdit = async () => {
   }
   const staffId = workDraft.framerKey.startsWith('staff:') ? workDraft.framerKey.slice('staff:'.length) : null
   const staff = props.state.teachers.find((item) => sameId(item.id, staffId))
-  const saved = await props.state.updateArchiveRecord(selected.value.id, {
-    title: workDraft.title,
-    description: workDraft.description,
-    tags: workDraft.tagsText.split(/[，,、]/),
-    note: workDraft.note,
-    framed: workDraft.framed,
-    framedAt: workDraft.framedAt,
-    frameFee: workDraft.frameFee,
-    framerId: staffId,
-    framerName: staff?.name || workDraft.externalFramerName,
-    frameNote: workDraft.frameNote
-  })
+  let saved = null
+  if (selected.value.sourceType === 'extraTask') {
+    await props.state.loadDirectoryExtraTaskWorks?.(selected.value.extraTaskId)
+    saved = await props.state.updateExtraTaskWork?.(selected.value.id, {
+      title: workDraft.title,
+      description: workDraft.description,
+      tags: workDraft.tagsText.split(/[，,、]/),
+      highlight: workDraft.highlight,
+      highlightNote: workDraft.highlightNote,
+      version: selected.value.version
+    })
+  } else {
+    saved = await props.state.updateArchiveRecord(selected.value.id, {
+      title: workDraft.title,
+      description: workDraft.description,
+      tags: workDraft.tagsText.split(/[，,、]/),
+      note: workDraft.note,
+      framed: workDraft.framed,
+      framedAt: workDraft.framedAt,
+      frameFee: workDraft.frameFee,
+      framerId: staffId,
+      framerName: staff?.name || workDraft.externalFramerName,
+      frameNote: workDraft.frameNote
+    })
+  }
   if (!saved) return
   isEditingWork.value = false
   initialWorkDraft.value = ''
+  await loadStudentWorks(workPage.value.page)
+  selectedId.value = saved.id
+  detailRecord.value = { ...selected.value, ...saved }
 }
 
-const openLessonDrawer = (lesson) => {
+const openLessonDrawer = async (lesson) => {
   selectedLessonId.value = lesson.id
+  lessonDetail.value = null
   showLessonDrawer.value = true
+  try {
+    const detail = await props.state.loadDirectoryDetail?.('classroomArchives', lesson)
+    if (sameId(selectedLessonId.value, lesson.id)) {
+      lessonDetail.value = {
+        ...lesson,
+        ...(detail || {}),
+        materials: detail?.materials || [],
+        studentWorks: detail?.studentDeliveries || [],
+        worksCount: (detail?.studentDeliveries || []).filter((item) => item.imageMatched).length,
+        highlights: (detail?.studentDeliveries || []).filter((item) => item.highlight).length
+      }
+    }
+  } catch {
+    lessonDetail.value = lesson
+  }
 }
 
-const openEffectDrawer = (effect) => {
+const openEffectDrawer = async (effect) => {
   selectedEffectId.value = effect.id
+  effectDetail.value = null
   showEffectDrawer.value = true
+  try {
+    const detail = await props.state.loadDirectoryDetail?.('teacherArchives', effect)
+    if (sameId(selectedEffectId.value, effect.id)) effectDetail.value = { ...effect, ...(detail || {}) }
+  } catch {
+    effectDetail.value = effect
+  }
 }
 
 const sendSelectionToProduction = () => {
@@ -269,6 +354,35 @@ const sendSelectionToProduction = () => {
   })
 }
 
+const switchTab = (tab) => {
+  activeTab.value = tab
+  if (tab === 'studentWorks') void loadStudentWorks(1)
+  if (tab === 'lessons') void loadLessonArchives(1)
+  if (tab === 'teacherEffects') void loadTeacherEffects(1)
+}
+
+const loadArchiveReferences = async () => {
+  if (archiveReferencesLoaded.value) return
+  archiveReferencesLoaded.value = true
+  try {
+    await Promise.all([
+      props.state.loadMasterData?.('teachers', { archiveState: 'ACTIVE', force: false }),
+      props.state.loadMasterData?.('students', { archiveState: 'ACTIVE', force: false }),
+      props.state.loadMasterData?.('classes', { archiveState: 'ACTIVE', force: false }),
+      props.state.loadClassTypes?.()
+    ])
+  } catch {
+    archiveReferencesLoaded.value = false
+  }
+}
+
+watch(activeTab, (tab) => {
+  void loadArchiveReferences()
+  if (tab === 'studentWorks' && !workPage.value.total && !props.state.directoryLoading?.archiveRecords) void loadStudentWorks(1)
+  if (tab === 'lessons' && !lessonPage.value.total && !props.state.directoryLoading?.classroomArchives) void loadLessonArchives(1)
+  if (tab === 'teacherEffects' && !effectPage.value.total && !props.state.directoryLoading?.teacherArchives) void loadTeacherEffects(1)
+}, { immediate: true })
+
 const assetMeta = (asset) => {
   if (asset.fileName) return `${asset.fileName}${asset.fileExt ? ` · ${asset.fileExt.toUpperCase()}` : ''}`
   return asset.visible ? '家长展示页可见' : '仅内部归档'
@@ -278,29 +392,17 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
 </script>
 
 <template>
-  <button v-if="activeTab === 'home' && groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
+  <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
 
   <PageHead title="档案中心" />
 
-  <section v-if="activeTab === 'home'" class="archive-home panel">
-    <button
-      v-for="tab in archiveTabs"
-      :key="tab.id"
-      class="archive-entry-card"
-      @click="activeTab = tab.id"
-    >
-      <span>
-        <strong>{{ tab.label }}</strong>
-      </span>
-      <em>{{ archiveCountFor(tab.id) }}</em>
+  <section class="archive-tabs panel">
+    <button v-for="tab in archiveTabs" :key="tab.id" type="button" :class="{ selected: activeTab === tab.id }" @click="switchTab(tab.id)">
+      <strong>{{ tab.label }}</strong>
+      <small v-if="tab.id === 'studentWorks'">{{ archiveStats.works }} 条</small>
+      <small v-if="tab.id === 'lessons'">{{ archiveStats.lessons }} 节</small>
+      <small v-if="tab.id === 'teacherEffects'">{{ archiveStats.effects }} 条</small>
     </button>
-  </section>
-
-  <section v-else class="archive-subpage-head panel">
-    <button class="ghost" @click="activeTab = 'home'">返回档案中心</button>
-    <div>
-      <strong>{{ activeArchive?.label }}</strong>
-    </div>
   </section>
 
   <section v-if="activeTab === 'studentWorks'" class="archive-workspace-layout">
@@ -308,7 +410,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div class="section-head">
         <div>
           <span>学生作品档案</span>
-          <strong>{{ state.filteredArchiveRecords.length }} 条记录</strong>
+          <strong>{{ workPage.total }} 条记录</strong>
         </div>
       </div>
       <div class="archive-filter-fields student-work-filter-fields">
@@ -337,20 +439,16 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span>只看高光作品</span>
         </label>
       </div>
-      <DateRangeFilter
-        v-model:start="state.archiveFilter.dateStart"
-        v-model:end="state.archiveFilter.dateEnd"
-        @change="selectFirstIfMissing"
-      />
+      <DateRangeFilter v-model:start="state.archiveFilter.dateStart" v-model:end="state.archiveFilter.dateEnd" @change="selectFirstIfMissing" />
     </section>
 
     <section class="archive-results panel">
       <div class="section-head">
         <div>
           <span>归档记录</span>
-          <strong>{{ state.filteredArchiveRecords.length }} 条</strong>
+          <strong>{{ workPage.total }} 条</strong>
         </div>
-        <button class="ghost" :disabled="!state.filteredArchiveRecords.length" @click="toggleAllVisible">
+        <button class="ghost" :disabled="!workRecords.length" @click="toggleAllVisible">
           {{ allVisibleSelected ? '取消全选' : '全选当前结果' }}
         </button>
       </div>
@@ -365,7 +463,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </div>
       </div>
       <article
-        v-for="record in state.filteredArchiveRecords"
+        v-for="record in workRecords"
         :key="record.id"
         class="archive-row"
         :class="{ active: sameId(selected?.id, record.id), picked: selectedRecordIds.some((id) => sameId(id, record.id)) }"
@@ -384,9 +482,9 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <em v-if="record.collectionIds?.length" class="collection-tag">已入选作品集</em>
         </span>
       </article>
-      <div v-if="!state.filteredArchiveRecords.length" class="notice-box">
-        <small>没有符合条件的归档记录。</small>
-      </div>
+      <div v-if="state.directoryErrors?.archiveRecords" class="notice-box error-box"><small>{{ state.directoryErrors.archiveRecords }}</small><button class="ghost" type="button" @click="loadStudentWorks(workPage.page)">重试</button></div>
+      <div v-else-if="!workRecords.length && !state.directoryLoading?.archiveRecords" class="notice-box"><small>没有符合条件的归档记录。</small></div>
+      <PaginationBar :page="workPage.page" :page-size="workPage.pageSize" :total="workPage.total" :loading="state.directoryLoading?.archiveRecords" @change="loadStudentWorks" />
     </section>
 
   </section>
@@ -396,22 +494,23 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div class="section-head">
         <div>
           <span>课堂资料档案</span>
-          <strong>{{ filteredLessonArchives.length }} 节课</strong>
+          <strong>{{ lessonPage.total }} 节课</strong>
         </div>
       </div>
       <div class="archive-filter-fields compact-archive-filter-fields">
         <label>
           班级
-          <AdaptiveSelect v-model="lessonFilter.classId" :options="classFilterOptions" />
+          <AdaptiveSelect v-model="lessonFilter.classId" :options="classFilterOptions" @change="loadLessonArchives(1)" />
         </label>
         <label>
           老师
-          <AdaptiveSelect v-model="lessonFilter.teacher" :options="teacherFilterOptions" />
+          <AdaptiveSelect v-model="lessonFilter.teacher" :options="teacherFilterOptions" @change="loadLessonArchives(1)" />
         </label>
       </div>
       <DateRangeFilter
         v-model:start="lessonFilter.dateStart"
         v-model:end="lessonFilter.dateEnd"
+        @change="loadLessonArchives(1)"
       />
     </section>
 
@@ -419,7 +518,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div class="section-head">
         <div>
           <span>课堂记录</span>
-          <strong>{{ filteredLessonArchives.length }} 节</strong>
+          <strong>{{ lessonPage.total }} 节</strong>
         </div>
       </div>
       <button
@@ -447,6 +546,8 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div v-if="!filteredLessonArchives.length" class="notice-box">
         <small>没有符合条件的课堂档案。</small>
       </div>
+      <div v-if="state.directoryErrors?.classroomArchives" class="notice-box error-box"><small>{{ state.directoryErrors.classroomArchives }}</small><button class="ghost" type="button" @click="loadLessonArchives(lessonPage.page)">重试</button></div>
+      <PaginationBar :page="lessonPage.page" :page-size="lessonPage.pageSize" :total="lessonPage.total" :loading="state.directoryLoading?.classroomArchives" @change="loadLessonArchives" />
     </section>
 
   </section>
@@ -456,22 +557,25 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div class="section-head">
         <div>
           <span>老师课效档案</span>
-          <strong>{{ filteredTeacherEffects.length }} 张长图</strong>
+          <strong>{{ effectPage.total }} 张长图</strong>
         </div>
       </div>
       <div class="archive-filter-fields compact-archive-filter-fields">
         <label>
           老师
-          <AdaptiveSelect v-model="effectFilter.teacher" :options="teacherFilterOptions" />
+          <AdaptiveSelect v-model="effectFilter.teacher" :options="teacherFilterOptions" @change="loadTeacherEffects(1)" />
         </label>
         <label>
           班级
-          <AdaptiveSelect v-model="effectFilter.classId" :options="classFilterOptions" />
+          <AdaptiveSelect v-model="effectFilter.classId" :options="classFilterOptions" @change="loadTeacherEffects(1)" />
         </label>
+        <label>班型<AdaptiveSelect v-model="effectFilter.classTypeId" :options="classTypeOptions" @change="loadTeacherEffects(1)" /></label>
+        <label>状态<AdaptiveSelect v-model="effectFilter.status" :options="effectStatusOptions" @change="loadTeacherEffects(1)" /></label>
       </div>
       <DateRangeFilter
         v-model:start="effectFilter.dateStart"
         v-model:end="effectFilter.dateEnd"
+        @change="loadTeacherEffects(1)"
       />
     </section>
 
@@ -479,7 +583,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div class="section-head">
         <div>
           <span>课效长图</span>
-          <strong>{{ filteredTeacherEffects.length }} 条</strong>
+          <strong>{{ effectPage.total }} 条</strong>
         </div>
       </div>
       <button
@@ -501,6 +605,8 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div v-if="!filteredTeacherEffects.length" class="notice-box">
         <small>暂无符合条件的老师课效档案。</small>
       </div>
+      <div v-if="state.directoryErrors?.teacherArchives" class="notice-box error-box"><small>{{ state.directoryErrors.teacherArchives }}</small><button class="ghost" type="button" @click="loadTeacherEffects(effectPage.page)">重试</button></div>
+      <PaginationBar :page="effectPage.page" :page-size="effectPage.pageSize" :total="effectPage.total" :loading="state.directoryLoading?.teacherArchives" @change="loadTeacherEffects" />
     </section>
 
   </section>
@@ -514,7 +620,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </div>
         <div class="archive-drawer-actions">
           <button v-if="!isEditingWork && canEditSelectedWork" class="primary" @click="startWorkEdit">编辑</button>
-          <button class="ghost" @click="closeWorkDrawer">关闭</button>
+          <button v-if="!isEditingWork" class="ghost" @click="closeWorkDrawer">关闭</button>
         </div>
       </header>
       <figure class="archive-image-readonly">
@@ -551,7 +657,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
             <p>{{ workDraft.highlightNote || '当前归档快照没有高光说明。' }}</p>
           </article>
         </section>
-        <section class="archive-detail-group archive-edit-section">
+        <section v-if="selected.sourceType !== 'extraTask'" class="archive-detail-group archive-edit-section">
           <span>装裱信息</span>
           <label class="archive-toggle-row">
             <input v-model="workDraft.framed" type="checkbox" />
@@ -584,7 +690,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
             <small v-if="selected.note">备注：{{ selected.note }}</small>
           </article>
         </section>
-        <section class="archive-detail-group">
+        <section v-if="selected.sourceType !== 'extraTask'" class="archive-detail-group">
           <span>装裱信息</span>
           <article v-if="selected.framed" class="archive-block framed">
             <strong>已装裱</strong>

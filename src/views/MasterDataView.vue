@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
+import PaginationBar from '../components/common/PaginationBar.vue'
 import { sameId } from '../services/mappers'
 
 const props = defineProps({
@@ -29,6 +30,13 @@ const communicationEditingId = ref(null)
 const communicationMethodFilter = ref('全部方式')
 const communicationFollowFilter = ref('全部记录')
 const archiveState = ref('ACTIVE')
+const queryInput = ref('')
+const statusInput = ref('all')
+const teacherInput = ref('all')
+const courseInput = ref('all')
+const classTypeInput = ref('all')
+const classInput = ref('all')
+const detailRecord = ref(null)
 let cleanupMobileMedia = () => {}
 
 const studentProfileSections = [
@@ -83,15 +91,31 @@ const config = computed(() => {
 })
 
 const records = computed(() => {
-  if (props.entity === 'teachers') return props.state.teachers
-  if (props.entity === 'students') return props.state.students
-  if (props.entity === 'classes') return props.state.classes
-  return props.state.courses
+  return props.state.directoryPages?.[props.entity]?.items || []
 })
 
 const activeItems = (items = []) => items.filter((item) => !item.archived)
 
-const selected = computed(() => records.value.find((item) => sameId(item.id, selectedId.value)) || records.value[0] || null)
+const selected = computed(() => detailRecord.value || records.value.find((item) => sameId(item.id, selectedId.value)) || null)
+const directoryState = computed(() => props.state.directoryPages?.[props.entity] || { page: 1, pageSize: 20, total: 0, items: [] })
+const drawerOpen = computed(() => mode.value === 'new' || Boolean(selected.value && (!isMobileFlow.value || mobileShowingDetail.value)))
+const statusOptions = computed(() => {
+  if (props.entity === 'teachers' || props.entity === 'courses') return [{ label: '全部状态', value: 'all' }, { label: '启用', value: 'ENABLED' }, { label: '停用', value: 'DISABLED' }]
+  if (props.entity === 'students') return [{ label: '全部状态', value: 'all' }, { label: '在读', value: 'ENROLLED' }, { label: '请假', value: 'ON_LEAVE' }, { label: '退费', value: 'GRADUATED' }, { label: '停课', value: 'DISABLED' }]
+  return [{ label: '全部状态', value: 'all' }, { label: '筹备中', value: 'PREPARING' }, { label: '开班中', value: 'ACTIVE' }, { label: '停课', value: 'SUSPENDED' }, { label: '结课', value: 'CLOSED' }]
+})
+const teacherFilterOptions = computed(() => [
+  { label: '全部老师', value: 'all' },
+  ...(props.state.teachers || []).map((item) => ({ label: item.name, value: item.id }))
+])
+const courseFilterOptions = computed(() => [
+  { label: '全部课程', value: 'all' },
+  ...(props.state.courses || []).map((item) => ({ label: item.title, value: item.id }))
+])
+const classTypeFilterOptions = computed(() => [
+  { label: '全部班型', value: 'all' },
+  ...(props.state.classTypes || []).map((item) => ({ label: item.name, value: item.id }))
+])
 
 const availableStudentProfileSections = computed(() => {
   if (props.entity !== 'students') return []
@@ -231,12 +255,49 @@ const selectedReferenceCount = computed(() => {
   return (props.state.classes || []).filter((item) => sameId(item.courseId, selected.value.id)).length
 })
 
+const loadDirectory = async (page = 1) => {
+  const filters = {
+    page,
+    pageSize: 20,
+    query: queryInput.value.trim() || undefined,
+    status: statusInput.value === 'all' ? undefined : statusInput.value,
+    archiveState: archiveState.value
+  }
+  if (props.entity === 'students' && classInput.value !== 'all') filters.classId = classInput.value
+  if (props.entity === 'classes') {
+    if (teacherInput.value !== 'all') filters.teacherId = teacherInput.value
+    if (courseInput.value !== 'all') filters.courseId = courseInput.value
+    if (classTypeInput.value !== 'all') filters.classTypeId = classTypeInput.value
+  }
+  detailRecord.value = null
+  selectedId.value = null
+  mode.value = 'detail'
+  await props.state.loadDirectoryPage?.(props.entity, filters)
+}
+
+const applyFilters = () => loadDirectory(1)
+const resetFilters = () => {
+  queryInput.value = ''
+  statusInput.value = 'all'
+  teacherInput.value = 'all'
+  courseInput.value = 'all'
+  classTypeInput.value = 'all'
+  classInput.value = 'all'
+  return loadDirectory(1)
+}
+
 const reloadArchiveState = async (value = archiveState.value) => {
   archiveState.value = value
-  await props.state.loadMasterData?.(props.entity, { archiveState: value, force: true })
-  selectedId.value = records.value[0]?.id || null
-  mode.value = selectedId.value ? 'detail' : value === 'ACTIVE' ? 'new' : 'detail'
-  resetDraft()
+  await loadDirectory(1)
+}
+
+const ensureDetailLookups = async () => {
+  const entities = props.entity === 'students'
+    ? ['classes']
+    : props.entity === 'classes'
+      ? ['teachers', 'students', 'courses']
+      : []
+  await Promise.all(entities.map((entity) => props.state.loadMasterData?.(entity, { archiveState: 'ACTIVE', force: false })))
 }
 
 const hydrateStudentProfile = async (record) => {
@@ -256,26 +317,19 @@ watch(
   () => props.entity,
   () => {
     archiveState.value = 'ACTIVE'
-    selectedId.value = records.value[0]?.id || null
+    selectedId.value = null
+    detailRecord.value = null
     mode.value = 'detail'
     studentDetailTab.value = 'profile'
     mobileShowingDetail.value = false
     resetDraft()
     resetCommunicationDraft()
-    void hydrateStudentProfile(records.value[0])
-    void props.state.loadMasterData?.(props.entity, { archiveState: archiveState.value, force: false })
     if (props.entity === 'teachers') void props.state.loadIdentityUsers?.({ page: 1, pageSize: 100, status: 'ENABLED' })
+    if (props.entity === 'classes') void props.state.loadClassTypes?.()
+    void loadDirectory(1)
   },
   { immediate: true }
 )
-
-watch(records, (value) => {
-  if (!selectedId.value && value[0]) {
-    selectedId.value = value[0].id
-    draft.value = cloneRecord(value[0])
-    if (props.entity === 'students') void props.state.loadCommunicationRecords(value[0].id)
-  }
-}, { immediate: true })
 
 watch(selected, () => {
   if (mode.value !== 'new') resetDraft()
@@ -283,32 +337,49 @@ watch(selected, () => {
   void hydrateStudentProfile(selected.value)
 })
 
-const selectRecord = (record) => {
+const selectRecord = async (record) => {
   selectedId.value = record.id
+  detailRecord.value = null
   mode.value = 'detail'
   studentDetailTab.value = 'profile'
   draft.value = cloneRecord(record)
   resetCommunicationDraft()
   if (props.entity === 'students') void props.state.loadCommunicationRecords(record.id)
   if (isMobileFlow.value) mobileShowingDetail.value = true
+  await ensureDetailLookups()
+  try {
+    const detail = await props.state.loadDirectoryDetail?.(props.entity, record)
+    if (sameId(selectedId.value, record.id)) {
+      detailRecord.value = detail || record
+      draft.value = cloneRecord(detail || record)
+    }
+  } catch {
+    detailRecord.value = record
+  }
 }
 
-const startNew = () => {
+const startNew = async () => {
   mode.value = 'new'
+  selectedId.value = null
+  detailRecord.value = null
   studentDetailTab.value = 'profile'
+  await ensureDetailLookups()
   draft.value = blankDraft()
   resetCommunicationDraft()
   if (isMobileFlow.value) mobileShowingDetail.value = true
 }
 
 const startEdit = () => {
+  if (!selected.value) return
   mode.value = 'edit'
   draft.value = cloneRecord(selected.value)
 }
 
 const save = async () => {
+  const wasNew = mode.value === 'new'
+  let saved = null
   if (props.entity === 'teachers') {
-    let saved = mode.value === 'new' ? await props.state.addTeacher(draft.value) : await props.state.updateTeacher(selected.value.id, draft.value)
+    saved = mode.value === 'new' ? await props.state.addTeacher(draft.value) : await props.state.updateTeacher(selected.value.id, draft.value)
     if (!saved) return
     if (String(draft.value.userId || '') !== String(saved.userId || '')) {
       saved = await props.state.bindTeacherAccount(saved.id, draft.value.userId || null, saved.version)
@@ -317,23 +388,37 @@ const save = async () => {
     selectedId.value = saved.id
   }
   if (props.entity === 'students') {
-    const saved = mode.value === 'new' ? await props.state.addStudent(draft.value) : await props.state.updateStudent(selected.value.id, draft.value)
+    saved = mode.value === 'new' ? await props.state.addStudent(draft.value) : await props.state.updateStudent(selected.value.id, draft.value)
     if (!saved) return
     if (!(await props.state.saveStudentProfile?.(saved.id, draft.value))) return
     selectedId.value = saved.id
   }
   if (props.entity === 'classes') {
-    const saved = mode.value === 'new' ? await props.state.addClass(draft.value) : await props.state.updateClass(selected.value.id, draft.value)
+    saved = mode.value === 'new' ? await props.state.addClass(draft.value) : await props.state.updateClass(selected.value.id, draft.value)
     if (!saved) return
     selectedId.value = saved.id
   }
   if (props.entity === 'courses') {
-    const saved = mode.value === 'new' ? await props.state.addCourse(draft.value) : await props.state.updateCourse(selected.value.id, draft.value)
+    saved = mode.value === 'new' ? await props.state.addCourse(draft.value) : await props.state.updateCourse(selected.value.id, draft.value)
     if (!saved) return
     selectedId.value = saved.id
   }
+  if (wasNew) {
+    mobileShowingDetail.value = false
+    await loadDirectory(1)
+    resetDraft()
+    resetCommunicationDraft()
+    return
+  }
   mode.value = 'detail'
   if (isMobileFlow.value) mobileShowingDetail.value = true
+  await loadDirectory(wasNew ? 1 : directoryState.value.page)
+  selectedId.value = saved.id
+  try {
+    detailRecord.value = await props.state.loadDirectoryDetail?.(props.entity, saved)
+  } catch {
+    detailRecord.value = saved
+  }
   resetDraft()
 }
 
@@ -344,9 +429,7 @@ const archiveSelected = async () => {
   if (selectedReferenceCount.value > 0 && !window.confirm(`该数据当前被 ${selectedReferenceCount.value} 条业务关系引用，归档不会删除引用，是否继续？`)) return
   const saved = await props.state.archiveMasterData?.(props.entity, selected.value.id, reason)
   if (saved) {
-    selectedId.value = records.value[0]?.id || null
-    mode.value = selectedId.value ? 'detail' : archiveState.value === 'ACTIVE' ? 'new' : 'detail'
-    resetDraft()
+    await loadDirectory(directoryState.value.page)
   }
 }
 
@@ -354,9 +437,7 @@ const restoreSelected = async () => {
   if (!selected.value || !selected.value.archived) return
   const saved = await props.state.restoreMasterData?.(props.entity, selected.value.id, selected.value.version)
   if (saved) {
-    selectedId.value = records.value[0]?.id || null
-    mode.value = selectedId.value ? 'detail' : archiveState.value === 'ACTIVE' ? 'new' : 'detail'
-    resetDraft()
+    await loadDirectory(directoryState.value.page)
   }
 }
 
@@ -401,8 +482,22 @@ const deleteCommunicationRecord = (record) => {
 
 const returnToList = () => {
   mode.value = 'detail'
+  selectedId.value = null
+  detailRecord.value = null
   resetDraft()
   mobileShowingDetail.value = false
+}
+
+const cancelEdit = () => {
+  const wasNew = mode.value === 'new'
+  mode.value = 'detail'
+  resetDraft()
+  if (wasNew) {
+    selectedId.value = null
+    detailRecord.value = null
+    mobileShowingDetail.value = false
+    resetCommunicationDraft()
+  }
 }
 
 const toggleStudentInClass = (studentId) => {
@@ -450,52 +545,111 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
   <PageHead :eyebrow="config.eyebrow" :title="config.title">
     <div class="button-pair">
-      <button v-if="state.isAdmin" class="secondary" @click="$emit('open-import')">导入数据</button>
       <button class="primary" :disabled="archiveState !== 'ACTIVE'" @click="startNew">{{ config.action }}</button>
     </div>
   </PageHead>
 
-  <section class="master-layout" :class="{ 'mobile-detail-open': isMobileFlow && mobileShowingDetail }">
-    <aside v-show="!isMobileFlow || !mobileShowingDetail" class="master-list panel">
+  <section class="directory-page" :class="{ 'mobile-detail-open': isMobileFlow && mobileShowingDetail }">
+    <form class="directory-toolbar panel" @submit.prevent="applyFilters">
+      <label class="directory-search">
+        <span>关键词</span>
+        <input v-model="queryInput" :placeholder="entity === 'teachers' ? '姓名、手机号' : entity === 'students' ? '姓名、家长电话' : entity === 'classes' ? '班级名称' : '课程主题、年龄段'" />
+      </label>
+      <label>
+        <span>状态</span>
+        <AdaptiveSelect v-model="statusInput" :options="statusOptions" />
+      </label>
+      <label>
+        <span>归档状态</span>
+        <AdaptiveSelect :model-value="archiveState" :options="archiveStateOptions" @update:model-value="reloadArchiveState" />
+      </label>
+      <label v-if="entity === 'students'">
+        <span>班级</span>
+        <AdaptiveSelect v-model="classInput" :options="[{ label: '全部班级', value: 'all' }, ...state.classes.map((item) => ({ label: item.name, value: item.id }))]" />
+      </label>
+      <template v-if="entity === 'classes'">
+        <label><span>老师</span><AdaptiveSelect v-model="teacherInput" :options="teacherFilterOptions" /></label>
+        <label><span>课程</span><AdaptiveSelect v-model="courseInput" :options="courseFilterOptions" /></label>
+        <label><span>班型</span><AdaptiveSelect v-model="classTypeInput" :options="classTypeFilterOptions" /></label>
+      </template>
+      <div class="button-pair directory-toolbar-actions">
+        <button class="secondary" type="submit">查询</button>
+        <button class="ghost" type="button" @click="resetFilters">重置</button>
+      </div>
+    </form>
+
+    <section v-show="!isMobileFlow || !mobileShowingDetail" class="master-list panel directory-list-panel">
       <div class="section-head">
         <div>
-          <strong>{{ records.length }}条记录</strong>
+          <span>{{ config.title }}</span>
+          <strong>{{ directoryState.total }} 条记录</strong>
         </div>
-        <label class="archive-filter">
-          <span>归档状态</span>
-          <AdaptiveSelect :model-value="archiveState" :options="archiveStateOptions" @update:model-value="reloadArchiveState" />
-        </label>
+        <small v-if="state.directoryLoading?.[entity]">正在加载…</small>
       </div>
-      <button
-        v-for="record in records"
-        :key="record.id"
-        class="master-row"
-        :class="{ active: sameId(selected?.id, record.id) && mode !== 'new' }"
-        @click="selectRecord(record)"
-      >
-        <strong>{{ record.name || record.title }}</strong>
-        <span v-if="entity === 'teachers'">{{ record.role }} · {{ record.userId ? '已绑定账号' : '未绑定账号' }} · {{ record.status }}</span>
-        <span v-if="entity === 'students'">{{ className(record.classId) }} · {{ record.status }}</span>
-        <span v-if="entity === 'classes'">{{ record.time }} · {{ record.status }}</span>
-        <span v-if="entity === 'courses'">{{ record.age }} · {{ record.defaultFocus }}</span>
-        <em v-if="record.archived" class="status-tag">已归档</em>
-      </button>
-      <div v-if="!records.length" class="notice-box">
-        <small>{{ config.empty }}</small>
+      <div v-if="state.directoryErrors?.[entity]" class="notice-box error-box">
+        <small>{{ state.directoryErrors[entity] }}</small>
+        <button class="ghost" type="button" @click="loadDirectory(directoryState.page)">重试</button>
       </div>
-    </aside>
+      <div v-else-if="!records.length && !state.directoryLoading?.[entity]" class="notice-box">
+        <small>{{ config.empty }}，请调整筛选条件。</small>
+      </div>
+      <div v-else class="directory-table-wrap">
+        <table class="directory-table">
+          <thead>
+            <tr>
+              <th>{{ entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程' }}</th>
+              <th v-if="entity === 'teachers'">职称</th>
+              <th v-if="entity === 'students'">家长电话</th>
+              <th v-if="entity === 'classes'">班型 / 老师</th>
+              <th v-if="entity === 'courses'">适用年龄</th>
+              <th>{{ entity === 'teachers' ? '账号绑定' : entity === 'students' ? '班级 / 作品' : entity === 'classes' ? '课程 / 学生' : '使用班级 / 外链' }}</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="record in records" :key="record.id" class="directory-table-row" :class="{ active: sameId(selected?.id, record.id) }" @click="selectRecord(record)">
+              <td><strong>{{ record.name || record.title }}</strong></td>
+              <td v-if="entity === 'teachers'">{{ record.role || record.title || '老师' }}</td>
+              <td v-if="entity === 'students'">{{ record.phone || '—' }}</td>
+              <td v-if="entity === 'classes'">{{ record.classTypeName || '—' }} · {{ record.teacherName || teacherName(record.teacherId) }}</td>
+              <td v-if="entity === 'courses'">{{ record.age || '—' }}</td>
+              <td v-if="entity === 'teachers'">{{ record.userId ? '已绑定' : '未绑定' }} · {{ record.classCount || 0 }} 个班</td>
+              <td v-if="entity === 'students'">{{ record.classCount || 0 }} 个班 · {{ record.archiveWorkCount || 0 }} 件作品</td>
+              <td v-if="entity === 'classes'">{{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.studentCount || record.studentIds?.length || 0 }} 人</td>
+              <td v-if="entity === 'courses'">{{ record.activeClassCount || 0 }} 个班 · {{ record.externalLinkCount || 0 }} 条外链</td>
+              <td><span class="status-tag">{{ record.archived ? '已归档' : record.status }}</span></td>
+              <td><button class="ghost" type="button" @click.stop="selectRecord(record)">查看详情</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="directory-mobile-cards">
+          <button v-for="record in records" :key="record.id" type="button" class="directory-card" :class="{ active: sameId(selected?.id, record.id) }" @click="selectRecord(record)">
+            <strong>{{ record.name || record.title }}</strong>
+            <span v-if="entity === 'teachers'">{{ record.role || '老师' }} · {{ record.userId ? '已绑定账号' : '未绑定账号' }} · {{ record.classCount || 0 }} 个班</span>
+            <span v-if="entity === 'students'">{{ record.phone || '无家长电话' }} · {{ record.classCount || 0 }} 个班 · {{ record.archiveWorkCount || 0 }} 件作品</span>
+            <span v-if="entity === 'classes'">{{ record.teacherName || teacherName(record.teacherId) }} · {{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.studentCount || 0 }} 人</span>
+            <span v-if="entity === 'courses'">{{ record.age || '未设置年龄段' }} · {{ record.activeClassCount || 0 }} 个使用班级</span>
+            <em>{{ record.archived ? '已归档' : record.status }}</em>
+          </button>
+        </div>
+        <PaginationBar :page="directoryState.page" :page-size="directoryState.pageSize" :total="directoryState.total" :loading="state.directoryLoading?.[entity]" @change="loadDirectory" />
+      </div>
+    </section>
 
-    <section v-show="!isMobileFlow || mobileShowingDetail" class="master-detail panel">
+    <div v-if="drawerOpen" class="directory-drawer-backdrop" @click.self="returnToList">
+      <section class="master-detail panel directory-drawer">
       <div class="section-head">
         <div>
           <span>{{ mode === 'new' ? '新增' : mode === 'edit' ? '编辑' : '详情' }}</span>
           <strong>{{ mode === 'new' ? config.action : selected?.name || selected?.title }}</strong>
         </div>
         <div class="button-pair">
+          <button v-if="mode === 'detail'" class="ghost" type="button" @click="returnToList">关闭</button>
           <button v-if="mode === 'detail' && !selected?.archived && (entity !== 'students' || studentDetailTab === 'profile')" class="secondary" @click="startEdit">编辑</button>
           <button v-if="mode === 'detail' && selected?.archived" class="secondary" type="button" @click="restoreSelected">恢复</button>
           <button v-if="mode === 'detail' && selected && !selected.archived" class="danger-text" type="button" @click="archiveSelected">归档</button>
-          <button v-if="mode !== 'detail'" class="ghost" @click="mode = 'detail'; resetDraft()">取消</button>
+          <button v-if="mode !== 'detail'" class="ghost" type="button" @click="cancelEdit">取消</button>
           <button v-if="mode !== 'detail'" class="primary" @click="save">保存</button>
         </div>
       </div>
@@ -710,6 +864,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
         </div>
       </template>
     </section>
-
+    </div>
   </section>
 </template>

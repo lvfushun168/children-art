@@ -159,6 +159,23 @@ export function useDeliveryWorkflow() {
   // screen only renders page one. This prevents components from having to
   // infer totals from the currently loaded array.
   const pageMeta = reactive({})
+  // Directory pages are intentionally separate from the reference collections
+  // used by the lesson workspace. A paginated directory request must never
+  // replace the teacher/student/class/course options used by the mobile flow.
+  const directoryPages = reactive({
+    teachers: { items: [], page: 1, pageSize: 20, total: 0, filters: {} },
+    students: { items: [], page: 1, pageSize: 20, total: 0, filters: {} },
+    classes: { items: [], page: 1, pageSize: 20, total: 0, filters: {} },
+    courses: { items: [], page: 1, pageSize: 20, total: 0, filters: {} },
+    externalLinks: { items: [], page: 1, pageSize: 20, total: 0, filters: {} },
+    extraTasks: { items: [], page: 1, pageSize: 20, total: 0, filters: {} },
+    archiveRecords: { items: [], page: 1, pageSize: 20, total: 0, filters: {} },
+    classroomArchives: { items: [], page: 1, pageSize: 20, total: 0, filters: {} },
+    teacherArchives: { items: [], page: 1, pageSize: 20, total: 0, filters: {} }
+  })
+  const directoryLoading = reactive({})
+  const directoryErrors = reactive({})
+  const directoryPromises = new Map()
   const processingAction = ref('')
   const toast = ref('')
   const previewPulse = ref(false)
@@ -373,6 +390,10 @@ export function useDeliveryWorkflow() {
   const canQualityRead = computed(() => {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && (isAdmin.value || permissions.includes('quality.read') || permissions.includes('quality.review')))
+  })
+  const canEditExtraTaskArtwork = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && (isAdmin.value || permissions.includes('extra-task.edit')))
   })
   const loginAccount = computed(() => pendingAuth.value?.me?.user || teachers.find((teacher) => sameId(teacher.id, verifiedLoginUserId.value)) || null)
   const loginRoleOptions = computed(() => {
@@ -3187,6 +3208,120 @@ export function useDeliveryWorkflow() {
     }
   }
 
+  const directoryLoaderFor = {
+    teachers: (params) => api.master.teachers(params),
+    students: (params) => api.master.students(params),
+    classes: (params) => api.master.classes(params),
+    courses: (params) => api.master.courses(params),
+    externalLinks: (params) => api.master.externalLinks(params),
+    extraTasks: (params) => api.m6.extraTasks(params),
+    archiveRecords: (params) => api.archive.records(params),
+    classroomArchives: (params) => api.lessons.list(params),
+    teacherArchives: (params) => api.archive.teacherArchives(params)
+  }
+  const directoryMapperFor = {
+    teachers: mapTeacher,
+    students: mapStudent,
+    classes: mapClass,
+    courses: mapCourse,
+    externalLinks: mapExternalLink,
+    extraTasks: mapExtraTask,
+    archiveRecords: mapArchiveRecord,
+    classroomArchives: mapLesson,
+    teacherArchives: mapTeacherArchive
+  }
+
+  const loadDirectoryPage = async (key, params = {}) => {
+    const pageState = directoryPages[key]
+    const loader = directoryLoaderFor[key]
+    const mapper = directoryMapperFor[key]
+    if (!pageState || !loader || !mapper || !isLoggedIn.value) return null
+    const page = Math.max(1, Number(params.page || pageState.page || 1))
+    const pageSize = Math.max(1, Number(params.pageSize || pageState.pageSize || 20))
+    const filters = { ...params }
+    delete filters.page
+    delete filters.pageSize
+    if (key === 'archiveRecords' && !filters.sourceType) filters.sourceType = 'ALL'
+    if (key === 'classroomArchives') {
+      if (!filters.status) filters.status = 'COMPLETED'
+      filters.archived = true
+    }
+    const promiseKey = `${key}:${page}:${pageSize}:${JSON.stringify(filters)}`
+    if (directoryPromises.has(promiseKey)) return directoryPromises.get(promiseKey)
+    const load = (async () => {
+      directoryLoading[key] = true
+      directoryErrors[key] = ''
+      try {
+        const mapped = mapPage(await loader({ ...filters, page, pageSize }), mapper)
+        replaceReactive(pageState.items, mapped.items)
+        Object.assign(pageState, { page: mapped.page, pageSize: mapped.pageSize, total: mapped.total, filters })
+        return mapped
+      } catch (error) {
+        directoryErrors[key] = remoteErrorMessage(error, '列表加载失败')
+        throw error
+      } finally {
+        directoryLoading[key] = false
+        directoryPromises.delete(promiseKey)
+      }
+    })()
+    directoryPromises.set(promiseKey, load)
+    return load
+  }
+
+  const loadDirectoryDetail = async (key, recordOrId) => {
+    const record = recordOrId && typeof recordOrId === 'object' ? recordOrId : null
+    const value = record || { id: recordOrId }
+    if (!value.id && !value.lessonId) return null
+    try {
+      if (key === 'teachers') return mapTeacher(await api.master.teacher(value.id))
+      if (key === 'students') return mapStudent(await api.master.student(value.id))
+      if (key === 'classes') return mapClass(await api.master.class(value.id))
+      if (key === 'courses') return mapCourse(await api.master.course(value.id))
+      if (key === 'externalLinks') return mapExternalLink(await api.master.externalLink(value.id))
+      if (key === 'extraTasks') return mapExtraTask(await api.m6.extraTask(value.id))
+      if (key === 'archiveRecords') {
+        if (String(value.sourceType || '').toLowerCase() === 'extratask' || value.extraTaskId) {
+          return mapExtraArtwork(await api.m6.extraArtwork(value.id))
+        }
+        return mapArchiveRecord(await api.archive.record(value.id))
+      }
+      if (key === 'classroomArchives') return loadLessonWorkspace(value.id)
+      if (key === 'teacherArchives') return api.m5.teacherEffect(value.lessonId || value.id)
+      return null
+    } catch (error) {
+      directoryErrors[key] = remoteErrorMessage(error, '详情加载失败')
+      throw error
+    }
+  }
+
+  const loadDirectoryExtraTaskWorks = async (taskId) => {
+    if (!taskId) return []
+    try {
+      const values = await api.m6.extraArtworks(taskId)
+      const mapped = (Array.isArray(values) ? values : []).map(mapExtraArtwork)
+      replaceReactive(extraTaskWorks, mapped)
+      return mapped
+    } catch (error) {
+      directoryErrors.extraTasks = remoteErrorMessage(error, '课外作品加载失败')
+      throw error
+    }
+  }
+
+  const loadClassTypes = async ({ force = false } = {}) => {
+    if (!isLoggedIn.value) return []
+    if (classTypes.length && !force) return classTypes
+    const page = await api.master.classTypes({ page: 1, pageSize: 100, status: 'ENABLED' })
+    const values = mapPage(page, (value) => ({
+      ...value,
+      id: fromApiId(value.id),
+      name: value.name || '',
+      status: value.status || 'ENABLED',
+      version: Number(value.version || 0)
+    })).items
+    replaceReactive(classTypes, values)
+    return classTypes
+  }
+
   const loadCurrentTeacherProfile = async () => {
     if (!isLoggedIn.value) return null
     try {
@@ -3333,49 +3468,25 @@ export function useDeliveryWorkflow() {
             await loadCurrentTeacherProfile()
             break
           }
-          case 'teachers': await loadMasterData('teachers', { archiveState: masterArchiveState.teachers, force }); break
-          case 'students': {
-            await loadMasterData('students', { archiveState: masterArchiveState.students, force })
-            break
-          }
-          case 'classes': {
-            await loadMasterData('classes', { archiveState: masterArchiveState.classes, force })
-            break
-          }
-          case 'courses': {
-            await loadMasterData('courses', { archiveState: masterArchiveState.courses, force })
-            break
-          }
-          case 'externalLinks': {
-            const page = mapPage(await api.master.externalLinks({ page: 1, pageSize: 20 }), mapExternalLink)
-            replaceReactive(externalLinks, page.items)
-            updateListPageMeta('externalLinks', page)
-            break
-          }
+          case 'teachers': await loadDirectoryPage('teachers', { page: 1, pageSize: 20, archiveState: masterArchiveState.teachers }); break
+          case 'students': await loadDirectoryPage('students', { page: 1, pageSize: 20, archiveState: masterArchiveState.students }); break
+          case 'classes': await loadDirectoryPage('classes', { page: 1, pageSize: 20, archiveState: masterArchiveState.classes }); break
+          case 'courses': await loadDirectoryPage('courses', { page: 1, pageSize: 20, archiveState: masterArchiveState.courses }); break
+          case 'externalLinks': await loadDirectoryPage('externalLinks', { page: 1, pageSize: 20 }); break
           case 'supervision': {
             const page = mapPage(await api.m6.supervision({ page: 1, pageSize: 20 }), mapSupervisionLesson)
             replaceReactive(supervisionDashboard, page.items)
             updateListPageMeta('supervision', page)
             break
           }
-          case 'archives': {
-            const page = mapPage(await api.archive.records({ page: 1, pageSize: 20 }), mapArchiveRecord)
-            replaceReactive(archiveRecords, page.items)
-            updateListPageMeta('archives', page)
-            break
-          }
+          case 'archives': await loadDirectoryPage('archiveRecords', { page: 1, pageSize: 20, sourceType: 'ALL' }); break
           case 'imports': {
             const page = mapPage(await api.imports.list({ page: 1, pageSize: 20 }), mapImportBatch)
             replaceReactive(importBatches, page.items)
             updateListPageMeta('imports', page)
             break
           }
-          case 'extraTasks': {
-            const page = mapPage(await api.m6.extraTasks({ page: 1, pageSize: 20 }), mapExtraTask)
-            replaceReactive(extraTaskArchives, page.items)
-            updateListPageMeta('extraTasks', page)
-            break
-          }
+          case 'extraTasks': await loadDirectoryPage('extraTasks', { page: 1, pageSize: 20 }); break
           case 'templates': await loadTemplates({ force }); break
           case 'production': {
             const [archivePage, , studentPage, classPage] = await Promise.all([
@@ -4765,7 +4876,7 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteUpdateArchiveRecord = async (recordId, payload) => {
-    const current = archiveRecords.find((item) => sameId(item.id, recordId))
+    const current = archiveRecords.find((item) => sameId(item.id, recordId)) || directoryPages.archiveRecords.items.find((item) => sameId(item.id, recordId))
     if (!current) return null
     const result = await runRemote('正在保存作品档案...', () => api.archive.update(recordId, {
       title: payload.title?.trim() || undefined,
@@ -4783,7 +4894,9 @@ export function useDeliveryWorkflow() {
     const mapped = mapArchiveRecord(result)
     if (!mapped.artwork && current.artwork) mapped.artwork = current.artwork
     const index = archiveRecords.findIndex((item) => sameId(item.id, recordId))
-    archiveRecords.splice(index, 1, mapped)
+    if (index >= 0) archiveRecords.splice(index, 1, mapped)
+    const directoryIndex = directoryPages.archiveRecords.items.findIndex((item) => sameId(item.id, recordId))
+    if (directoryIndex >= 0) directoryPages.archiveRecords.items.splice(directoryIndex, 1, mapped)
     return mapped
   }
 
@@ -4803,14 +4916,16 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteUpdateExtraTask = async (taskId, payload) => {
-    const current = extraTaskArchives.find((item) => sameId(item.id, taskId))
+    const current = extraTaskArchives.find((item) => sameId(item.id, taskId)) || directoryPages.extraTasks.items.find((item) => sameId(item.id, taskId))
     const ownerId = payload.ownerId || teachers.find((teacher) => teacher.name === payload.owner)?.id
     const result = await runRemote('正在保存课外任务...', () => api.m6.updateExtraTask(taskId, { relatedLessonId: payload.relatedLessonId ? String(payload.relatedLessonId) : undefined, title: payload.title, taskType: payload.taskType, content: payload.content || '', dueDate: payload.dueDate || undefined, status: apiExtraTaskStatus(payload.status), ownerId: ownerId ? String(ownerId) : undefined, note: payload.note || '', version: current?.version || 0 }), '课外任务已保存', () => invalidateResource('extraTasks'))
     if (!result) return null
     const task = mapExtraTask(result)
     task.owner = result.owner || result.ownerName || teachers.find((teacher) => sameId(teacher.id, result.ownerId || ownerId))?.name || ''
     const index = extraTaskArchives.findIndex((item) => sameId(item.id, taskId))
-    extraTaskArchives.splice(index, 1, task)
+    if (index >= 0) extraTaskArchives.splice(index, 1, task)
+    const directoryIndex = directoryPages.extraTasks.items.findIndex((item) => sameId(item.id, taskId))
+    if (directoryIndex >= 0) directoryPages.extraTasks.items.splice(directoryIndex, 1, task)
     return task
   }
 
@@ -4894,6 +5009,7 @@ export function useDeliveryWorkflow() {
     isAdmin,
     canQualityReview,
     canQualityRead,
+    canEditExtraTaskArtwork,
     authorizedClassIds,
     canEditArchiveRecord,
     createArchiveCollection,
@@ -4998,6 +5114,7 @@ export function useDeliveryWorkflow() {
     canManageIdentityMemberships,
     canQualityReview,
     canQualityRead,
+    canEditExtraTaskArtwork,
     authorizedClassIds,
     visibleTasks,
     visibleNavItems,
@@ -5176,6 +5293,13 @@ export function useDeliveryWorkflow() {
     pageLoaded,
     pageErrors,
     pageMeta,
+    directoryPages,
+    directoryLoading,
+    directoryErrors,
+    loadDirectoryPage,
+    loadDirectoryDetail,
+    loadDirectoryExtraTaskWorks,
+    loadClassTypes,
     shellSummary,
     shellPages,
     invalidateResource

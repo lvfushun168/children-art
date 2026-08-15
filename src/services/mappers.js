@@ -112,6 +112,7 @@ export const mapTeacher = (value = {}) => ({
   archived: Boolean(value.archivedAt || value.archived),
   archivedAt: value.archivedAt || null,
   archiveReason: value.archiveReason || '',
+  classCount: Number(value.classCount || 0),
   version: Number(value.version || 0)
 })
 export const mapStudent = (value = {}) => ({
@@ -125,6 +126,9 @@ export const mapStudent = (value = {}) => ({
   archived: Boolean(value.archivedAt || value.archived),
   archivedAt: value.archivedAt || null,
   archiveReason: value.archiveReason || '',
+  classCount: Number(value.classCount || 0),
+  archiveWorkCount: Number(value.archiveWorkCount || value.workCount || 0),
+  highlightWorkCount: Number(value.highlightWorkCount || value.highlightCount || 0),
   version: Number(value.version || 0)
 })
 export const mapProfileField = (value = {}) => ({
@@ -170,6 +174,10 @@ export const mapClass = (value = {}) => ({
   studentIds: fromApiIds(value.studentIds),
   time: value.time || value.scheduleText || '',
   scheduleText: value.scheduleText || value.time || '',
+  classTypeName: value.classTypeName || value.classType || '',
+  teacherName: value.teacherName || value.teacher || '',
+  courseTitle: value.courseTitle || value.course || '',
+  studentCount: Number(value.studentCount || 0),
   status: ({ PREPARING: '筹备中', ACTIVE: '开班中', SUSPENDED: '停课', COMPLETED: '结课' }[value.status] || value.status || '开班中'),
   archived: Boolean(value.archivedAt || value.archived),
   archivedAt: value.archivedAt || null,
@@ -183,6 +191,8 @@ export const mapCourse = (value = {}) => ({
   goal: value.goal || value.teachingGoal || '',
   reference: value.reference || value.referenceText || '',
   defaultFocus: value.defaultFocus || '色彩',
+  activeClassCount: Number(value.activeClassCount || value.classCount || 0),
+  externalLinkCount: Number(value.externalLinkCount || value.linkCount || 0),
   status: ({ ACTIVE: '启用', ENABLED: '启用', DISABLED: '停用' }[value.status] || value.status || '启用'),
   archived: Boolean(value.archivedAt || value.archived),
   archivedAt: value.archivedAt || null,
@@ -202,6 +212,7 @@ export const mapExternalLink = (value = {}) => ({
   id: safeUiId(value.id),
   courseId: safeUiId(value.courseId),
   courseIds: value.courseId ? [safeUiId(value.courseId)] : [],
+  courseTitle: value.courseTitle || value.course || '',
   platform: value.platform || '通用链接',
   status: ({ ENABLED: '启用', DISABLED: '停用' }[value.status] || value.status || '启用'),
   version: Number(value.version || 0)
@@ -220,6 +231,9 @@ export const mapLesson = (value = {}) => ({
   classArchived: Boolean(value.classArchived),
   teacherArchived: Boolean(value.teacherArchived),
   courseArchived: Boolean(value.courseArchived),
+  className: value.className || '',
+  course: value.courseTitle || value.course || '',
+  archived: Boolean(value.archived),
   lessonType: lessonType[value.lessonType] || value.lessonType || '其他',
   status: lessonStatus[value.status] || value.status || '待处理',
   sourceType: value.sourceType || '',
@@ -397,7 +411,10 @@ export const mapArchiveRecord = (value = {}) => {
     date: displayDate(value.dateValue || snapshot.dateValue || lessonSnapshot.dateValue || lessonSnapshot.date),
     time: displayTime(value.startTime || snapshot.startTime || lessonSnapshot.startTime),
     lessonType: lessonType[value.lessonType || snapshot.lessonType || lessonSnapshot.lessonType] || value.lessonType || snapshot.lessonType || lessonSnapshot.lessonType || '其他',
-    sourceType: value.sourceType || snapshot.sourceType || 'lesson',
+    sourceType: String(value.sourceType || snapshot.sourceType || 'LESSON').toLowerCase(),
+    sourceId: safeUiId(value.sourceId || value.lessonId || value.extraTaskId),
+    extraTaskId: safeUiId(value.extraTaskId),
+    archivePath: value.archivePath || '',
     fileId,
     artwork: value.artwork || snapshot.artwork || artworkSnapshot.downloadUrl || snapshot.file?.downloadUrl || '',
     feedback: value.feedback || studentSnapshot.feedback?.content || snapshot.feedback?.content || snapshot.feedback || '',
@@ -502,6 +519,11 @@ export const mapExtraTask = (value = {}) => ({
   ownerId: safeUiId(value.ownerId),
   owner: value.owner || value.ownerName || '',
   dueDate: value.dueDate || '',
+  relatedLessonDate: value.relatedLessonDate || '',
+  relatedClassName: value.relatedClassName || '',
+  relatedCourseTitle: value.relatedCourseTitle || '',
+  artworkCount: Number(value.artworkCount || 0),
+  highlightArtworkCount: Number(value.highlightArtworkCount || 0),
   status: ({
     DRAFT: '待发布',
     PUBLISHED: '已发布',

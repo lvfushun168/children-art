@@ -24,6 +24,7 @@ import {
   mapAttendance,
   mapArtwork,
   mapClass,
+  mapCampusMembership,
   mapCourse,
   mapExternalLink,
   mapExtraArtwork,
@@ -31,6 +32,9 @@ import {
   mapFeedback,
   mapJob,
   mapFile,
+  mapIdentityPermission,
+  mapIdentityRole,
+  mapIdentityUser,
   mapLesson,
   mapPage,
   mapProfileAudit,
@@ -113,6 +117,15 @@ export function useDeliveryWorkflow() {
   const teacherArchives = reactive([])
   const providerCatalog = reactive({ cloud: [], wecom: [], ai: [] })
   const permissionCatalog = reactive([])
+  const identityUsers = reactive([])
+  const identityRoles = reactive([])
+  const identityPermissions = reactive([])
+  const identityUserPage = reactive({ page: 1, pageSize: 20, total: 0 })
+  const identityUserQuery = ref('')
+  const identityUserStatus = ref('')
+  const identityLoading = reactive({ users: false, roles: false, permissions: false, memberships: false })
+  const identityLoaded = reactive({ users: false, roles: false, permissions: false })
+  const identityErrors = reactive({ users: '', roles: '', permissions: '', memberships: '' })
   const statusChangeLogs = reactive([])
   const archiveEditLogs = reactive([])
   const wecomSendTasks = reactive([])
@@ -316,6 +329,18 @@ export function useDeliveryWorkflow() {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && permissions.some((permission) => String(permission).includes('identity.') || String(permission).includes('configuration.')))
   })
+  const canManageIdentityUsers = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && (isAdmin.value || permissions.includes('identity.user.manage')))
+  })
+  const canManageIdentityRoles = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && (isAdmin.value || permissions.includes('identity.role.manage')))
+  })
+  const canManageIdentityMemberships = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && (isAdmin.value || permissions.includes('identity.membership.manage')))
+  })
   const canQualityReview = computed(() => {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && (isAdmin.value || permissions.includes('quality.review')))
@@ -365,7 +390,9 @@ export function useDeliveryWorkflow() {
       extraTasks: ['extra-task.read'],
       imports: ['import.create', 'import.preview', 'import.confirm'],
       templates: ['lesson.read'],
-      permissions: ['identity.user.manage', 'identity.role.manage'],
+      accountManagement: ['identity.user.manage'],
+      roleManagement: ['identity.role.manage'],
+      permissionResources: ['identity.role.manage'],
       settings: ['identity.user.manage', 'configuration.provider.read', 'configuration.manage']
     }
     return Object.entries(requiredPermissions)
@@ -2506,6 +2533,213 @@ export function useDeliveryWorkflow() {
     }
   }
 
+  const runIdentity = async (label, action, success = '', onConflict = null) => {
+    processingAction.value = label
+    try {
+      const value = await action()
+      if (success) notify(success)
+      return { ok: true, value }
+    } catch (error) {
+      if (error?.status === 409 && onConflict) {
+        try {
+          await onConflict()
+        } catch {
+          // 保留原始版本冲突提示。
+        }
+      }
+      notify(remoteErrorMessage(error))
+      return { ok: false, value: null }
+    } finally {
+      processingAction.value = ''
+    }
+  }
+
+  const identityIdStrings = (values) => (Array.isArray(values)
+    ? values.filter((value) => value !== null && value !== undefined && value !== '').map(String)
+    : [])
+
+  const loadIdentityPermissions = async ({ force = false } = {}) => {
+    if (identityLoading.permissions) return identityPermissions
+    if (identityLoaded.permissions && !force) return identityPermissions
+    identityLoading.permissions = true
+    identityErrors.permissions = ''
+    try {
+      const values = await api.auth.permissions()
+      replaceReactive(identityPermissions, Array.isArray(values) ? values.map(mapIdentityPermission) : [])
+      identityLoaded.permissions = true
+      return identityPermissions
+    } catch (error) {
+      identityErrors.permissions = remoteErrorMessage(error, '权限资源加载失败')
+      return null
+    } finally {
+      identityLoading.permissions = false
+    }
+  }
+
+  const loadIdentityRoles = async ({ force = false } = {}) => {
+    if (identityLoading.roles) return identityRoles
+    if (identityLoaded.roles && !force) return identityRoles
+    identityLoading.roles = true
+    identityErrors.roles = ''
+    try {
+      const values = await api.auth.roles()
+      replaceReactive(identityRoles, Array.isArray(values) ? values.map(mapIdentityRole) : [])
+      identityLoaded.roles = true
+      return identityRoles
+    } catch (error) {
+      identityErrors.roles = remoteErrorMessage(error, '角色列表加载失败')
+      return null
+    } finally {
+      identityLoading.roles = false
+    }
+  }
+
+  const loadIdentityUsers = async ({ page = 1, pageSize = identityUserPage.pageSize, query = identityUserQuery.value, status = identityUserStatus.value } = {}) => {
+    identityLoading.users = true
+    identityErrors.users = ''
+    const nextPage = Math.max(1, Number(page) || 1)
+    const nextPageSize = Math.max(1, Number(pageSize) || 20)
+    identityUserQuery.value = query || ''
+    identityUserStatus.value = status || ''
+    try {
+      const result = mapPage(await api.auth.users({
+        page: nextPage,
+        pageSize: nextPageSize,
+        query: identityUserQuery.value || undefined,
+        status: identityUserStatus.value || undefined
+      }), mapIdentityUser)
+      replaceReactive(identityUsers, result.items)
+      Object.assign(identityUserPage, {
+        page: result.page,
+        pageSize: result.pageSize,
+        total: result.total
+      })
+      identityLoaded.users = true
+      return result
+    } catch (error) {
+      identityErrors.users = remoteErrorMessage(error, '账号列表加载失败')
+      return null
+    } finally {
+      identityLoading.users = false
+    }
+  }
+
+  const loadIdentityMemberships = async (userId) => {
+    identityLoading.memberships = true
+    identityErrors.memberships = ''
+    try {
+      const values = await api.auth.memberships(userId)
+      return Array.isArray(values) ? values.map(mapCampusMembership) : []
+    } catch (error) {
+      identityErrors.memberships = remoteErrorMessage(error, '账号数据范围加载失败')
+      return null
+    } finally {
+      identityLoading.memberships = false
+    }
+  }
+
+  const refreshIdentityUsers = () => loadIdentityUsers({
+    page: identityUserPage.page,
+    pageSize: identityUserPage.pageSize,
+    query: identityUserQuery.value,
+    status: identityUserStatus.value
+  })
+
+  const refreshIdentityRoles = () => Promise.all([
+    loadIdentityRoles({ force: true }),
+    loadIdentityPermissions({ force: true })
+  ])
+
+  const remoteCreateIdentityUser = async (payload = {}) => {
+    const outcome = await runIdentity('正在创建账号...', () => api.auth.createUser({
+      username: String(payload.username || '').trim() || undefined,
+      phone: String(payload.phone || '').trim(),
+      displayName: String(payload.displayName || '').trim(),
+      password: String(payload.password || ''),
+      roleIds: identityIdStrings(payload.roleIds),
+      campusIds: identityIdStrings(payload.campusIds)
+    }), '账号已创建', refreshIdentityUsers)
+    if (!outcome.ok) return null
+    await refreshIdentityUsers()
+    return mapIdentityUser(outcome.value)
+  }
+
+  const remoteUpdateIdentityUser = async (userId, payload = {}) => {
+    const current = identityUsers.find((user) => sameId(user.id, userId))
+    const outcome = await runIdentity('正在保存账号资料...', () => api.auth.updateUser(userId, {
+      phone: String(payload.phone ?? current?.phone ?? '').trim(),
+      displayName: String(payload.displayName ?? current?.displayName ?? '').trim(),
+      status: payload.status || current?.status || 'ENABLED',
+      version: Number(payload.version ?? current?.version ?? 0)
+    }), '账号资料已保存', refreshIdentityUsers)
+    if (!outcome.ok) return null
+    await refreshIdentityUsers()
+    return mapIdentityUser(outcome.value)
+  }
+
+  const remoteResetIdentityPassword = async (userId, password) => {
+    const outcome = await runIdentity('正在重置账号密码...', () => api.auth.resetPassword(userId, {
+      password: String(password || '')
+    }), '账号密码已重置', refreshIdentityUsers)
+    return outcome.ok
+  }
+
+  const remoteReplaceIdentityUserRoles = async (userId, version, roleIds) => {
+    const outcome = await runIdentity('正在保存账号角色...', () => api.auth.replaceUserRoles(userId, {
+      version: Number(version || 0),
+      roleIds: identityIdStrings(roleIds)
+    }), '账号角色已保存', refreshIdentityUsers)
+    if (!outcome.ok) return false
+    await refreshIdentityUsers()
+    return true
+  }
+
+  const remoteReplaceIdentityUserMemberships = async (userId, version, campusIds) => {
+    const outcome = await runIdentity('正在保存数据范围...', () => api.auth.replaceMemberships(userId, {
+      version: Number(version || 0),
+      campusIds: identityIdStrings(campusIds)
+    }), '账号数据范围已保存', refreshIdentityUsers)
+    if (!outcome.ok) return false
+    await refreshIdentityUsers()
+    return true
+  }
+
+  const remoteCreateIdentityRole = async (payload = {}) => {
+    const outcome = await runIdentity('正在创建角色...', () => api.auth.createRole({
+      roleKey: String(payload.roleKey || '').trim(),
+      name: String(payload.name || '').trim(),
+      description: String(payload.description || '').trim() || undefined,
+      status: payload.status || 'ENABLED'
+    }), '角色已创建', refreshIdentityRoles)
+    if (!outcome.ok) return null
+    await refreshIdentityRoles()
+    return mapIdentityRole(outcome.value)
+  }
+
+  const remoteUpdateIdentityRole = async (roleId, payload = {}) => {
+    const current = identityRoles.find((role) => sameId(role.id, roleId))
+    const outcome = await runIdentity('正在保存角色...', () => api.auth.updateRole(roleId, {
+      roleKey: String(payload.roleKey ?? current?.roleKey ?? '').trim(),
+      name: String(payload.name ?? current?.name ?? '').trim(),
+      description: String(payload.description ?? current?.description ?? '').trim() || undefined,
+      status: payload.status || current?.status || 'ENABLED',
+      version: Number(payload.version ?? current?.version ?? 0)
+    }), '角色已保存', refreshIdentityRoles)
+    if (!outcome.ok) return null
+    await refreshIdentityRoles()
+    return mapIdentityRole(outcome.value)
+  }
+
+  const remoteReplaceIdentityRolePermissions = async (roleId, version, permissionIds) => {
+    const outcome = await runIdentity('正在保存角色权限...', () => api.auth.replaceRolePermissions(roleId, {
+      version: Number(version || 0),
+      permissionIds: identityIdStrings(permissionIds)
+    }), '角色权限已保存', refreshIdentityRoles)
+    if (!outcome.ok) return null
+    await refreshIdentityRoles()
+    return mapIdentityRole(outcome.value)
+  }
+
   const fileUrlCache = new Map()
   const protectedFileUrl = async (fileId) => {
     if (!fileId) return ''
@@ -2896,7 +3130,9 @@ export function useDeliveryWorkflow() {
     replaceReactive(supervisionDashboard, (valueAt(15)?.items || []).map(mapSupervisionLesson))
     Object.assign(providerCatalog, valueAt(16) || {})
     if (valueAt(21)) mapProviderGroups(valueAt(21))
-    replaceReactive(permissionCatalog, valueAt(17) || [])
+    replaceReactive(permissionCatalog, (valueAt(17) || [])
+      .map((permission) => typeof permission === 'string' ? permission : permission?.permissionKey)
+      .filter(Boolean))
     replaceReactive(studentProfileFields, (valueAt(18) || []).map(mapProfileField))
     replaceReactive(todos, (valueAt(19) || []).map(mapTodo))
     replaceReactive(teacherArchives, (valueAt(20)?.items || []).map(mapTeacherArchive))
@@ -2994,6 +3230,14 @@ export function useDeliveryWorkflow() {
     replaceReactive(terms)
     replaceReactive(supervisionDashboard)
     replaceReactive(permissionCatalog)
+    replaceReactive(identityUsers)
+    replaceReactive(identityRoles)
+    replaceReactive(identityPermissions)
+    Object.assign(identityUserPage, { page: 1, pageSize: 20, total: 0 })
+    identityUserQuery.value = ''
+    identityUserStatus.value = ''
+    Object.assign(identityLoaded, { users: false, roles: false, permissions: false })
+    Object.assign(identityErrors, { users: '', roles: '', permissions: '', memberships: '' })
     replaceReactive(studentProfileFields)
     replaceReactive(wecomSendTasks)
     Object.keys(studentProfiles).forEach((key) => delete studentProfiles[key])
@@ -4320,6 +4564,15 @@ export function useDeliveryWorkflow() {
     providerTypeOptions,
     providerTypeCatalog,
     permissionCatalog,
+    identityUsers,
+    identityRoles,
+    identityPermissions,
+    identityUserPage,
+    identityUserQuery,
+    identityUserStatus,
+    identityLoading,
+    identityLoaded,
+    identityErrors,
     cloudDriveSetting,
     enabledCloudProviders,
     activeTaskId,
@@ -4346,6 +4599,9 @@ export function useDeliveryWorkflow() {
     loginAccount,
     loginRoleOptions,
     isAdmin,
+    canManageIdentityUsers,
+    canManageIdentityRoles,
+    canManageIdentityMemberships,
     canQualityReview,
     canQualityRead,
     authorizedClassIds,
@@ -4477,6 +4733,18 @@ export function useDeliveryWorkflow() {
     updateExternalLink: remoteUpdateExternalLink,
     addTeacher: remoteAddTeacher,
     updateTeacher: remoteUpdateTeacher,
+    loadIdentityUsers,
+    loadIdentityRoles,
+    loadIdentityPermissions,
+    loadIdentityMemberships,
+    createIdentityUser: remoteCreateIdentityUser,
+    updateIdentityUser: remoteUpdateIdentityUser,
+    resetIdentityPassword: remoteResetIdentityPassword,
+    replaceIdentityUserRoles: remoteReplaceIdentityUserRoles,
+    replaceIdentityUserMemberships: remoteReplaceIdentityUserMemberships,
+    createIdentityRole: remoteCreateIdentityRole,
+    updateIdentityRole: remoteUpdateIdentityRole,
+    replaceIdentityRolePermissions: remoteReplaceIdentityRolePermissions,
     stageImportFile: remoteStageImportFile,
     previewImport: remotePreviewImport,
     applyImportRows: remoteApplyImportRows,

@@ -49,6 +49,46 @@ export const toApiWheatCommand = (value) => ({
 }[value] || value)
 
 export const mapCampus = (value = {}) => ({ ...value, id: safeUiId(value.id), organizationId: safeUiId(value.organizationId), version: Number(value.version || 0) })
+export const mapIdentityPermission = (value = {}) => ({
+  ...value,
+  id: safeUiId(value.id),
+  permissionKey: value.permissionKey || '',
+  module: value.module || 'other',
+  description: value.description || '',
+  status: value.status || 'ENABLED'
+})
+export const mapIdentityRole = (value = {}) => ({
+  ...value,
+  id: safeUiId(value.id),
+  roleKey: value.roleKey || '',
+  name: value.name || value.roleKey || '',
+  description: value.description || '',
+  status: value.status || 'ENABLED',
+  system: Boolean(value.system),
+  version: Number(value.version || 0),
+  permissions: Array.isArray(value.permissions) ? value.permissions.map((permission) => String(permission)) : []
+})
+export const mapCampusMembership = (value = {}) => ({
+  ...value,
+  id: safeUiId(value.id),
+  campusId: safeUiId(value.campusId),
+  campusCode: value.campusCode || '',
+  campusName: value.campusName || '',
+  status: value.status || 'ENABLED',
+  version: Number(value.version || 0)
+})
+export const mapIdentityUser = (value = {}) => ({
+  ...value,
+  id: safeUiId(value.id),
+  organizationId: safeUiId(value.organizationId),
+  username: value.username || '',
+  phone: value.phone || '',
+  displayName: value.displayName || value.username || value.phone || '',
+  status: value.status || 'ENABLED',
+  version: Number(value.version || 0),
+  roles: Array.isArray(value.roles) ? value.roles.map(mapIdentityRole) : [],
+  campuses: Array.isArray(value.campuses) ? value.campuses.map(mapCampus) : []
+})
 export const mapTeacher = (value = {}) => ({
   ...value,
   id: safeUiId(value.id),

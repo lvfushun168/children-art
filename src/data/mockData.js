@@ -40,7 +40,9 @@ export const navGroups = [
     items: [
       { id: 'imports', label: '数据导入', mark: '导' },
       { id: 'templates', label: '模板配置', mark: '配' },
-      { id: 'permissions', label: '权限配置', mark: '权' },
+      { id: 'accountManagement', label: '账号管理', mark: '账' },
+      { id: 'roleManagement', label: '角色管理', mark: '角' },
+      { id: 'permissionResources', label: '权限资源', mark: '权' },
       { id: 'settings', label: '系统配置', mark: '系' }
     ]
   }

@@ -6,6 +6,7 @@ import UserMenu from './components/layout/UserMenu.vue'
 import { navGroups } from './data/navigation'
 import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
 import ArchiveQueryView from './views/ArchiveQueryView.vue'
+import AccountManagementView from './views/AccountManagementView.vue'
 import ExternalLinksView from './views/ExternalLinksView.vue'
 import ImportCenterView from './views/ImportCenterView.vue'
 import ExtraTasksView from './views/ExtraTasksView.vue'
@@ -13,8 +14,9 @@ import LoginView from './views/LoginView.vue'
 import MasterDataView from './views/MasterDataView.vue'
 import ModuleHubView from './views/ModuleHubView.vue'
 import ParentSharePage from './views/ParentSharePage.vue'
-import PermissionSettingsView from './views/PermissionSettingsView.vue'
+import PermissionResourcesView from './views/PermissionResourcesView.vue'
 import ProductionCenterView from './views/ProductionCenterView.vue'
+import RoleManagementView from './views/RoleManagementView.vue'
 import SupervisionBoardView from './views/SupervisionBoardView.vue'
 import SystemSettingsView from './views/SystemSettingsView.vue'
 import TasksView from './views/TasksView.vue'
@@ -49,7 +51,7 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['tasks', 'supervision', 'production', 'archives', 'students', 'classes', 'externalLinks', 'extraTasks', 'templates', 'permissions', 'settings'])
+const navIdsWithLocalBack = new Set(['tasks', 'supervision', 'production', 'archives', 'students', 'classes', 'externalLinks', 'extraTasks', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || mobileLevel.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
 const mobileGroupEntries = computed(() =>
@@ -247,7 +249,11 @@ const shareRoute = computed(() => {
 
       <TemplatesView v-if="showActivePage && activeNav === 'templates'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
-      <PermissionSettingsView v-if="showActivePage && activeNav === 'permissions' && state.isAdmin" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
+      <AccountManagementView v-if="showActivePage && activeNav === 'accountManagement' && state.canManageIdentityUsers" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
+
+      <RoleManagementView v-if="showActivePage && activeNav === 'roleManagement' && state.canManageIdentityRoles" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
+
+      <PermissionResourcesView v-if="showActivePage && activeNav === 'permissionResources' && state.canManageIdentityRoles" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ArchiveQueryView v-if="showActivePage && activeNav === 'archives'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @create-portfolio="openProductionCenter" />
 

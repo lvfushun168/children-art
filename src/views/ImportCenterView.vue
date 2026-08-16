@@ -6,6 +6,7 @@ const props = defineProps({
   state: { type: Object, required: true },
   initialType: { type: String, default: '综合课表' }
 })
+const emit = defineEmits(['open-schedule'])
 
 const mode = ref('home')
 const dataType = ref(props.initialType)
@@ -25,7 +26,8 @@ const fieldMapping = ref({
   note: '备注',
   className: '班级名称',
   teacherName: '任课老师',
-  courseTitle: '课程主题',
+  courseTitle: '课程类别/课程资料',
+  topic: '内容/本次课题',
   classroom: '教室',
   capacity: '人数/容量',
   memberName: '学生姓名',
@@ -51,6 +53,11 @@ const rows = computed(() => {
   return props.state.importPreviewRows
 })
 const validRows = computed(() => rows.value.filter((row) => row.status === '可导入'))
+const topicBackfillRows = computed(() => rows.value.filter((row) => row.type === 'lesson'
+  && row.status !== '可导入' && row.duplicateObjectType === 'LESSON' && row.topic))
+const confirmableRows = computed(() => [...validRows.value, ...topicBackfillRows.value])
+const handledLessonCount = computed(() => rows.value.filter((row) => row.type === 'lesson'
+  && (row.status === '可导入' || topicBackfillRows.value.some((candidate) => candidate.id === row.id))).length)
 const warningRows = computed(() => rows.value.filter((row) => row.status !== '可导入'))
 const latestBatch = computed(() => props.state.importBatches[0] || {
   source: '暂无导入记录',
@@ -62,7 +69,7 @@ const latestBatch = computed(() => props.state.importBatches[0] || {
 })
 const columns = computed(() => {
   if (dataType.value === '学生名单') return ['学生姓名', '所在班级', '手机号', '年龄', '学号', '备注']
-  if (dataType.value === '班级课表') return ['班级名称', '任课老师', '课程主题', '学生姓名', '手机号', '教室', '人数/容量']
+  if (dataType.value === '班级课表') return ['班级名称', '任课老师', '课程类别/课程资料', '内容/本次课题', '学生姓名', '手机号', '教室', '人数/容量']
   return []
 })
 const mappingFields = computed(() => {
@@ -80,7 +87,8 @@ const mappingFields = computed(() => {
     return [
       { key: 'className', label: '班级名称', required: true },
       { key: 'teacherName', label: '任课老师' },
-      { key: 'courseTitle', label: '课程主题' },
+      { key: 'courseTitle', label: '课程类别/课程资料' },
+      { key: 'topic', label: '内容/本次课题' },
       { key: 'memberName', label: '学生姓名' },
       { key: 'memberPhone', label: '手机号' },
       { key: 'classroom', label: '教室' },
@@ -89,7 +97,7 @@ const mappingFields = computed(() => {
   }
   return []
 })
-const mappingOptions = computed(() => [...new Set(['', ...columns.value, '学员姓名', '学生姓名', '姓名', '所在班级', '班级', '手机号', '手机号码', '年龄', '学号', '备注', '任课老师', '课程主题', '学生姓名', '教室', '人数/容量'])])
+const mappingOptions = computed(() => [...new Set(['', ...columns.value, '学员姓名', '学生姓名', '姓名', '所在班级', '班级', '手机号', '手机号码', '年龄', '学号', '备注', '任课老师', '课程类别/课程资料', '课程主题', '内容', '本次课题', '学生姓名', '教室', '人数/容量'])])
 const processingTitle = computed(() => operation.value === 'confirm' ? '正在确认导入' : '正在上传并生成预览')
 const processingDetail = computed(() => operation.value === 'confirm'
   ? '可导入的数据正在写入基础数据，异常数据不会被写入。'
@@ -97,7 +105,7 @@ const processingDetail = computed(() => operation.value === 'confirm'
 
 const relationText = (row) => {
   if (row.type === 'student') return [row.className, row.parent, row.phone].filter(Boolean).join(' · ') || '未填写关联信息'
-  return row.className || row.teacher || row.course || '待识别'
+  return [row.className, row.time, row.teacher, row.course].filter(Boolean).join(' · ') || '待识别'
 }
 
 const teacherMatchLabels = {
@@ -192,7 +200,7 @@ const handleFile = async (event) => {
 const retryPreview = async () => readPreview()
 
 const confirmImport = async () => {
-  if (isBusy.value || !validRows.value.length) return
+  if (isBusy.value || !confirmableRows.value.length) return
   importError.value = ''
   operation.value = 'confirm'
   mode.value = 'processing'
@@ -315,7 +323,7 @@ const confirmImport = async () => {
         <small>老师未匹配、同名冲突或已归档的班级/课次行需要先选择系统老师并保存映射，再重新检查当前批次。</small>
       </div>
       <div class="preview-table">
-        <div class="preview-row head"><strong>名称</strong><strong>关联信息</strong><strong>结果</strong><strong>说明</strong></div>
+        <div class="preview-row head"><strong>名称</strong><strong>关联信息</strong><strong>本次课题</strong><strong>结果</strong><strong>说明</strong></div>
         <div v-for="row in rows" :key="row.id" class="preview-row" :class="row.status">
           <span>{{ row.name }}</span>
           <span>
@@ -326,6 +334,7 @@ const confirmImport = async () => {
               <button class="ghost" type="button" :disabled="!selectedTeacherId(row)" @click="saveTeacherMapping(row)">选择并保存映射</button>
             </template>
           </span>
+          <span :class="{ 'import-topic-empty': row.type !== 'lesson' || !row.topic }">{{ row.type === 'lesson' ? (row.topic || '未填写') : '—' }}</span>
           <span>{{ row.status }}</span>
           <span>{{ row.issue || '可以写入' }}</span>
         </div>
@@ -334,15 +343,33 @@ const confirmImport = async () => {
       <div v-if="importError" class="import-error" role="alert"><strong>确认失败</strong><span>{{ importError }}</span></div>
       <footer class="modal-actions">
         <button class="ghost" type="button" @click="startImport">重新选择</button>
-        <button class="primary" type="button" :disabled="!validRows.length" @click="confirmImport">确认导入 {{ validRows.length }} 条</button>
+        <button class="primary" type="button" :disabled="!confirmableRows.length" @click="confirmImport">确认导入 {{ confirmableRows.length }} 条</button>
       </footer>
     </section>
 
     <section v-else class="import-done">
       <span>✓</span>
       <h2>导入完成</h2>
-      <p>{{ validRows.length }} 条资料已经写入，{{ warningRows.length }} 条问题数据已保留。</p>
-      <button class="primary" type="button" @click="mode = 'home'">返回数据导入</button>
+      <p v-if="handledLessonCount">本批次已处理 {{ handledLessonCount }} 条课次，{{ warningRows.length }} 条问题数据已保留。</p>
+      <p v-else>{{ confirmableRows.length }} 条{{ dataType === '学生名单' ? '资料' : '数据' }}已经处理，{{ warningRows.length }} 条问题数据已保留。</p>
+      <div class="import-done-actions">
+        <button v-if="dataType !== '学生名单'" class="primary" type="button" @click="emit('open-schedule')">查看课表</button>
+        <button class="ghost" type="button" @click="mode = 'home'">返回数据导入</button>
+      </div>
     </section>
   </section>
 </template>
+
+<style scoped>
+.import-topic-empty {
+  color: var(--muted);
+  opacity: 0.72;
+}
+
+.import-done-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+</style>

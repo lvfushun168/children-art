@@ -233,6 +233,7 @@ export const mapLesson = (value = {}) => ({
   courseArchived: Boolean(value.courseArchived),
   className: value.className || '',
   course: value.courseTitle || value.course || '',
+  topic: value.topic || value.lessonTopic || '',
   archived: Boolean(value.archived),
   lessonType: lessonType[value.lessonType] || value.lessonType || '其他',
   status: lessonStatus[value.status] || value.status || '待处理',

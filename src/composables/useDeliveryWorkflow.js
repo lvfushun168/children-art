@@ -93,6 +93,7 @@ export function useDeliveryWorkflow() {
   const students = reactive([])
   const classes = reactive([])
   const courses = reactive([])
+  const scheduleLessons = reactive([])
   const templates = reactive({ image: [], comment: [], prompt: [], watermark: [] })
   const classTypes = reactive([])
   const tasks = reactive([])
@@ -159,6 +160,9 @@ export function useDeliveryWorkflow() {
   // screen only renders page one. This prevents components from having to
   // infer totals from the currently loaded array.
   const pageMeta = reactive({})
+  const scheduleMeta = reactive({ page: 1, pageSize: 200, total: 0, filters: {} })
+  const scheduleLoading = ref(false)
+  const scheduleError = ref('')
   // Directory pages are intentionally separate from the reference collections
   // used by the lesson workspace. A paginated directory request must never
   // replace the teacher/student/class/course options used by the mobile flow.
@@ -176,6 +180,7 @@ export function useDeliveryWorkflow() {
   const directoryLoading = reactive({})
   const directoryErrors = reactive({})
   const directoryPromises = new Map()
+  const schedulePromises = new Map()
   const processingAction = ref('')
   const toast = ref('')
   const previewPulse = ref(false)
@@ -383,6 +388,10 @@ export function useDeliveryWorkflow() {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && (isAdmin.value || permissions.includes('identity.membership.manage')))
   })
+  const canEditMasterData = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && permissions.includes('masterdata.edit'))
+  })
   const canQualityReview = computed(() => {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && (isAdmin.value || permissions.includes('quality.review')))
@@ -439,6 +448,7 @@ export function useDeliveryWorkflow() {
       archives: ['archive.read'],
       extraTasks: ['extra-task.read'],
       imports: ['import.create', 'import.preview', 'import.confirm'],
+      schedule: ['lesson.read'],
       templates: ['lesson.read'],
       accountManagement: ['identity.user.manage'],
       roleManagement: ['identity.role.manage'],
@@ -450,7 +460,7 @@ export function useDeliveryWorkflow() {
       .map(([navId]) => navId)
   })
   const activeTask = computed(() => visibleTasks.value.find((task) => sameId(task.id, activeTaskId.value)) || visibleTasks.value[0] || {
-    id: null, classId: null, className: '', courseId: null, courseTitle: '', teacherId: null, teacher: '', date: '', dateValue: '', time: '', lessonType: '其他', status: '待处理', version: 0, wheatStatus: '未生成'
+    id: null, classId: null, className: '', courseId: null, courseTitle: '', topic: '', teacherId: null, teacher: '', date: '', dateValue: '', time: '', lessonType: '其他', status: '待处理', version: 0, wheatStatus: '未生成'
   })
   const activeClass = computed(() => classes.find((item) => sameId(item.id, activeTask.value?.classId)) || { id: activeTask.value?.classId || null, name: activeTask.value?.className || '未选择班级', studentIds: [], time: '' })
   const activeCourse = computed(() => courses.find((item) => sameId(item.id, activeTask.value?.courseId)) || { id: activeTask.value?.courseId || null, title: activeTask.value?.courseTitle || '待配置', materials: '', defaultFocus: '' })
@@ -2838,8 +2848,10 @@ export function useDeliveryWorkflow() {
       teacherId: fromApiId(normalized.teacherId || value.teacherId),
       teacherMatchStatus: normalized.teacherMatchStatus || value.teacherMatchStatus || '',
       teacherCandidates: Array.isArray(normalized.teacherCandidates) ? normalized.teacherCandidates : Array.isArray(value.teacherCandidates) ? value.teacherCandidates : [],
-      time: normalized.time || normalized.scheduleText || value.rawValues?.time || '',
+      dateValue: normalized.date || value.rawValues?.date || '',
+      time: normalized.time || normalized.timeRange || normalized.scheduleText || value.rawValues?.time || '',
       course: normalized.course || normalized.courseTitle || value.rawValues?.course || '',
+      topic: normalized.topic || normalized.content || value.rawValues?.topic || value.rawValues?.content || '',
       nickname: normalized.nickname || '',
       parent: normalized.parentName || normalized.parent || '',
       phone: normalized.parentPhone || normalized.phone || '',
@@ -3175,6 +3187,35 @@ export function useDeliveryWorkflow() {
     updatePageMeta(pageMeta[key], page)
   }
 
+  const loadScheduleLessons = async (params = {}, { force = false } = {}) => {
+    if (!isLoggedIn.value) return null
+    const page = Math.max(1, Number(params.page || scheduleMeta.page || 1))
+    const pageSize = Math.min(200, Math.max(1, Number(params.pageSize || scheduleMeta.pageSize || 200)))
+    const filters = { ...params }
+    delete filters.page
+    delete filters.pageSize
+    const promiseKey = `${page}:${pageSize}:${JSON.stringify(filters)}`
+    if (!force && schedulePromises.has(promiseKey)) return schedulePromises.get(promiseKey)
+    const load = (async () => {
+      scheduleLoading.value = true
+      scheduleError.value = ''
+      try {
+        const mapped = mapPage(await api.lessons.list({ ...filters, page, pageSize }), mapLesson)
+        replaceReactive(scheduleLessons, mapped.items)
+        Object.assign(scheduleMeta, { page: mapped.page, pageSize: mapped.pageSize, total: mapped.total, filters })
+        return mapped
+      } catch (error) {
+        scheduleError.value = remoteErrorMessage(error, '课表加载失败')
+        throw error
+      } finally {
+        scheduleLoading.value = false
+        schedulePromises.delete(promiseKey)
+      }
+    })()
+    schedulePromises.set(promiseKey, load)
+    return load
+  }
+
   const masterCollectionFor = (entity) => ({ teachers, students, classes, courses }[entity] || null)
   const masterMapperFor = (entity) => ({ teachers: mapTeacher, students: mapStudent, classes: mapClass, courses: mapCourse }[entity] || null)
   const masterApiFor = (entity) => ({
@@ -3468,6 +3509,24 @@ export function useDeliveryWorkflow() {
             await loadCurrentTeacherProfile()
             break
           }
+          case 'schedule': {
+            const [teacherPage, classPage, coursePage] = await Promise.all([
+              api.master.teachers({ page: 1, pageSize: 200, archiveState: 'ACTIVE' }),
+              api.master.classes({ page: 1, pageSize: 200, archiveState: 'ACTIVE' }),
+              api.master.courses({ page: 1, pageSize: 200, archiveState: 'ACTIVE' })
+            ])
+            const mappedTeachers = mapPage(teacherPage, mapTeacher)
+            const mappedClasses = mapPage(classPage, mapClass)
+            const mappedCourses = mapPage(coursePage, mapCourse)
+            replaceReactive(teachers, mappedTeachers.items)
+            replaceReactive(classes, mappedClasses.items)
+            replaceReactive(courses, mappedCourses.items)
+            updateListPageMeta('teachers', mappedTeachers)
+            updateListPageMeta('classes', mappedClasses)
+            updateListPageMeta('courses', mappedCourses)
+            await loadCurrentTeacherProfile()
+            break
+          }
           case 'teachers': await loadDirectoryPage('teachers', { page: 1, pageSize: 20, archiveState: masterArchiveState.teachers }); break
           case 'students': await loadDirectoryPage('students', { page: 1, pageSize: 20, archiveState: masterArchiveState.students }); break
           case 'classes': await loadDirectoryPage('classes', { page: 1, pageSize: 20, archiveState: masterArchiveState.classes }); break
@@ -3539,6 +3598,10 @@ export function useDeliveryWorkflow() {
     switch (key) {
       case 'workbench.summary': return refreshWorkbenchSummary()
       case 'lessons.today': return refreshTodayLessons()
+      case 'lessons.schedule': {
+        if (!Object.keys(scheduleMeta.filters || {}).length) return null
+        return loadScheduleLessons({ ...scheduleMeta.filters, page: scheduleMeta.page, pageSize: scheduleMeta.pageSize }, { force })
+      }
       case 'wheat-traces': return refreshWheatTraces()
       case 'todos': return refreshTodos()
       case 'lesson.workspace': return lessonId ? refreshRemoteLesson(lessonId, { force }) : null
@@ -3614,6 +3677,7 @@ export function useDeliveryWorkflow() {
     replaceReactive(students)
     replaceReactive(classes)
     replaceReactive(courses)
+    replaceReactive(scheduleLessons)
     replaceReactive(tasks)
     replaceReactive(archiveRecords)
     replaceReactive(artworkLibrary)
@@ -3648,6 +3712,9 @@ export function useDeliveryWorkflow() {
     Object.keys(pageLoaded).forEach((key) => delete pageLoaded[key])
     Object.keys(pageErrors).forEach((key) => delete pageErrors[key])
     Object.keys(pageMeta).forEach((key) => delete pageMeta[key])
+    Object.assign(scheduleMeta, { page: 1, pageSize: 200, total: 0, filters: {} })
+    scheduleError.value = ''
+    schedulePromises.clear()
     Object.assign(shellSummary, { pendingLessons: 0, wheatPending: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })
     Object.assign(shellPages.lessons, { page: 1, pageSize: 20, total: 0 })
     Object.assign(shellPages.wheatTraces, { page: 1, pageSize: 20, total: 0 })
@@ -4354,8 +4421,9 @@ export function useDeliveryWorkflow() {
     const result = await runRemote('正在创建课次...', () => api.lessons.create({
       classId: String(payload.classId), teacherId: payload.teacherId ? String(payload.teacherId) : undefined, courseId: payload.courseId ? String(payload.courseId) : undefined,
       dateValue: payload.dateValue, startTime: String(payload.time || '00:00').slice(0, 5), endTime: payload.endTime || undefined,
-      lessonType: toApiLessonType(payload.lessonType || '其他'), sourceType: apiLessonSource(payload.importedFrom), sourceAttendanceCount: payload.sourceAttendanceCount
-    }), '课次已创建', () => Promise.all([invalidateResource('lessons.today'), invalidateResource('workbench.summary')]))
+      lessonType: toApiLessonType(payload.lessonType || '其他'), topic: payload.topic?.trim() || undefined,
+      sourceType: apiLessonSource(payload.importedFrom), sourceAttendanceCount: payload.sourceAttendanceCount
+    }), '课次已创建', () => Promise.all([invalidateResource('lessons.today'), invalidateResource('lessons.schedule'), invalidateResource('workbench.summary')]))
     if (!result) return null
     const lesson = mapLesson(result)
     tasks.unshift(lesson)
@@ -4625,7 +4693,8 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteAddExternalLink = async (payload) => {
-    const result = await runRemote('正在创建外部课程链接...', () => api.master.createExternalLink({ courseId: payload.courseIds?.[0] ? String(payload.courseIds[0]) : payload.courseId ? String(payload.courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined }), '外部课程链接已创建', () => invalidateResource('externalLinks'))
+    const courseId = payload.courseId !== undefined ? payload.courseId : payload.courseIds?.[0]
+    const result = await runRemote('正在创建外部课程链接...', () => api.master.createExternalLink({ courseId: courseId ? String(courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined }), '外部课程链接已创建', () => invalidateResource('externalLinks'))
     if (!result) return null
     const link = mapExternalLink(result)
     externalLinks.push(link)
@@ -4634,13 +4703,17 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateExternalLink = async (linkId, payload) => {
     const current = externalLinks.find((item) => sameId(item.id, linkId))
+      || directoryPages.externalLinks.items.find((item) => sameId(item.id, linkId))
+    const courseId = payload.courseId !== undefined ? payload.courseId : payload.courseIds?.[0]
     const result = await runRemote('正在保存外部课程链接...', () => api.master.updateExternalLink(linkId, {
-      courseId: payload.courseIds?.[0] ? String(payload.courseIds[0]) : payload.courseId ? String(payload.courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined, status: apiEnabledStatus(payload.status), version: current?.version || 0
+      courseId: courseId ? String(courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined, status: apiEnabledStatus(payload.status), version: current?.version || 0
     }), '外部课程链接已保存', () => invalidateResource('externalLinks'))
     if (!result) return null
     const link = mapExternalLink(result)
     const index = externalLinks.findIndex((item) => sameId(item.id, linkId))
-    externalLinks.splice(index, 1, link)
+    if (index >= 0) externalLinks.splice(index, 1, link)
+    const directoryIndex = directoryPages.externalLinks.items.findIndex((item) => sameId(item.id, linkId))
+    if (directoryIndex >= 0) directoryPages.externalLinks.items.splice(directoryIndex, 1, link)
     return link
   }
 
@@ -4826,8 +4899,11 @@ export function useDeliveryWorkflow() {
       notify('请先完成文件识别和预览')
       return false
     }
-    const skipRowIds = importPreviewRows.filter((row) => row.status !== '可导入').map((row) => String(row.id))
-    const result = await runRemote('正在确认导入...', () => api.imports.confirm(pendingImportMeta.batchId, { version: pendingImportMeta.version, skipRowIds }, createIdempotencyKey(`import-confirm:${pendingImportMeta.batchId}`)), '导入已确认', () => Promise.all([invalidateResource('imports'), invalidateResource('lessons.today'), invalidateResource('workbench.summary')]))
+    const skipRowIds = importPreviewRows
+      .filter((row) => row.status !== '可导入'
+        && !(row.type === 'lesson' && row.duplicateObjectType === 'LESSON' && row.topic))
+      .map((row) => String(row.id))
+    const result = await runRemote('正在确认导入...', () => api.imports.confirm(pendingImportMeta.batchId, { version: pendingImportMeta.version, skipRowIds }, createIdempotencyKey(`import-confirm:${pendingImportMeta.batchId}`)), '导入已确认', () => Promise.all([invalidateResource('imports'), invalidateResource('lessons.today'), invalidateResource('lessons.schedule'), invalidateResource('workbench.summary')]))
     if (!result) return false
     replaceReactive(importBatches, [mapImportBatch(result), ...importBatches.filter((item) => !sameId(item.id, result.id))])
     pendingImportMeta.batchId = null
@@ -4835,6 +4911,7 @@ export function useDeliveryWorkflow() {
     await Promise.all([
       invalidateResource('imports'),
       invalidateResource('lessons.today'),
+      invalidateResource('lessons.schedule'),
       invalidateResource('workbench.summary')
     ])
     return true
@@ -5028,6 +5105,10 @@ export function useDeliveryWorkflow() {
     students,
     classes,
     courses,
+    scheduleLessons,
+    scheduleMeta,
+    scheduleLoading,
+    scheduleError,
     templates,
     classTypes,
     tasks,
@@ -5112,6 +5193,7 @@ export function useDeliveryWorkflow() {
     canManageIdentityUsers,
     canManageIdentityRoles,
     canManageIdentityMemberships,
+    canEditMasterData,
     canQualityReview,
     canQualityRead,
     canEditExtraTaskArtwork,
@@ -5287,6 +5369,7 @@ export function useDeliveryWorkflow() {
     remoteReady,
     ensurePageData: loadPageData,
     loadShellData,
+    loadScheduleLessons,
     loadLessonWorkspace,
     loadTemplates,
     pageLoading,

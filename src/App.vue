@@ -7,7 +7,6 @@ import { navGroups } from './data/navigation'
 import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
 import ArchiveQueryView from './views/ArchiveQueryView.vue'
 import AccountManagementView from './views/AccountManagementView.vue'
-import ExternalLinksView from './views/ExternalLinksView.vue'
 import ImportCenterView from './views/ImportCenterView.vue'
 import ExtraTasksView from './views/ExtraTasksView.vue'
 import LoginView from './views/LoginView.vue'
@@ -17,6 +16,7 @@ import ParentSharePage from './views/ParentSharePage.vue'
 import PermissionResourcesView from './views/PermissionResourcesView.vue'
 import ProductionCenterView from './views/ProductionCenterView.vue'
 import RoleManagementView from './views/RoleManagementView.vue'
+import ScheduleView from './views/ScheduleView.vue'
 import SupervisionBoardView from './views/SupervisionBoardView.vue'
 import SystemSettingsView from './views/SystemSettingsView.vue'
 import TasksView from './views/TasksView.vue'
@@ -51,7 +51,7 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['tasks', 'supervision', 'production', 'archives', 'teachers', 'students', 'classes', 'courses', 'externalLinks', 'extraTasks', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
+const navIdsWithLocalBack = new Set(['schedule', 'tasks', 'supervision', 'production', 'archives', 'teachers', 'students', 'classes', 'courses', 'externalLinks', 'extraTasks', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || mobileLevel.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
 const mobileGroupEntries = computed(() =>
@@ -115,6 +115,11 @@ const openProductionCenter = (payload) => {
 }
 const selectTodoTask = (task) => {
   state.selectTask(task)
+  openNav('tasks')
+  openWorkspaceSignal.value += 1
+}
+const openScheduleTask = (task) => {
+  void state.selectTask(task)
   openNav('tasks')
   openWorkspaceSignal.value += 1
 }
@@ -235,6 +240,8 @@ const shareRoute = computed(() => {
 
       <TasksView v-if="showActivePage && activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @navigate="handleNavigate" />
 
+      <ScheduleView v-if="showActivePage && activeNav === 'schedule'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-task="openScheduleTask" />
+
       <SupervisionBoardView v-if="showActivePage && activeNav === 'supervision' && state.canQualityRead" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ProductionCenterView
@@ -254,9 +261,9 @@ const shareRoute = computed(() => {
 
       <MasterDataView v-if="showActivePage && activeNav === 'courses'" :state="state" entity="courses" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
-      <ImportCenterView v-if="showActivePage && activeNav === 'imports'" :state="state" :initial-type="activeImportType" />
+      <ImportCenterView v-if="showActivePage && activeNav === 'imports'" :state="state" :initial-type="activeImportType" @open-schedule="openNav('schedule')" />
 
-      <ExternalLinksView v-if="showActivePage && activeNav === 'externalLinks'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
+      <MasterDataView v-if="showActivePage && activeNav === 'externalLinks'" :state="state" entity="externalLinks" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <TemplatesView v-if="showActivePage && activeNav === 'templates'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 

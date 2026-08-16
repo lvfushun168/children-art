@@ -5,6 +5,7 @@ export const navGroups = [
     description: '今日课次与交付',
     mark: '课',
     items: [
+      { id: 'schedule', label: '课表', mark: '表', description: '按日期查看上课安排' },
       { id: 'tasks', label: '今日课后', mark: '课' },
       { id: 'supervision', label: '教管看板', mark: '管', description: '老师完成情况与评分' },
       { id: 'production', label: '制作中心', mark: '制' }

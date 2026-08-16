@@ -111,6 +111,7 @@ test('returns binary responses without envelope parsing and exposes conflict met
 test('maps protocol IDs, statuses and pages into stable view values', () => {
   assert.equal(sameId('9007199254740993', 9007199254740993n), true)
   assert.equal(mapLesson({ id: '9007199254740993', status: 'PROCESSING', lessonType: 'PAID', dateValue: '2026-08-12', startTime: '18:30:00' }).status, '处理中')
+  assert.equal(mapLesson({ topic: '素描考级' }).topic, '素描考级')
   assert.equal(mapLesson({ lessonType: 'PAID' }).lessonType, '收费课')
   assert.deepEqual(mapPage({ items: [{ id: '1' }], page: 2, pageSize: 20, total: 41 }, (item) => item), {
     items: [{ id: '1' }],

@@ -165,6 +165,7 @@ const updateCommentTemplate = (index) => {
       <div>
         <span>{{ state.activeTask.date }} · {{ state.activeTask.time }} · {{ state.activeTask.lessonType }}</span>
         <h2>{{ state.activeClass.name }} · {{ state.activeCourse.title }}</h2>
+        <small v-if="state.activeTask.topic" class="lesson-topic-line">本次课题：{{ state.activeTask.topic }}</small>
       </div>
 
     </header>

@@ -18,7 +18,7 @@ const props = defineProps({
     default: ''
   }
 })
-defineEmits(['open-import', 'backToGroup'])
+const emit = defineEmits(['open-import', 'backToGroup'])
 
 const selectedId = ref(null)
 const mode = ref('detail')
@@ -37,6 +37,10 @@ const courseInput = ref('all')
 const classTypeInput = ref('all')
 const classInput = ref('all')
 const detailRecord = ref(null)
+const detailLoading = ref(false)
+const saving = ref(false)
+const detailRequestId = ref(0)
+const draftBaseline = ref('')
 let cleanupMobileMedia = () => {}
 
 const studentProfileSections = [
@@ -85,7 +89,8 @@ const config = computed(() => {
     teachers: { title: '老师管理', action: '新增老师', empty: '暂无老师' },
     students: { title: '学生管理', action: '新增学生', empty: '暂无学生' },
     classes: { title: '班级管理', action: '新增班级', empty: '暂无班级' },
-    courses: { title: '课程资料', action: '新增课程', empty: '暂无课程' }
+    courses: { title: '课程资料', action: '新增课程', empty: '暂无课程' },
+    externalLinks: { title: '外部在线课程信息', action: '新增外部课程', empty: '暂无符合条件的外部课程链接' }
   }
   return map[props.entity]
 })
@@ -99,8 +104,20 @@ const activeItems = (items = []) => items.filter((item) => !item.archived)
 const selected = computed(() => detailRecord.value || records.value.find((item) => sameId(item.id, selectedId.value)) || null)
 const directoryState = computed(() => props.state.directoryPages?.[props.entity] || { page: 1, pageSize: 20, total: 0, items: [] })
 const drawerOpen = computed(() => mode.value === 'new' || Boolean(selected.value && (!isMobileFlow.value || mobileShowingDetail.value)))
+const canEditMasterData = computed(() => {
+  if (typeof props.state.canEditMasterData === 'boolean') return props.state.canEditMasterData
+  const permissions = props.state.currentUser?.permissions || []
+  return permissions.includes('masterdata.edit')
+})
+const entityLabel = computed(() => ({ teachers: '老师', students: '学生', classes: '班级', courses: '课程', externalLinks: '外部课程链接' }[props.entity] || '记录'))
+const isArchivableEntity = computed(() => props.entity !== 'externalLinks')
+const draftSnapshot = (value) => JSON.stringify(value || {})
+const isDirty = computed(() => mode.value !== 'detail' && draftBaseline.value !== draftSnapshot(draft.value))
+const formReadonly = computed(() => mode.value === 'detail' || detailLoading.value || saving.value || !canEditMasterData.value)
+const showMasterActions = computed(() => mode.value !== 'detail' && (props.entity !== 'students' || studentDetailTab.value === 'profile'))
+const showCloseAction = computed(() => mode.value === 'detail' || (props.entity === 'students' && studentDetailTab.value === 'communication'))
 const statusOptions = computed(() => {
-  if (props.entity === 'teachers' || props.entity === 'courses') return [{ label: '全部状态', value: 'all' }, { label: '启用', value: 'ENABLED' }, { label: '停用', value: 'DISABLED' }]
+  if (props.entity === 'teachers' || props.entity === 'courses' || props.entity === 'externalLinks') return [{ label: '全部状态', value: 'all' }, { label: '启用', value: 'ENABLED' }, { label: '停用', value: 'DISABLED' }]
   if (props.entity === 'students') return [{ label: '全部状态', value: 'all' }, { label: '在读', value: 'ENROLLED' }, { label: '请假', value: 'ON_LEAVE' }, { label: '退费', value: 'GRADUATED' }, { label: '停课', value: 'DISABLED' }]
   return [{ label: '全部状态', value: 'all' }, { label: '筹备中', value: 'PREPARING' }, { label: '开班中', value: 'ACTIVE' }, { label: '停课', value: 'SUSPENDED' }, { label: '结课', value: 'CLOSED' }]
 })
@@ -177,6 +194,17 @@ const blankDraft = () => {
       studentIds: []
     }
   }
+  if (props.entity === 'externalLinks') {
+    return {
+      title: '',
+      url: '',
+      platform: '通用链接',
+      note: '',
+      courseId: null,
+      courseIds: [],
+      status: '启用'
+    }
+  }
   return {
     title: '',
     age: '5-7岁',
@@ -192,6 +220,13 @@ const blankDraft = () => {
 
 const cloneRecord = (record) => JSON.parse(JSON.stringify(record || blankDraft()))
 const draft = ref(blankDraft())
+const setDraft = (value, { clean = true } = {}) => {
+  draft.value = cloneRecord(value)
+  if (clean) draftBaseline.value = draftSnapshot(draft.value)
+}
+const markDraftClean = () => {
+  draftBaseline.value = draftSnapshot(draft.value)
+}
 const blankCommunicationDraft = () => ({
   studentId: selected.value?.id || null,
   contactPerson: selected.value?.parent || '',
@@ -230,6 +265,7 @@ const resetDraft = () => {
   const base = mode.value === 'new' ? blankDraft() : cloneRecord(selected.value)
   const profile = props.entity === 'students' && mode.value !== 'new' ? props.state.studentProfileFor?.(selected.value?.id) : null
   draft.value = { ...base, ...(profile?.valueMap || {}) }
+  markDraftClean()
 }
 
 const resetCommunicationDraft = () => {
@@ -255,13 +291,21 @@ const selectedReferenceCount = computed(() => {
   return (props.state.classes || []).filter((item) => sameId(item.courseId, selected.value.id)).length
 })
 
-const loadDirectory = async (page = 1) => {
+const confirmDiscardChanges = (action = '离开当前编辑') => {
+  if (!isDirty.value) return true
+  return window.confirm(`当前${entityLabel.value}有未保存修改，确定${action}吗？`)
+}
+
+const backToGroup = () => {
+  if (!confirmDiscardChanges('放弃当前编辑并返回上一级')) return
+  emit('backToGroup')
+}
+
+const buildDirectoryFilters = () => {
   const filters = {
-    page,
     pageSize: 20,
     query: queryInput.value.trim() || undefined,
     status: statusInput.value === 'all' ? undefined : statusInput.value,
-    archiveState: archiveState.value
   }
   if (props.entity === 'students' && classInput.value !== 'all') filters.classId = classInput.value
   if (props.entity === 'classes') {
@@ -269,10 +313,119 @@ const loadDirectory = async (page = 1) => {
     if (courseInput.value !== 'all') filters.courseId = courseInput.value
     if (classTypeInput.value !== 'all') filters.classTypeId = classTypeInput.value
   }
+  if (props.entity === 'externalLinks' && courseInput.value !== 'all') filters.courseId = courseInput.value
+  if (props.entity !== 'externalLinks') {
+    filters.archiveState = archiveState.value
+  }
+  return filters
+}
+
+const clearSelection = () => {
+  detailRequestId.value += 1
+  detailLoading.value = false
   detailRecord.value = null
   selectedId.value = null
   mode.value = 'detail'
-  await props.state.loadDirectoryPage?.(props.entity, filters)
+  setDraft(blankDraft())
+  mobileShowingDetail.value = false
+  resetCommunicationDraft()
+}
+
+const ensureDetailLookups = async () => {
+  const entities = props.entity === 'students'
+    ? ['classes']
+    : props.entity === 'classes'
+      ? ['teachers', 'students', 'courses']
+      : props.entity === 'externalLinks'
+        ? ['courses']
+        : []
+  await Promise.all(entities.map((entity) => props.state.loadMasterData?.(entity, { archiveState: 'ACTIVE', force: false })))
+}
+
+const hydrateStudentProfile = async (record) => {
+  if (props.entity !== 'students' || !record?.id || mode.value === 'new') return
+  const wasDirty = isDirty.value
+  await Promise.all([
+    props.state.loadStudentProfile?.(record.id),
+    (props.state.permissionCatalog || []).includes('crm.audit.read')
+      ? props.state.loadStudentProfileAudits?.(record.id)
+      : Promise.resolve([])
+  ])
+  if (!sameId(selectedId.value, record.id) || mode.value === 'new') return
+  const profile = props.state.studentProfileFor?.(record.id)
+  if (profile?.valueMap && !wasDirty) {
+    draft.value = { ...draft.value, ...profile.valueMap }
+    markDraftClean()
+  }
+}
+
+const loadRecordDetail = async (record, { skipGuard = false, preferredMode = null } = {}) => {
+  if (!record?.id) return false
+  if (!skipGuard && !confirmDiscardChanges('切换记录')) return false
+
+  const requestId = ++detailRequestId.value
+  selectedId.value = record.id
+  detailRecord.value = null
+  mode.value = preferredMode || (canEditMasterData.value && !record.archived ? 'edit' : 'detail')
+  studentDetailTab.value = 'profile'
+  detailLoading.value = true
+  setDraft(record)
+  resetCommunicationDraft()
+  if (props.entity === 'students') void props.state.loadCommunicationRecords(record.id)
+  if (isMobileFlow.value) mobileShowingDetail.value = true
+
+  try {
+    await ensureDetailLookups()
+    const detail = await props.state.loadDirectoryDetail?.(props.entity, record)
+    if (requestId !== detailRequestId.value || !sameId(selectedId.value, record.id)) return false
+    const resolved = detail || record
+    detailRecord.value = resolved
+    mode.value = preferredMode === 'detail'
+      ? 'detail'
+      : (canEditMasterData.value && !resolved.archived ? 'edit' : 'detail')
+    setDraft(resolved)
+    await hydrateStudentProfile(resolved)
+    return true
+  } catch {
+    if (requestId !== detailRequestId.value || !sameId(selectedId.value, record.id)) return false
+    detailRecord.value = record
+    mode.value = preferredMode === 'detail'
+      ? 'detail'
+      : (canEditMasterData.value && !record.archived ? 'edit' : 'detail')
+    setDraft(record)
+    return false
+  } finally {
+    if (requestId === detailRequestId.value) detailLoading.value = false
+  }
+}
+
+const loadDirectory = async (page = 1, { skipGuard = false, preserveSelection = false, selectionId = selectedId.value } = {}) => {
+  if (!skipGuard && !confirmDiscardChanges('离开当前编辑并刷新列表')) return false
+  const filters = buildDirectoryFilters()
+  const preservedId = preserveSelection ? selectionId : null
+  const preservedMode = preserveSelection ? mode.value : 'detail'
+  let requestId = detailRequestId.value
+  if (!preserveSelection) {
+    clearSelection()
+  } else {
+    requestId = ++detailRequestId.value
+    detailRecord.value = null
+    detailLoading.value = Boolean(preservedId)
+  }
+  try {
+    const result = await props.state.loadDirectoryPage?.(props.entity, { ...filters, page })
+    if (preservedId && requestId === detailRequestId.value) {
+      const refreshed = records.value.find((item) => sameId(item.id, preservedId))
+      if (refreshed) {
+        await loadRecordDetail(refreshed, { skipGuard: true, preferredMode: preservedMode })
+      } else {
+        clearSelection()
+      }
+    }
+    return result
+  } finally {
+    if (preservedId && requestId === detailRequestId.value) detailLoading.value = false
+  }
 }
 
 const applyFilters = () => loadDirectory(1)
@@ -287,157 +440,133 @@ const resetFilters = () => {
 }
 
 const reloadArchiveState = async (value = archiveState.value) => {
+  if (!confirmDiscardChanges('切换归档筛选并刷新列表')) return false
   archiveState.value = value
-  await loadDirectory(1)
-}
-
-const ensureDetailLookups = async () => {
-  const entities = props.entity === 'students'
-    ? ['classes']
-    : props.entity === 'classes'
-      ? ['teachers', 'students', 'courses']
-      : []
-  await Promise.all(entities.map((entity) => props.state.loadMasterData?.(entity, { archiveState: 'ACTIVE', force: false })))
-}
-
-const hydrateStudentProfile = async (record) => {
-  if (props.entity !== 'students' || !record?.id || mode.value === 'new') return
-  await Promise.all([
-    props.state.loadStudentProfile?.(record.id),
-    (props.state.permissionCatalog || []).includes('crm.audit.read')
-      ? props.state.loadStudentProfileAudits?.(record.id)
-      : Promise.resolve([])
-  ])
-  if (!sameId(selectedId.value, record.id) || mode.value === 'new') return
-  const profile = props.state.studentProfileFor?.(record.id)
-  if (profile?.valueMap) draft.value = { ...draft.value, ...profile.valueMap }
+  return loadDirectory(1, { skipGuard: true })
 }
 
 watch(
   () => props.entity,
   () => {
     archiveState.value = 'ACTIVE'
-    selectedId.value = null
-    detailRecord.value = null
-    mode.value = 'detail'
+    clearSelection()
     studentDetailTab.value = 'profile'
-    mobileShowingDetail.value = false
-    resetDraft()
-    resetCommunicationDraft()
     if (props.entity === 'teachers') void props.state.loadIdentityUsers?.({ page: 1, pageSize: 100, status: 'ENABLED' })
     if (props.entity === 'classes') void props.state.loadClassTypes?.()
-    void loadDirectory(1)
+    void loadDirectory(1, { skipGuard: true })
   },
   { immediate: true }
 )
 
-watch(selected, () => {
-  if (mode.value !== 'new') resetDraft()
-  resetCommunicationDraft()
-  void hydrateStudentProfile(selected.value)
-})
-
 const selectRecord = async (record) => {
-  selectedId.value = record.id
-  detailRecord.value = null
-  mode.value = 'detail'
-  studentDetailTab.value = 'profile'
-  draft.value = cloneRecord(record)
-  resetCommunicationDraft()
-  if (props.entity === 'students') void props.state.loadCommunicationRecords(record.id)
-  if (isMobileFlow.value) mobileShowingDetail.value = true
-  await ensureDetailLookups()
-  try {
-    const detail = await props.state.loadDirectoryDetail?.(props.entity, record)
-    if (sameId(selectedId.value, record.id)) {
-      detailRecord.value = detail || record
-      draft.value = cloneRecord(detail || record)
-    }
-  } catch {
-    detailRecord.value = record
-  }
+  if (!confirmDiscardChanges('切换记录')) return false
+  return loadRecordDetail(record, { skipGuard: true })
 }
 
 const startNew = async () => {
+  if (!confirmDiscardChanges('放弃当前编辑并新建记录')) return false
+  detailRequestId.value += 1
   mode.value = 'new'
   selectedId.value = null
   detailRecord.value = null
   studentDetailTab.value = 'profile'
-  await ensureDetailLookups()
-  draft.value = blankDraft()
+  detailLoading.value = true
+  setDraft(blankDraft())
   resetCommunicationDraft()
   if (isMobileFlow.value) mobileShowingDetail.value = true
+  try {
+    await ensureDetailLookups()
+    setDraft(blankDraft())
+    return true
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 const startEdit = () => {
-  if (!selected.value) return
+  if (!selected.value || selected.value.archived || !canEditMasterData.value) return
   mode.value = 'edit'
-  draft.value = cloneRecord(selected.value)
-}
-
-const save = async () => {
-  const wasNew = mode.value === 'new'
-  let saved = null
-  if (props.entity === 'teachers') {
-    saved = mode.value === 'new' ? await props.state.addTeacher(draft.value) : await props.state.updateTeacher(selected.value.id, draft.value)
-    if (!saved) return
-    if (String(draft.value.userId || '') !== String(saved.userId || '')) {
-      saved = await props.state.bindTeacherAccount(saved.id, draft.value.userId || null, saved.version)
-      if (!saved) return
-    }
-    selectedId.value = saved.id
-  }
-  if (props.entity === 'students') {
-    saved = mode.value === 'new' ? await props.state.addStudent(draft.value) : await props.state.updateStudent(selected.value.id, draft.value)
-    if (!saved) return
-    if (!(await props.state.saveStudentProfile?.(saved.id, draft.value))) return
-    selectedId.value = saved.id
-  }
-  if (props.entity === 'classes') {
-    saved = mode.value === 'new' ? await props.state.addClass(draft.value) : await props.state.updateClass(selected.value.id, draft.value)
-    if (!saved) return
-    selectedId.value = saved.id
-  }
-  if (props.entity === 'courses') {
-    saved = mode.value === 'new' ? await props.state.addCourse(draft.value) : await props.state.updateCourse(selected.value.id, draft.value)
-    if (!saved) return
-    selectedId.value = saved.id
-  }
-  if (wasNew) {
-    mobileShowingDetail.value = false
-    await loadDirectory(1)
-    resetDraft()
-    resetCommunicationDraft()
-    return
-  }
-  mode.value = 'detail'
-  if (isMobileFlow.value) mobileShowingDetail.value = true
-  await loadDirectory(wasNew ? 1 : directoryState.value.page)
-  selectedId.value = saved.id
-  try {
-    detailRecord.value = await props.state.loadDirectoryDetail?.(props.entity, saved)
-  } catch {
-    detailRecord.value = saved
-  }
   resetDraft()
 }
 
+const save = async () => {
+  if (mode.value === 'detail' || !canEditMasterData.value || detailLoading.value || saving.value) return
+  if (mode.value === 'edit' && !isDirty.value) {
+    props.state.notify?.('当前没有需要保存的修改')
+    return
+  }
+  const wasNew = mode.value === 'new'
+  const page = directoryState.value.page
+  let saved = null
+  saving.value = true
+  try {
+    if (props.entity === 'teachers') {
+      saved = mode.value === 'new' ? await props.state.addTeacher(draft.value) : await props.state.updateTeacher(selected.value.id, draft.value)
+      if (!saved) return
+      if (String(draft.value.userId || '') !== String(saved.userId || '')) {
+        saved = await props.state.bindTeacherAccount(saved.id, draft.value.userId || null, saved.version)
+        if (!saved) return
+      }
+      selectedId.value = saved.id
+    }
+    if (props.entity === 'students') {
+      saved = mode.value === 'new' ? await props.state.addStudent(draft.value) : await props.state.updateStudent(selected.value.id, draft.value)
+      if (!saved) return
+      if (!(await props.state.saveStudentProfile?.(saved.id, draft.value))) return
+      selectedId.value = saved.id
+    }
+    if (props.entity === 'classes') {
+      saved = mode.value === 'new' ? await props.state.addClass(draft.value) : await props.state.updateClass(selected.value.id, draft.value)
+      if (!saved) return
+      selectedId.value = saved.id
+    }
+    if (props.entity === 'courses') {
+      saved = mode.value === 'new' ? await props.state.addCourse(draft.value) : await props.state.updateCourse(selected.value.id, draft.value)
+      if (!saved) return
+      selectedId.value = saved.id
+    }
+    if (props.entity === 'externalLinks') {
+      saved = mode.value === 'new' ? await props.state.addExternalLink(draft.value) : await props.state.updateExternalLink(selected.value.id, draft.value)
+      if (!saved) return
+      selectedId.value = saved.id
+    }
+    if (wasNew) {
+      await loadDirectory(1, { skipGuard: true })
+      return
+    }
+    mode.value = canEditMasterData.value && !saved.archived ? 'edit' : 'detail'
+    if (isMobileFlow.value) mobileShowingDetail.value = true
+    detailRecord.value = saved
+    setDraft(saved)
+    if (props.entity === 'students') {
+      const profile = props.state.studentProfileFor?.(saved.id)
+      if (profile?.valueMap) draft.value = { ...draft.value, ...profile.valueMap }
+    }
+    markDraftClean()
+    await loadDirectory(page, { skipGuard: true, preserveSelection: true, selectionId: saved.id })
+  } finally {
+    saving.value = false
+  }
+}
+
 const archiveSelected = async () => {
-  if (!selected.value || selected.value.archived) return
+  if (!selected.value || selected.value.archived || !canEditMasterData.value || detailLoading.value || saving.value) return
   const reason = window.prompt(`归档“${selected.value.name || selected.value.title}”的原因（可选）`, selected.value.archiveReason || '')
   if (reason === null) return
   if (selectedReferenceCount.value > 0 && !window.confirm(`该数据当前被 ${selectedReferenceCount.value} 条业务关系引用，归档不会删除引用，是否继续？`)) return
+  if (!confirmDiscardChanges('放弃未保存修改并归档当前记录')) return
+  resetDraft()
   const saved = await props.state.archiveMasterData?.(props.entity, selected.value.id, reason)
   if (saved) {
-    await loadDirectory(directoryState.value.page)
+    await loadDirectory(directoryState.value.page, { skipGuard: true })
   }
 }
 
 const restoreSelected = async () => {
-  if (!selected.value || !selected.value.archived) return
+  if (!selected.value || !selected.value.archived || !canEditMasterData.value || saving.value) return
   const saved = await props.state.restoreMasterData?.(props.entity, selected.value.id, selected.value.version)
   if (saved) {
-    await loadDirectory(directoryState.value.page)
+    await loadDirectory(directoryState.value.page, { skipGuard: true })
   }
 }
 
@@ -480,24 +609,23 @@ const deleteCommunicationRecord = (record) => {
   if (sameId(communicationEditingId.value, record.id)) resetCommunicationDraft()
 }
 
+const selectStudentTab = (tab) => {
+  if (tab === studentDetailTab.value) return
+  if (tab === 'communication' && studentDetailTab.value === 'profile' && isDirty.value) {
+    if (!confirmDiscardChanges('放弃未保存修改并查看沟通记录')) return
+    resetDraft()
+  }
+  studentDetailTab.value = tab
+  communicationView.value = 'list'
+}
+
 const returnToList = () => {
-  mode.value = 'detail'
-  selectedId.value = null
-  detailRecord.value = null
-  resetDraft()
-  mobileShowingDetail.value = false
+  if (!confirmDiscardChanges('放弃当前编辑并返回列表')) return
+  clearSelection()
 }
 
 const cancelEdit = () => {
-  const wasNew = mode.value === 'new'
-  mode.value = 'detail'
-  resetDraft()
-  if (wasNew) {
-    selectedId.value = null
-    detailRecord.value = null
-    mobileShowingDetail.value = false
-    resetCommunicationDraft()
-  }
+  clearSelection()
 }
 
 const toggleStudentInClass = (studentId) => {
@@ -529,7 +657,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
     v-if="groupLabel && (!isMobileFlow || !mobileShowingDetail)"
     class="module-back-link"
     type="button"
-    @click="$emit('backToGroup')"
+    @click="backToGroup"
   >
     ← 返回{{ groupLabel }}
   </button>
@@ -545,7 +673,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
   <PageHead :eyebrow="config.eyebrow" :title="config.title">
     <div class="button-pair">
-      <button class="primary" :disabled="archiveState !== 'ACTIVE'" @click="startNew">{{ config.action }}</button>
+      <button class="primary" :disabled="archiveState !== 'ACTIVE' || !canEditMasterData" @click="startNew">{{ config.action }}</button>
     </div>
   </PageHead>
 
@@ -553,13 +681,13 @@ onBeforeUnmount(() => cleanupMobileMedia())
     <form class="directory-toolbar panel" @submit.prevent="applyFilters">
       <label class="directory-search">
         <span>关键词</span>
-        <input v-model="queryInput" :placeholder="entity === 'teachers' ? '姓名、手机号' : entity === 'students' ? '姓名、家长电话' : entity === 'classes' ? '班级名称' : '课程主题、年龄段'" />
+        <input v-model="queryInput" :placeholder="entity === 'teachers' ? '姓名、手机号' : entity === 'students' ? '姓名、家长电话' : entity === 'classes' ? '班级名称' : entity === 'externalLinks' ? '标题、URL' : '课程类别/资料、年龄段'" />
       </label>
       <label>
         <span>状态</span>
         <AdaptiveSelect v-model="statusInput" :options="statusOptions" />
       </label>
-      <label>
+      <label v-if="isArchivableEntity">
         <span>归档状态</span>
         <AdaptiveSelect :model-value="archiveState" :options="archiveStateOptions" @update:model-value="reloadArchiveState" />
       </label>
@@ -572,6 +700,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <label><span>课程</span><AdaptiveSelect v-model="courseInput" :options="courseFilterOptions" /></label>
         <label><span>班型</span><AdaptiveSelect v-model="classTypeInput" :options="classTypeFilterOptions" /></label>
       </template>
+      <label v-if="entity === 'externalLinks'">
+        <span>课程</span>
+        <AdaptiveSelect v-model="courseInput" :options="courseFilterOptions" />
+      </label>
       <div class="button-pair directory-toolbar-actions">
         <button class="secondary" type="submit">查询</button>
         <button class="ghost" type="button" @click="resetFilters">重置</button>
@@ -597,12 +729,14 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <table class="directory-table">
           <thead>
             <tr>
-              <th>{{ entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程' }}</th>
+              <th>{{ entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : entity === 'externalLinks' ? '外部课程链接' : '课程' }}</th>
               <th v-if="entity === 'teachers'">职称</th>
               <th v-if="entity === 'students'">家长电话</th>
               <th v-if="entity === 'classes'">班型 / 老师</th>
               <th v-if="entity === 'courses'">适用年龄</th>
-              <th>{{ entity === 'teachers' ? '账号绑定' : entity === 'students' ? '班级 / 作品' : entity === 'classes' ? '课程 / 学生' : '使用班级 / 外链' }}</th>
+              <th v-if="entity === 'externalLinks'">适用课程</th>
+              <th v-if="entity === 'externalLinks'">URL</th>
+              <th v-if="entity !== 'externalLinks'">{{ entity === 'teachers' ? '账号绑定' : entity === 'students' ? '班级 / 作品' : entity === 'classes' ? '课程 / 学生' : '使用班级 / 外链' }}</th>
               <th>状态</th>
               <th>操作</th>
             </tr>
@@ -614,12 +748,14 @@ onBeforeUnmount(() => cleanupMobileMedia())
               <td v-if="entity === 'students'">{{ record.phone || '—' }}</td>
               <td v-if="entity === 'classes'">{{ record.classTypeName || '—' }} · {{ record.teacherName || teacherName(record.teacherId) }}</td>
               <td v-if="entity === 'courses'">{{ record.age || '—' }}</td>
+              <td v-if="entity === 'externalLinks'">{{ record.courseTitle || courseTitle(record.courseId) }}</td>
+              <td v-if="entity === 'externalLinks'" class="directory-url">{{ record.url }}</td>
               <td v-if="entity === 'teachers'">{{ record.userId ? '已绑定' : '未绑定' }} · {{ record.classCount || 0 }} 个班</td>
               <td v-if="entity === 'students'">{{ record.classCount || 0 }} 个班 · {{ record.archiveWorkCount || 0 }} 件作品</td>
               <td v-if="entity === 'classes'">{{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.studentCount || record.studentIds?.length || 0 }} 人</td>
               <td v-if="entity === 'courses'">{{ record.activeClassCount || 0 }} 个班 · {{ record.externalLinkCount || 0 }} 条外链</td>
               <td><span class="status-tag">{{ record.archived ? '已归档' : record.status }}</span></td>
-              <td><button class="ghost" type="button" @click.stop="selectRecord(record)">查看详情</button></td>
+              <td><button class="ghost" type="button" @click.stop="selectRecord(record)">{{ canEditMasterData && !record.archived ? '编辑' : '查看详情' }}</button></td>
             </tr>
           </tbody>
         </table>
@@ -630,6 +766,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <span v-if="entity === 'students'">{{ record.phone || '无家长电话' }} · {{ record.classCount || 0 }} 个班 · {{ record.archiveWorkCount || 0 }} 件作品</span>
             <span v-if="entity === 'classes'">{{ record.teacherName || teacherName(record.teacherId) }} · {{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.studentCount || 0 }} 人</span>
             <span v-if="entity === 'courses'">{{ record.age || '未设置年龄段' }} · {{ record.activeClassCount || 0 }} 个使用班级</span>
+            <span v-if="entity === 'externalLinks'">{{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.url }}</span>
             <em>{{ record.archived ? '已归档' : record.status }}</em>
           </button>
         </div>
@@ -645,14 +782,22 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <strong>{{ mode === 'new' ? config.action : selected?.name || selected?.title }}</strong>
         </div>
         <div class="button-pair">
-          <button v-if="mode === 'detail'" class="ghost" type="button" @click="returnToList">关闭</button>
-          <button v-if="mode === 'detail' && !selected?.archived && (entity !== 'students' || studentDetailTab === 'profile')" class="secondary" @click="startEdit">编辑</button>
-          <button v-if="mode === 'detail' && selected?.archived" class="secondary" type="button" @click="restoreSelected">恢复</button>
-          <button v-if="mode === 'detail' && selected && !selected.archived" class="danger-text" type="button" @click="archiveSelected">归档</button>
-          <button v-if="mode !== 'detail'" class="ghost" type="button" @click="cancelEdit">取消</button>
-          <button v-if="mode !== 'detail'" class="primary" @click="save">保存</button>
+          <button v-if="showCloseAction" class="ghost" type="button" @click="returnToList">关闭</button>
+          <button v-if="mode === 'detail' && !selected?.archived && canEditMasterData" class="secondary" type="button" @click="startEdit">编辑</button>
+          <button v-if="mode === 'detail' && isArchivableEntity && selected?.archived && canEditMasterData" class="secondary" type="button" :disabled="detailLoading" @click="restoreSelected">恢复</button>
+          <button v-if="isArchivableEntity && selected && !selected.archived && canEditMasterData" class="danger-text" type="button" :disabled="detailLoading || saving" @click="archiveSelected">归档</button>
+          <button v-if="showMasterActions" class="ghost" type="button" @click="cancelEdit">取消</button>
+          <button v-if="showMasterActions" class="primary" type="button" :disabled="saving || detailLoading || (mode === 'edit' && !isDirty)" @click="save">{{ mode === 'new' ? '保存' : '保存修改' }}</button>
         </div>
       </div>
+
+      <section v-if="detailLoading" class="notice-box">
+        <small>正在加载完整资料，请稍候…</small>
+      </section>
+      <section v-else-if="mode === 'detail' && selected && !selected.archived && !canEditMasterData" class="notice-box">
+        <strong>当前为只读模式</strong>
+        <small>当前账号没有主数据编辑权限，如需修改请联系管理员。</small>
+      </section>
 
       <section v-if="selected?.archived && mode === 'detail'" class="notice-box archive-notice">
         <strong>该{{ entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程' }}已归档</strong>
@@ -661,19 +806,19 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <template v-if="entity === 'teachers'">
         <div class="form-grid">
-          <label>姓名<input v-model="draft.name" /></label>
-          <label>手机号<input v-model="draft.phone" /></label>
-          <label>职称<input v-model="draft.role" /></label>
+          <label>姓名<input v-model="draft.name" :disabled="formReadonly" /></label>
+          <label>手机号<input v-model="draft.phone" :disabled="formReadonly" /></label>
+          <label>职称<input v-model="draft.role" :disabled="formReadonly" /></label>
           <label>
             状态
-            <AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" />
+            <AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" :disabled="formReadonly" />
           </label>
           <label class="wide">
             绑定已有账号
-            <AdaptiveSelect v-model="draft.userId" :options="[{ label: '未绑定账号', value: null }, ...availableIdentityUsers]" />
+            <AdaptiveSelect v-model="draft.userId" :options="[{ label: '未绑定账号', value: null }, ...availableIdentityUsers]" :disabled="formReadonly" />
             <small>账号创建和停用仍在“账号管理”中完成。</small>
           </label>
-          <label class="wide">备注<textarea v-model="draft.note" rows="4" /></label>
+          <label class="wide">备注<textarea v-model="draft.note" rows="4" :disabled="formReadonly" /></label>
         </div>
         <div v-if="mode === 'detail'" class="master-form-section">
           <strong>账号关联</strong>
@@ -684,8 +829,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <template v-if="entity === 'students'">
         <div v-if="mode !== 'new'" class="student-detail-tabs">
-          <button :class="{ active: studentDetailTab === 'profile' }" type="button" @click="studentDetailTab = 'profile'">档案信息</button>
-          <button :class="{ active: studentDetailTab === 'communication' }" type="button" @click="studentDetailTab = 'communication'; communicationView = 'list'">
+          <button :class="{ active: studentDetailTab === 'profile' }" type="button" @click="selectStudentTab('profile')">档案信息</button>
+          <button :class="{ active: studentDetailTab === 'communication' }" type="button" @click="selectStudentTab('communication')">
             沟通记录
             <small>{{ communicationSummary.total }}</small>
           </button>
@@ -695,32 +840,32 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <section class="master-form-section">
             <strong>基础信息</strong>
             <div class="form-grid">
-              <label>姓名<input v-model="draft.name" /></label>
-              <label>小名<input v-model="draft.nickname" /></label>
-              <label>年龄<input v-model="draft.age" type="number" /></label>
+              <label>姓名<input v-model="draft.name" :disabled="formReadonly" /></label>
+              <label>小名<input v-model="draft.nickname" :disabled="formReadonly" /></label>
+              <label>年龄<input v-model="draft.age" type="number" :disabled="formReadonly" /></label>
               <label>
                 所属班级
-                <AdaptiveSelect v-model="draft.classId" :options="activeItems(state.classes).map((klass) => ({ label: klass.name, value: klass.id }))" />
+                <AdaptiveSelect v-model="draft.classId" :options="activeItems(state.classes).map((klass) => ({ label: klass.name, value: klass.id }))" :disabled="formReadonly" />
               </label>
-              <label>家长称呼<input v-model="draft.parent" /></label>
-              <label>家长电话<input v-model="draft.phone" /></label>
+              <label>家长称呼<input v-model="draft.parent" :disabled="formReadonly" /></label>
+              <label>家长电话<input v-model="draft.phone" :disabled="formReadonly" /></label>
               <label>
                 状态
-                <AdaptiveSelect v-model="draft.status" :options="['在读', '停课', '请假', '退费']" />
+                <AdaptiveSelect v-model="draft.status" :options="['在读', '停课', '请假', '退费']" :disabled="formReadonly" />
               </label>
-              <label class="wide">备注<textarea v-model="draft.note" rows="4" /></label>
+              <label class="wide">备注<textarea v-model="draft.note" rows="4" :disabled="formReadonly" /></label>
             </div>
           </section>
 
           <template v-if="availableStudentProfileSections.length">
             <section v-for="section in availableStudentProfileSections" :key="section.title" class="master-form-section">
               <strong>{{ section.title }}</strong>
-              <div class="form-grid">
-                <label v-for="field in section.fields" :key="field.key">
-                  {{ field.label }}
-                  <input v-model="draft[field.key]" :placeholder="field.hint" />
-                </label>
-              </div>
+                <div class="form-grid">
+                  <label v-for="field in section.fields" :key="field.key">
+                    {{ field.label }}
+                  <input v-model="draft[field.key]" :placeholder="field.hint" :disabled="formReadonly" />
+                  </label>
+                </div>
             </section>
           </template>
           <section v-if="mode !== 'new' && state.studentProfileAudits?.[selected?.id]?.items?.length" class="master-form-section profile-audit-section">
@@ -817,19 +962,19 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <template v-if="entity === 'classes'">
         <div class="form-grid">
-          <label>班级名<input v-model="draft.name" /></label>
-          <label>上课时间<input v-model="draft.time" /></label>
+          <label>班级名<input v-model="draft.name" :disabled="formReadonly" /></label>
+          <label>上课时间<input v-model="draft.time" :disabled="formReadonly" /></label>
           <label>
             任课老师
-            <AdaptiveSelect v-model="draft.teacherId" :options="activeItems(state.teachers).map((teacher) => ({ label: teacher.name, value: teacher.id }))" />
+            <AdaptiveSelect v-model="draft.teacherId" :options="activeItems(state.teachers).map((teacher) => ({ label: teacher.name, value: teacher.id }))" :disabled="formReadonly" />
           </label>
           <label>
             默认课程
-            <AdaptiveSelect v-model="draft.courseId" :options="activeItems(state.courses).map((course) => ({ label: course.title, value: course.id }))" />
+            <AdaptiveSelect v-model="draft.courseId" :options="activeItems(state.courses).map((course) => ({ label: course.title, value: course.id }))" :disabled="formReadonly" />
           </label>
           <label>
             状态
-            <AdaptiveSelect v-model="draft.status" :options="['筹备中', '开班中', '停课', '结课']" />
+            <AdaptiveSelect v-model="draft.status" :options="['筹备中', '开班中', '停课', '结课']" :disabled="formReadonly" />
           </label>
           <label class="wide">
             家长群
@@ -839,7 +984,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <div class="member-picker">
           <strong>学生名单</strong>
           <label v-for="student in activeItems(state.students)" :key="student.id" class="inline-check">
-            <input type="checkbox" :checked="draft.studentIds?.some((id) => sameId(id, student.id))" @change="toggleStudentInClass(student.id)" />
+            <input type="checkbox" :checked="draft.studentIds?.some((id) => sameId(id, student.id))" :disabled="formReadonly" @change="toggleStudentInClass(student.id)" />
             <span>{{ student.name }} · {{ student.status }} · {{ className(student.classId) }}</span>
           </label>
         </div>
@@ -847,10 +992,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <template v-if="entity === 'courses'">
         <div class="form-grid">
-          <label>课程主题<input v-model="draft.title" /></label>
-          <label>适用年龄<input v-model="draft.age" /></label>
+          <label>课程类别/课程资料<input v-model="draft.title" :disabled="formReadonly" /></label>
+          <label>适用年龄<input v-model="draft.age" :disabled="formReadonly" /></label>
           <label>默认关注点<input v-model="draft.defaultFocus" disabled /></label>
-          <label>材料<input v-model="draft.materials" /></label>
+          <label>材料<input v-model="draft.materials" :disabled="formReadonly" /></label>
           <label>
             课评模板
             <AdaptiveSelect v-model="draft.commentTemplate" :options="state.templates.comment.map((template) => template.name)" disabled />
@@ -859,8 +1004,29 @@ onBeforeUnmount(() => cleanupMobileMedia())
             图片模板
             <AdaptiveSelect v-model="draft.imageTemplate" :options="state.templates.image.map((template) => template.name)" disabled />
           </label>
-          <label class="wide">教学目标<textarea v-model="draft.goal" rows="3" /></label>
-          <label class="wide">AI 参考材料和特殊话术<textarea v-model="draft.reference" rows="5" /></label>
+          <label class="wide">教学目标<textarea v-model="draft.goal" rows="3" :disabled="formReadonly" /></label>
+          <label class="wide">AI 参考材料和特殊话术<textarea v-model="draft.reference" rows="5" :disabled="formReadonly" /></label>
+        </div>
+      </template>
+
+      <template v-if="entity === 'externalLinks'">
+        <div class="form-grid">
+          <label>标题<input v-model="draft.title" :disabled="formReadonly" /></label>
+          <label>
+            状态
+            <AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" :disabled="formReadonly" />
+          </label>
+          <label>平台<input :value="draft.platform || '通用链接'" disabled /></label>
+          <label class="wide">链接地址<input v-model="draft.url" :disabled="formReadonly" /></label>
+          <label class="wide">
+            适用课程
+            <AdaptiveSelect
+              v-model="draft.courseId"
+              :options="[{ label: '未绑定课程', value: null }, ...activeItems(state.courses).map((course) => ({ label: course.title, value: course.id }))]"
+              :disabled="formReadonly"
+            />
+          </label>
+          <label class="wide">备注<textarea v-model="draft.note" rows="4" :disabled="formReadonly" /></label>
         </div>
       </template>
     </section>

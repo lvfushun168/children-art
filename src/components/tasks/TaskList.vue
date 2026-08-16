@@ -45,6 +45,7 @@ const lessonDraft = ref({
   classId: props.classes.find((item) => !item.archived)?.id,
   teacherId: props.teachers.find((item) => !item.archived && item.role === '老师')?.id,
   courseId: props.courses.find((item) => !item.archived)?.id,
+  topic: '',
   lessonType: '收费课',
   status: '待处理',
   importedFrom: '手动补录'
@@ -105,6 +106,7 @@ const saveLesson = () => {
         </strong>
         <small>
           {{ task.courseTitle || courses.find((item) => sameId(item.id, task.courseId))?.title || '待配置课程' }}
+          <em v-if="task.topic"> · 课题：{{ task.topic }}</em>
           <em v-if="task.courseArchived" class="archived-reference">已归档</em>
           · {{ task.teacher }}
           <em v-if="task.teacherArchived" class="archived-reference">已归档</em>
@@ -137,9 +139,10 @@ const saveLesson = () => {
             <AdaptiveSelect v-model="lessonDraft.teacherId" :options="teacherOptions" />
           </label>
           <label>
-            课程主题
+            课程类别/课程资料
             <AdaptiveSelect v-model="lessonDraft.courseId" :options="courseOptions" />
           </label>
+          <label>本次课题<input v-model="lessonDraft.topic" maxlength="255" placeholder="可选，如：素描考级" /></label>
           <label>
             课次类型
             <AdaptiveSelect v-model="lessonDraft.lessonType" :options="lessonTypeOptions" />

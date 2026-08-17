@@ -137,6 +137,9 @@ export function useDeliveryWorkflow() {
   const wecomSendTasks = reactive([])
 
   const activeTaskId = ref(null)
+  // Keeps a historical schedule lesson visible while the daily task list and
+  // the aggregated lesson workspace are loading.
+  const selectedTaskSnapshot = ref(null)
   const copied = ref(false)
   const copiedStudentId = ref(null)
   const isLoggedIn = ref(Boolean(getAccessToken() && storedMe.value))
@@ -459,8 +462,13 @@ export function useDeliveryWorkflow() {
       .filter(([, keys]) => !can(...keys))
       .map(([navId]) => navId)
   })
-  const activeTask = computed(() => visibleTasks.value.find((task) => sameId(task.id, activeTaskId.value)) || visibleTasks.value[0] || {
-    id: null, classId: null, className: '', courseId: null, courseTitle: '', topic: '', teacherId: null, teacher: '', date: '', dateValue: '', time: '', lessonType: '其他', status: '待处理', version: 0, wheatStatus: '未生成'
+  const activeTask = computed(() => {
+    const selected = visibleTasks.value.find((task) => sameId(task.id, activeTaskId.value)) ||
+      scheduleLessons.find((lesson) => sameId(lesson.id, activeTaskId.value)) ||
+      (sameId(selectedTaskSnapshot.value?.id, activeTaskId.value) ? selectedTaskSnapshot.value : null)
+    return selected || visibleTasks.value[0] || {
+      id: null, classId: null, className: '', courseId: null, courseTitle: '', topic: '', teacherId: null, teacher: '', date: '', dateValue: '', time: '', lessonType: '其他', status: '待处理', version: 0, wheatStatus: '未生成'
+    }
   })
   const activeClass = computed(() => classes.find((item) => sameId(item.id, activeTask.value?.classId)) || { id: activeTask.value?.classId || null, name: activeTask.value?.className || '未选择班级', studentIds: [], time: '' })
   const activeCourse = computed(() => courses.find((item) => sameId(item.id, activeTask.value?.courseId)) || { id: activeTask.value?.courseId || null, title: activeTask.value?.courseTitle || '待配置', materials: '', defaultFocus: '' })
@@ -1207,6 +1215,7 @@ export function useDeliveryWorkflow() {
       notify('无权限查看该课次，请联系管理员授权班级')
       return
     }
+    selectedTaskSnapshot.value = task
     ensureLessonWorkspace(task)
     activeTaskId.value = task.id
   }
@@ -2964,6 +2973,7 @@ export function useDeliveryWorkflow() {
   const applyRemoteLesson = async (lessonId, value) => {
     const lesson = mapLesson(value?.lesson || tasks.find((item) => sameId(item.id, lessonId)) || {})
     if (lesson.id) {
+      if (sameId(activeTaskId.value, lesson.id)) selectedTaskSnapshot.value = { ...selectedTaskSnapshot.value, ...lesson }
       const existing = tasks.findIndex((item) => sameId(item.id, lesson.id))
       if (existing >= 0) tasks.splice(existing, 1, { ...tasks[existing], ...lesson })
       else tasks.unshift(lesson)
@@ -3709,6 +3719,7 @@ export function useDeliveryWorkflow() {
     Object.keys(studentProfiles).forEach((key) => delete studentProfiles[key])
     Object.keys(studentProfileAudits).forEach((key) => delete studentProfileAudits[key])
     Object.keys(lessonWorkspaces).forEach((key) => delete lessonWorkspaces[key])
+    selectedTaskSnapshot.value = null
     Object.keys(pageLoaded).forEach((key) => delete pageLoaded[key])
     Object.keys(pageErrors).forEach((key) => delete pageErrors[key])
     Object.keys(pageMeta).forEach((key) => delete pageMeta[key])
@@ -3740,6 +3751,7 @@ export function useDeliveryWorkflow() {
   const remoteSelectTask = async (task) => {
     if (!task?.id) return null
     activeTaskId.value = task.id
+    selectedTaskSnapshot.value = task
     const workspace = ensureLessonWorkspace(task)
     if (workspace) workspace.currentStep = 0
     if (!pageLoaded.tasks) await loadPageData('tasks')

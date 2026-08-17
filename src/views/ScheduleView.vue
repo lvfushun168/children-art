@@ -262,7 +262,7 @@ onMounted(async () => {
                 </td>
                 <td><span class="schedule-status-tag" :class="statusClass(lesson.status)">{{ lesson.status }}</span></td>
                 <td>{{ sourceLabel(lesson.sourceType) }}</td>
-                <td><button class="ghost" type="button" @click.stop="openLesson(lesson)">进入工作台</button></td>
+                <td><button class="ghost" type="button" @click.stop="openLesson(lesson)">处理本节课</button></td>
               </tr>
             </template>
           </tbody>

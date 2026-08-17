@@ -26,7 +26,7 @@ const activeNav = ref('tasks')
 const activeGroupId = ref('afterClass')
 const activeImportType = ref('综合课表')
 const showTodoCenter = ref(false)
-const openWorkspaceSignal = ref(0)
+const workspaceLaunch = ref(null)
 const isMobileApp = ref(false)
 const mobileLevel = ref('groups')
 const state = proxyRefs(useDeliveryWorkflow())
@@ -64,22 +64,26 @@ const mobileGroupEntries = computed(() =>
 )
 const groupForNav = (navId) => filteredNavGroups.value.find((group) => group.items.some((item) => item.id === navId))
 const openGroup = (groupId) => {
+  workspaceLaunch.value = null
   activeGroupId.value = groupId
   activeNav.value = ''
   if (isMobileApp.value) mobileLevel.value = 'group'
   showTodoCenter.value = false
 }
-const openNav = (target) => {
+const openNav = (target, { preserveWorkspace = false } = {}) => {
+  if (!preserveWorkspace) workspaceLaunch.value = null
   const group = groupForNav(target)
   if (group) activeGroupId.value = group.id
   activeNav.value = target
   if (isMobileApp.value) mobileLevel.value = 'page'
 }
 const returnToGroup = () => {
+  workspaceLaunch.value = null
   activeNav.value = ''
   if (isMobileApp.value) mobileLevel.value = 'group'
 }
 const returnToMobileGroups = () => {
+  workspaceLaunch.value = null
   activeNav.value = ''
   mobileLevel.value = 'groups'
 }
@@ -113,15 +117,21 @@ const openProductionCenter = (payload) => {
   productionHandoff.value = payload
   openNav('production')
 }
-const selectTodoTask = (task) => {
-  state.selectTask(task)
-  openNav('tasks')
-  openWorkspaceSignal.value += 1
-}
-const openScheduleTask = (task) => {
+const launchTaskWorkspace = (task, source = 'today') => {
+  if (!task?.id) return
+  workspaceLaunch.value = {
+    source,
+    lessonId: task.id,
+    token: `${source}:${task.id}:${Date.now()}`
+  }
   void state.selectTask(task)
-  openNav('tasks')
-  openWorkspaceSignal.value += 1
+  openNav('tasks', { preserveWorkspace: true })
+}
+const selectTodoTask = (task) => launchTaskWorkspace(task, 'today')
+const openScheduleTask = (task) => launchTaskWorkspace(task, 'schedule')
+const exitTaskWorkspace = (source) => {
+  workspaceLaunch.value = null
+  if (source === 'schedule') openNav('schedule')
 }
 
 const applyTheme = (theme) => {
@@ -238,7 +248,7 @@ const shareRoute = computed(() => {
 
       <button v-if="showModuleBack" class="module-back-link" type="button" @click="returnToGroup">← 返回{{ activeGroup?.label || '上一级' }}</button>
 
-      <TasksView v-if="showActivePage && activeNav === 'tasks'" :state="state" :open-workspace-signal="openWorkspaceSignal" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @navigate="handleNavigate" />
+      <TasksView v-if="showActivePage && activeNav === 'tasks'" :state="state" :workspace-launch="workspaceLaunch" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @back-to-source="exitTaskWorkspace" @navigate="handleNavigate" />
 
       <ScheduleView v-if="showActivePage && activeNav === 'schedule'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-task="openScheduleTask" />
 

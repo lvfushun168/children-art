@@ -10,9 +10,9 @@ const props = defineProps({
     type: Object,
     required: true
   },
-  openWorkspaceSignal: {
-    type: Number,
-    default: 0
+  workspaceLaunch: {
+    type: Object,
+    default: null
   },
   groupLabel: {
     type: String,
@@ -20,9 +20,10 @@ const props = defineProps({
   }
 })
 
-defineEmits(['navigate', 'backToGroup'])
+const emit = defineEmits(['navigate', 'backToGroup', 'backToSource'])
 
 const workspaceOpen = ref(false)
+const workspaceSource = computed(() => props.workspaceLaunch?.source || 'today')
 const todayTasks = computed(() => {
   const matched = props.state.visibleTasks.filter((task) => task.dateValue === props.state.latestLessonDate)
   return matched.length ? matched : props.state.visibleTasks
@@ -36,9 +37,17 @@ const openTask = (task) => {
   workspaceOpen.value = true
 }
 
-watch(() => props.openWorkspaceSignal, (signal) => {
-  if (signal) workspaceOpen.value = true
-})
+watch(() => props.workspaceLaunch, (launch) => {
+  workspaceOpen.value = Boolean(launch)
+}, { immediate: true })
+
+const backFromWorkspace = () => {
+  if (workspaceSource.value === 'schedule') {
+    emit('backToSource', 'schedule')
+    return
+  }
+  workspaceOpen.value = false
+}
 </script>
 
 <template>
@@ -82,10 +91,10 @@ watch(() => props.openWorkspaceSignal, (signal) => {
 
   <template v-else>
     <div class="focus-breadcrumb">
-      <button class="back-link" @click="workspaceOpen = false">← 返回今日课后</button>
+      <button class="back-link" @click="backFromWorkspace">← 返回{{ workspaceSource === 'schedule' ? '课表' : '今日课后' }}</button>
     </div>
     <div class="focus-layout">
-      <TaskWizard :state="state" @back="workspaceOpen = false" @navigate="$emit('navigate', $event)" />
+      <TaskWizard :state="state" @back="backFromWorkspace" @navigate="emit('navigate', $event)" />
     </div>
   </template>
 </template>

@@ -64,6 +64,14 @@ const commentTemplateOptions = computed(() =>
 )
 const currentRecordIndex = computed(() => props.state.attendingRows.findIndex((row) => sameId(row.studentId, props.state.activeStudentId)))
 const currentReviewIndex = computed(() => props.state.attendingRows.findIndex((row) => sameId(row.studentId, props.state.activeStudentId)))
+const normalizeReviewStudent = () => {
+  if (props.state.currentStep !== 4 || generateStage.value !== 'review') return
+  const rows = props.state.attendingRows
+  if (!rows.length) return
+  if (!rows.some((row) => sameId(row.studentId, props.state.activeStudentId))) {
+    props.state.activeStudentId = rows[0].studentId
+  }
+}
 const workImages = (row) => {
   const fileIds = Array.isArray(row?.imageFileIds) ? row.imageFileIds.filter(Boolean) : []
   if (fileIds.length) return fileIds.map((fileId, index) => ({ fileId, src: row.images?.[index] || '' }))
@@ -131,7 +139,14 @@ watch(() => props.state.currentStep, (step) => {
   if (step !== 4) return
   if (props.state.counts.comments === props.state.counts.attend && props.state.counts.attend > 0) generateStage.value = 'review'
   else generateStage.value = 'settings'
+  normalizeReviewStudent()
 }, { immediate: true })
+
+watch([
+  () => props.state.currentStep,
+  () => generateStage.value,
+  () => props.state.attendingRows.map((row) => String(row.studentId)).join(',')
+], normalizeReviewStudent, { immediate: true })
 
 const runBatchGeneration = async () => {
   await props.state.processImages()
@@ -141,16 +156,22 @@ const runBatchGeneration = async () => {
 }
 
 const confirmStudentAndNext = async () => {
-  const row = props.state.activeSessionStudent
-  if (!row) return
+  const rows = props.state.attendingRows
+  const row = rows.find((item) => sameId(item.studentId, props.state.activeStudentId)) || rows[0]
+  if (!row) {
+    props.state.notify('当前课次没有到课学生')
+    return
+  }
+  const studentId = row.studentId
+  if (!sameId(props.state.activeStudentId, studentId)) props.state.activeStudentId = studentId
   if (!row.imageConfirmed) {
     const imageMode = row.processed ? 'processed' : 'original'
-    if (!(await props.state.confirmCurrentImage(imageMode))) return
+    if (!(await props.state.confirmCurrentImage(imageMode, studentId))) return
   }
-  if (!(await props.state.confirmCurrentComment())) return
-  const rows = props.state.attendingRows
-  const index = rows.findIndex((item) => sameId(item.studentId, props.state.activeStudentId))
-  if (index >= 0 && index < rows.length - 1) props.state.activeStudentId = rows[index + 1].studentId
+  if (!(await props.state.confirmCurrentComment(studentId))) return
+  const currentRows = props.state.attendingRows
+  const index = currentRows.findIndex((item) => sameId(item.studentId, studentId))
+  if (index >= 0 && index < currentRows.length - 1) props.state.activeStudentId = currentRows[index + 1].studentId
   else props.state.notify('全班图文已经逐个确认完成')
 }
 

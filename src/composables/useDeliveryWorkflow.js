@@ -474,6 +474,7 @@ export function useDeliveryWorkflow() {
   const activeClass = computed(() => classes.find((item) => sameId(item.id, activeTask.value?.classId)) || { id: activeTask.value?.classId || null, name: activeTask.value?.className || '未选择班级', studentIds: [], time: '' })
   const activeCourse = computed(() => courses.find((item) => sameId(item.id, activeTask.value?.courseId)) || { id: activeTask.value?.courseId || null, title: activeTask.value?.courseTitle || '待配置', materials: '', defaultFocus: '' })
   const activeSessionStudent = computed(() => sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value)))
+  const sessionStudentFor = (studentId = activeStudentId.value) => sessionStudents.value.find((item) => sameId(item.studentId, studentId))
   const activeStudent = computed(() => students.find((item) => sameId(item.id, activeStudentId.value)) || sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value)) && {
     id: activeStudentId.value,
     name: sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value))?.studentName || '未命名学生',
@@ -3020,6 +3021,14 @@ export function useDeliveryWorkflow() {
     ;['showMaterials', 'showHomework', 'showHighlight', 'showLessonType'].forEach((key) => {
       if (currentDraft[key] !== undefined) draftDisplayConfig[key] = Boolean(currentDraft[key])
     })
+    const draftStudentById = new Map()
+    ;(Array.isArray(currentDraft.students) ? currentDraft.students : []).forEach((student) => {
+      if (student?.studentId !== undefined && student?.studentId !== null) draftStudentById.set(String(student.studentId), student)
+    })
+    // studentDeliveries 是工作区高光的权威来源，覆盖同一 studentId 的基础学生快照。
+    ;(Array.isArray(currentDraft.studentDeliveries) ? currentDraft.studentDeliveries : []).forEach((student) => {
+      if (student?.studentId !== undefined && student?.studentId !== null) draftStudentById.set(String(student.studentId), student)
+    })
     const artworkByStudent = new Map(artworks.map((artwork) => [String(artwork.studentId), artwork]))
     const feedbackByStudent = new Map(feedbacks.map((feedback) => [String(feedback.studentId), feedback]))
     const assetsByStudent = new Map()
@@ -3037,6 +3046,7 @@ export function useDeliveryWorkflow() {
       const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || versions.at(-1)
       const processedVersion = versions.find((version) => version.versionKind === 'PROCESSED')
       const originalVersion = versions.find((version) => version.versionKind === 'ORIGINAL') || selectedVersion
+      const draftStudent = draftStudentById.get(String(attendanceRow.studentId))
       return {
         id: attendanceRow.studentId,
         lessonId: lesson.id,
@@ -3069,8 +3079,8 @@ export function useDeliveryWorkflow() {
         feedbackVersion: feedback?.version || 0,
         feedbackVersionId: feedback?.currentVersionId || null,
         confirmed: feedback?.status === 'CONFIRMED' || Boolean(feedback?.confirmedVersionId),
-        highlight: false,
-        highlightNote: '',
+        highlight: Boolean(draftStudent?.highlight),
+        highlightNote: draftStudent?.highlightNote || '',
         shareReady: Boolean(draft.accessLinks?.some((link) => sameId(link.studentId, attendanceRow.studentId))),
         archived: lesson.status === '已完成'
       }
@@ -3879,8 +3889,9 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const remoteConfirmCurrentImage = async (mode = 'processed') => {
-    const row = activeSessionStudent.value
+  const remoteConfirmCurrentImage = async (mode = 'processed', studentId = activeStudentId.value) => {
+    const targetStudentId = studentId ?? activeStudentId.value
+    const row = sessionStudentFor(targetStudentId)
     if (!row?.artworkId) return false
     const versionId = mode === 'processed' ? row.processedVersionId : (row.originalVersionId || row.selectedVersionId)
     if (!versionId) {
@@ -3964,8 +3975,9 @@ export function useDeliveryWorkflow() {
     return result
   }
 
-  const remoteConfirmCurrentComment = async () => {
-    const row = activeSessionStudent.value
+  const remoteConfirmCurrentComment = async (studentId = activeStudentId.value) => {
+    const targetStudentId = studentId ?? activeStudentId.value
+    const row = sessionStudentFor(targetStudentId)
     if (!row?.comment?.trim()) {
       notify('当前学生还没有课评内容')
       return false
@@ -3980,7 +3992,8 @@ export function useDeliveryWorkflow() {
     const confirmed = await runRemote('正在确认课评...', () => api.feedback.confirm(saved.id || row.feedbackId, { versionId: String(versionId), version: saved.version || row.feedbackVersion || 0 }))
     if (!confirmed) return false
     await refreshRemoteLesson(activeTask.value.id)
-    notify(`${activeStudent.value?.name || '当前学生'}课评已确认`)
+    const student = students.find((item) => sameId(item.id, targetStudentId))
+    notify(`${student?.name || row.studentName || '当前学生'}课评已确认`)
     return true
   }
 

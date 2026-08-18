@@ -270,7 +270,6 @@ onMounted(() => {
       <div>
         <span>第 3 步</span>
         <h2>按学生完成作品、课堂记录与家长课评</h2>
-        <small>桌面端按学生横向查看，手机端进入学生详情处理；复杂操作从学生行内展开。</small>
       </div>
       <div class="student-delivery-head-actions">
         <button type="button" class="secondary" @click="openBatch">批量操作</button>

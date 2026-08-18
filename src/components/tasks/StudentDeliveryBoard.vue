@@ -10,12 +10,13 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['drawer-state'])
+const emit = defineEmits(['drawer-state', 'mobile-detail-state'])
 
 const artworkStudentId = ref(null)
 const commentStudentId = ref(null)
 const batchOpen = ref(false)
 const mobileStudentId = ref(null)
+const mobileSection = ref(null)
 
 const studentFor = (studentId) => {
   const student = props.state.students.find((item) => sameId(item.id, studentId))
@@ -55,6 +56,11 @@ const mobileStudent = computed(() =>
 const mobileStudentIndex = computed(() =>
   props.state.attendingRows.findIndex((row) => sameId(row.studentId, mobileStudentId.value))
 )
+
+const mobileSectionTitle = computed(() => ({
+  record: '课堂记录',
+  comment: '家长课评'
+}[mobileSection.value] || '学生事项'))
 
 const workImages = (row) => {
   const fileIds = Array.isArray(row?.imageFileIds) ? row.imageFileIds.filter(Boolean) : []
@@ -140,10 +146,27 @@ const closeBatch = () => {
 const openMobileStudent = (row) => {
   setActive(row)
   mobileStudentId.value = row?.studentId ?? null
+  mobileSection.value = null
+  emit('mobile-detail-state', true)
 }
 
 const closeMobileStudent = () => {
   mobileStudentId.value = null
+  mobileSection.value = null
+  emit('mobile-detail-state', false)
+}
+
+const openMobileSection = (section) => {
+  if (!mobileStudent.value) return
+  if (section === 'artwork') {
+    openArtwork(mobileStudent.value)
+    return
+  }
+  mobileSection.value = section
+}
+
+const closeMobileSection = () => {
+  mobileSection.value = null
 }
 
 const updateImageTemplate = (index) => {
@@ -203,6 +226,15 @@ const confirmComment = async (row) => {
   return confirmed
 }
 
+const confirmMobileComment = async (row) => {
+  if (!row?.comment?.trim()) {
+    props.state.notify('请先生成或录入家长课评')
+    return false
+  }
+  setActive(row)
+  return props.state.confirmCurrentComment(row.studentId)
+}
+
 const selectImage = async (row, mode) => {
   if (!hasImage(imageAsset(row, mode))) {
     props.state.notify(mode === 'processed' ? '当前学生还没有处理图' : '当前学生还没有原图')
@@ -237,6 +269,7 @@ const saveAndConfirm = async (row) => {
   if (!(await props.state.confirmCurrentComment(row.studentId))) return false
   if (sameId(commentStudentId.value, row.studentId)) closeComment()
   if (sameId(artworkStudentId.value, row.studentId)) closeArtwork()
+  if (mobileStudentId.value !== null) mobileSection.value = null
   nextStudent(row)
   return true
 }
@@ -246,7 +279,9 @@ watch(() => props.state.activeTask.id, () => {
   commentStudentId.value = null
   batchOpen.value = false
   mobileStudentId.value = null
+  mobileSection.value = null
   setDrawerState(false)
+  emit('mobile-detail-state', false)
 })
 
 watch(
@@ -254,7 +289,11 @@ watch(
   () => {
     const rows = props.state.attendingRows
     if (rows.length && !rows.some((row) => sameId(row.studentId, props.state.activeStudentId))) setActive(rows[0])
-    if (mobileStudentId.value !== null && !rows.some((row) => sameId(row.studentId, mobileStudentId.value))) mobileStudentId.value = null
+    if (mobileStudentId.value !== null && !rows.some((row) => sameId(row.studentId, mobileStudentId.value))) {
+      mobileStudentId.value = null
+      mobileSection.value = null
+      emit('mobile-detail-state', false)
+    }
   },
   { immediate: true }
 )
@@ -375,41 +414,68 @@ onMounted(() => {
           <span class="delivery-status" :class="statusClassFor(mobileStudent)">{{ statusFor(mobileStudent) }}</span>
         </header>
 
-        <section class="mobile-student-detail-card">
-          <header><strong>作品</strong><span>{{ mobileStudent.imageMatched ? '已上传' : '待上传' }}</span></header>
-          <div class="mobile-student-work-preview">
-            <div v-if="hasImage(selectedImageAsset(mobileStudent))" class="mobile-student-selected-image">
-              <ProtectedMedia :file-id="selectedImageAsset(mobileStudent).fileId" :src="selectedImageAsset(mobileStudent).src" alt="当前采用的作品" />
+        <template v-if="!mobileSection">
+          <nav class="mobile-student-section-list" aria-label="学生交付事项">
+            <button type="button" class="mobile-student-section-row" @click="openMobileSection('artwork')">
+              <span class="mobile-section-icon">作</span>
+              <span class="mobile-section-copy">
+                <strong>作品</strong>
+                <small>{{ mobileStudent.imageConfirmed ? '已确认采用版本' : mobileStudent.imageMatched ? '已上传，待确认' : '待上传作品' }}</small>
+              </span>
+              <span class="mobile-section-status"><span>{{ mobileStudent.imageConfirmed ? '已完成' : mobileStudent.imageMatched ? '待确认' : '待处理' }}</span><b>›</b></span>
+            </button>
+
+            <button type="button" class="mobile-student-section-row" @click="openMobileSection('record')">
+              <span class="mobile-section-icon">记</span>
+              <span class="mobile-section-copy">
+                <strong>课堂记录</strong>
+                <small>{{ mobileStudent.record?.trim() ? '已记录课堂表现' : '待补充课堂表现' }}</small>
+              </span>
+              <span class="mobile-section-status"><span>{{ mobileStudent.record?.trim() ? '已完成' : '待处理' }}</span><b>›</b></span>
+            </button>
+
+            <button type="button" class="mobile-student-section-row" @click="openMobileSection('comment')">
+              <span class="mobile-section-icon">评</span>
+              <span class="mobile-section-copy">
+                <strong>家长课评</strong>
+                <small>{{ mobileStudent.confirmed ? '已确认发送内容' : mobileStudent.comment?.trim() ? '已生成，待确认' : '待生成课评' }}</small>
+              </span>
+              <span class="mobile-section-status"><span>{{ mobileStudent.confirmed ? '已完成' : '待处理' }}</span><b>›</b></span>
+            </button>
+
+          </nav>
+        </template>
+
+        <section v-else-if="mobileSection === 'record'" class="mobile-student-subpage">
+          <div class="mobile-student-subpage-head">
+            <button type="button" class="ghost" @click="closeMobileSection">← 返回学生事项</button>
+            <strong>{{ mobileSectionTitle }}</strong>
+          </div>
+          <article class="mobile-student-editor-card">
+            <header><strong>课堂记录</strong><span>{{ mobileStudent.record?.trim() ? '已记录' : '待补' }}</span></header>
+            <textarea v-model="mobileStudent.record" rows="8" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" @input="mobileStudent.confirmed = false" />
+            <div class="mobile-student-editor-actions">
+              <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = mobileStudent.studentId; state.simulateVoice()">🎙 语音转文字</button>
+              <button type="button" class="secondary" :disabled="state.isProcessing || !mobileStudent.record?.trim()" @click="saveRecord(mobileStudent)">保存记录</button>
             </div>
-            <div v-else class="delivery-empty">尚未上传作品</div>
-            <div class="mobile-student-work-actions">
-              <label class="file-button">{{ mobileStudent.imageMatched ? '继续上传' : '上传作品' }}<input type="file" accept="image/*" multiple @change="state.updateImage($event, mobileStudent)" /></label>
-              <button type="button" class="secondary" :disabled="!mobileStudent.imageMatched" @click="openArtwork(mobileStudent)">查看与处理</button>
+          </article>
+        </section>
+
+        <section v-else-if="mobileSection === 'comment'" class="mobile-student-subpage">
+          <div class="mobile-student-subpage-head">
+            <button type="button" class="ghost" @click="closeMobileSection">← 返回学生事项</button>
+            <strong>{{ mobileSectionTitle }}</strong>
+          </div>
+          <article class="mobile-student-editor-card">
+            <header><strong>家长课评</strong><span>{{ mobileStudent.confirmed ? '已确认' : mobileStudent.comment?.trim() ? '待确认' : '待生成' }}</span></header>
+            <p class="mobile-comment-preview">{{ mobileStudent.comment?.trim() || '先录入课堂记录，再生成家长课评。' }}</p>
+            <textarea v-model="mobileStudent.comment" rows="9" placeholder="先录入课堂记录，再生成家长课评……" @input="mobileStudent.confirmed = false" />
+            <div class="mobile-student-editor-actions">
+              <button type="button" class="secondary" :disabled="state.isProcessing || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)">{{ state.isProcessing ? '生成中…' : '重新生成' }}</button>
+              <button type="button" class="primary" :disabled="state.isProcessing || !mobileStudent.comment?.trim()" @click="confirmMobileComment(mobileStudent)">确认课评</button>
             </div>
-          </div>
+          </article>
         </section>
-
-        <section class="mobile-student-detail-card">
-          <header><strong>课堂记录</strong><span>{{ mobileStudent.record?.trim() ? '已记录' : '待补' }}</span></header>
-          <textarea v-model="mobileStudent.record" rows="6" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" @input="mobileStudent.confirmed = false" />
-          <div class="mobile-detail-actions">
-            <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = mobileStudent.studentId; state.simulateVoice()">🎙 语音转文字</button>
-            <button type="button" class="secondary" :disabled="state.isProcessing || !mobileStudent.record?.trim()" @click="saveRecord(mobileStudent)">保存记录</button>
-            <button type="button" class="secondary" :disabled="!mobileStudent.imageMatched" @click="openArtwork(mobileStudent)">作品处理</button>
-            <button type="button" class="secondary" :disabled="!mobileStudent.record?.trim()" @click="openComment(mobileStudent)">家长课评</button>
-          </div>
-        </section>
-
-        <section class="mobile-student-detail-card">
-          <header><strong>家长课评</strong><span>{{ mobileStudent.confirmed ? '已确认' : mobileStudent.comment?.trim() ? '待确认' : '待生成' }}</span></header>
-          <p class="mobile-comment-preview">{{ mobileStudent.comment?.trim() || '先录入课堂记录，再从抽屉生成家长课评。' }}</p>
-          <div class="mobile-detail-actions mobile-comment-actions">
-            <button type="button" class="secondary" :disabled="!mobileStudent.record?.trim()" @click="openComment(mobileStudent)">打开课评抽屉</button>
-          </div>
-        </section>
-
-        <label class="mobile-student-highlight inline-check"><input type="checkbox" :checked="mobileStudent.highlight" @change="state.toggleHighlight(mobileStudent)" /><span>标记为本节高光作品</span></label>
-        <textarea v-if="mobileStudent.highlight" v-model="mobileStudent.highlightNote" class="mobile-highlight-note" rows="3" placeholder="补充高光说明" @blur="state.saveShareDraft?.('更新高光说明')" />
 
         <footer class="mobile-student-detail-actions">
           <button type="button" class="secondary" :disabled="mobileStudentIndex <= 0" @click="openMobileStudent(state.attendingRows[mobileStudentIndex - 1])">上一位</button>

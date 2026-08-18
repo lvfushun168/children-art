@@ -20,6 +20,7 @@ const showContentSettings = ref(false)
 const showArtworkLibrary = ref(false)
 const showSharePreview = ref(false)
 const studentDeliveryDrawerOpen = ref(false)
+const studentDeliveryMobileDetailOpen = ref(false)
 const resourceSearch = ref('')
 const resourceFilter = ref('全部')
 const attendanceOptions = ['到课', '请假', '旷课']
@@ -55,10 +56,14 @@ watch(() => props.state.activeTask.id, () => {
   resourceSearch.value = ''
   resourceFilter.value = '全部'
   studentDeliveryDrawerOpen.value = false
+  studentDeliveryMobileDetailOpen.value = false
 })
 
 watch(() => props.state.currentStep, (step) => {
-  if (step !== 2) studentDeliveryDrawerOpen.value = false
+  if (step !== 2) {
+    studentDeliveryDrawerOpen.value = false
+    studentDeliveryMobileDetailOpen.value = false
+  }
 })
 </script>
 
@@ -238,7 +243,11 @@ watch(() => props.state.currentStep, (step) => {
       </section>
 
       <section v-if="state.currentStep === 2" class="step-panel">
-        <StudentDeliveryBoard :state="state" @drawer-state="studentDeliveryDrawerOpen = $event" />
+        <StudentDeliveryBoard
+          :state="state"
+          @drawer-state="studentDeliveryDrawerOpen = $event"
+          @mobile-detail-state="studentDeliveryMobileDetailOpen = $event"
+        />
       </section>
 
       <section v-if="state.currentStep === 3" class="step-panel">
@@ -438,7 +447,7 @@ watch(() => props.state.currentStep, (step) => {
         </section>
       </section>
 
-      <footer v-if="state.currentStep !== 2 || !studentDeliveryDrawerOpen" class="wizard-actions">
+      <footer v-if="state.currentStep !== 2 || (!studentDeliveryDrawerOpen && !studentDeliveryMobileDetailOpen)" class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
         <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 2 && state.counts.studentDeliveryCompleted < state.counts.attend" @click="state.nextStep">下一步</button>
         <button v-else class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">完成归档交付</button>

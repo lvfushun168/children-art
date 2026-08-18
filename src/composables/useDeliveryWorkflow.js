@@ -254,6 +254,7 @@ export function useDeliveryWorkflow() {
     sharePage: {
       id: null,
       status: '草稿',
+      version: 0,
       draftVersion: 1,
       publishedVersion: 0,
       publishedSnapshot: null,
@@ -936,15 +937,21 @@ export function useDeliveryWorkflow() {
     notify('作品集链接已复制')
   }
 
+  const isAttendanceMarked = (row) => row?.attendance && row.attendance !== '未标记'
+  const isDeliveryConfirmed = (row) => row?.attendance === '到课' && row.imageConfirmed && row.confirmed
+  const confirmedDeliveryCount = (rows = []) => rows.filter(isDeliveryConfirmed).length
+
   const counts = computed(() => ({
     total: classStudents.value.length,
+    attendanceConfirmed: sessionStudents.value.length > 0 && sessionStudents.value.every(isAttendanceMarked),
     attend: sessionStudents.value.filter((item) => item.attendance === '到课').length,
     matched: sessionStudents.value.filter((item) => item.attendance === '到课' && item.imageMatched).length,
     imageConfirmed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.imageConfirmed).length,
-    records: sessionStudents.value.filter((item) => item.attendance === '到课' && item.record).length,
+    records: sessionStudents.value.filter((item) => item.attendance === '到课' && item.record?.trim()).length,
     processed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.processed).length,
-    comments: sessionStudents.value.filter((item) => item.attendance === '到课' && item.comment).length,
+    comments: sessionStudents.value.filter((item) => item.attendance === '到课' && item.comment?.trim()).length,
     confirmed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.confirmed).length,
+    deliveryConfirmed: confirmedDeliveryCount(sessionStudents.value),
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
@@ -958,11 +965,11 @@ export function useDeliveryWorkflow() {
   }))
 
   const steps = computed(() => [
-    { title: '课次确认', done: counts.value.attend ? 1 : 0, total: 1 },
+    { title: '课次确认', done: counts.value.attendanceConfirmed ? 1 : 0, total: 1 },
     { title: '课堂资料', done: counts.value.classroomMaterialsDone, total: 1 },
     { title: '上传作品', done: counts.value.matched, total: counts.value.attend },
     { title: '课堂记录', done: counts.value.records, total: counts.value.attend },
-    { title: '图文生成', done: Math.min(counts.value.processed, counts.value.confirmed), total: counts.value.attend },
+    { title: '图文生成', done: counts.value.deliveryConfirmed, total: counts.value.attend },
     { title: '课后任务', done: counts.value.homeworkReady, total: 1 },
     { title: '归档留痕', done: counts.value.archived, total: counts.value.attend }
   ])
@@ -970,11 +977,11 @@ export function useDeliveryWorkflow() {
   const taskProgress = computed(() => {
     const total = counts.value.attend * 7 || 1
     const done =
-      counts.value.attend +
+      (counts.value.attendanceConfirmed ? counts.value.attend : 0) +
       (counts.value.classroomMaterialsDone ? counts.value.attend : 0) +
       counts.value.matched +
       counts.value.records +
-      Math.min(counts.value.processed, counts.value.confirmed) +
+      counts.value.deliveryConfirmed +
       (counts.value.homeworkReady ? counts.value.attend : 0) +
       counts.value.archived
     return Math.min(100, Math.round((done / total) * 100))
@@ -982,15 +989,16 @@ export function useDeliveryWorkflow() {
 
   const progressForTask = (task) => {
     const workspace = ensureLessonWorkspace(task)
+    const attendanceConfirmed = workspace.studentDeliveries.length > 0 && workspace.studentDeliveries.every(isAttendanceMarked)
     const rows = workspace.studentDeliveries.filter((row) => row.attendance === '到课')
     if (task.status === '已完成') return 100
     if (!rows.length) return 0
     const completed =
-      rows.length +
+      (attendanceConfirmed ? rows.length : 0) +
       (workspace.materials.length || workspace.materialsConfirmedEmpty ? rows.length : 0) +
       rows.filter((row) => row.imageMatched).length +
-      rows.filter((row) => row.record).length +
-      Math.min(rows.filter((row) => row.processed).length, rows.filter((row) => row.confirmed).length) +
+      rows.filter((row) => row.record?.trim()).length +
+      confirmedDeliveryCount(rows) +
       (workspace.homework?.visible && !workspace.homework.content.trim() ? 0 : rows.length) +
       rows.filter((row) => row.archived).length
     const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 7)) * 100))
@@ -1000,6 +1008,8 @@ export function useDeliveryWorkflow() {
 
   const currentWarnings = computed(() => {
     const warnings = []
+    if (!sessionStudents.value.length) warnings.push('当前班级没有学生名单')
+    else if (sessionStudents.value.some((row) => !isAttendanceMarked(row))) warnings.push('仍有学生未确认出勤')
     if (!materials.value.length && !materialsConfirmedEmpty.value) warnings.push('课堂资料待上传或确认无资料')
     if (displayConfig.value.showHomework !== false && !homework.value.content.trim()) warnings.push('课后任务内容为空')
     attendingRows.value.forEach((row) => {
@@ -1007,9 +1017,9 @@ export function useDeliveryWorkflow() {
       const name = student?.name || row.studentName || '学生'
       if (!row.imageMatched) warnings.push(`${name}缺作品`)
       if (!row.imageConfirmed) warnings.push(`${name}图片待确认`)
-      if (!row.record) warnings.push(`${name}缺课堂记录`)
-      if (!row.comment) warnings.push(`${name}缺课评`)
-      if (row.comment && !row.confirmed) warnings.push(`${name}课评待确认`)
+      if (!row.record?.trim()) warnings.push(`${name}缺课堂记录`)
+      if (!row.comment?.trim()) warnings.push(`${name}缺课评`)
+      if (row.comment?.trim() && !row.confirmed) warnings.push(`${name}课评待确认`)
     })
     return warnings
   })
@@ -1636,7 +1646,7 @@ export function useDeliveryWorkflow() {
   }
 
   const generateSharePages = async () => {
-    const missing = attendingRows.value.filter((row) => !row.confirmed || !row.imageConfirmed)
+    const missing = attendingRows.value.filter((row) => !isDeliveryConfirmed(row))
     if (missing.length) {
       notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
       return false
@@ -1905,7 +1915,7 @@ export function useDeliveryWorkflow() {
       notify('重复提交已拦截：本节家长触达任务已创建并留痕')
       return false
     }
-    const missing = attendingRows.value.filter((row) => !row.confirmed || !row.imageConfirmed)
+    const missing = attendingRows.value.filter((row) => !isDeliveryConfirmed(row))
     if (missing.length) {
       notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
       return false
@@ -3025,7 +3035,7 @@ export function useDeliveryWorkflow() {
       const versions = artwork?.versions || []
       const latestVersionJob = versions.filter((version) => version.jobId).at(-1)
       const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || versions.at(-1)
-      const processedVersion = versions.find((version) => version.versionKind === 'PROCESSED') || selectedVersion
+      const processedVersion = versions.find((version) => version.versionKind === 'PROCESSED')
       const originalVersion = versions.find((version) => version.versionKind === 'ORIGINAL') || selectedVersion
       return {
         id: attendanceRow.studentId,
@@ -3103,6 +3113,9 @@ export function useDeliveryWorkflow() {
   const lessonWorkspaceControllers = new Map()
   const lessonWorkspaceEpochs = new Map()
   const lessonWorkspaceLoaded = new Set()
+  // 展示草稿会同时被高光勾选、说明输入框失焦等事件触发；按课次串行保存，
+  // 确保后一个请求使用前一个请求返回的 page/homework 版本。
+  const shareDraftSaveChains = new Map()
   const refreshRemoteLesson = async (lessonId, { force = false } = {}) => {
     if (!lessonId) return null
     const key = String(lessonId)
@@ -3719,6 +3732,7 @@ export function useDeliveryWorkflow() {
     Object.keys(studentProfiles).forEach((key) => delete studentProfiles[key])
     Object.keys(studentProfileAudits).forEach((key) => delete studentProfileAudits[key])
     Object.keys(lessonWorkspaces).forEach((key) => delete lessonWorkspaces[key])
+    shareDraftSaveChains.clear()
     selectedTaskSnapshot.value = null
     Object.keys(pageLoaded).forEach((key) => delete pageLoaded[key])
     Object.keys(pageErrors).forEach((key) => delete pageErrors[key])
@@ -3868,9 +3882,9 @@ export function useDeliveryWorkflow() {
   const remoteConfirmCurrentImage = async (mode = 'processed') => {
     const row = activeSessionStudent.value
     if (!row?.artworkId) return false
-    const versionId = mode === 'processed' ? (row.processedVersionId || row.selectedVersionId) : (row.originalVersionId || row.selectedVersionId)
+    const versionId = mode === 'processed' ? row.processedVersionId : (row.originalVersionId || row.selectedVersionId)
     if (!versionId) {
-      notify('当前学生没有可确认的图片版本')
+      notify(mode === 'processed' ? '当前学生没有可确认的处理图，请选择原图' : '当前学生没有可确认的图片版本')
       return false
     }
     const result = await runRemote('正在确认作品图片...', () => api.assets.confirmArtwork(row.artworkId, { versionId: String(versionId), version: row.artworkVersion }))
@@ -4065,17 +4079,42 @@ export function useDeliveryWorkflow() {
   })
 
   const remoteSaveShareDraft = async (reason = '调整展示内容') => {
-    if (!activeTask.value?.id) return false
-    const payload = remoteShareDraftPayload()
-    const result = await runRemote('正在保存家长展示草稿...', () => api.parent.saveDraft(activeTask.value.id, payload), '展示草稿已保存')
-    if (!result) return false
-    const workspace = ensureLessonWorkspace(activeTask.value)
-    const page = mapSharePage(result)
-    workspace.sharePage = mergeSharePageForWorkspace(workspace, page)
-    if (page.homework) workspace.homework = { ...workspace.homework, ...page.homework }
-    workspace.sharePage.draftSnapshot = payload
-    addStatusLog('家长展示页', activeTask.value.id, '已发布', '草稿', reason)
-    return true
+    const lessonId = activeTask.value?.id
+    if (!lessonId) return false
+    const key = String(lessonId)
+    const previous = shareDraftSaveChains.get(key) || Promise.resolve(true)
+    const operation = previous.catch(() => false).then(async () => {
+      // 用户已经切换到另一课次时，不要把当前课次的草稿保存到错误的工作区。
+      if (!sameId(activeTask.value?.id, lessonId)) return false
+      const task = activeTask.value
+      const payload = remoteShareDraftPayload()
+      const result = await runRemote(
+        '正在保存家长展示草稿...',
+        () => api.parent.saveDraft(lessonId, payload),
+        '展示草稿已保存',
+        () => refreshRemoteLesson(lessonId, { force: true })
+      )
+      if (!result) return false
+      const workspace = ensureLessonWorkspace(task)
+      const page = mapSharePage(result)
+      workspace.sharePage = mergeSharePageForWorkspace(workspace, page)
+      if (page.homework) {
+        workspace.homework = {
+          ...workspace.homework,
+          ...page.homework,
+          version: Number(page.homework.version ?? workspace.homework.version ?? 0)
+        }
+      }
+      workspace.sharePage.draftSnapshot = payload
+      addStatusLog('家长展示页', lessonId, '已发布', '草稿', reason)
+      return true
+    })
+    shareDraftSaveChains.set(key, operation)
+    try {
+      return await operation
+    } finally {
+      if (shareDraftSaveChains.get(key) === operation) shareDraftSaveChains.delete(key)
+    }
   }
 
   const remoteToggleHighlight = async (row) => {
@@ -4089,7 +4128,7 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteGenerateSharePages = async () => {
-    const missing = attendingRows.value.filter((row) => !row.confirmed || !row.imageConfirmed)
+    const missing = attendingRows.value.filter((row) => !isDeliveryConfirmed(row))
     if (missing.length) {
       notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
       return false

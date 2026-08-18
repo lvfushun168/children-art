@@ -140,11 +140,17 @@ const runBatchGeneration = async () => {
   generateStage.value = 'review'
 }
 
-const confirmStudentAndNext = () => {
-  if (!props.state.activeSessionStudent.imageConfirmed) props.state.confirmCurrentImage('processed')
-  if (!props.state.confirmCurrentComment()) return
+const confirmStudentAndNext = async () => {
+  const row = props.state.activeSessionStudent
+  if (!row) return
+  if (!row.imageConfirmed) {
+    const imageMode = row.processed ? 'processed' : 'original'
+    if (!(await props.state.confirmCurrentImage(imageMode))) return
+  }
+  if (!(await props.state.confirmCurrentComment())) return
   const rows = props.state.attendingRows
-  if (currentReviewIndex.value < rows.length - 1) props.state.activeStudentId = rows[currentReviewIndex.value + 1].studentId
+  const index = rows.findIndex((item) => sameId(item.studentId, props.state.activeStudentId))
+  if (index >= 0 && index < rows.length - 1) props.state.activeStudentId = rows[index + 1].studentId
   else props.state.notify('全班图文已经逐个确认完成')
 }
 
@@ -432,7 +438,7 @@ const updateCommentTemplate = (index) => {
         <div class="generate-flow-status">
           <span :class="{ active: generateStage === 'settings', done: generateStage === 'review' }"><b>1</b><span><strong>生成设置</strong></span></span>
           <i></i>
-          <span :class="{ active: generateStage === 'review' }"><b>2</b><span><strong>逐个确认</strong><small>{{ state.counts.confirmed }}/{{ state.counts.attend }} 已完成</small></span></span>
+          <span :class="{ active: generateStage === 'review' }"><b>2</b><span><strong>逐个确认</strong><small>{{ state.counts.deliveryConfirmed }}/{{ state.counts.attend }} 已完成</small></span></span>
         </div>
 
         <section v-if="generateStage === 'settings'" class="generate-stage-panel">
@@ -480,8 +486,8 @@ const updateCommentTemplate = (index) => {
               />
               <small v-if="state.activeSessionStudent.imageProcessError" class="missing-text">{{ state.activeSessionStudent.imageProcessError }}</small>
               <div class="result-actions">
-                <button class="primary" :disabled="!state.activeSessionStudent.processedFileId && !state.activeSessionStudent.processedImage" @click="state.confirmCurrentImage('processed')">使用处理图</button>
-                <button class="ghost" :disabled="!state.activeSessionStudent.originalFileId && !state.activeSessionStudent.originalImage" @click="state.confirmCurrentImage('original')">使用原图</button>
+                <button class="primary" :disabled="state.isProcessing || (!state.activeSessionStudent.processedFileId && !state.activeSessionStudent.processedImage)" @click="state.confirmCurrentImage('processed')">使用处理图</button>
+                <button class="ghost" :disabled="state.isProcessing || (!state.activeSessionStudent.originalFileId && !state.activeSessionStudent.originalImage)" @click="state.confirmCurrentImage('original')">使用原图</button>
                 <button class="secondary" :disabled="state.isProcessing" @click="state.retryCurrentImageProcess">重新处理</button>
               </div>
             </article>
@@ -489,7 +495,7 @@ const updateCommentTemplate = (index) => {
               <div class="result-card-head"><div><span>家长课评</span><strong>{{ state.activeSessionStudent.confirmed ? '已确认' : '待确认' }}</strong></div></div>
               <textarea v-model="state.activeSessionStudent.comment" rows="12" @input="state.activeSessionStudent.confirmed = false" />
               <div class="result-actions">
-                <button class="primary" @click="state.confirmCurrentComment">确认课评</button>
+                <button class="primary" :disabled="state.isProcessing" @click="state.confirmCurrentComment">确认课评</button>
                 <button class="secondary" :disabled="state.isProcessing" @click="state.generateOne(state.activeSessionStudent); state.pulseComment(); state.notify('已重新生成当前学生课评')">重新生成</button>
               </div>
             </article>
@@ -499,7 +505,7 @@ const updateCommentTemplate = (index) => {
               <label v-if="state.activeSessionStudent.highlight">高光说明<textarea v-model="state.activeSessionStudent.highlightNote" rows="3" @blur="state.saveShareDraft?.('更新高光说明')" /></label>
             </article>
           </div>
-          <div class="review-next-action"><button class="primary" @click="confirmStudentAndNext">{{ currentReviewIndex < state.attendingRows.length - 1 ? '确认并下一位' : '完成当前学生确认' }}</button></div>
+          <div class="review-next-action"><button class="primary" :disabled="state.isProcessing" @click="confirmStudentAndNext">{{ currentReviewIndex < state.attendingRows.length - 1 ? '确认并下一位' : '完成当前学生确认' }}</button></div>
         </section>
 
         <details class="ai-log-details">
@@ -717,7 +723,7 @@ const updateCommentTemplate = (index) => {
 
       <footer class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
-        <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 4 && (state.counts.confirmed < state.counts.attend || state.counts.imageConfirmed < state.counts.attend)" @click="state.nextStep">下一步</button>
+        <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 4 && state.counts.deliveryConfirmed < state.counts.attend" @click="state.nextStep">下一步</button>
         <button v-else class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">完成归档交付</button>
       </footer>
     </template>

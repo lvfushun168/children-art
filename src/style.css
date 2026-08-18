@@ -247,7 +247,7 @@
 }
 
 .comment-review-drawer {
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto;
   width: min(560px, 100%);
 }
 
@@ -297,7 +297,7 @@
 }
 
 .batch-operations-drawer {
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   width: min(520px, 100%);
 }
 
@@ -352,7 +352,7 @@
 }
 
 .artwork-process-drawer {
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: auto auto auto auto auto auto;
   width: min(720px, 100%);
 }
 
@@ -360,6 +360,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
+  align-items: start;
   gap: 12px;
   overflow: auto;
   padding-right: 3px;
@@ -368,6 +369,8 @@
 .artwork-version-card {
   display: grid;
   align-content: start;
+  align-self: start;
+  height: max-content;
   gap: 10px;
   padding: 10px;
   border: 1px solid var(--color-border-soft);
@@ -383,7 +386,7 @@
 .artwork-version-media {
   display: grid;
   place-items: center;
-  min-height: 210px;
+  min-height: 0;
   overflow: hidden;
   border-radius: 7px;
   background: var(--color-primary-soft);
@@ -392,8 +395,14 @@
 .artwork-version-media img {
   display: block;
   width: 100%;
-  max-height: 280px;
+  height: auto;
+  max-height: 320px;
   object-fit: contain;
+}
+
+.artwork-version-media > .delivery-empty {
+  min-height: 180px;
+  padding: 16px;
 }
 
 .artwork-version-copy {
@@ -636,7 +645,7 @@
 
   .artwork-process-drawer {
     align-self: flex-end;
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-rows: auto auto auto auto auto auto;
     width: 100%;
     height: min(90dvh, 760px);
     max-height: none;
@@ -11079,16 +11088,18 @@ textarea:focus,
 
 /* 课后交付抽屉需要覆盖通用素材抽屉的尺寸与布局。 */
 .artwork-process-drawer {
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: auto auto auto auto auto auto;
   width: clamp(720px, 42vw, 1040px);
-  height: calc(100dvh - 28px);
-  max-height: none;
+  height: fit-content;
+  max-height: calc(100dvh - 28px);
+  overflow-y: auto;
 }
 
 .comment-review-drawer,
 .batch-operations-drawer {
-  height: calc(100dvh - 28px);
-  max-height: none;
+  height: fit-content;
+  max-height: calc(100dvh - 28px);
+  overflow-y: auto;
 }
 
 .comment-review-drawer {
@@ -11105,12 +11116,16 @@ textarea:focus,
   .batch-operations-drawer {
     align-self: flex-end;
     width: 100%;
-    height: min(90dvh, 760px);
-    max-height: none;
+    height: fit-content;
+    max-height: min(90dvh, 760px);
+    overflow-y: auto;
     border-radius: 18px 18px 0 0;
   }
 
   .artwork-process-drawer {
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-rows: auto auto auto auto auto auto;
+    height: fit-content;
+    max-height: min(90dvh, 760px);
+    overflow-y: auto;
   }
 }

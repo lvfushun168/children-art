@@ -953,6 +953,7 @@ export function useDeliveryWorkflow() {
     comments: sessionStudents.value.filter((item) => item.attendance === '到课' && item.comment?.trim()).length,
     confirmed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.confirmed).length,
     deliveryConfirmed: confirmedDeliveryCount(sessionStudents.value),
+    studentDeliveryCompleted: sessionStudents.value.filter((item) => item.attendance === '到课' && item.imageMatched && item.imageConfirmed && item.record?.trim() && item.comment?.trim() && item.confirmed).length,
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
@@ -966,23 +967,19 @@ export function useDeliveryWorkflow() {
   }))
 
   const steps = computed(() => [
-    { title: '课次确认', done: counts.value.attendanceConfirmed ? 1 : 0, total: 1 },
-    { title: '课堂资料', done: counts.value.classroomMaterialsDone, total: 1 },
-    { title: '上传作品', done: counts.value.matched, total: counts.value.attend },
-    { title: '课堂记录', done: counts.value.records, total: counts.value.attend },
-    { title: '图文生成', done: counts.value.deliveryConfirmed, total: counts.value.attend },
-    { title: '课后任务', done: counts.value.homeworkReady, total: 1 },
-    { title: '归档留痕', done: counts.value.archived, total: counts.value.attend }
+    { title: '课次与出勤', done: counts.value.attendanceConfirmed ? 1 : 0, total: 1 },
+    { title: '课堂素材', done: counts.value.classroomMaterialsDone, total: 1 },
+    { title: '学生交付', done: counts.value.studentDeliveryCompleted, total: counts.value.attend },
+    { title: '课后任务与家长展示', done: counts.value.homeworkReady, total: 1 },
+    { title: '提交归档', done: counts.value.archived, total: counts.value.attend }
   ])
 
   const taskProgress = computed(() => {
-    const total = counts.value.attend * 7 || 1
+    const total = counts.value.attend * 5 || 1
     const done =
       (counts.value.attendanceConfirmed ? counts.value.attend : 0) +
       (counts.value.classroomMaterialsDone ? counts.value.attend : 0) +
-      counts.value.matched +
-      counts.value.records +
-      counts.value.deliveryConfirmed +
+      counts.value.studentDeliveryCompleted +
       (counts.value.homeworkReady ? counts.value.attend : 0) +
       counts.value.archived
     return Math.min(100, Math.round((done / total) * 100))
@@ -997,12 +994,10 @@ export function useDeliveryWorkflow() {
     const completed =
       (attendanceConfirmed ? rows.length : 0) +
       (workspace.materials.length || workspace.materialsConfirmedEmpty ? rows.length : 0) +
-      rows.filter((row) => row.imageMatched).length +
-      rows.filter((row) => row.record?.trim()).length +
-      confirmedDeliveryCount(rows) +
+      rows.filter((row) => row.imageMatched && row.imageConfirmed && row.record?.trim() && row.comment?.trim() && row.confirmed).length +
       (workspace.homework?.visible && !workspace.homework.content.trim() ? 0 : rows.length) +
       rows.filter((row) => row.archived).length
-    const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 7)) * 100))
+    const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 5)) * 100))
     if (sameId(task.id, activeTaskId.value)) return taskProgress.value
     return workspaceProgress
   }

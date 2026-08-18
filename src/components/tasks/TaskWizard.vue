@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import TaskReport from './TaskReport.vue'
 import DeliveryPreview from './DeliveryPreview.vue'
+import StudentDeliveryBoard from './StudentDeliveryBoard.vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 import { sameId } from '../../services/mappers'
 
@@ -14,15 +15,13 @@ const props = defineProps({
 
 defineEmits(['navigate', 'back'])
 
-const generateStage = ref('settings')
-const showTemplateChoices = ref(false)
 const showResourceDrawer = ref(false)
 const showContentSettings = ref(false)
 const showArtworkLibrary = ref(false)
 const showSharePreview = ref(false)
+const studentDeliveryDrawerOpen = ref(false)
 const resourceSearch = ref('')
 const resourceFilter = ref('全部')
-const workPreview = ref(null)
 const attendanceOptions = ['到课', '请假', '旷课']
 const resourceFilterOptions = computed(() => [
   '全部',
@@ -48,138 +47,19 @@ const filteredExternalResources = computed(() => {
     return filterMatched && keywordMatched
   })
 })
-const imageTemplateOptions = computed(() =>
-  props.state.templates.image.map((template, index) => ({
-    label: template.name,
-    value: index,
-    description: `${template.ratio} · ${template.brightness} · ${template.watermark}`
-  }))
-)
-const commentTemplateOptions = computed(() =>
-  props.state.templates.comment.map((template, index) => ({
-    label: template.name,
-    value: index,
-    description: `${template.tone} · ${template.length}`
-  }))
-)
-const currentRecordIndex = computed(() => props.state.attendingRows.findIndex((row) => sameId(row.studentId, props.state.activeStudentId)))
-const currentReviewIndex = computed(() => props.state.attendingRows.findIndex((row) => sameId(row.studentId, props.state.activeStudentId)))
-const normalizeReviewStudent = () => {
-  if (props.state.currentStep !== 4 || generateStage.value !== 'review') return
-  const rows = props.state.attendingRows
-  if (!rows.length) return
-  if (!rows.some((row) => sameId(row.studentId, props.state.activeStudentId))) {
-    props.state.activeStudentId = rows[0].studentId
-  }
-}
-const workImages = (row) => {
-  const fileIds = Array.isArray(row?.imageFileIds) ? row.imageFileIds.filter(Boolean) : []
-  if (fileIds.length) return fileIds.map((fileId, index) => ({ fileId, src: row.images?.[index] || '' }))
-  return (row?.images || (row?.image ? [row.image] : [])).map((src) => ({ fileId: null, src }))
-}
-
-const moveRecordStudent = (direction) => {
-  const rows = props.state.attendingRows
-  if (!rows.length) return
-  const nextIndex = Math.min(rows.length - 1, Math.max(0, currentRecordIndex.value + direction))
-  props.state.activeStudentId = rows[nextIndex].studentId
-}
-
-const saveRecordAndNext = async () => {
-  if (!props.state.activeSessionStudent.record?.trim()) {
-    props.state.notify('请先录入当前学生的课堂表现')
-    return
-  }
-  if (props.state.saveSessionRecord && !(await props.state.saveSessionRecord(props.state.activeSessionStudent))) return
-  if (currentRecordIndex.value < props.state.attendingRows.length - 1) {
-    props.state.notify(`已保存${props.state.activeStudent.name}的课堂记录`)
-    moveRecordStudent(1)
-  } else {
-    props.state.notify('全班课堂记录已保存')
-  }
-}
-
-watch(() => props.state.currentStep, (step) => {
-  if (step === 3 && currentRecordIndex.value < 0 && props.state.attendingRows.length) {
-    props.state.activeStudentId = props.state.attendingRows[0].studentId
-  }
-})
-
-const openWorkPreview = (row, index) => {
-  workPreview.value = { row, index }
-}
-
-const moveWorkPreview = (direction) => {
-  if (!workPreview.value) return
-  const images = workImages(workPreview.value.row)
-  workPreview.value.index = (workPreview.value.index + direction + images.length) % images.length
-}
-
-const removePreviewedWork = () => {
-  const { row, index } = workPreview.value
-  props.state.removeStudentImage(row, index)
-  const images = workImages(row)
-  if (!images.length) workPreview.value = null
-  else workPreview.value.index = Math.min(index, images.length - 1)
-}
-
 watch(() => props.state.activeTask.id, () => {
-  generateStage.value = 'settings'
-  showTemplateChoices.value = false
   showResourceDrawer.value = false
   showContentSettings.value = false
   showArtworkLibrary.value = false
   showSharePreview.value = false
   resourceSearch.value = ''
   resourceFilter.value = '全部'
+  studentDeliveryDrawerOpen.value = false
 })
 
 watch(() => props.state.currentStep, (step) => {
-  if (step === 3) void props.state.loadTemplates?.()
-  if (step !== 4) return
-  if (props.state.counts.comments === props.state.counts.attend && props.state.counts.attend > 0) generateStage.value = 'review'
-  else generateStage.value = 'settings'
-  normalizeReviewStudent()
-}, { immediate: true })
-
-watch([
-  () => props.state.currentStep,
-  () => generateStage.value,
-  () => props.state.attendingRows.map((row) => String(row.studentId)).join(',')
-], normalizeReviewStudent, { immediate: true })
-
-const runBatchGeneration = async () => {
-  await props.state.processImages()
-  await props.state.generateAll()
-  if (props.state.attendingRows.length) props.state.activeStudentId = props.state.attendingRows[0].studentId
-  generateStage.value = 'review'
-}
-
-const confirmStudentAndNext = async () => {
-  const rows = props.state.attendingRows
-  const row = rows.find((item) => sameId(item.studentId, props.state.activeStudentId)) || rows[0]
-  if (!row) {
-    props.state.notify('当前课次没有到课学生')
-    return
-  }
-  const studentId = row.studentId
-  if (!sameId(props.state.activeStudentId, studentId)) props.state.activeStudentId = studentId
-  if (!row.imageConfirmed) {
-    const imageMode = row.processed ? 'processed' : 'original'
-    if (!(await props.state.confirmCurrentImage(imageMode, studentId))) return
-  }
-  if (!(await props.state.confirmCurrentComment(studentId))) return
-  const currentRows = props.state.attendingRows
-  const index = currentRows.findIndex((item) => sameId(item.studentId, studentId))
-  if (index >= 0 && index < currentRows.length - 1) props.state.activeStudentId = currentRows[index + 1].studentId
-  else props.state.notify('全班图文已经逐个确认完成')
-}
-
-const updateCommentTemplate = (index) => {
-  props.state.selectedCommentTemplate = Number(index)
-  props.state.pulseComment()
-  props.state.notify(`已切换课评模板：${props.state.templates.comment[index]?.name}`)
-}
+  if (step !== 2) studentDeliveryDrawerOpen.value = false
+})
 </script>
 
 <template>
@@ -358,197 +238,13 @@ const updateCommentTemplate = (index) => {
       </section>
 
       <section v-if="state.currentStep === 2" class="step-panel">
-        <div class="section-head">
-          <div>
-            <span>第 3 步</span>
-            <strong>按学生上传作品</strong>
-          </div>
-        </div>
-        <div class="work-upload-summary">
-          <div><span>本节到课</span><strong>{{ state.counts.attend }} 人</strong></div>
-          <div><span>已上传</span><strong>{{ state.counts.matched }} 人</strong></div>
-          <div><span>待上传</span><strong>{{ state.counts.attend - state.counts.matched }} 人</strong></div>
-        </div>
-        <div class="student-work-list">
-          <article
-            v-for="row in state.sessionStudents"
-            :key="`${row.lessonId}-${row.studentId}`"
-            :class="{ absent: row.attendance !== '到课' }"
-            class="student-work-row"
-          >
-            <div class="student-work-person">
-              <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
-              <small>{{ studentFor(row.studentId).parent }}</small>
-              <span>{{ row.attendance }}</span>
-            </div>
-            <div v-if="row.attendance === '到课'" class="work-thumbnails">
-              <button v-for="(image, index) in workImages(row)" :key="`${image.fileId || image.src}-${index}`" class="work-thumbnail" @click="openWorkPreview(row, index)">
-                <ProtectedMedia :file-id="image.fileId" :src="image.src" :alt="`${studentFor(row.studentId).name}作品${index + 1}`" />
-              </button>
-              <span v-if="!workImages(row).length" class="work-empty">尚未上传作品</span>
-            </div>
-            <div v-else class="work-absent-status">本节无需上传</div>
-            <div class="student-work-action">
-              <strong v-if="row.attendance === '到课'" :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${workImages(row).length || 1} 张` : '待上传' }}</strong>
-              <label v-if="row.attendance === '到课'" class="file-button add-work-button">{{ row.imageMatched ? '继续添加' : '上传作品' }}<input type="file" accept="image/*" multiple @change="state.updateImage($event, row)" /></label>
-            </div>
-          </article>
-        </div>
-
-        <div v-if="workPreview" class="modal-backdrop" @click.self="workPreview = null">
-          <section class="work-preview-modal">
-            <header class="modal-head">
-              <div><span>{{ studentFor(workPreview.row.studentId).name }}<em v-if="workPreview.row.studentArchived" class="archived-reference">（已归档）</em></span><strong>作品 {{ workPreview.index + 1 }}/{{ workImages(workPreview.row).length }}</strong></div>
-              <button class="ghost" @click="workPreview = null">关闭</button>
-            </header>
-            <ProtectedMedia
-              :file-id="workImages(workPreview.row)[workPreview.index]?.fileId"
-              :src="workImages(workPreview.row)[workPreview.index]?.src"
-              alt="作品大图预览"
-            />
-            <footer class="work-preview-actions">
-              <div class="button-pair">
-                <button class="ghost" :disabled="workImages(workPreview.row).length < 2" @click="moveWorkPreview(-1)">上一张</button>
-                <button class="ghost" :disabled="workImages(workPreview.row).length < 2" @click="moveWorkPreview(1)">下一张</button>
-              </div>
-              <div class="button-pair">
-                <button class="ghost danger-action" @click="removePreviewedWork">删除这张</button>
-                <label class="secondary file-button">替换这张<input type="file" accept="image/*" @change="state.updateImage($event, workPreview.row, workPreview.index)" /></label>
-              </div>
-            </footer>
-          </section>
-        </div>
+        <StudentDeliveryBoard :state="state" @drawer-state="studentDeliveryDrawerOpen = $event" />
       </section>
 
       <section v-if="state.currentStep === 3" class="step-panel">
         <div class="section-head">
           <div>
             <span>第 4 步</span>
-            <strong>逐个记录学生课堂表现</strong>
-          </div>
-        </div>
-        <div class="record-student-tabs">
-          <button v-for="(row, index) in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ active: sameId(row.studentId, state.activeStudentId), done: row.record?.trim() }" @click="state.activeStudentId = row.studentId">
-            <b>{{ index + 1 }}</b><span><strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong><small>{{ row.record?.trim() ? '已记录' : '待记录' }}</small></span>
-          </button>
-        </div>
-        <article v-if="state.activeSessionStudent" class="single-record-editor">
-          <header>
-            <div><span>第 {{ currentRecordIndex + 1 }}/{{ state.attendingRows.length }} 位</span><h2>{{ state.activeStudent.name }}</h2><small>{{ state.activeStudent.parent }}</small></div>
-            <button class="secondary voice-record-button" :disabled="state.isProcessing" @click="state.simulateVoice">🎙 {{ state.isProcessing ? '正在识别…' : '语音转文字' }}</button>
-          </header>
-          <label>
-            课堂表现
-            <textarea v-model="state.activeSessionStudent.record" rows="9" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" />
-          </label>
-          <footer class="record-editor-actions">
-            <button class="ghost" :disabled="currentRecordIndex <= 0" @click="moveRecordStudent(-1)">上一位</button>
-            <button class="primary" @click="saveRecordAndNext">{{ currentRecordIndex < state.attendingRows.length - 1 ? '保存并下一位' : '保存记录' }}</button>
-          </footer>
-        </article>
-      </section>
-
-      <section v-if="state.currentStep === 4" class="step-panel">
-        <div class="section-head">
-          <div>
-            <span>第 5 步</span>
-            <strong>生成并确认全班图文课评</strong>
-          </div>
-        </div>
-
-        <div class="generate-flow-status">
-          <span :class="{ active: generateStage === 'settings', done: generateStage === 'review' }"><b>1</b><span><strong>生成设置</strong></span></span>
-          <i></i>
-          <span :class="{ active: generateStage === 'review' }"><b>2</b><span><strong>逐个确认</strong><small>{{ state.counts.deliveryConfirmed }}/{{ state.counts.attend }} 已完成</small></span></span>
-        </div>
-
-        <section v-if="generateStage === 'settings'" class="generate-stage-panel">
-          <div class="generation-template-form">
-            <article>
-              <label>
-                作品图片
-                <AdaptiveMultiSelect v-model="state.selectedImageTemplates" :options="imageTemplateOptions" placeholder="选择图片处理效果" />
-              </label>
-              <div class="selected-template-tags compact-tags">
-                <span v-for="index in state.selectedImageTemplates" :key="index" class="template-static-tag">
-                  {{ state.templates.image[index]?.name }}
-                </span>
-                <span v-if="!state.selectedImageTemplates.length" class="template-empty-tag">未选择图片效果</span>
-              </div>
-            </article>
-            <article>
-              <label>
-                家长课评
-                <AdaptiveSelect :model-value="state.selectedCommentTemplate" :options="commentTemplateOptions" @update:model-value="updateCommentTemplate" />
-              </label>
-              <small>{{ state.activeCommentTemplate.tone }} · {{ state.activeCommentTemplate.length }}</small>
-            </article>
-          </div>
-          <div class="stage-actions"><button class="primary batch-main-action" :disabled="state.isProcessing" @click="runBatchGeneration">{{ state.isProcessing ? '正在生成…' : '生成全班图文' }}</button></div>
-        </section>
-
-        <section v-if="generateStage === 'review'" class="generate-stage-panel">
-          <div class="review-stage-head">
-            <div><span>第 {{ currentReviewIndex + 1 }}/{{ state.attendingRows.length }} 位</span><strong>{{ state.activeStudent.name }}</strong></div>
-            <button class="ghost" @click="generateStage = 'settings'">返回生成设置</button>
-          </div>
-          <div class="student-tabs review-student-tabs">
-            <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: sameId(row.studentId, state.activeStudentId), reviewed: row.confirmed && row.imageConfirmed }" @click="state.activeStudentId = row.studentId">
-              {{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em>{{ row.confirmed && row.imageConfirmed ? ' ✓' : '' }}
-            </button>
-          </div>
-          <div class="generated-result-grid">
-            <article class="generated-image-result">
-              <div class="result-card-head"><div><span>作品图片</span><strong>{{ state.activeSessionStudent.imageConfirmed ? '已采用' : '待确认' }}</strong></div></div>
-              <ProtectedMedia
-                :file-id="state.activeSessionStudent.processedFileId || state.activeSessionStudent.originalFileId || state.activeSessionStudent.imageFileIds?.[0]"
-                :src="state.activeSessionStudent.processedImage || state.activeSessionStudent.originalImage || state.activeSessionStudent.image"
-                alt="生成后的作品图片"
-              />
-              <small v-if="state.activeSessionStudent.imageProcessError" class="missing-text">{{ state.activeSessionStudent.imageProcessError }}</small>
-              <div class="result-actions">
-                <button class="primary" :disabled="state.isProcessing || (!state.activeSessionStudent.processedFileId && !state.activeSessionStudent.processedImage)" @click="state.confirmCurrentImage('processed')">使用处理图</button>
-                <button class="ghost" :disabled="state.isProcessing || (!state.activeSessionStudent.originalFileId && !state.activeSessionStudent.originalImage)" @click="state.confirmCurrentImage('original')">使用原图</button>
-                <button class="secondary" :disabled="state.isProcessing" @click="state.retryCurrentImageProcess">重新处理</button>
-              </div>
-            </article>
-            <article class="generated-comment-result">
-              <div class="result-card-head"><div><span>家长课评</span><strong>{{ state.activeSessionStudent.confirmed ? '已确认' : '待确认' }}</strong></div></div>
-              <textarea v-model="state.activeSessionStudent.comment" rows="12" @input="state.activeSessionStudent.confirmed = false" />
-              <div class="result-actions">
-                <button class="primary" :disabled="state.isProcessing" @click="state.confirmCurrentComment">确认课评</button>
-                <button class="secondary" :disabled="state.isProcessing" @click="state.generateOne(state.activeSessionStudent); state.pulseComment(); state.notify('已重新生成当前学生课评')">重新生成</button>
-              </div>
-            </article>
-            <article class="highlight-review-card">
-              <div><span>高光作品</span><strong>{{ state.activeSessionStudent.highlight ? '已标记为本节高光' : '普通作品' }}</strong></div>
-              <label class="inline-check"><input type="checkbox" :checked="state.activeSessionStudent.highlight" @change="state.toggleHighlight(state.activeSessionStudent)" /><span>将当前学生作品标记为高光</span></label>
-              <label v-if="state.activeSessionStudent.highlight">高光说明<textarea v-model="state.activeSessionStudent.highlightNote" rows="3" @blur="state.saveShareDraft?.('更新高光说明')" /></label>
-            </article>
-          </div>
-          <div class="review-next-action"><button class="primary" :disabled="state.isProcessing" @click="confirmStudentAndNext">{{ currentReviewIndex < state.attendingRows.length - 1 ? '确认并下一位' : '完成当前学生确认' }}</button></div>
-        </section>
-
-        <details class="ai-log-details">
-          <summary>处理详情与失败记录 <span>{{ state.aiCallLogs.filter((log) => log.status === '失败').length }} 条失败</span></summary>
-          <article class="ai-log-panel">
-            <div class="mini-head">
-              <span>AI 调用记录</span>
-              <strong>{{ state.aiCallLogs.length }} 条</strong>
-            </div>
-            <div v-for="log in state.aiCallLogs.slice(0, 6)" :key="log.id" class="ai-log-row" :class="log.status">
-              <strong>{{ log.type }} · {{ log.target }}</strong>
-              <span>{{ log.status }} · 重试 {{ log.retry }} · 成本 {{ log.cost }}</span>
-              <small>{{ log.time }} · {{ log.message }}</small>
-            </div>
-          </article>
-        </details>
-      </section>
-
-      <section v-if="state.currentStep === 5" class="step-panel">
-        <div class="section-head">
-          <div>
-            <span>第 6 步</span>
             <strong>准备课后任务并配置家长展示</strong>
           </div>
           <button class="secondary" @click="showSharePreview = true">家长页预览</button>
@@ -667,11 +363,11 @@ const updateCommentTemplate = (index) => {
         </div>
       </section>
 
-      <section v-if="state.currentStep === 6" class="step-panel">
+      <section v-if="state.currentStep === 4" class="step-panel">
         <div class="section-head">
           <div>
-            <span>第 7 步</span>
-            <strong>归档留痕与交付收口</strong>
+            <span>第 5 步</span>
+            <strong>提交归档与交付收口</strong>
           </div>
           <button class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">
             完成本节归档交付
@@ -742,9 +438,9 @@ const updateCommentTemplate = (index) => {
         </section>
       </section>
 
-      <footer class="wizard-actions">
+      <footer v-if="state.currentStep !== 2 || !studentDeliveryDrawerOpen" class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
-        <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 4 && state.counts.deliveryConfirmed < state.counts.attend" @click="state.nextStep">下一步</button>
+        <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 2 && state.counts.studentDeliveryCompleted < state.counts.attend" @click="state.nextStep">下一步</button>
         <button v-else class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">完成归档交付</button>
       </footer>
     </template>

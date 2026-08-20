@@ -48,6 +48,7 @@ import {
   mapTeacherArchive,
   mapTerm,
   mapTodo,
+  mapHomework,
   mapSharePage,
   mapTouchTask,
   mapWheat,
@@ -68,6 +69,9 @@ import {
 } from '../services/materialTypes'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
+const homeworkIsAssigned = (value) => value?.taskMode
+  ? value.taskMode === 'ASSIGNED'
+  : Boolean(String(value?.content || '').trim())
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const displayDateFromValue = (value) => {
   if (!value) return ''
@@ -243,8 +247,8 @@ export function useDeliveryWorkflow() {
     materials: [],
     materialsConfirmedEmpty: false,
     materialsVersion: null,
-    homework: { lessonId: task.id, content: '', requirement: '', dueDate: '', visible: true, externalLinkIds: [], version: 0 },
-    displayConfig: { lessonId: task.id, expiresInDays: 30, showMaterials: true, showHomework: true, showHighlight: true, showLessonType: true },
+    homework: { lessonId: task.id, taskMode: 'NONE', content: '', requirement: '', dueDate: '', visible: false, externalLinkIds: [], version: 0 },
+    displayConfig: { lessonId: task.id, expiresInDays: 30, showMaterials: true, showHomework: false, showHighlight: true, showLessonType: true },
     bulkRecord: '',
     selectedImageTemplate: [],
     selectedCommentTemplate: 0,
@@ -966,7 +970,7 @@ export function useDeliveryWorkflow() {
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
-    homeworkReady: displayConfig.value.showHomework !== false && !homework.value.content.trim() ? 0 : 1,
+    homeworkReady: homeworkIsAssigned(homework.value) && !String(homework.value.content || '').trim() ? 0 : 1,
     demoMaterials: demoMaterials.value.length,
     stepMaterials: stepMaterials.value.length,
     classroomMedia: classroomMediaMaterials.value.length,
@@ -1007,7 +1011,7 @@ export function useDeliveryWorkflow() {
       (attendanceConfirmed ? rows.length : 0) +
       (workspace.materials.length || workspace.materialsConfirmedEmpty ? rows.length : 0) +
       rows.filter((row) => row.imageMatched && row.imageConfirmed && row.record?.trim() && row.comment?.trim() && row.confirmed).length +
-      (workspace.homework?.visible && !workspace.homework.content.trim() ? 0 : rows.length) +
+      (homeworkIsAssigned(workspace.homework) && !String(workspace.homework.content || '').trim() ? 0 : rows.length) +
       rows.filter((row) => row.archived).length
     const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 5)) * 100))
     if (sameId(task.id, activeTaskId.value)) return taskProgress.value
@@ -1019,7 +1023,7 @@ export function useDeliveryWorkflow() {
     if (!sessionStudents.value.length) warnings.push('当前班级没有学生名单')
     else if (sessionStudents.value.some((row) => !isAttendanceMarked(row))) warnings.push('仍有学生未确认出勤')
     if (!materials.value.length && !materialsConfirmedEmpty.value) warnings.push('课堂资料待上传或确认无资料')
-    if (displayConfig.value.showHomework !== false && !homework.value.content.trim()) warnings.push('课后任务内容为空')
+    if (homeworkIsAssigned(homework.value) && !String(homework.value.content || '').trim()) warnings.push('课后任务内容为空')
     attendingRows.value.forEach((row) => {
       const student = students.find((item) => sameId(item.id, row.studentId))
       const name = student?.name || row.studentName || '学生'
@@ -1637,6 +1641,24 @@ export function useDeliveryWorkflow() {
     const index = homework.value.externalLinkIds.indexOf(id)
     if (index >= 0) homework.value.externalLinkIds.splice(index, 1)
     else homework.value.externalLinkIds.push(id)
+  }
+
+  const setHomeworkMode = (mode) => {
+    const nextMode = mode === 'ASSIGNED' ? 'ASSIGNED' : 'NONE'
+    homework.value.taskMode = nextMode
+    if (nextMode === 'NONE') {
+      homework.value.visible = false
+      displayConfig.value.showHomework = false
+    } else {
+      homework.value.visible = true
+      displayConfig.value.showHomework = true
+    }
+  }
+
+  const applyHomeworkExample = ({ content = '', requirement = '' } = {}) => {
+    setHomeworkMode('ASSIGNED')
+    homework.value.content = content
+    homework.value.requirement = requirement
   }
 
   const shareDraftPayload = () => ({
@@ -3133,14 +3155,15 @@ export function useDeliveryWorkflow() {
       image: '',
       lessonId: lesson.id
     }))
-    const homeworkData = parentModule.homework || draft.homework || draft.publishedSnapshot?.homework || {}
+    const homeworkData = mapHomework(parentModule.homework || draft.homework || draft.publishedSnapshot?.homework || {})
+    draftDisplayConfig.showHomework = homeworkIsAssigned(homeworkData) && homeworkData.visible !== false && draftDisplayConfig.showHomework !== false
     Object.assign(workspace, {
       lessonId: lesson.id,
       studentDeliveries: rows,
       materials: materialItems,
       materialsConfirmedEmpty: Boolean(assetsModule.materialsConfirmedEmpty),
       materialsVersion: workspace.materialsVersion ?? null,
-      homework: { ...workspace.homework, ...homeworkData, externalLinkIds: fromApiIds(homeworkData.externalLinkIds || []) },
+      homework: { ...workspace.homework, ...homeworkData, lessonId: lesson.id, externalLinkIds: fromApiIds(homeworkData.externalLinkIds || []) },
       displayConfig: draftDisplayConfig,
       sharePage: mergeSharePageForWorkspace(workspace, draft),
       teacherEffect,
@@ -4134,7 +4157,7 @@ export function useDeliveryWorkflow() {
     version: ensureLessonWorkspace(activeTask.value).sharePage.version || 0,
     lessonId: String(activeTask.value.id),
     showMaterials: displayConfig.value.showMaterials !== false,
-    showHomework: displayConfig.value.showHomework !== false,
+    showHomework: homeworkIsAssigned(homework.value) && displayConfig.value.showHomework !== false,
     showHighlight: displayConfig.value.showHighlight !== false,
     showLessonType: displayConfig.value.showLessonType !== false,
     expiresAt: new Date(Date.now() + Math.max(1, Number(displayConfig.value.expiresInDays) || 30) * 24 * 60 * 60 * 1000).toISOString(),
@@ -4184,7 +4207,12 @@ export function useDeliveryWorkflow() {
       visible: asset.visible,
       sortOrder: asset.sortOrder
     })),
-    homework: { ...clone(homework.value), visible: displayConfig.value.showHomework !== false, externalLinkIds: (homework.value.externalLinkIds || []).map(String) },
+    homework: {
+      ...clone(homework.value),
+      taskMode: homeworkIsAssigned(homework.value) ? 'ASSIGNED' : 'NONE',
+      visible: homeworkIsAssigned(homework.value) && displayConfig.value.showHomework !== false,
+      externalLinkIds: (homework.value.externalLinkIds || []).map(String)
+    },
     displayConfig: clone(displayConfig.value),
     school: clone(school),
     externalLinks: selectedExternalLinks.value.map((link) => ({
@@ -5458,6 +5486,8 @@ export function useDeliveryWorkflow() {
     saveSessionRecord: remoteSaveRecord,
     toggleHighlight: remoteToggleHighlight,
     toggleHomeworkLink,
+    setHomeworkMode,
+    applyHomeworkExample,
     saveShareDraft: remoteSaveShareDraft,
     generateSharePages: remoteGenerateSharePages,
     revokeSharePage: remoteRevokeSharePage,

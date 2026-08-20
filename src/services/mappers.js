@@ -351,6 +351,20 @@ export const mapJob = (value = {}) => ({
   startedAt: displayDateTime(value.startedAt),
   finishedAt: displayDateTime(value.finishedAt)
 })
+export const mapHomework = (value = {}) => {
+  const content = String(value.content || '')
+  const taskMode = value.taskMode === 'ASSIGNED' || (!value.taskMode && content.trim()) ? 'ASSIGNED' : 'NONE'
+  return {
+    ...value,
+    taskMode,
+    content,
+    requirement: value.requirement || '',
+    dueDate: value.dueDate || '',
+    visible: taskMode === 'ASSIGNED' && value.visible !== false,
+    externalLinkIds: fromApiIds(value.externalLinkIds || []),
+    version: Number(value.version || 0)
+  }
+}
 export const mapSharePage = (value = {}) => ({
   ...value,
   id: safeUiId(value.id),
@@ -370,7 +384,7 @@ export const mapSharePage = (value = {}) => ({
   revokedAt: displayDateTime(value.revokedAt),
   revokedReason: value.revokedReason || '',
   version: Number(value.version || 0),
-  homework: value.homework || { content: '', requirement: '', dueDate: '', visible: true, externalLinkIds: [] }
+  homework: mapHomework(value.homework || {})
 })
 export const mapTouchTask = (value = {}) => ({
   ...value,

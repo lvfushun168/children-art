@@ -28,6 +28,26 @@ const studentDeliveryMobileDetailOpen = ref(false)
 const resourceSearch = ref('')
 const resourceFilter = ref('全部')
 const attendanceOptions = ['到课', '请假', '旷课']
+const homeworkExamples = [
+  {
+    label: '观察记录',
+    content: '回家观察一种暖色系物品，说一说它的颜色和形状。',
+    requirement: '可拍 1 张观察照片，下节课前发给老师。'
+  },
+  {
+    label: '亲子延伸',
+    content: '和家长一起完成一幅小练习，尝试使用本节课学到的构图方法。',
+    requirement: '完成后拍照上传或带到下节课。'
+  },
+  {
+    label: '材料准备',
+    content: '准备下节课需要的彩纸、勾线笔和油画棒，放入自己的材料袋。',
+    requirement: '下节课上课前检查材料是否齐全。'
+  }
+]
+const applyHomeworkExample = (example) => {
+  props.state.applyHomeworkExample(example)
+}
 const resolveStateValue = (value) => value?.value ?? value
 const materialSections = computed(() => {
   const materials = resolveStateValue(props.state.materials) || []
@@ -82,6 +102,39 @@ const materialSections = computed(() => {
     }
   ]
 })
+const activeMaterialSectionKey = ref('demo')
+const activeMaterialSection = computed(() => materialSections.value.find((section) => section.key === activeMaterialSectionKey.value) || materialSections.value[0] || null)
+const classroomMaterialSection = computed(() => materialSections.value.find((section) => section.key === 'classroom'))
+const classroomMaterialCount = computed(() => classroomMaterialSection.value?.materials.length || 0)
+const materialTabStatusKey = (section) => {
+  if (section.materials.length) return 'ready'
+  if (section.key === 'classroom') return resolveStateValue(props.state.materialsConfirmedEmpty) ? 'confirmed' : 'pending'
+  return 'empty'
+}
+const materialTabStatusLabel = (section) => {
+  const status = materialTabStatusKey(section)
+  if (status === 'ready') return '已添加'
+  if (status === 'confirmed') return '已确认'
+  return section.key === 'classroom' ? '待确认' : '待添加'
+}
+const selectMaterialSection = (key) => {
+  activeMaterialSectionKey.value = key
+}
+const handleMaterialTabKeydown = (event, currentKey) => {
+  const keys = materialSections.value.map((section) => section.key)
+  const currentIndex = keys.indexOf(currentKey)
+  if (currentIndex < 0) return
+  let nextIndex = currentIndex
+  if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % keys.length
+  else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + keys.length) % keys.length
+  else if (event.key === 'Home') nextIndex = 0
+  else if (event.key === 'End') nextIndex = keys.length - 1
+  else return
+  event.preventDefault()
+  const nextKey = keys[nextIndex]
+  activeMaterialSectionKey.value = nextKey
+  if (typeof document !== 'undefined') document.getElementById(`material-tab-${nextKey}`)?.focus()
+}
 const filteredArtworkLibrary = computed(() => {
   const library = resolveStateValue(props.state.artworkLibrary) || []
   return library.filter((item) => item.type === artworkLibraryCategory.value)
@@ -134,6 +187,7 @@ watch(() => props.state.activeTask.id, () => {
   showContentSettings.value = false
   showArtworkLibrary.value = false
   artworkLibraryCategory.value = MATERIAL_CATEGORIES.DEMO
+  activeMaterialSectionKey.value = 'demo'
   replaceTarget.value = null
   showSharePreview.value = false
   resourceSearch.value = ''
@@ -237,41 +291,65 @@ watch(() => props.state.currentStep, (step) => {
         </div>
 
         <section class="classroom-materials-board">
+          <nav class="material-tabs" role="tablist" aria-label="课堂素材分类">
+            <button
+              v-for="section in materialSections"
+              :id="`material-tab-${section.key}`"
+              :key="section.key"
+              class="material-tab"
+              :class="{ active: activeMaterialSectionKey === section.key }"
+              type="button"
+              role="tab"
+              :aria-selected="activeMaterialSectionKey === section.key"
+              :aria-controls="`material-panel-${section.key}`"
+              :tabindex="activeMaterialSectionKey === section.key ? 0 : -1"
+              @click="selectMaterialSection(section.key)"
+              @keydown="handleMaterialTabKeydown($event, section.key)"
+            >
+              <span class="material-tab-label">{{ section.title }}</span>
+              <span class="material-tab-meta">
+                <strong>{{ section.materials.length }}</strong>
+                <small :class="`is-${materialTabStatusKey(section)}`">{{ materialTabStatusLabel(section) }}</small>
+              </span>
+            </button>
+          </nav>
+
           <article
-            v-for="section in materialSections"
-            :key="section.key"
-            class="material-lane material-section-card"
-            :class="{ 'material-section-card--wide': section.kind !== 'image' }"
+            v-if="activeMaterialSection"
+            :id="`material-panel-${activeMaterialSection.key}`"
+            class="material-lane material-section-card material-active-section"
+            role="tabpanel"
+            :aria-labelledby="`material-tab-${activeMaterialSection.key}`"
           >
             <header class="material-section-head">
               <div class="material-section-title">
                 <div class="material-section-title-row">
                   <div class="material-section-heading">
                     <span>课堂素材</span>
-                    <strong>{{ section.title }}</strong>
+                    <strong>{{ activeMaterialSection.title }}</strong>
                   </div>
                   <div class="material-section-actions">
                     <label class="file-button material-upload-button">
-                      <span aria-hidden="true">＋</span>{{ section.uploadLabel }}
-                      <input type="file" :accept="section.accept || undefined" multiple @change="state.uploadLessonMaterial($event, section.category)" />
+                      <span aria-hidden="true">＋</span>{{ activeMaterialSection.uploadLabel }}
+                      <input type="file" :accept="activeMaterialSection.accept || undefined" multiple @change="state.uploadLessonMaterial($event, activeMaterialSection.category)" />
                     </label>
-                    <button v-if="section.library && state.artworkLibrary.length" class="secondary" type="button" @click="openArtworkLibrary(section.category)">
+                    <button v-if="activeMaterialSection.library && state.artworkLibrary.length" class="secondary" type="button" @click="openArtworkLibrary(activeMaterialSection.category)">
                       从备课素材库选择
                     </button>
                   </div>
                 </div>
-                <small>{{ section.materials.length }} 个文件 · {{ section.description }}</small>
+                <small>{{ activeMaterialSection.materials.length }} 个文件 · {{ activeMaterialSection.description }}</small>
               </div>
             </header>
 
-            <div v-if="section.kind === 'file'" class="courseware-list material-file-list">
-              <label v-if="!section.materials.length" class="material-add-tile material-add-tile--file">
+            <div v-if="activeMaterialSection.kind === 'file'" class="courseware-list material-file-list">
+              <label v-if="!activeMaterialSection.materials.length" class="material-add-tile material-add-tile--file">
                 <span class="material-add-icon" aria-hidden="true">＋</span>
-                <strong>{{ section.uploadLabel }}</strong>
+                <strong>{{ activeMaterialSection.uploadLabel }}</strong>
                 <small>点击选择文件</small>
-                <input type="file" :accept="section.accept || undefined" multiple @change="state.uploadLessonMaterial($event, section.category)" />
+                <input type="file" :accept="activeMaterialSection.accept || undefined" multiple @change="state.uploadLessonMaterial($event, activeMaterialSection.category)" />
               </label>
-              <article v-for="material in section.materials" :key="material.id" class="courseware-file-card">
+              <article v-for="material in activeMaterialSection.materials" :key="material.id" class="courseware-file-card">
                 <span class="courseware-file-type">{{ material.fileExt ? material.fileExt.toUpperCase() : material.file?.extension?.toUpperCase() || '文件' }}</span>
                 <div>
                   <strong>{{ material.title || material.file?.originalFilename || '未命名课件' }}</strong>
@@ -282,23 +360,23 @@ watch(() => props.state.currentStep, (step) => {
             </div>
 
             <div v-else class="material-card-grid">
-              <label v-if="!section.materials.length" class="material-add-tile">
+              <label v-if="!activeMaterialSection.materials.length" class="material-add-tile">
                 <span class="material-add-icon" aria-hidden="true">＋</span>
-                <strong>{{ section.uploadLabel }}</strong>
+                <strong>{{ activeMaterialSection.uploadLabel }}</strong>
                 <small>点击选择文件</small>
-                <input type="file" :accept="section.accept || undefined" multiple @change="state.uploadLessonMaterial($event, section.category)" />
+                <input type="file" :accept="activeMaterialSection.accept || undefined" multiple @change="state.uploadLessonMaterial($event, activeMaterialSection.category)" />
               </label>
-              <article v-for="material in section.materials" :key="material.id" class="material-media-card" :class="{ hidden: !material.visible }">
+              <article v-for="material in activeMaterialSection.materials" :key="material.id" class="material-media-card" :class="{ hidden: !material.visible }">
                 <div class="material-visual">
-                  <button v-if="material.type !== '课堂视频'" class="material-replace-trigger" type="button" @click="openMaterialReplace(material, section.category)">
+                  <button v-if="material.type !== '课堂视频'" class="material-replace-trigger" type="button" @click="openMaterialReplace(material, activeMaterialSection.category)">
                     <ProtectedMedia :file-id="material.fileId" :src="material.image" :alt="material.title" />
                     <span>点击替换</span>
                   </button>
                   <div v-else class="material-video-frame">
                     <ProtectedMedia tag="video" :file-id="material.fileId" :src="material.image" controls preload="metadata" :aria-label="material.title" />
-                    <button class="material-video-replace" type="button" @click="openMaterialReplace(material, section.category)">替换</button>
+                    <button class="material-video-replace" type="button" @click="openMaterialReplace(material, activeMaterialSection.category)">替换</button>
                   </div>
-                  <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || section.title}`" @click="state.removeLessonMaterial(material)">×</button>
+                  <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || activeMaterialSection.title}`" @click="state.removeLessonMaterial(material)">×</button>
                 </div>
                 <div class="material-card-copy">
                   <div class="material-card-title">
@@ -314,13 +392,13 @@ watch(() => props.state.currentStep, (step) => {
                 </div>
               </article>
             </div>
-          </article>
 
-          <div v-if="!state.counts.classroomMaterials" class="no-material-confirm">
-            <button class="ghost" :class="{ selected: state.materialsConfirmedEmpty }" @click="state.confirmNoLessonMaterials">
-              {{ state.materialsConfirmedEmpty ? '已确认本节无资料' : '本节无资料' }}
-            </button>
-          </div>
+            <div v-if="activeMaterialSection.key === 'classroom' && !classroomMaterialCount" class="no-material-confirm">
+              <button class="ghost" :class="{ selected: state.materialsConfirmedEmpty }" @click="state.confirmNoLessonMaterials">
+                {{ state.materialsConfirmedEmpty ? '已确认本节无资料' : '本节无资料' }}
+              </button>
+            </div>
+          </article>
         </section>
 
         <input ref="materialReplaceInput" class="visually-hidden" type="file" :accept="replaceAccept" @change="handleMaterialReplace" />
@@ -365,47 +443,85 @@ watch(() => props.state.currentStep, (step) => {
         <div class="section-head">
           <div>
             <span>第 4 步</span>
-            <strong>准备课后任务并配置家长展示</strong>
+            <strong>课后任务与家长展示</strong>
           </div>
-          <button class="secondary" @click="showSharePreview = true">家长页预览</button>
+          <div class="section-actions">
+            <button class="ghost" type="button" @click="state.saveShareDraft('保存课后任务配置')">保存本步</button>
+            <button class="secondary" type="button" @click="showSharePreview = true">家长页预览</button>
+          </div>
         </div>
-        <section class="parent-delivery-panel">
-          <article class="record-table homework-editor">
-            <label>
-              课后任务
-              <textarea v-model="state.homework.content" rows="4" />
-            </label>
-            <label>
-              交付要求
-              <input v-model="state.homework.requirement" />
-            </label>
-            <label>
-              预计回收
-              <input v-model="state.homework.dueDate" />
-            </label>
+        <section class="parent-delivery-panel guided-homework-panel">
+          <article class="guided-card homework-status-card">
+            <div class="homework-status-control">
+              <strong>课后任务</strong>
+              <label class="homework-status-switch" aria-label="切换课后任务状态">
+                <input
+                  type="checkbox"
+                  :checked="state.homework.taskMode === 'ASSIGNED'"
+                  @change="state.setHomeworkMode($event.target.checked ? 'ASSIGNED' : 'NONE')"
+                />
+                <span class="switch-track" aria-hidden="true"><span></span></span>
+              </label>
+              <span class="homework-status-value" :class="{ active: state.homework.taskMode === 'ASSIGNED' }">
+                {{ state.homework.taskMode === 'ASSIGNED' ? '已布置' : '未布置' }}
+              </span>
+            </div>
           </article>
-          <article class="extension-resource-panel">
+
+          <article v-if="state.homework.taskMode === 'ASSIGNED'" class="guided-card">
+            <strong>任务内容</strong>
+            <div class="guided-homework-fields">
+              <label class="homework-content-field">
+                <span>任务内容 <em>必填</em></span>
+                <textarea v-model="state.homework.content" rows="4" placeholder="例如：回家观察一种暖色系物品，说一说它的颜色和形状。" />
+              </label>
+              <label>
+                <span>完成方式 / 家长配合 <em>可选</em></span>
+                <textarea v-model="state.homework.requirement" rows="3" placeholder="例如：拍 1 张照片，下节课前发给老师。" />
+              </label>
+              <label>
+                <span>预计回收 / 检查日期 <em>可选</em></span>
+                <input v-model="state.homework.dueDate" type="date" :min="state.activeTask.dateValue || undefined" />
+              </label>
+            </div>
+            <div class="homework-example-row">
+              <span>任务模板</span>
+              <button v-for="example in homeworkExamples" :key="example.label" type="button" class="ghost" @click="applyHomeworkExample(example)">
+                {{ example.label }}
+              </button>
+            </div>
+          </article>
+
+          <article v-if="state.homework.taskMode === 'ASSIGNED'" class="extension-resource-panel">
             <div class="mini-head">
               <div>
-                <span>在线课程（可选）</span>
-                <strong>{{ state.selectedExternalLinks.length ? `已选 ${state.selectedExternalLinks.length} 个资源` : '未关联在线课程' }}</strong>
+                <span>配套学习资源（可选）</span>
+                <strong>{{ state.selectedExternalLinks.length ? `已选 ${state.selectedExternalLinks.length} 个资源` : '未关联学习资源' }}</strong>
               </div>
-              <button class="ghost" @click="showResourceDrawer = true">选择资源</button>
+              <button class="ghost" type="button" @click="showResourceDrawer = true">选择资源</button>
             </div>
             <div class="selected-resource-chips">
-              <button v-for="link in state.selectedExternalLinks" :key="link.id" class="resource-chip selected" @click="state.toggleHomeworkLink(link.id)">
+              <button v-for="link in state.selectedExternalLinks" :key="link.id" type="button" class="resource-chip selected" @click="state.toggleHomeworkLink(link.id)">
                 <strong>{{ link.title }}</strong>
                 <span>×</span>
               </button>
             </div>
           </article>
-          <div class="share-expiry-setting">
-            <div><span>展示页有效期</span><strong>{{ state.displayConfig.expiresInDays }} 天</strong></div>
-            <label>有效期（天）<input v-model.number="state.displayConfig.expiresInDays" type="number" min="1" /></label>
-          </div>
+
           <details class="advanced-state content-settings" :open="showContentSettings" @toggle="showContentSettings = $event.target.open">
-            <summary>调整家长页展示内容🔽</summary>
-            <div class="switch-row"><label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示课堂素材</label><label><input v-model="state.displayConfig.showHomework" type="checkbox" /> 展示课后任务</label><label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label><label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label></div>
+            <summary>更多家长展示设置（可选）🔽</summary>
+            <div class="content-settings-body">
+              <div class="switch-row">
+                <label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示课堂素材</label>
+                <label><input v-model="state.displayConfig.showHomework" type="checkbox" :disabled="state.homework.taskMode !== 'ASSIGNED'" /> 展示课后任务</label>
+                <label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label>
+                <label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label>
+              </div>
+              <label class="share-expiry-field">
+                <span>展示页有效期</span>
+                <input v-model.number="state.displayConfig.expiresInDays" type="number" min="1" />
+              </label>
+            </div>
           </details>
         </section>
 
@@ -414,7 +530,7 @@ watch(() => props.state.currentStep, (step) => {
             <header class="drawer-head">
               <div>
                 <span>延伸资源</span>
-                <strong>选择课后任务附件</strong>
+                <strong>选择配套学习资源</strong>
               </div>
               <button class="ghost" @click="showResourceDrawer = false">关闭</button>
             </header>

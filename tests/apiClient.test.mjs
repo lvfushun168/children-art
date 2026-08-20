@@ -13,7 +13,7 @@ globalThis.window = {
 const { clearSession, createIdempotencyKey, getAccessToken, getApiRequestStats, onApiRequest, pageParams, queryString, request, resetApiRequestStats, setSession } = await import('../src/services/apiClient.js')
 const { api } = await import('../src/services/api.js')
 const { clearProtectedMediaCache, protectedMediaUrl } = await import('../src/services/protectedMediaCache.js')
-const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCourse, mapExternalLink, mapFeedback, mapIdentityPermission, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
+const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
 
 const response = (status, payload, contentType = 'application/json') => ({
   status,
@@ -245,6 +245,9 @@ test('maps artwork, feedback, job and share DTOs while preserving protocol codes
   assert.equal(share.status, '已发布')
   assert.equal(share.statusCode, 'PUBLISHED')
   assert.equal(share.studentTokens['13'], 'token')
+  assert.equal(mapHomework({ content: '旧数据任务', visible: true }).taskMode, 'ASSIGNED')
+  assert.equal(mapHomework({ taskMode: 'NONE', content: '历史残留内容', visible: true }).visible, false)
+  assert.equal(share.homework.taskMode, 'NONE')
 })
 
 test('defaults paged requests to twenty rows and repeats wheat status filters', async () => {

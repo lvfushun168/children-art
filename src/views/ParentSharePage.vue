@@ -21,8 +21,25 @@ const studentRow = computed(() => ({
 const materials = computed(() => content.value?.materials || [])
 const homework = computed(() => content.value?.homework || {})
 const externalLinks = computed(() => content.value?.externalLinks || [])
-const displayConfig = computed(() => ({ showMaterials: true, showHomework: homework.value.visible !== false, showHighlight: true, ...(content.value?.displayConfig || {}) }))
+const hasHomework = computed(() => homework.value.taskMode
+  ? homework.value.taskMode === 'ASSIGNED'
+  : Boolean(String(homework.value.content || '').trim()))
+const displayConfig = computed(() => {
+  const config = {
+    showMaterials: true,
+    showHomework: true,
+    showHighlight: true,
+    ...(content.value?.displayConfig || {})
+  }
+  config.showHomework = hasHomework.value && homework.value.visible !== false && content.value?.displayConfig?.showHomework !== false
+  return config
+})
 const publishedAt = computed(() => content.value?.publishedAt || '')
+const formatHomeworkDate = (value) => {
+  if (!value) return ''
+  const [year, month, day] = String(value).slice(0, 10).split('-')
+  return year && month && day ? `${year}年${Number(month)}月${Number(day)}日` : String(value)
+}
 
 onMounted(async () => {
   if (!props.route.token) {
@@ -91,10 +108,11 @@ onMounted(async () => {
             </template>
           </div>
         </article>
-        <article v-if="displayConfig.showHomework" class="parent-section homework">
+        <article v-if="displayConfig.showHomework && hasHomework" class="parent-section homework">
           <span>课后任务</span>
           <p>{{ homework.content }}</p>
-          <small>{{ homework.requirement }} · {{ homework.dueDate }}</small>
+          <small v-if="homework.requirement">完成方式：{{ homework.requirement }}</small>
+          <small v-if="homework.dueDate">预计回收：{{ formatHomeworkDate(homework.dueDate) }}</small>
           <a v-for="link in externalLinks" :key="link.title" :href="link.url">{{ link.title }}</a>
         </article>
       </section>

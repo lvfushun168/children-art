@@ -77,6 +77,15 @@ defineProps({
 })
 
 defineEmits(['copy-export'])
+
+const homeworkIsAssigned = (value) => value?.taskMode
+  ? value.taskMode === 'ASSIGNED'
+  : Boolean(String(value?.content || '').trim())
+const formatHomeworkDate = (value) => {
+  if (!value) return ''
+  const [year, month, day] = String(value).slice(0, 10).split('-')
+  return year && month && day ? `${year}年${Number(month)}月${Number(day)}日` : String(value)
+}
 </script>
 
 <template>
@@ -127,10 +136,11 @@ defineEmits(['copy-export'])
           <ProtectedMedia v-else :file-id="material.fileId" :src="material.image" :alt="material.title" />
         </template>
       </div>
-      <div v-if="displayConfig.showHomework" class="homework-preview">
+      <div v-if="displayConfig.showHomework && homeworkIsAssigned(homework)" class="homework-preview">
         <strong>课后任务</strong>
         <small>{{ homework.content }}</small>
-        <small>{{ homework.requirement }} · {{ homework.dueDate }}</small>
+        <small v-if="homework.requirement">完成方式：{{ homework.requirement }}</small>
+        <small v-if="homework.dueDate">预计回收：{{ formatHomeworkDate(homework.dueDate) }}</small>
         <a v-for="link in selectedExternalLinks" :key="link.id" :href="link.url">{{ link.title }}</a>
       </div>
       <div v-if="!reviewOnly" class="share-box">

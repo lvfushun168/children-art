@@ -4531,6 +4531,145 @@ textarea:focus,
   background: var(--color-surface);
 }
 
+.section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.guided-homework-panel {
+  gap: 12px;
+}
+
+.guided-card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.homework-status-card {
+  justify-self: start;
+  width: min(100%, 360px);
+  min-height: 0;
+  padding: 12px 16px;
+}
+
+.homework-status-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.homework-status-control > strong {
+  font-size: 15px;
+}
+
+.homework-status-value {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.homework-status-value.active {
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.homework-status-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  cursor: pointer;
+}
+
+.homework-status-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.homework-status-switch input:checked + .switch-track {
+  background: var(--color-primary);
+}
+
+.homework-status-switch input:checked + .switch-track > span {
+  transform: translateX(18px);
+}
+
+.homework-status-switch input:focus-visible + .switch-track {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 46%, transparent);
+  outline-offset: 2px;
+}
+
+.guided-homework-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(190px, 0.72fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.guided-homework-fields label {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.guided-homework-fields label > span,
+.share-expiry-field > span {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.guided-homework-fields em {
+  color: var(--color-primary);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.guided-homework-fields textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.guided-homework-fields label:first-child textarea {
+  min-height: 128px;
+}
+
+.homework-example-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.homework-example-row > span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.content-settings-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 18px;
+  align-items: start;
+}
+
+.content-settings-body .switch-row {
+  padding: 0;
+}
+
+.share-expiry-field {
+  display: grid;
+  gap: 6px;
+}
+
 .share-expiry-setting {
   display: grid;
   grid-template-columns: 1fr 220px;
@@ -9989,6 +10128,8 @@ textarea:focus,
   .lesson-asset-grid,
   .lesson-work-grid,
   .homework-editor,
+  .guided-homework-fields,
+  .content-settings-body,
   .publish-check-grid,
   .publish-defaults,
   .publish-settings,
@@ -10036,6 +10177,15 @@ textarea:focus,
 
   .section-head {
     flex-direction: column;
+  }
+
+  .section-actions {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .section-actions > button {
+    flex: 1;
   }
 
   .wizard-head {
@@ -11673,28 +11823,35 @@ textarea:focus,
 
 /* 第 2 步课堂素材：操作入口跟随板块标题和素材内容，避免宽屏下被推到最右侧。 */
 .classroom-materials-board {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 16px;
 }
 
 .material-section-card {
   min-width: 0;
+  width: fit-content;
+  max-width: 100%;
   gap: 16px;
   padding: 18px;
 }
 
 .material-section-card--wide {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .material-section-head {
   display: block;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .material-section-title {
   display: grid;
   min-width: 0;
+  width: fit-content;
+  max-width: 100%;
   gap: 8px;
 }
 
@@ -11746,16 +11903,22 @@ textarea:focus,
 }
 
 .material-card-grid {
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  gap: 14px;
 }
 
 .material-card-grid > .material-add-tile,
 .material-card-grid > .material-media-card {
+  flex: 0 1 220px;
   grid-column: auto;
   grid-row: auto;
-  align-self: start;
-  width: 100%;
+  align-self: flex-start;
+  width: 220px;
+  max-width: 100%;
 }
 
 .material-media-card {
@@ -11833,7 +11996,9 @@ textarea:focus,
 }
 
 .material-file-list {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  width: fit-content;
+  max-width: 100%;
+  grid-template-columns: minmax(280px, 720px);
 }
 
 .material-file-list .material-add-tile {
@@ -11859,11 +12024,25 @@ textarea:focus,
 
 @media (max-width: 980px) {
   .classroom-materials-board {
-    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .material-section-card--wide {
     grid-column: auto;
+  }
+
+  .material-section-card,
+  .material-section-head,
+  .material-section-title,
+  .material-card-grid,
+  .material-file-list {
+    width: 100%;
+  }
+
+  .material-card-grid > .material-add-tile,
+  .material-card-grid > .material-media-card {
+    flex: 1 1 190px;
+    width: auto;
   }
 
   .material-section-title-row {
@@ -11901,8 +12080,174 @@ textarea:focus,
     min-height: 0;
   }
 
+  .material-card-grid {
+    flex-direction: column;
+  }
+
+  .material-card-grid > .material-add-tile,
+  .material-card-grid > .material-media-card {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  .material-file-list {
+    grid-template-columns: 1fr;
+  }
+
   .material-file-list .material-add-tile {
     height: auto;
     min-height: 74px;
+  }
+}
+
+/* 第 2 步素材分类页签：用数量和状态保留全局可见性，内容只展示当前分类。 */
+.classroom-materials-board {
+  align-items: stretch;
+}
+
+.material-tabs,
+.material-active-section {
+  width: 100%;
+  max-width: 1180px;
+}
+
+.material-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border-soft);
+  scrollbar-width: thin;
+}
+
+.material-tabs::-webkit-scrollbar {
+  height: 6px;
+}
+
+.material-tabs::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--color-border-strong);
+}
+
+.material-tab {
+  display: grid;
+  flex: 1 0 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 150px;
+  min-height: 62px;
+  padding: 10px 16px;
+  border-bottom: 3px solid transparent;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--color-muted);
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+  text-align: left;
+}
+
+.material-tab:hover {
+  background: color-mix(in srgb, var(--color-primary-soft) 56%, transparent);
+  color: var(--color-text);
+}
+
+.material-tab.active {
+  border-bottom-color: transparent;
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+  box-shadow: inset 0 -3px 0 var(--color-primary);
+}
+
+.material-tab:focus-visible {
+  background: color-mix(in srgb, var(--color-primary-soft) 72%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 46%, transparent);
+  outline-offset: -2px;
+}
+
+.material-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.material-tab-meta {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 42px;
+}
+
+.material-tab-meta > strong {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.material-tab:not(.active) .material-tab-meta > strong {
+  color: var(--color-muted);
+}
+
+.material-tab.active .material-tab-label,
+.material-tab.active .material-tab-meta > strong {
+  color: var(--color-text);
+}
+
+.material-tab-meta > small {
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.material-tab-meta > small.is-ready,
+.material-tab-meta > small.is-confirmed {
+  color: var(--color-primary);
+}
+
+.material-tab-meta > small.is-pending,
+.material-tab-meta > small.is-empty {
+  color: var(--color-status-warning-text);
+}
+
+.material-active-section {
+  align-self: flex-start;
+}
+
+.material-active-section .material-section-head,
+.material-active-section .material-section-title,
+.material-active-section .material-card-grid,
+.material-active-section .material-file-list {
+  width: 100%;
+  max-width: none;
+}
+
+.material-active-section .material-card-grid {
+  justify-content: flex-start;
+}
+
+@media (max-width: 980px) {
+  .material-tabs,
+  .material-active-section {
+    max-width: none;
+  }
+
+  .material-tab {
+    flex: 0 0 auto;
+    min-width: 132px;
+  }
+}
+
+@media (max-width: 560px) {
+  .material-tab {
+    min-width: 118px;
+    min-height: 58px;
+    padding: 9px 12px;
+  }
+
+  .material-tab-label {
+    font-size: 14px;
   }
 }

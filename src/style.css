@@ -167,6 +167,23 @@
   border-color: var(--color-primary);
 }
 
+.delivery-empty-action {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px;
+  border: 1px dashed var(--color-border-soft);
+  border-radius: 7px;
+  background: var(--color-primary-soft);
+  text-align: left;
+  cursor: pointer;
+}
+
+.delivery-empty-action:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
 .delivery-thumb img {
   display: block;
   width: 100%;
@@ -385,12 +402,78 @@
 }
 
 .artwork-version-media {
+  position: relative;
   display: grid;
   place-items: center;
   min-height: 0;
   overflow: hidden;
   border-radius: 7px;
   background: var(--color-primary-soft);
+}
+
+.artwork-media-upload {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 180px;
+  overflow: hidden;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.artwork-media-upload.empty {
+  background: var(--color-primary-soft);
+}
+
+.artwork-media-upload input {
+  display: none;
+}
+
+.artwork-media-upload > .delivery-empty {
+  min-height: 180px;
+  padding: 16px;
+}
+
+.artwork-media-hover-hint {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-heading) 72%, transparent);
+  color: var(--color-surface);
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.artwork-media-upload:hover .artwork-media-hover-hint,
+.artwork-media-upload:focus-within .artwork-media-hover-hint {
+  opacity: 1;
+}
+
+.artwork-remove-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 24%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+  color: var(--color-danger);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.artwork-remove-button:hover {
+  background: var(--color-danger-soft);
 }
 
 .artwork-version-media img {
@@ -794,7 +877,7 @@
 
   .artwork-process-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .artwork-process-actions > * {

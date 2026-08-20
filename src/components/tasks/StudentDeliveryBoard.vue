@@ -207,6 +207,30 @@ const processCurrentImage = async (row) => {
   await props.state.retryCurrentImageProcess()
 }
 
+const confirmDestructiveAction = (message) => typeof window === 'undefined' || window.confirm(message)
+
+const replaceOriginalImage = async (event, row) => {
+  if (!row) return
+  setActive(row)
+  const replace = props.state.replaceStudentImage || props.state.updateImage
+  await replace?.(event, row, 0)
+}
+
+const removeOriginalArtwork = async (row) => {
+  if (!row || !confirmDestructiveAction('移除后将清空该学生本次作品及其处理结果，确定继续吗？')) return
+  setActive(row)
+  const remove = props.state.removeArtwork || props.state.removeStudentImage
+  const removed = await remove?.(row)
+  if (removed !== false) props.state.notify(`${studentFor(row.studentId).name}的作品已移除`)
+}
+
+const removeProcessedArtwork = async (row) => {
+  if (!row || !hasProcessedImage(row) || !confirmDestructiveAction('确定删除这张处理图吗？原图会保留。')) return
+  setActive(row)
+  const removed = await props.state.removeArtworkVersion?.(row)
+  if (removed !== false) props.state.notify('处理图已删除，请重新确认原图或重新处理')
+}
+
 const saveRecord = async (row) => {
   if (!row?.record?.trim()) {
     props.state.notify('请先录入当前学生的课堂表现')
@@ -358,14 +382,10 @@ onMounted(() => {
                     <ProtectedMedia :file-id="image.fileId" :src="image.src" :alt="`${studentFor(row.studentId).name}作品${index + 1}`" />
                   </button>
                 </div>
-                <span v-else class="delivery-empty">尚未上传作品</span>
+                <button v-else type="button" class="delivery-empty delivery-empty-action" @click="openArtwork(row)">尚未上传作品，点击上传</button>
                 <div class="delivery-artwork-meta">
                   <span :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${workImages(row).length || 1} 张` : '待上传' }}</span>
                   <span v-if="row.imageMatched" class="delivery-artwork-version-status" :class="artworkVersionStatusClass(row)">{{ artworkVersionStatus(row) }}</span>
-                </div>
-                <div class="delivery-cell-actions">
-                  <label class="file-button compact-file-button">{{ row.imageMatched ? '继续上传' : '上传作品' }}<input type="file" accept="image/*" multiple @change="state.updateImage($event, row)" /></label>
-                  <button type="button" class="secondary" :disabled="!row.imageMatched" @click="openArtwork(row)">查看/处理作品</button>
                 </div>
               </td>
               <td class="delivery-record-cell">
@@ -514,8 +534,13 @@ onMounted(() => {
         <section class="artwork-version-list">
           <article class="artwork-version-card" :class="{ selected: artworkRow.imageConfirmed && selectedImageMode(artworkRow) === 'original' }">
             <div class="artwork-version-media">
-              <ProtectedMedia v-if="hasImage(imageAsset(artworkRow, 'original'))" :file-id="imageAsset(artworkRow, 'original').fileId" :src="imageAsset(artworkRow, 'original').src" alt="作品原图" />
-              <span v-else class="delivery-empty">尚未上传原图</span>
+              <label class="artwork-media-upload" :class="{ empty: !hasImage(imageAsset(artworkRow, 'original')) }" title="点击替换原图">
+                <ProtectedMedia v-if="hasImage(imageAsset(artworkRow, 'original'))" :file-id="imageAsset(artworkRow, 'original').fileId" :src="imageAsset(artworkRow, 'original').src" alt="作品原图" />
+                <span v-else class="delivery-empty">尚未上传原图，点击上传</span>
+                <span v-if="hasImage(imageAsset(artworkRow, 'original'))" class="artwork-media-hover-hint">点击替换原图</span>
+                <input type="file" accept="image/*" @change="replaceOriginalImage($event, artworkRow)" />
+              </label>
+              <button v-if="hasImage(imageAsset(artworkRow, 'original'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="移除原图" aria-label="移除原图" @click.stop="removeOriginalArtwork(artworkRow)">×</button>
             </div>
             <div class="artwork-version-copy"><strong>原图</strong><small>AI 处理失败时也可以直接采用</small></div>
             <button type="button" class="secondary" :disabled="state.isProcessing || !hasImage(imageAsset(artworkRow, 'original'))" @click="selectImage(artworkRow, 'original')">采用原图</button>
@@ -524,6 +549,7 @@ onMounted(() => {
             <div class="artwork-version-media">
               <ProtectedMedia v-if="hasImage(imageAsset(artworkRow, 'processed'))" :file-id="imageAsset(artworkRow, 'processed').fileId" :src="imageAsset(artworkRow, 'processed').src" alt="作品处理图" />
               <span v-else class="delivery-empty">尚未生成处理图</span>
+              <button v-if="hasImage(imageAsset(artworkRow, 'processed'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="删除处理图" aria-label="删除处理图" @click.stop="removeProcessedArtwork(artworkRow)">×</button>
             </div>
             <div class="artwork-version-copy"><strong>处理图</strong><small>{{ artworkRow.imageProcessError || '可在确认后用于家长展示' }}</small></div>
             <button type="button" class="primary" :disabled="state.isProcessing || !hasImage(imageAsset(artworkRow, 'processed'))" @click="selectImage(artworkRow, 'processed')">采用处理图</button>
@@ -531,7 +557,6 @@ onMounted(() => {
         </section>
 
         <footer class="artwork-process-actions">
-          <label class="file-button">替换/上传作品<input type="file" accept="image/*" multiple @change="state.updateImage($event, artworkRow)" /></label>
           <button type="button" class="secondary" :disabled="state.isProcessing || !artworkRow.imageMatched" @click="processCurrentImage(artworkRow)">{{ hasProcessedImage(artworkRow) ? '重新处理' : '处理当前作品' }}</button>
         </footer>
 

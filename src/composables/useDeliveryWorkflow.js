@@ -3039,8 +3039,14 @@ export function useDeliveryWorkflow() {
       const versions = artwork?.versions || []
       const latestVersionJob = versions.filter((version) => version.jobId).at(-1)
       const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || versions.at(-1)
-      const processedVersion = versions.find((version) => version.versionKind === 'PROCESSED')
       const originalVersion = versions.find((version) => version.versionKind === 'ORIGINAL') || selectedVersion
+      // A processed candidate is only current when it was generated from the
+      // latest original. Older processed candidates remain historical records
+      // after an original replacement and must not reappear in the drawer.
+      const processedVersion = versions.find((version) =>
+        version.versionKind === 'PROCESSED' &&
+        (!originalVersion?.id || !version.sourceVersionId || sameId(version.sourceVersionId, originalVersion.id))
+      )
       const draftStudent = draftStudentById.get(String(attendanceRow.studentId))
       return {
         id: attendanceRow.studentId,
@@ -3876,9 +3882,48 @@ export function useDeliveryWorkflow() {
     }, `已为${students.find((item) => sameId(item.id, row.studentId))?.name || '学生'}上传作品`)
   }
 
+  const remoteReplaceStudentImage = async (event, row) => {
+    const files = [...(event.target.files || [])]
+    event.target.value = ''
+    const file = files[0]
+    if (!file || !row?.studentId || !activeTask.value?.id) return false
+
+    const result = await runRemote('正在替换学生作品...', async () => {
+      const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-artwork-${row.studentId}`)
+      if (row.artworkId) {
+        await api.assets.updateArtwork(row.artworkId, {
+          fileId: String(uploaded.id),
+          sortOrder: 0,
+          version: row.artworkVersion
+        })
+      } else {
+        await api.assets.createArtworksBatch(activeTask.value.id, [{
+          studentId: String(row.studentId),
+          fileId: String(uploaded.id),
+          sortOrder: 0
+        }])
+      }
+      await refreshRemoteLesson(activeTask.value.id)
+      return true
+    }, '学生作品已替换')
+    return result === true
+  }
+
   const remoteRemoveStudentImage = async (row) => {
     if (!row?.artworkId) return false
     const result = await runRemote('正在删除作品...', () => api.assets.removeArtwork(row.artworkId, row.artworkVersion))
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteRemoveArtworkVersion = async (row) => {
+    if (!row?.artworkId || !row?.processedVersionId) return false
+    const result = await runRemote('正在删除处理图...', () => api.assets.removeArtworkVersion(
+      row.artworkId,
+      row.processedVersionId,
+      row.artworkVersion
+    ))
     if (!result) return false
     await refreshRemoteLesson(activeTask.value.id)
     return true
@@ -5361,6 +5406,9 @@ export function useDeliveryWorkflow() {
     copyExport: remoteCopyExport,
     copyStudentLink: remoteCopyStudentLink,
     updateImage: remoteUpdateImage,
+    replaceStudentImage: remoteReplaceStudentImage,
+    removeArtwork: remoteRemoveStudentImage,
+    removeArtworkVersion: remoteRemoveArtworkVersion,
     removeStudentImage: remoteRemoveStudentImage,
     markTrace: remoteMarkTrace,
     completeTodo: remoteCompleteTodo,

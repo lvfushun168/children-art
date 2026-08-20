@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import TaskReport from './TaskReport.vue'
 import DeliveryPreview from './DeliveryPreview.vue'
 import StudentDeliveryBoard from './StudentDeliveryBoard.vue'
@@ -27,6 +27,16 @@ const studentDeliveryDrawerOpen = ref(false)
 const studentDeliveryMobileDetailOpen = ref(false)
 const resourceSearch = ref('')
 const resourceFilter = ref('全部')
+const homeworkEditorOpen = ref(false)
+const homeworkEditorField = ref('content')
+const homeworkEditorDraft = ref('')
+const homeworkEditorTextarea = ref(null)
+const homeworkDateInput = ref(null)
+const homeworkOptionalFieldEnabled = reactive({ requirement: false, dueDate: false })
+const homeworkOptionalFieldLabels = {
+  requirement: '完成方式',
+  dueDate: '回收日期'
+}
 const attendanceOptions = ['到课', '请假', '旷课']
 const homeworkExamples = [
   {
@@ -47,6 +57,58 @@ const homeworkExamples = [
 ]
 const applyHomeworkExample = (example) => {
   props.state.applyHomeworkExample(example)
+  homeworkOptionalFieldEnabled.requirement = Boolean(String(example?.requirement || '').trim())
+}
+const homeworkEditorTitle = computed(() => homeworkEditorField.value === 'content' ? '编辑任务内容' : '编辑完成方式 / 家长配合')
+const homeworkEditorPlaceholder = computed(() => homeworkEditorField.value === 'content'
+  ? '例如：回家观察一种暖色系物品，说一说它的颜色和形状。'
+  : '例如：拍 1 张照片，下节课前发给老师。')
+const openHomeworkEditor = (field) => {
+  homeworkEditorField.value = field
+  homeworkEditorDraft.value = String(props.state.homework?.[field] || '')
+  homeworkEditorOpen.value = true
+}
+const closeHomeworkEditor = () => {
+  homeworkEditorOpen.value = false
+}
+const saveHomeworkEditor = () => {
+  const field = homeworkEditorField.value
+  const value = homeworkEditorDraft.value.trim()
+  props.state.homework[field] = value
+  if (field === 'requirement' && !value) homeworkOptionalFieldEnabled.requirement = false
+  closeHomeworkEditor()
+}
+const toggleHomeworkOptionalField = (field, enabled, event) => {
+  if (enabled) {
+    homeworkOptionalFieldEnabled[field] = true
+    return
+  }
+
+  const currentValue = String(props.state.homework?.[field] || '').trim()
+  if (currentValue && typeof window !== 'undefined' && !window.confirm(`关闭“${homeworkOptionalFieldLabels[field]}”后将清空当前内容，是否继续？`)) {
+    if (event?.target) event.target.checked = true
+    return
+  }
+
+  homeworkOptionalFieldEnabled[field] = false
+  props.state.homework[field] = ''
+}
+const saveHomeworkDraft = () => {
+  if (!String(props.state.homework?.requirement || '').trim()) homeworkOptionalFieldEnabled.requirement = false
+  if (!String(props.state.homework?.dueDate || '').trim()) homeworkOptionalFieldEnabled.dueDate = false
+  props.state.saveShareDraft('保存课后任务配置')
+}
+const openHomeworkDatePicker = () => {
+  const input = homeworkDateInput.value
+  if (!input) return
+  input.focus({ preventScroll: true })
+  if (typeof input.showPicker === 'function') {
+    try {
+      input.showPicker()
+    } catch {
+      // Native date controls may already be open or may reject programmatic opening.
+    }
+  }
 }
 const resolveStateValue = (value) => value?.value ?? value
 const materialSections = computed(() => {
@@ -194,13 +256,35 @@ watch(() => props.state.activeTask.id, () => {
   resourceFilter.value = '全部'
   studentDeliveryDrawerOpen.value = false
   studentDeliveryMobileDetailOpen.value = false
+  homeworkEditorOpen.value = false
+  homeworkOptionalFieldEnabled.requirement = Boolean(String(props.state.homework?.requirement || '').trim())
+  homeworkOptionalFieldEnabled.dueDate = Boolean(String(props.state.homework?.dueDate || '').trim())
 })
+
+watch(
+  () => [props.state.homework?.requirement, props.state.homework?.dueDate],
+  ([requirement, dueDate], previousValues) => {
+    const [previousRequirement, previousDueDate] = previousValues || []
+    if (String(requirement || '').trim()) homeworkOptionalFieldEnabled.requirement = true
+    if (String(dueDate || '').trim()) homeworkOptionalFieldEnabled.dueDate = true
+    if (!String(requirement || '').trim() && String(previousRequirement || '').trim()) homeworkOptionalFieldEnabled.requirement = false
+    if (!String(dueDate || '').trim() && String(previousDueDate || '').trim()) homeworkOptionalFieldEnabled.dueDate = false
+  },
+  { immediate: true }
+)
 
 watch(() => props.state.currentStep, (step) => {
   if (step !== 2) {
     studentDeliveryDrawerOpen.value = false
     studentDeliveryMobileDetailOpen.value = false
   }
+  if (step !== 3) homeworkEditorOpen.value = false
+})
+
+watch(homeworkEditorOpen, async (open) => {
+  if (!open) return
+  await nextTick()
+  homeworkEditorTextarea.value?.focus()
 })
 </script>
 
@@ -446,7 +530,7 @@ watch(() => props.state.currentStep, (step) => {
             <strong>课后任务与家长展示</strong>
           </div>
           <div class="section-actions">
-            <button class="ghost" type="button" @click="state.saveShareDraft('保存课后任务配置')">保存本步</button>
+            <button class="ghost" type="button" @click="saveHomeworkDraft">保存本步</button>
             <button class="secondary" type="button" @click="showSharePreview = true">家长页预览</button>
           </div>
         </div>
@@ -469,20 +553,78 @@ watch(() => props.state.currentStep, (step) => {
           </article>
 
           <article v-if="state.homework.taskMode === 'ASSIGNED'" class="guided-card">
-            <strong>任务内容</strong>
-            <div class="guided-homework-fields">
-              <label class="homework-content-field">
-                <span>任务内容 <em>必填</em></span>
-                <textarea v-model="state.homework.content" rows="4" placeholder="例如：回家观察一种暖色系物品，说一说它的颜色和形状。" />
-              </label>
-              <label>
-                <span>完成方式 / 家长配合 <em>可选</em></span>
-                <textarea v-model="state.homework.requirement" rows="3" placeholder="例如：拍 1 张照片，下节课前发给老师。" />
-              </label>
-              <label>
-                <span>预计回收 / 检查日期 <em>可选</em></span>
-                <input v-model="state.homework.dueDate" type="date" :min="state.activeTask.dateValue || undefined" />
-              </label>
+            <strong>课后任务信息</strong>
+            <div class="homework-field-list">
+              <div class="homework-field-row">
+                <div class="homework-field-label">
+                  <span>任务内容 <em>必填</em></span>
+                </div>
+                <button
+                  class="homework-field-preview"
+                  :class="{ empty: !state.homework.content.trim() }"
+                  type="button"
+                  :title="state.homework.content || '点击填写任务内容'"
+                  @click="openHomeworkEditor('content')"
+                >
+                  <span>{{ state.homework.content || '点击填写任务内容' }}</span>
+                  <strong>{{ state.homework.content ? '编辑' : '填写' }}</strong>
+                </button>
+              </div>
+              <div class="homework-field-row">
+                <div class="homework-field-label">
+                  <span>完成方式 <em>可选</em></span>
+                  <label class="homework-field-switch">
+                    <input
+                      type="checkbox"
+                      :checked="homeworkOptionalFieldEnabled.requirement"
+                      aria-label="设置完成方式或家长配合"
+                      @change="toggleHomeworkOptionalField('requirement', $event.target.checked, $event)"
+                    />
+                    <span class="switch-track" aria-hidden="true"><span></span></span>
+                    <small>{{ !homeworkOptionalFieldEnabled.requirement ? '未设置' : (state.homework.requirement ? '已设置' : '待填写') }}</small>
+                  </label>
+                </div>
+                <button
+                  class="homework-field-preview"
+                  :class="{ empty: !state.homework.requirement.trim(), disabled: !homeworkOptionalFieldEnabled.requirement }"
+                  type="button"
+                  :disabled="!homeworkOptionalFieldEnabled.requirement"
+                  :title="state.homework.requirement || '点击填写完成方式或家长配合说明'"
+                  @click="openHomeworkEditor('requirement')"
+                >
+                  <span>{{ homeworkOptionalFieldEnabled.requirement && state.homework.requirement ? state.homework.requirement : '未设置完成方式或家长配合' }}</span>
+                  <strong>{{ homeworkOptionalFieldEnabled.requirement ? (state.homework.requirement ? '编辑' : '填写') : '未设置' }}</strong>
+                </button>
+              </div>
+              <div class="homework-field-row">
+                <div class="homework-field-label">
+                  <span>回收日期 <em>可选</em></span>
+                  <label class="homework-field-switch">
+                    <input
+                      type="checkbox"
+                      :checked="homeworkOptionalFieldEnabled.dueDate"
+                      aria-label="设置预计回收或检查日期"
+                      @change="toggleHomeworkOptionalField('dueDate', $event.target.checked, $event)"
+                    />
+                    <span class="switch-track" aria-hidden="true"><span></span></span>
+                    <small>{{ !homeworkOptionalFieldEnabled.dueDate ? '未设置' : (state.homework.dueDate ? '已设置' : '待填写') }}</small>
+                  </label>
+                </div>
+                <div
+                  class="homework-date-field"
+                  :class="{ disabled: !homeworkOptionalFieldEnabled.dueDate }"
+                  @click="homeworkOptionalFieldEnabled.dueDate && openHomeworkDatePicker()"
+                >
+                  <input
+                    ref="homeworkDateInput"
+                    v-model="state.homework.dueDate"
+                    type="date"
+                    :min="state.activeTask.dateValue || undefined"
+                    :disabled="!homeworkOptionalFieldEnabled.dueDate"
+                    aria-label="预计回收或检查日期"
+                  />
+                </div>
+              </div>
             </div>
             <div class="homework-example-row">
               <span>任务模板</span>
@@ -596,6 +738,31 @@ watch(() => props.state.currentStep, (step) => {
               review-only
             />
           </aside>
+        </div>
+
+        <div v-if="homeworkEditorOpen" class="drawer-backdrop homework-editor-backdrop" @click.self="closeHomeworkEditor">
+          <section class="homework-editor-modal" role="dialog" aria-modal="true" :aria-label="homeworkEditorTitle" @keydown.esc="closeHomeworkEditor">
+            <header class="drawer-head">
+              <div>
+                <span>课后任务</span>
+                <strong>{{ homeworkEditorTitle }}</strong>
+              </div>
+              <button class="ghost" type="button" @click="closeHomeworkEditor">关闭</button>
+            </header>
+            <textarea
+              ref="homeworkEditorTextarea"
+              v-model="homeworkEditorDraft"
+              rows="8"
+              :placeholder="homeworkEditorPlaceholder"
+            />
+            <footer class="drawer-actions">
+              <span>输入完成后保存</span>
+              <div>
+                <button class="ghost" type="button" @click="closeHomeworkEditor">取消</button>
+                <button class="primary" type="button" @click="saveHomeworkEditor">保存</button>
+              </div>
+            </footer>
+          </section>
         </div>
       </section>
 

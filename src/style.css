@@ -4606,39 +4606,204 @@ textarea:focus,
   outline-offset: 2px;
 }
 
-.guided-homework-fields {
+.homework-field-list {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(190px, 0.72fr);
-  gap: 12px;
-  align-items: start;
+  gap: 10px;
 }
 
-.guided-homework-fields label {
+.homework-field-row {
   display: grid;
-  gap: 6px;
-  align-content: start;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
 }
 
-.guided-homework-fields label > span,
+.homework-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.homework-field-label > span,
 .share-expiry-field > span {
   color: var(--color-text);
   font-weight: 800;
 }
 
-.guided-homework-fields em {
+.homework-field-label em {
   color: var(--color-primary);
   font-size: 11px;
   font-style: normal;
   font-weight: 700;
 }
 
-.guided-homework-fields textarea {
-  min-height: 104px;
+.homework-field-switch {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.homework-field-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.homework-field-switch input:checked + .switch-track {
+  background: var(--color-primary);
+}
+
+.homework-field-switch input:checked + .switch-track > span {
+  transform: translateX(18px);
+}
+
+.homework-field-switch input:focus-visible + .switch-track {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 46%, transparent);
+  outline-offset: 2px;
+}
+
+.homework-field-switch input:checked ~ small {
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.homework-field-preview,
+.homework-date-field {
+  min-width: 0;
+  min-height: 72px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.homework-field-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 72px;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.homework-field-preview:hover,
+.homework-field-preview:focus-visible,
+.homework-date-field:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.homework-field-preview:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 46%, transparent);
+  outline-offset: 2px;
+}
+
+.homework-field-preview:disabled,
+.homework-field-preview.disabled,
+.homework-date-field.disabled {
+  border-color: var(--color-border-soft);
+  background: var(--color-surface-muted);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.homework-field-preview:disabled:hover,
+.homework-field-preview.disabled:hover,
+.homework-date-field.disabled:hover {
+  border-color: var(--color-border-soft);
+  background: var(--color-surface-muted);
+}
+
+.homework-field-preview > span {
+  display: -webkit-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.homework-field-preview.empty > span {
+  color: var(--color-muted);
+}
+
+.homework-field-preview > strong {
+  flex: 0 0 auto;
+  color: var(--color-primary);
+  font-size: 12px;
+}
+
+.homework-date-field {
+  height: 72px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.homework-date-field:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 46%, transparent);
+  outline-offset: 2px;
+}
+
+.homework-date-field input {
+  width: 100%;
+  height: 72px;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.homework-date-field.disabled input {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.homework-editor-backdrop {
+  align-items: center;
+  justify-content: center;
+}
+
+.homework-editor-modal {
+  display: grid;
+  gap: 14px;
+  width: min(680px, 100%);
+  max-height: calc(100dvh - 32px);
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-warm);
+  box-shadow: 0 24px 70px color-mix(in srgb, black 30%, transparent);
+  overflow: auto;
+  animation: panel-enter 0.2s ease both;
+}
+
+.homework-editor-modal textarea {
+  width: 100%;
+  min-height: 220px;
   resize: vertical;
 }
 
-.guided-homework-fields label:first-child textarea {
-  min-height: 128px;
+.homework-editor-modal .drawer-actions > div {
+  display: flex;
+  gap: 8px;
 }
 
 .homework-example-row {
@@ -10128,13 +10293,17 @@ textarea:focus,
   .lesson-asset-grid,
   .lesson-work-grid,
   .homework-editor,
-  .guided-homework-fields,
   .content-settings-body,
   .publish-check-grid,
   .publish-defaults,
   .publish-settings,
   .publish-result {
     grid-template-columns: 1fr;
+  }
+
+  .homework-field-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 
   .archive-filter-fields,

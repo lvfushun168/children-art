@@ -114,7 +114,18 @@ defineEmits(['copy-export'])
         <small>{{ activeSessionStudent.highlightNote }}</small>
       </div>
       <div v-if="displayConfig.showMaterials" class="preview-materials">
-        <ProtectedMedia v-for="material in materials.filter((item) => item.visible)" :key="material.id" :file-id="material.fileId" :src="material.image" :alt="material.title" />
+        <template v-for="material in materials.filter((item) => item.visible && item.type !== '课件')" :key="material.id">
+          <ProtectedMedia
+            v-if="material.type === '课堂视频'"
+            tag="video"
+            :file-id="material.fileId"
+            :src="material.image"
+            controls
+            preload="metadata"
+            :aria-label="material.title"
+          />
+          <ProtectedMedia v-else :file-id="material.fileId" :src="material.image" :alt="material.title" />
+        </template>
       </div>
       <div v-if="displayConfig.showHomework" class="homework-preview">
         <strong>课后任务</strong>

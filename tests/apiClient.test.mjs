@@ -289,6 +289,24 @@ test('observes duplicate GETs and sends batch workflow request bodies', async ()
   assert.deepEqual(JSON.parse(calls[3].options.body), { artworkIds: ['31', '32'], templateKey: 'bright' })
 })
 
+test('sends mixed classroom media asset types in one batch', async () => {
+  let received
+  globalThis.fetch = async (_url, options) => {
+    received = options
+    return response(200, { data: [], meta: {}, error: null })
+  }
+
+  const items = [
+    { fileId: '41', assetType: 'CLASSROOM_PHOTO', visible: false, sortOrder: 0 },
+    { fileId: '42', assetType: 'CLASSROOM_VIDEO', visible: true, sortOrder: 1 },
+    { fileId: '43', assetType: 'COURSEWARE', visible: false, sortOrder: 2 }
+  ]
+
+  await api.assets.createBatch('11', items)
+
+  assert.deepEqual(JSON.parse(received.body), { items })
+})
+
 test('deduplicates protected file content requests by file ID', async () => {
   let contentRequests = 0
   globalThis.fetch = async (url) => {

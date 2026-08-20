@@ -5,6 +5,7 @@ import DeliveryPreview from './DeliveryPreview.vue'
 import StudentDeliveryBoard from './StudentDeliveryBoard.vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 import { sameId } from '../../services/mappers'
+import { MATERIAL_CATEGORIES } from '../../services/materialTypes'
 
 const props = defineProps({
   state: {
@@ -18,12 +19,74 @@ defineEmits(['navigate', 'back'])
 const showResourceDrawer = ref(false)
 const showContentSettings = ref(false)
 const showArtworkLibrary = ref(false)
+const artworkLibraryCategory = ref(MATERIAL_CATEGORIES.DEMO)
+const materialReplaceInput = ref(null)
+const replaceTarget = ref(null)
 const showSharePreview = ref(false)
 const studentDeliveryDrawerOpen = ref(false)
 const studentDeliveryMobileDetailOpen = ref(false)
 const resourceSearch = ref('')
 const resourceFilter = ref('全部')
 const attendanceOptions = ['到课', '请假', '旷课']
+const resolveStateValue = (value) => value?.value ?? value
+const materialSections = computed(() => {
+  const materials = resolveStateValue(props.state.materials) || []
+  return [
+    {
+      key: 'demo',
+      title: '范画',
+      description: '本节课的示范作品',
+      category: MATERIAL_CATEGORIES.DEMO,
+      uploadLabel: '上传范画',
+      accept: 'image/*',
+      empty: '尚未上传范画',
+      kind: 'image',
+      library: true,
+      materials: materials.filter((item) => item.type === '范画')
+    },
+    {
+      key: 'step',
+      title: '步骤图',
+      description: '本节课的绘画步骤',
+      category: MATERIAL_CATEGORIES.STEP,
+      uploadLabel: '上传步骤图',
+      accept: 'image/*',
+      empty: '尚未上传步骤图',
+      kind: 'image',
+      library: true,
+      materials: materials.filter((item) => item.type === '步骤图')
+    },
+    {
+      key: 'classroom',
+      title: '课堂记录',
+      description: '课堂照片和课堂视频',
+      category: MATERIAL_CATEGORIES.CLASSROOM,
+      uploadLabel: '添加课堂记录',
+      accept: 'image/*,video/*',
+      empty: '尚未添加课堂记录',
+      kind: 'media',
+      library: false,
+      materials: materials.filter((item) => ['课堂照片', '课堂视频'].includes(item.type))
+    },
+    {
+      key: 'courseware',
+      title: '课件',
+      description: '仅内部归档，供后续复用',
+      category: MATERIAL_CATEGORIES.COURSEWARE,
+      uploadLabel: '上传课件',
+      accept: '',
+      empty: '尚未上传课件',
+      kind: 'file',
+      library: false,
+      materials: materials.filter((item) => item.type === '课件')
+    }
+  ]
+})
+const filteredArtworkLibrary = computed(() => {
+  const library = resolveStateValue(props.state.artworkLibrary) || []
+  return library.filter((item) => item.type === artworkLibraryCategory.value)
+})
+const replaceAccept = computed(() => replaceTarget.value?.category === MATERIAL_CATEGORIES.CLASSROOM ? 'image/*,video/*' : 'image/*')
 const resourceFilterOptions = computed(() => [
   '全部',
   '同主题',
@@ -48,10 +111,30 @@ const filteredExternalResources = computed(() => {
     return filterMatched && keywordMatched
   })
 })
+const openArtworkLibrary = (category) => {
+  artworkLibraryCategory.value = category
+  showArtworkLibrary.value = true
+}
+const openMaterialReplace = (material, category) => {
+  replaceTarget.value = { material, category }
+  const trigger = () => materialReplaceInput.value?.click()
+  if (typeof window !== 'undefined' && window.requestAnimationFrame) window.requestAnimationFrame(trigger)
+  else trigger()
+}
+const handleMaterialReplace = async (event) => {
+  const file = event.target.files?.[0]
+  const target = replaceTarget.value
+  event.target.value = ''
+  replaceTarget.value = null
+  if (!file || !target) return
+  await props.state.replaceLessonMaterial(target.material, file, target.category)
+}
 watch(() => props.state.activeTask.id, () => {
   showResourceDrawer.value = false
   showContentSettings.value = false
   showArtworkLibrary.value = false
+  artworkLibraryCategory.value = MATERIAL_CATEGORIES.DEMO
+  replaceTarget.value = null
   showSharePreview.value = false
   resourceSearch.value = ''
   resourceFilter.value = '全部'
@@ -149,62 +232,87 @@ watch(() => props.state.currentStep, (step) => {
         <div class="section-head">
           <div>
             <span>第 2 步</span>
-            <strong>上传本节课的课堂资料</strong>
+            <strong>整理本节课的课堂素材</strong>
           </div>
         </div>
 
         <section class="classroom-materials-board">
-          <article class="material-lane">
-            <header>
-              <div>
-                <span>范画、步骤与课堂媒体</span>
-                <strong>{{ state.counts.referenceMaterials }} 个文件</strong>
-              </div>
-              <div class="button-pair">
-                <label class="file-button material-upload-button">上传范画/步骤图<input type="file" accept="image/*" multiple @change="state.uploadLessonMaterial($event, '范画')" /></label>
-                <label class="file-button material-upload-button">上传课堂照片<input type="file" accept="image/*" multiple @change="state.uploadLessonMaterial($event, '课堂照片')" /></label>
-                <label class="file-button material-upload-button">上传课堂视频<input type="file" accept="video/*" @change="state.uploadLessonMaterial($event, '课堂视频')" /></label>
-                <button v-if="state.artworkLibrary.length" class="secondary" @click="showArtworkLibrary = true">从图库引用</button>
+          <article
+            v-for="section in materialSections"
+            :key="section.key"
+            class="material-lane material-section-card"
+            :class="{ 'material-section-card--wide': section.kind !== 'image' }"
+          >
+            <header class="material-section-head">
+              <div class="material-section-title">
+                <div class="material-section-title-row">
+                  <div class="material-section-heading">
+                    <span>课堂素材</span>
+                    <strong>{{ section.title }}</strong>
+                  </div>
+                  <div class="material-section-actions">
+                    <label class="file-button material-upload-button">
+                      <span aria-hidden="true">＋</span>{{ section.uploadLabel }}
+                      <input type="file" :accept="section.accept || undefined" multiple @change="state.uploadLessonMaterial($event, section.category)" />
+                    </label>
+                    <button v-if="section.library && state.artworkLibrary.length" class="secondary" type="button" @click="openArtworkLibrary(section.category)">
+                      从备课素材库选择
+                    </button>
+                  </div>
+                </div>
+                <small>{{ section.materials.length }} 个文件 · {{ section.description }}</small>
               </div>
             </header>
 
-            <div class="material-gallery compact">
-              <article v-for="material in state.referenceMaterials" :key="material.id" :class="{ hidden: !material.visible }">
-                <ProtectedMedia v-if="material.type === '课堂视频'" tag="video" :file-id="material.fileId" :src="material.image" controls preload="metadata" :aria-label="material.title" />
-                <ProtectedMedia v-else :file-id="material.fileId" :src="material.image" :alt="material.title" />
+            <div v-if="section.kind === 'file'" class="courseware-list material-file-list">
+              <label v-if="!section.materials.length" class="material-add-tile material-add-tile--file">
+                <span class="material-add-icon" aria-hidden="true">＋</span>
+                <strong>{{ section.uploadLabel }}</strong>
+                <small>点击选择文件</small>
+                <input type="file" :accept="section.accept || undefined" multiple @change="state.uploadLessonMaterial($event, section.category)" />
+              </label>
+              <article v-for="material in section.materials" :key="material.id" class="courseware-file-card">
+                <span class="courseware-file-type">{{ material.fileExt ? material.fileExt.toUpperCase() : material.file?.extension?.toUpperCase() || '文件' }}</span>
                 <div>
-                  <span>{{ material.type }}</span>
-                  <strong>{{ material.title }}</strong>
-                  <small>{{ material.visible ? '家长展示页可见' : '仅保存到内部档案' }}</small>
+                  <strong>{{ material.title || material.file?.originalFilename || '未命名课件' }}</strong>
+                  <small>仅内部归档</small>
                 </div>
-                <div class="material-card-actions">
-                  <button class="ghost" @click="state.toggleMaterialVisible(material)">{{ material.visible ? '设为不展示' : '展示给家长' }}</button>
-                  <button class="ghost danger-action" @click="state.removeLessonMaterial(material)">删除</button>
+                <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || '课件'}`" @click="state.removeLessonMaterial(material)">×</button>
+              </article>
+            </div>
+
+            <div v-else class="material-card-grid">
+              <label v-if="!section.materials.length" class="material-add-tile">
+                <span class="material-add-icon" aria-hidden="true">＋</span>
+                <strong>{{ section.uploadLabel }}</strong>
+                <small>点击选择文件</small>
+                <input type="file" :accept="section.accept || undefined" multiple @change="state.uploadLessonMaterial($event, section.category)" />
+              </label>
+              <article v-for="material in section.materials" :key="material.id" class="material-media-card" :class="{ hidden: !material.visible }">
+                <div class="material-visual">
+                  <button v-if="material.type !== '课堂视频'" class="material-replace-trigger" type="button" @click="openMaterialReplace(material, section.category)">
+                    <ProtectedMedia :file-id="material.fileId" :src="material.image" :alt="material.title" />
+                    <span>点击替换</span>
+                  </button>
+                  <div v-else class="material-video-frame">
+                    <ProtectedMedia tag="video" :file-id="material.fileId" :src="material.image" controls preload="metadata" :aria-label="material.title" />
+                    <button class="material-video-replace" type="button" @click="openMaterialReplace(material, section.category)">替换</button>
+                  </div>
+                  <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || section.title}`" @click="state.removeLessonMaterial(material)">×</button>
+                </div>
+                <div class="material-card-copy">
+                  <div class="material-card-title">
+                    <span>{{ material.type }}</span>
+                    <strong>{{ material.title || '未命名素材' }}</strong>
+                  </div>
+                  <label class="material-visibility-switch">
+                    <input type="checkbox" :checked="material.visible" @change="state.toggleMaterialVisible(material)" />
+                    <span class="switch-track" aria-hidden="true"><span></span></span>
+                    <span>家长可见</span>
+                  </label>
+                  <small>{{ material.visible ? '将显示在家长展示页' : '仅保存到内部档案' }}</small>
                 </div>
               </article>
-              <div v-if="!state.referenceMaterials.length" class="material-empty">
-                <strong>尚未上传范画或步骤图</strong>
-              </div>
-            </div>
-          </article>
-
-          <article class="material-lane">
-            <header>
-              <div>
-                <span>课件</span>
-                <strong>{{ state.counts.coursewares }} 个文件</strong>
-              </div>
-              <label class="file-button material-upload-button">上传课件<input type="file" multiple @change="state.uploadLessonMaterial($event, '课件')" /></label>
-            </header>
-            <div class="courseware-list">
-              <span v-for="material in state.coursewareMaterials" :key="material.id" class="courseware-chip">
-                <strong>{{ material.title }}</strong>
-                <small>{{ material.fileExt ? material.fileExt.toUpperCase() : '文件' }}</small>
-                <button class="ghost" @click="state.removeLessonMaterial(material)">删除</button>
-              </span>
-              <div v-if="!state.coursewareMaterials.length" class="material-empty">
-                <strong>尚未上传课件</strong>
-              </div>
             </div>
           </article>
 
@@ -215,18 +323,20 @@ watch(() => props.state.currentStep, (step) => {
           </div>
         </section>
 
+        <input ref="materialReplaceInput" class="visually-hidden" type="file" :accept="replaceAccept" @change="handleMaterialReplace" />
+
         <div v-if="showArtworkLibrary" class="drawer-backdrop" @click.self="showArtworkLibrary = false">
           <aside class="library-drawer">
             <header class="drawer-head">
               <div>
                 <span>备课素材库</span>
-                <strong>从图库引用</strong>
-                <small>{{ state.artworkLibrary.length }} 项素材</small>
+                <strong>选择{{ artworkLibraryCategory }}</strong>
+                <small>{{ filteredArtworkLibrary.length }} 项素材</small>
               </div>
-              <button class="ghost" @click="showArtworkLibrary = false">关闭</button>
+              <button class="ghost" type="button" @click="showArtworkLibrary = false">关闭</button>
             </header>
             <section class="library-drawer-list">
-            <article v-for="item in state.artworkLibrary" :key="item.id" :class="{ selected: state.materials.some((material) => sameId(material.libraryId, item.id)) }">
+            <article v-for="item in filteredArtworkLibrary" :key="item.id" :class="{ selected: state.materials.some((material) => sameId(material.libraryId, item.id)) }">
                 <img :src="item.image" :alt="item.title" />
                 <div>
                   <span>{{ item.type }} · {{ item.theme }}</span>
@@ -237,6 +347,7 @@ watch(() => props.state.currentStep, (step) => {
                   {{ state.materials.some((material) => sameId(material.libraryId, item.id)) ? '已引用' : '引用' }}
                 </button>
               </article>
+              <small v-if="!filteredArtworkLibrary.length" class="empty-note">当前板块暂无可引用的备课素材。</small>
             </section>
           </aside>
         </div>
@@ -294,7 +405,7 @@ watch(() => props.state.currentStep, (step) => {
           </div>
           <details class="advanced-state content-settings" :open="showContentSettings" @toggle="showContentSettings = $event.target.open">
             <summary>调整家长页展示内容🔽</summary>
-            <div class="switch-row"><label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示范画步骤</label><label><input v-model="state.displayConfig.showHomework" type="checkbox" /> 展示课后任务</label><label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label><label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label></div>
+            <div class="switch-row"><label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示课堂素材</label><label><input v-model="state.displayConfig.showHomework" type="checkbox" /> 展示课后任务</label><label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label><label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label></div>
           </details>
         </section>
 

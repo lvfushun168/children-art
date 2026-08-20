@@ -77,9 +77,18 @@ onMounted(async () => {
           <p>{{ studentRow.highlightNote }}</p>
         </article>
         <article v-if="displayConfig.showMaterials && materials.length" class="parent-section">
-          <span>范画与课堂步骤</span>
+          <span>范画、步骤与课堂记录</span>
           <div class="parent-materials">
-            <img v-for="material in materials.filter((item) => item.fileUrl)" :key="material.fileUrl" :src="material.fileUrl" :alt="material.title || material.fileName" />
+            <template v-for="material in materials.filter((item) => item.fileUrl)" :key="material.fileUrl">
+              <video
+                v-if="material.assetType === 'CLASSROOM_VIDEO' || material.type === '课堂视频' || material.mediaType?.startsWith('video/')"
+                :src="material.fileUrl"
+                controls
+                preload="metadata"
+                :aria-label="material.title || material.fileName"
+              />
+              <img v-else :src="material.fileUrl" :alt="material.title || material.fileName" />
+            </template>
           </div>
         </article>
         <article v-if="displayConfig.showHomework" class="parent-section homework">

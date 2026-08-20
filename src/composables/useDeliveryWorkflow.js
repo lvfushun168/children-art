@@ -60,6 +60,12 @@ import {
 } from '../services/mappers'
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
+import {
+  apiAssetTypeForUpload,
+  defaultMaterialVisible,
+  materialCategoryForType,
+  uiMaterialTypeForUpload
+} from '../services/materialTypes'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -291,6 +297,9 @@ export function useDeliveryWorkflow() {
   const activeWorkspace = computed(() => ensureLessonWorkspace(activeTask.value))
   const sessionStudents = computed(() => activeWorkspace.value.studentDeliveries)
   const materials = computed(() => activeWorkspace.value.materials)
+  const demoMaterials = computed(() => materials.value.filter((item) => item.type === '范画'))
+  const stepMaterials = computed(() => materials.value.filter((item) => item.type === '步骤图'))
+  const classroomMediaMaterials = computed(() => materials.value.filter((item) => ['课堂照片', '课堂视频'].includes(item.type)))
   const referenceMaterials = computed(() => materials.value.filter((item) => item.type !== '课件'))
   const coursewareMaterials = computed(() => materials.value.filter((item) => item.type === '课件'))
   const materialsConfirmedEmpty = computed({
@@ -958,6 +967,9 @@ export function useDeliveryWorkflow() {
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
     homeworkReady: displayConfig.value.showHomework !== false && !homework.value.content.trim() ? 0 : 1,
+    demoMaterials: demoMaterials.value.length,
+    stepMaterials: stepMaterials.value.length,
+    classroomMedia: classroomMediaMaterials.value.length,
     referenceMaterials: referenceMaterials.value.length,
     coursewares: coursewareMaterials.value.length,
     classroomMaterials: materials.value.length,
@@ -1315,6 +1327,10 @@ export function useDeliveryWorkflow() {
     notify(`${material.title}${material.visible ? '会展示给家长' : '已隐藏'}`)
   }
 
+  const releaseLocalMaterialUrl = (material) => {
+    if (material?.fileUrl && String(material.fileUrl).startsWith('blob:')) URL.revokeObjectURL(material.fileUrl)
+  }
+
   const addMaterial = (type = '范画') => {
     materials.value.push({
       id: Date.now(),
@@ -1322,13 +1338,13 @@ export function useDeliveryWorkflow() {
       type,
       title: `新上传${type} ${materials.value.length + 1}`,
       image: '',
-      visible: true,
+      visible: defaultMaterialVisible(type),
       libraryId: null
     })
     notify(`已上传一张${type}`)
   }
 
-  const uploadLessonMaterial = (event, type = '范画') => {
+  const uploadLessonMaterial = (event, category = '范画') => {
     const files = [...(event.target.files || [])]
     if (!files.length) return
     files.forEach((file, index) => {
@@ -1337,28 +1353,54 @@ export function useDeliveryWorkflow() {
       materials.value.push({
         id: Date.now() + index,
         lessonId: activeTaskId.value,
-        type,
-        title: type === '课件' ? file.name : file.name.replace(/\.[^.]+$/, ''),
-        image: type === '课件' ? '' : url,
+        type: uiMaterialTypeForUpload(category, file),
+        title: category === '课件' ? file.name : file.name.replace(/\.[^.]+$/, ''),
+        image: category === '课件' ? '' : url,
         fileUrl: url,
         fileName: file.name,
         fileExt: extension,
         fileSize: file.size,
-        visible: type !== '课件',
+        visible: defaultMaterialVisible(category),
         libraryId: null
       })
     })
     materialsConfirmedEmpty.value = false
     event.target.value = ''
-    notify(`已上传 ${files.length} 个${type}`)
+    notify(`已上传 ${files.length} 个${category}`)
   }
 
   const removeLessonMaterial = (material) => {
     const index = materials.value.findIndex((item) => item.id === material.id)
     if (index < 0) return
+    releaseLocalMaterialUrl(material)
     materials.value.splice(index, 1)
     if (!materials.value.length) materialsConfirmedEmpty.value = false
     notify(`已删除${material.title}`)
+  }
+
+  const replaceLessonMaterial = (material, file, category = materialCategoryForType(material?.type)) => {
+    if (!material || !file) return false
+    const index = materials.value.findIndex((item) => item.id === material.id)
+    if (index < 0) return false
+    const previousUrl = material.fileUrl
+    const url = URL.createObjectURL(file)
+    const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : ''
+    materials.value.splice(index, 1, {
+      ...material,
+      id: Date.now(),
+      type: uiMaterialTypeForUpload(category, file),
+      title: category === '课件' ? file.name : file.name.replace(/\.[^.]+$/, ''),
+      image: category === '课件' ? '' : url,
+      fileUrl: url,
+      fileName: file.name,
+      fileExt: extension,
+      fileSize: file.size,
+      visible: category === '课堂记录' ? Boolean(material.visible) : defaultMaterialVisible(category),
+      libraryId: null
+    })
+    if (previousUrl && String(previousUrl).startsWith('blob:')) URL.revokeObjectURL(previousUrl)
+    notify(`已替换${material.title}`)
+    return true
   }
 
   const confirmNoLessonMaterials = () => {
@@ -1371,7 +1413,7 @@ export function useDeliveryWorkflow() {
       notify(`${item.title}已在本节课中`)
       return
     }
-    materials.value.push({ id: Date.now(), lessonId: activeTaskId.value, type: item.type, title: item.title, image: item.image, visible: true, libraryId: item.id })
+    materials.value.push({ id: Date.now(), lessonId: activeTaskId.value, type: item.type, title: item.title, image: item.image, visible: defaultMaterialVisible(item.type), libraryId: item.id })
     item.usage += 1
     notify(`已从范画库选择：${item.title}`)
   }
@@ -3824,27 +3866,48 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const remoteUploadLessonMaterial = async (event, type = '范画') => {
+  const remoteUploadLessonMaterialFiles = async (files, category = '范画', replacement = null) => {
+    if (!files.length || !activeTask.value?.id) return false
+    const result = await runRemote(
+      replacement ? '正在替换课堂素材...' : '正在上传课堂资料...',
+      async () => {
+        const items = []
+        for (const file of files) {
+          const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-asset`)
+          items.push({
+            fileId: String(uploaded.id),
+            assetType: apiAssetTypeForUpload(category, file),
+            title: file.name,
+            visible: replacement ? Boolean(replacement.visible) : defaultMaterialVisible(category),
+            sortOrder: replacement ? Number(replacement.sortOrder || 0) : materials.value.length + items.length
+          })
+        }
+        await api.assets.createBatch(activeTask.value.id, items)
+        if (replacement?.id) {
+          try {
+            await api.assets.remove(replacement.id, replacement.version)
+          } catch (error) {
+            await refreshRemoteLesson(activeTask.value.id, { force: true })
+            throw error
+          }
+        }
+        await refreshRemoteLesson(activeTask.value.id)
+        return true
+      },
+      replacement ? '课堂素材已替换' : `已上传 ${files.length} 个${category}`
+    )
+    return result === true
+  }
+
+  const remoteUploadLessonMaterial = async (event, category = '范画') => {
     const files = [...(event.target.files || [])]
     event.target.value = ''
-    if (!files.length || !activeTask.value?.id) return false
-    const result = await runRemote('正在上传课堂资料...', async () => {
-      const items = []
-      for (const file of files) {
-        const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-asset`)
-        items.push({
-          fileId: String(uploaded.id),
-          assetType: toApiAssetType(type),
-          title: file.name,
-          visible: type !== '课堂视频',
-          sortOrder: materials.value.length + items.length
-        })
-      }
-      await api.assets.createBatch(activeTask.value.id, items)
-      await refreshRemoteLesson(activeTask.value.id)
-      return true
-    }, `已上传 ${files.length} 个课堂资料`)
-    return result === true
+    return remoteUploadLessonMaterialFiles(files, category)
+  }
+
+  const remoteReplaceLessonMaterial = async (material, file, category = materialCategoryForType(material?.type)) => {
+    if (!material || !file) return false
+    return remoteUploadLessonMaterialFiles([file], category, material)
   }
 
   const remoteRemoveLessonMaterial = async (material) => {
@@ -5241,6 +5304,9 @@ export function useDeliveryWorkflow() {
     teacherArchives,
     pendingQualityReviews,
     materials,
+    demoMaterials,
+    stepMaterials,
+    classroomMediaMaterials,
     referenceMaterials,
     coursewareMaterials,
     materialsConfirmedEmpty,
@@ -5369,6 +5435,7 @@ export function useDeliveryWorkflow() {
     toggleMaterialVisible: remoteToggleMaterialVisible,
     addMaterial: remoteUploadLessonMaterial,
     uploadLessonMaterial: remoteUploadLessonMaterial,
+    replaceLessonMaterial: remoteReplaceLessonMaterial,
     removeLessonMaterial: remoteRemoveLessonMaterial,
     confirmNoLessonMaterials: remoteConfirmNoLessonMaterials,
     useArtworkFromLibrary: remoteUseArtworkFromLibrary,

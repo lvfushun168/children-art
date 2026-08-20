@@ -391,7 +391,7 @@ onMounted(() => {
               <td class="delivery-record-cell">
                 <textarea v-model="row.record" rows="4" placeholder="记录孩子今天的课堂表现……" @input="row.confirmed = false" />
                 <div class="delivery-cell-actions">
-                  <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = row.studentId; state.simulateVoice()">🎙 语音</button>
+                  <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = row.studentId; state.simulateVoice()">🎙语音转文字</button>
                   <button type="button" class="ghost" :disabled="state.isProcessing || !row.record?.trim()" @click="saveRecord(row)">保存记录</button>
                 </div>
               </td>
@@ -399,7 +399,7 @@ onMounted(() => {
                 <span class="delivery-comment-status" :class="row.comment?.trim() ? 'ok-text' : 'missing-text'">{{ row.confirmed ? '已确认' : row.comment?.trim() ? '已生成，待确认' : '尚未生成' }}</span>
                 <p class="delivery-comment-preview">{{ row.comment?.trim() || '先录入课堂记录，再从抽屉生成家长课评。' }}</p>
                 <div class="delivery-cell-actions">
-                  <button type="button" class="secondary" :disabled="!row.record?.trim()" @click="openComment(row)">家长课评</button>
+                  <button type="button" class="secondary" :disabled="!row.record?.trim()" @click="openComment(row)">生成课评</button>
                 </div>
               </td>
               <td class="delivery-status-cell">

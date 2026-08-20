@@ -234,6 +234,10 @@
   overflow-wrap: anywhere;
 }
 
+.delivery-comment-cell > .delivery-cell-actions {
+  margin-top: 10px;
+}
+
 .delivery-cell-actions {
   justify-content: flex-start;
 }

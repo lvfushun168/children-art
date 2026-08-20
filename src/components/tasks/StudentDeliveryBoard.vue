@@ -393,12 +393,14 @@ onMounted(() => {
                 <div class="delivery-cell-actions">
                   <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = row.studentId; state.simulateVoice()">🎙 语音</button>
                   <button type="button" class="ghost" :disabled="state.isProcessing || !row.record?.trim()" @click="saveRecord(row)">保存记录</button>
-                  <button type="button" class="secondary" :disabled="!row.record?.trim()" @click="openComment(row)">家长课评</button>
                 </div>
               </td>
               <td class="delivery-comment-cell">
                 <span class="delivery-comment-status" :class="row.comment?.trim() ? 'ok-text' : 'missing-text'">{{ row.confirmed ? '已确认' : row.comment?.trim() ? '已生成，待确认' : '尚未生成' }}</span>
                 <p class="delivery-comment-preview">{{ row.comment?.trim() || '先录入课堂记录，再从抽屉生成家长课评。' }}</p>
+                <div class="delivery-cell-actions">
+                  <button type="button" class="secondary" :disabled="!row.record?.trim()" @click="openComment(row)">家长课评</button>
+                </div>
               </td>
               <td class="delivery-status-cell">
                 <span class="delivery-status" :class="statusClassFor(row)">{{ statusFor(row) }}</span>

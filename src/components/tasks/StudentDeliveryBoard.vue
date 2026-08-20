@@ -90,7 +90,18 @@ const selectedImageMode = (row) => {
   return 'original'
 }
 
-const selectedImageAsset = (row) => imageAsset(row, selectedImageMode(row))
+const artworkVersionStatus = (row) => {
+  if (!row?.imageMatched) return '待上传'
+  if (row.imageConfirmed) return `已采用${selectedImageMode(row) === 'processed' ? '处理图' : '原图'}`
+
+  const processStatus = String(row.imageProcessStatus || '').toUpperCase()
+  if (processStatus === '失败' || processStatus === 'FAILED') return '处理失败，可采用原图'
+  if (processStatus === '处理中' || processStatus === 'PROCESSING') return '处理中'
+  if (hasProcessedImage(row) || processStatus === '成功' || processStatus === 'SUCCEEDED') return '处理图已生成，待确认'
+  return '未生成处理图'
+}
+
+const artworkVersionStatusClass = (row) => row?.imageConfirmed ? 'ok-text' : 'missing-text'
 
 const statusFor = (row) => {
   if (!row?.imageMatched) return '作品待上传'
@@ -331,7 +342,6 @@ onMounted(() => {
               <th>学生</th>
               <th>作品</th>
               <th>课堂记录</th>
-              <th>处理后作品</th>
               <th>家长课评</th>
               <th>状态</th>
             </tr>
@@ -349,9 +359,13 @@ onMounted(() => {
                   </button>
                 </div>
                 <span v-else class="delivery-empty">尚未上传作品</span>
-                <span :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${workImages(row).length || 1} 张` : '待上传' }}</span>
+                <div class="delivery-artwork-meta">
+                  <span :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${workImages(row).length || 1} 张` : '待上传' }}</span>
+                  <span v-if="row.imageMatched" class="delivery-artwork-version-status" :class="artworkVersionStatusClass(row)">{{ artworkVersionStatus(row) }}</span>
+                </div>
                 <div class="delivery-cell-actions">
                   <label class="file-button compact-file-button">{{ row.imageMatched ? '继续上传' : '上传作品' }}<input type="file" accept="image/*" multiple @change="state.updateImage($event, row)" /></label>
+                  <button type="button" class="secondary" :disabled="!row.imageMatched" @click="openArtwork(row)">查看/处理作品</button>
                 </div>
               </td>
               <td class="delivery-record-cell">
@@ -359,16 +373,8 @@ onMounted(() => {
                 <div class="delivery-cell-actions">
                   <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = row.studentId; state.simulateVoice()">🎙 语音</button>
                   <button type="button" class="ghost" :disabled="state.isProcessing || !row.record?.trim()" @click="saveRecord(row)">保存记录</button>
-                  <button type="button" class="secondary" :disabled="!row.imageMatched" @click="openArtwork(row)">作品处理</button>
                   <button type="button" class="secondary" :disabled="!row.record?.trim()" @click="openComment(row)">家长课评</button>
                 </div>
-              </td>
-              <td class="delivery-processed-cell">
-                <button v-if="hasImage(imageAsset(row, 'processed'))" type="button" class="delivery-processed-preview" @click="openArtwork(row)">
-                  <ProtectedMedia :file-id="imageAsset(row, 'processed').fileId" :src="imageAsset(row, 'processed').src" :alt="`${studentFor(row.studentId).name}处理后作品`" />
-                </button>
-                <span v-else class="delivery-empty">{{ row.imageMatched ? '尚未处理' : '等待上传' }}</span>
-                <span :class="row.imageConfirmed ? 'ok-text' : 'missing-text'">{{ row.imageConfirmed ? `已采用${selectedImageMode(row) === 'processed' ? '处理图' : '原图'}` : row.imageProcessStatus || '待确认' }}</span>
               </td>
               <td class="delivery-comment-cell">
                 <span class="delivery-comment-status" :class="row.comment?.trim() ? 'ok-text' : 'missing-text'">{{ row.confirmed ? '已确认' : row.comment?.trim() ? '已生成，待确认' : '尚未生成' }}</span>
@@ -380,7 +386,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!state.attendingRows.length">
-              <td colspan="6" class="student-delivery-empty-state">当前没有到课学生，请先在第 1 步确认出勤。</td>
+              <td colspan="5" class="student-delivery-empty-state">当前没有到课学生，请先在第 1 步确认出勤。</td>
             </tr>
           </tbody>
         </table>

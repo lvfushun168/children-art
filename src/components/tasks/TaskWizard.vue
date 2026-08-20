@@ -650,21 +650,6 @@ watch(homeworkEditorOpen, async (open) => {
             </div>
           </article>
 
-          <details class="advanced-state content-settings" :open="showContentSettings" @toggle="showContentSettings = $event.target.open">
-            <summary>更多家长展示设置（可选）🔽</summary>
-            <div class="content-settings-body">
-              <div class="switch-row">
-                <label><input v-model="state.displayConfig.showMaterials" type="checkbox" /> 展示课堂素材</label>
-                <label><input v-model="state.displayConfig.showHomework" type="checkbox" :disabled="state.homework.taskMode !== 'ASSIGNED'" /> 展示课后任务</label>
-                <label><input v-model="state.displayConfig.showHighlight" type="checkbox" /> 展示高光说明</label>
-                <label><input v-model="state.displayConfig.showLessonType" type="checkbox" /> 展示课次类型</label>
-              </div>
-              <label class="share-expiry-field">
-                <span>展示页有效期</span>
-                <input v-model.number="state.displayConfig.expiresInDays" type="number" min="1" />
-              </label>
-            </div>
-          </details>
         </section>
 
         <div v-if="showResourceDrawer" class="drawer-backdrop" @click.self="showResourceDrawer = false">

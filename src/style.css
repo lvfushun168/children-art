@@ -5455,17 +5455,23 @@ textarea:focus,
   pointer-events: none;
 }
 
-.share-preview-drawer {
+.library-drawer.share-preview-drawer {
   display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 12px;
-  align-content: start;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.share-preview-drawer .preview.panel {
+.library-drawer.share-preview-drawer > .preview.panel {
   max-width: 420px;
   margin: 0 auto;
   width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .touch-fallback {
@@ -6095,6 +6101,7 @@ textarea:focus,
   display: grid;
   gap: 10px;
   margin-bottom: 12px;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -6162,6 +6169,14 @@ textarea:focus,
   line-height: 1.65;
 }
 
+.delivery-card > strong,
+.delivery-card > small,
+.delivery-card > p,
+.homework-preview {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .highlight-note,
 .homework-preview,
 .share-box {
@@ -6179,10 +6194,18 @@ textarea:focus,
 }
 
 .homework-preview a {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--color-primary);
   font-size: 13px;
   font-weight: 800;
   text-decoration: none;
+}
+
+.homework-preview small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .share-open-link {

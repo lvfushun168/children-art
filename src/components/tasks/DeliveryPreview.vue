@@ -140,7 +140,7 @@ const formatHomeworkDate = (value) => {
         <strong>课后任务</strong>
         <small>{{ homework.content }}</small>
         <small v-if="homework.requirement">完成方式：{{ homework.requirement }}</small>
-        <small v-if="homework.dueDate">预计回收：{{ formatHomeworkDate(homework.dueDate) }}</small>
+        <small v-if="homework.dueDate">截止日期：{{ formatHomeworkDate(homework.dueDate) }}</small>
         <a v-for="link in selectedExternalLinks" :key="link.id" :href="link.url">{{ link.title }}</a>
       </div>
       <div v-if="!reviewOnly" class="share-box">

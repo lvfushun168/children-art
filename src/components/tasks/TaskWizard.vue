@@ -692,7 +692,7 @@ watch(homeworkEditorOpen, async (open) => {
           <aside class="library-drawer share-preview-drawer">
             <header class="drawer-head">
               <div>
-                <span>家长展示页草稿</span>
+                <span>家长展示页预览</span>
                 <strong>{{ state.activeStudent?.name || '未选择学生' }}</strong>
               </div>
               <button class="ghost" @click="showSharePreview = false">关闭</button>

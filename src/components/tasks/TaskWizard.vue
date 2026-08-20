@@ -351,7 +351,7 @@ watch(homeworkEditorOpen, async (open) => {
           <button
             v-for="row in state.sessionStudents"
             :key="`${row.lessonId}-${row.studentId}`"
-            :class="{ active: sameId(row.studentId, state.activeStudentId), absent: row.attendance !== '到课' }"
+            :class="{ active: sameId(row.studentId, state.activeStudentId) }"
             @click="state.activeStudentId = row.studentId"
           >
             <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>

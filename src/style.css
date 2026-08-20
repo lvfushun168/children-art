@@ -2773,7 +2773,6 @@ h2 {
   background: var(--color-primary-soft);
 }
 
-.roster-table > button.absent,
 .work-card.absent {
   opacity: 0.58;
 }

@@ -6834,18 +6834,19 @@ textarea:focus,
   background: var(--color-primary-soft);
 }
 
-.template-workbench {
+.template-config-layout {
   display: grid;
-  grid-template-columns: 180px 280px minmax(520px, 1fr);
-  gap: 14px;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
 }
 
-.template-type-list,
-.template-list,
-.template-editor {
+.template-type-list {
   display: grid;
   gap: 8px;
+  padding: 10px;
+  position: sticky;
+  top: 14px;
 }
 
 .template-type-list button {
@@ -6866,6 +6867,151 @@ textarea:focus,
 
 .template-type-list button.active small {
   color: color-mix(in srgb, var(--color-surface-warm) 76%, transparent);
+}
+
+.template-config-content {
+  min-width: 0;
+}
+
+.template-directory-table {
+  min-width: 700px;
+  table-layout: fixed;
+}
+
+.template-directory-table td:first-child {
+  min-width: 0;
+  width: 22%;
+}
+
+.template-directory-table td:nth-child(3) {
+  min-width: 0;
+  width: 34%;
+}
+
+.template-directory-table th:nth-child(2),
+.template-directory-table td:nth-child(2) {
+  width: 16%;
+}
+
+.template-directory-table th:nth-child(4),
+.template-directory-table td:nth-child(4) {
+  width: 9%;
+}
+
+.template-directory-table th:nth-child(5),
+.template-directory-table td:nth-child(5) {
+  width: 10%;
+}
+
+.template-directory-table th:nth-child(6),
+.template-directory-table td:nth-child(6) {
+  width: 9%;
+}
+
+.template-directory-table td small,
+.template-drawer-meta {
+  color: var(--color-muted);
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.template-key-cell {
+  color: var(--color-muted) !important;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px !important;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-status-tag {
+  display: inline-flex;
+  align-items: center;
+  min-width: 42px;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--color-status-success-bg, #e6f5e9);
+  color: var(--color-status-success-text, #26713d);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.template-status-tag.disabled {
+  background: var(--color-surface-muted);
+  color: var(--color-muted);
+}
+
+.template-config-drawer {
+  max-width: min(760px, 92vw);
+  width: min(760px, 92vw);
+}
+
+.template-drawer-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.template-drawer-form fieldset {
+  border: 0;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.template-form-details {
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.template-form-details > summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 46px;
+  padding: 0 13px;
+  color: var(--color-heading);
+  font-weight: 800;
+}
+
+.template-form-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.template-form-details > summary::after {
+  color: var(--color-muted);
+  content: '展开';
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.template-form-details[open] > summary {
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.template-form-details[open] > summary::after {
+  content: '收起';
+}
+
+.template-form-details > summary small {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.template-form-details > .form-grid {
+  padding: 13px;
 }
 
 .trace-row {
@@ -10473,7 +10619,7 @@ textarea:focus,
   .archive-filter-bar,
   .external-link-layout,
   .extra-task-layout,
-  .template-workbench,
+  .template-config-layout,
   .split-grid,
   .context-grid,
   .report-grid,
@@ -10636,7 +10782,7 @@ textarea:focus,
 
   .external-link-layout.mobile-detail-open,
   .extra-task-layout.mobile-detail-open,
-  .template-workbench[class*="mobile-template-stage-"],
+  .template-config-layout[class*="mobile-template-stage-"],
   .settings-layout[class*="mobile-settings-stage-"] {
     grid-template-columns: 1fr;
   }

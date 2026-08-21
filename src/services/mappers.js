@@ -520,7 +520,7 @@ export const mapTeacherArchive = (value = {}) => ({
   className: value.className || '',
   course: value.courseTitle || value.course || '',
   title: value.title || '老师课效长图',
-  status: ({ GENERATED: '已生成', CONFIRMED: '已确认', SYNCED: '已同步', SKIPPED: '已跳过', FAILED: '失败' }[value.status] || value.status || '待生成'),
+  status: ({ PENDING: '待生成', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SYNCED: '已同步', SKIPPED: '已跳过', FAILED: '失败' }[value.status] || value.status || '待生成'),
   generatedVersionId: safeUiId(value.generatedVersionId),
   outputFileId: safeUiId(value.outputFileId),
   cover: value.outputUrl || '',

@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import TaskReport from './TaskReport.vue'
 import DeliveryPreview from './DeliveryPreview.vue'
 import StudentDeliveryBoard from './StudentDeliveryBoard.vue'
+import TeacherEffectPreview from './TeacherEffectPreview.vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 import { sameId } from '../../services/mappers'
 import { MATERIAL_CATEGORIES } from '../../services/materialTypes'
@@ -23,6 +24,9 @@ const artworkLibraryCategory = ref(MATERIAL_CATEGORIES.DEMO)
 const materialReplaceInput = ref(null)
 const replaceTarget = ref(null)
 const showSharePreview = ref(false)
+const showTeacherEffectDrawer = ref(false)
+const teacherEffectPreviewRef = ref(null)
+const teacherEffectPreviewState = ref({ status: 'idle', error: '', width: 0, height: 0 })
 const studentDeliveryDrawerOpen = ref(false)
 const studentDeliveryMobileDetailOpen = ref(false)
 const resourceSearch = ref('')
@@ -32,6 +36,12 @@ const homeworkEditorField = ref('content')
 const homeworkEditorDraft = ref('')
 const homeworkEditorTextarea = ref(null)
 const homeworkDateInput = ref(null)
+const teacherEffectDraft = reactive({
+  title: '',
+  width: 1080,
+  imageGap: 24,
+  sourceAssetIds: []
+})
 const homeworkOptionalFieldEnabled = reactive({ requirement: false, dueDate: false })
 const homeworkOptionalFieldLabels = {
   requirement: '完成方式',
@@ -214,6 +224,132 @@ const studentFor = (studentId) => {
   const sessionStudent = props.state.sessionStudents?.find((item) => sameId(item.studentId, studentId))
   return sessionStudent ? { name: sessionStudent.studentName || '学生', parent: sessionStudent.parent || '' } : { name: '学生', parent: '' }
 }
+const teacherEffect = computed(() => props.state.activeWorkspace?.teacherEffect || {})
+const teacherEffectStatus = computed(() => teacherEffect.value.status || 'PENDING')
+const teacherEffectDefaultTitle = computed(() => {
+  const task = props.state.activeTask || {}
+  const className = props.state.activeClass?.name || task.className || '未命名班级'
+  const course = props.state.activeCourse?.title || task.courseTitle || task.course || '未命名课程'
+  const teacher = task.teacher || '未命名老师'
+  const date = task.dateValue || task.date || ''
+  const time = task.time || ''
+  return `${date}《${className}--${course}》${teacher}${time ? ` ${time}` : ''}`.trim()
+})
+const teacherEffectSourceOptions = computed(() => {
+  const sourceOptions = []
+  const lessonMaterials = resolveStateValue(props.state.materials) || []
+  lessonMaterials
+    .filter((material) => material?.id && material.fileId && material.type !== '课堂视频' && material.visible !== false)
+    .forEach((material) => sourceOptions.push({
+      sourceAssetId: String(material.id),
+      sourceType: 'LESSON_ASSET',
+      fileId: material.fileId,
+      image: material.image || '',
+      title: material.title || material.file?.originalFilename || '课堂图片',
+      meta: `${material.type || '课堂素材'} · 课堂资料`
+    }))
+  ;(props.state.sessionStudents || [])
+    .filter((row) => row?.artworkId && row.imageConfirmed && (row.processedFileId || row.originalFileId || row.imageFileIds?.[0]))
+    .forEach((row) => sourceOptions.push({
+      sourceAssetId: String(row.artworkId),
+      sourceType: 'ARTWORK',
+      fileId: row.processedFileId || row.originalFileId || row.imageFileIds?.[0],
+      image: row.processedImage || row.originalImage || row.image || '',
+      title: `${studentFor(row.studentId).name}的作品`,
+      meta: '学生作品 · 已确认'
+    }))
+  ;(props.state.activeWorkspace?.teacherEffect?.sources || []).forEach((source) => {
+    if (!source?.sourceAssetId || sourceOptions.some((item) => sameId(item.sourceAssetId, source.sourceAssetId))) return
+    sourceOptions.push({
+      sourceAssetId: String(source.sourceAssetId),
+      sourceType: source.sourceType || 'LESSON_ASSET',
+      fileId: source.fileId,
+      image: source.downloadUrl || '',
+      title: `已选素材 ${source.sourceAssetId}`,
+      meta: source.sourceType === 'ARTWORK' ? '学生作品 · 当前版本' : '课堂资料 · 当前版本'
+    })
+  })
+  return [...new Map(sourceOptions.map((source) => [source.sourceAssetId, source])).values()]
+})
+const selectedTeacherEffectSources = computed(() => teacherEffectDraft.sourceAssetIds
+  .map((sourceId) => teacherEffectSourceOptions.value.find((source) => sameId(source.sourceAssetId, sourceId)))
+  .filter(Boolean))
+const availableTeacherEffectSources = computed(() => teacherEffectSourceOptions.value
+  .filter((source) => !teacherEffectDraft.sourceAssetIds.some((sourceId) => sameId(sourceId, source.sourceAssetId))))
+const teacherEffectDraftValid = computed(() => {
+  const width = Number(teacherEffectDraft.width)
+  const imageGap = Number(teacherEffectDraft.imageGap)
+  return Boolean(teacherEffectDraft.title.trim()) && teacherEffectDraft.sourceAssetIds.length > 0 && teacherEffectDraft.sourceAssetIds.length <= 40 && Number.isInteger(width) && width >= 320 && width <= 1600 && Number.isInteger(imageGap) && imageGap >= 0 && imageGap <= 80
+})
+const teacherEffectValidationMessage = computed(() => {
+  const width = Number(teacherEffectDraft.width)
+  const imageGap = Number(teacherEffectDraft.imageGap)
+  if (!teacherEffectDraft.title.trim()) return '请填写长图标题。'
+  if (!teacherEffectDraft.sourceAssetIds.length) return '请至少选择一张图片。'
+  if (teacherEffectDraft.sourceAssetIds.length > 40) return '最多选择 40 张图片。'
+  if (!Number.isInteger(width) || width < 320 || width > 1600) return '宽度需为 320–1600 之间的整数。'
+  if (!Number.isInteger(imageGap) || imageGap < 0 || imageGap > 80) return '图片间距需为 0–80 之间的整数。'
+  return ''
+})
+const teacherEffectSourceSelected = (sourceId) => teacherEffectDraft.sourceAssetIds.some((item) => sameId(item, sourceId))
+const initializeTeacherEffectDraft = () => {
+  const effect = teacherEffect.value || {}
+  const existingSourceIds = (effect.sources || [])
+    .map((source) => source?.sourceAssetId)
+    .filter((sourceId) => sourceId !== null && sourceId !== undefined && sourceId !== '')
+    .map((sourceId) => String(sourceId))
+  const defaultSourceIds = existingSourceIds.length
+    ? existingSourceIds
+    : teacherEffectSourceOptions.value.map((source) => source.sourceAssetId)
+  Object.assign(teacherEffectDraft, {
+    title: effect.title || teacherEffectDefaultTitle.value,
+    width: Number(effect.width || 1080),
+    imageGap: Number(effect.imageGap ?? 24),
+    sourceAssetIds: [...new Set(defaultSourceIds)]
+  })
+}
+const openTeacherEffectDrawer = () => {
+  initializeTeacherEffectDraft()
+  teacherEffectPreviewState.value = { status: 'idle', error: '', width: 0, height: 0 }
+  showTeacherEffectDrawer.value = true
+}
+const closeTeacherEffectDrawer = () => {
+  showTeacherEffectDrawer.value = false
+}
+const toggleTeacherEffectSource = (sourceId) => {
+  const value = String(sourceId)
+  const index = teacherEffectDraft.sourceAssetIds.findIndex((item) => sameId(item, value))
+  if (index >= 0) teacherEffectDraft.sourceAssetIds.splice(index, 1)
+  else teacherEffectDraft.sourceAssetIds.push(value)
+}
+const moveTeacherEffectSource = (index, offset) => {
+  const targetIndex = index + offset
+  if (targetIndex < 0 || targetIndex >= teacherEffectDraft.sourceAssetIds.length) return
+  const [sourceId] = teacherEffectDraft.sourceAssetIds.splice(index, 1)
+  teacherEffectDraft.sourceAssetIds.splice(targetIndex, 0, sourceId)
+}
+const saveTeacherEffectAndGenerate = async () => {
+  if (!teacherEffectDraftValid.value) return
+  let renderedImage
+  try {
+    renderedImage = await teacherEffectPreviewRef.value?.renderBlob()
+  } catch (error) {
+    props.state.notify(error?.message || '课效图预览尚未准备好，请稍候重试')
+    return
+  }
+  if (!renderedImage) {
+    props.state.notify('课效图预览尚未准备好，请稍候重试')
+    return
+  }
+  const result = await props.state.generateTeacherEffect({
+    sourceAssetIds: [...teacherEffectDraft.sourceAssetIds],
+    title: teacherEffectDraft.title.trim() || teacherEffectDefaultTitle.value,
+    width: Number(teacherEffectDraft.width),
+    imageGap: Number(teacherEffectDraft.imageGap),
+    layoutConfig: { renderMode: 'CLIENT_CANVAS', rendererVersion: renderedImage.rendererVersion }
+  }, renderedImage)
+  if (result) closeTeacherEffectDrawer()
+}
 const filteredExternalResources = computed(() => {
   const keyword = resourceSearch.value.trim().toLowerCase()
   return props.state.externalLinks.filter((link, index) => {
@@ -248,6 +384,7 @@ watch(() => props.state.activeTask.id, () => {
   showResourceDrawer.value = false
   showContentSettings.value = false
   showArtworkLibrary.value = false
+  showTeacherEffectDrawer.value = false
   artworkLibraryCategory.value = MATERIAL_CATEGORIES.DEMO
   activeMaterialSectionKey.value = 'demo'
   replaceTarget.value = null
@@ -278,6 +415,7 @@ watch(() => props.state.currentStep, (step) => {
     studentDeliveryDrawerOpen.value = false
     studentDeliveryMobileDetailOpen.value = false
   }
+  if (step !== 4) showTeacherEffectDrawer.value = false
   if (step !== 3) homeworkEditorOpen.value = false
 })
 
@@ -813,10 +951,11 @@ watch(homeworkEditorOpen, async (open) => {
                 <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.pushParentTouch">{{ state.isArchiveDone(item.item) ? '已创建触达' : item.action }}</button>
                 <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已同步' || item.item.status === '已跳过'" @click="state.pushArchiveItem(item.key)">{{ item.item.status === '已同步' ? '已同步' : item.action }}</button>
                 <template v-if="item.key === 'teacherEffectArchive'">
-                  <button v-if="!state.activeWorkspace.teacherEffect || ['DRAFT', 'FAILED'].includes(state.activeWorkspace.teacherEffect.status)" class="secondary" :disabled="state.isProcessing" @click="state.archiveTeacherEffectImage">{{ state.activeWorkspace.teacherEffect?.status === 'FAILED' ? '重新生成' : item.action }}</button>
-                  <button v-if="state.activeWorkspace.teacherEffect?.status === 'GENERATED'" class="secondary" :disabled="state.isProcessing" @click="state.confirmTeacherEffect">确认课效图</button>
-                  <button v-if="state.activeWorkspace.teacherEffect?.status === 'FAILED'" class="ghost" :disabled="state.isProcessing" @click="state.retryTeacherEffect">重试任务</button>
-                  <span v-if="['CONFIRMED', 'SKIPPED'].includes(state.activeWorkspace.teacherEffect?.status)" class="status-pill">{{ item.item.status }}</span>
+                  <button v-if="['PENDING', 'FAILED', 'SKIPPED'].includes(teacherEffectStatus) || !teacherEffect.id" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">{{ teacherEffectStatus === 'FAILED' ? '重新配置并生成' : '配置并生成课效图' }}</button>
+                  <button v-else-if="teacherEffectStatus === 'GENERATING'" class="secondary" disabled>生成中…</button>
+                  <button v-else-if="['GENERATED', 'CONFIRMED'].includes(teacherEffectStatus)" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">编辑并重新生成</button>
+                  <button v-if="teacherEffectStatus === 'FAILED' && teacherEffect.id" class="ghost" :disabled="state.isProcessing" @click="state.retryTeacherEffect">重试任务</button>
+                  <span v-if="['CONFIRMED', 'SKIPPED'].includes(teacherEffectStatus)" class="status-pill">{{ item.item.status }}</span>
                 </template>
                 <button v-if="item.key === 'wheatTrace'" class="secondary" :disabled="state.isProcessing || item.item.status === '已生成'" @click="state.generateWheatTraceTask">{{ item.item.status === '已生成' ? '已生成' : item.action }}</button>
               </div>
@@ -825,6 +964,101 @@ watch(homeworkEditorOpen, async (open) => {
 
         </section>
       </section>
+
+      <div v-if="showTeacherEffectDrawer" class="drawer-backdrop" @click.self="closeTeacherEffectDrawer">
+        <aside class="library-drawer teacher-effect-drawer" role="dialog" aria-modal="true" aria-label="配置老师课效长图">
+          <header class="drawer-head">
+            <div>
+              <span>老师课效长图</span>
+              <strong>{{ teacherEffectStatus === 'GENERATED' || teacherEffectStatus === 'CONFIRMED' ? '编辑并重新生成' : '配置并生成' }}</strong>
+              <small>调整配置和图片顺序，预览内容即本次保存的长图</small>
+            </div>
+            <button class="ghost" type="button" @click="closeTeacherEffectDrawer">关闭</button>
+          </header>
+
+          <section class="teacher-effect-drawer-body">
+            <div class="teacher-effect-form">
+              <label>
+                <span>长图标题</span>
+                <input v-model="teacherEffectDraft.title" type="text" placeholder="请输入课效长图标题" />
+              </label>
+              <div class="teacher-effect-layout-fields">
+                <label>
+                  <span>宽度（px）</span>
+                  <input v-model.number="teacherEffectDraft.width" type="number" min="320" max="1600" step="1" />
+                </label>
+                <label>
+                  <span>图片间距（px）</span>
+                  <input v-model.number="teacherEffectDraft.imageGap" type="number" min="0" max="80" step="1" />
+                </label>
+              </div>
+            </div>
+
+            <TeacherEffectPreview
+              ref="teacherEffectPreviewRef"
+              :title="teacherEffectDraft.title"
+              :width="teacherEffectDraft.width"
+              :image-gap="teacherEffectDraft.imageGap"
+              :sources="selectedTeacherEffectSources"
+              @state="teacherEffectPreviewState = $event"
+            />
+
+            <section class="teacher-effect-source-section">
+              <header>
+                <div>
+                  <span>已选图片（{{ selectedTeacherEffectSources.length }}）</span>
+                  <small>图片顺序即长图中的展示顺序</small>
+                </div>
+              </header>
+              <div v-if="selectedTeacherEffectSources.length" class="teacher-effect-source-list">
+                <article v-for="(source, index) in selectedTeacherEffectSources" :key="`selected-${source.sourceAssetId}`" class="teacher-effect-source-row selected">
+                  <ProtectedMedia :file-id="source.fileId" :src="source.image" :alt="source.title" />
+                  <div>
+                    <strong>{{ source.title }}</strong>
+                    <small>{{ source.meta }}</small>
+                  </div>
+                  <div class="teacher-effect-source-actions">
+                    <button class="icon-button" type="button" :disabled="index === 0" :aria-label="`将${source.title}上移`" @click="moveTeacherEffectSource(index, -1)">↑</button>
+                    <button class="icon-button" type="button" :disabled="index === selectedTeacherEffectSources.length - 1" :aria-label="`将${source.title}下移`" @click="moveTeacherEffectSource(index, 1)">↓</button>
+                    <button class="ghost" type="button" @click="toggleTeacherEffectSource(source.sourceAssetId)">移除</button>
+                  </div>
+                </article>
+              </div>
+              <small v-else class="empty-note">还没有可生成的图片，请先确认学生作品或上传课堂图片。</small>
+            </section>
+
+            <section class="teacher-effect-source-section">
+              <header>
+                <div>
+                  <span>可选素材</span>
+                  <small>只展示已就绪的课堂图片和已确认学生作品</small>
+                </div>
+              </header>
+              <div v-if="availableTeacherEffectSources.length" class="teacher-effect-source-list">
+                <article v-for="source in availableTeacherEffectSources" :key="`available-${source.sourceAssetId}`" class="teacher-effect-source-row">
+                  <ProtectedMedia :file-id="source.fileId" :src="source.image" :alt="source.title" />
+                  <div>
+                    <strong>{{ source.title }}</strong>
+                    <small>{{ source.meta }}</small>
+                  </div>
+                  <button class="secondary" type="button" :class="{ selected: teacherEffectSourceSelected(source.sourceAssetId) }" @click="toggleTeacherEffectSource(source.sourceAssetId)">加入</button>
+                </article>
+              </div>
+              <small v-else class="empty-note">所有可用素材都已加入，或当前还没有符合条件的素材。</small>
+            </section>
+          </section>
+
+          <footer class="drawer-actions teacher-effect-drawer-actions">
+            <span v-if="teacherEffectValidationMessage" class="teacher-effect-validation-error">{{ teacherEffectValidationMessage }}</span>
+            <span v-else-if="teacherEffectPreviewState.status === 'loading'">{{ selectedTeacherEffectSources.length }} 张图片 · 正在更新预览</span>
+            <span v-else>{{ selectedTeacherEffectSources.length }} 张图片 · 预览内容即保存版本</span>
+            <div>
+              <button class="ghost" type="button" @click="closeTeacherEffectDrawer">取消</button>
+              <button class="primary" type="button" :disabled="state.isProcessing || !teacherEffectDraftValid || teacherEffectPreviewState.status !== 'ready'" @click="saveTeacherEffectAndGenerate">保存并生成</button>
+            </div>
+          </footer>
+        </aside>
+      </div>
 
       <footer v-if="state.currentStep !== 2 || (!studentDeliveryDrawerOpen && !studentDeliveryMobileDetailOpen)" class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>

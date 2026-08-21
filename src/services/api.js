@@ -177,6 +177,7 @@ export const api = {
     teacherEffect: (lessonId) => request(`/lessons/${id(lessonId)}/teacher-effect`),
     saveTeacherEffectDraft: (lessonId, body) => request(`/lessons/${id(lessonId)}/teacher-effect/draft`, { method: 'PUT', body }),
     generateTeacherEffect: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/teacher-effect/generate`, { method: 'POST', body, idempotencyKey: key }),
+    commitClientRenderedTeacherEffect: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/teacher-effect/client-render`, { method: 'POST', body, idempotencyKey: key }),
     confirmTeacherEffect: (effectId, body) => request(`/teacher-effects/${id(effectId)}/confirm`, { method: 'POST', body }),
     retryTeacherEffect: (effectId, body, key) => request(`/teacher-effects/${id(effectId)}/retry`, { method: 'POST', body, idempotencyKey: key }),
     skipTeacherEffect: (effectId, body) => request(`/teacher-effects/${id(effectId)}/skip`, { method: 'POST', body }),

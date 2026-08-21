@@ -846,7 +846,10 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           :src="selectedEffect.cover"
           :alt="selectedEffect.title"
         />
-        <div v-else class="file-tile">长图</div>
+        <div v-else class="file-tile">
+          <strong>{{ selectedEffect.status || '待生成' }}</strong>
+          <small>长图尚未生成，请返回课后工作台完成生成。</small>
+        </div>
       </section>
       <section class="archive-detail-group">
         <span>归档信息</span>

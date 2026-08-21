@@ -726,7 +726,7 @@ export function useDeliveryWorkflow() {
       })
     }
     return lessonArchiveRecords.value
-      .filter((lesson) => lesson.teacherEffect?.status && lesson.teacherEffect.status !== '待生成')
+      .filter((lesson) => ['已生成', '已确认', '已同步', '已归档'].includes(lesson.teacherEffect?.status))
       .map((lesson) => ({
         id: `effect-${lesson.id}`,
         lessonId: lesson.lessonId,
@@ -1069,7 +1069,7 @@ export function useDeliveryWorkflow() {
       key: 'teacherEffectArchive',
       title: '老师课效长图归档',
       meta: archiveChecklist.value.teacherEffectArchive.title || teacherEffectPathPreview.value,
-      action: '生成并归档',
+      action: '配置并生成',
       required: false,
       item: archiveChecklist.value.teacherEffectArchive
     },
@@ -2632,6 +2632,9 @@ export function useDeliveryWorkflow() {
   const remoteErrorMessage = (error, fallback = '操作失败，请稍后重试') => {
     if (error?.status === 401 || error?.code === 'TOKEN_EXPIRED') return '登录状态已失效，请重新登录'
     if (error?.status === 404 || error?.code === 'RESOURCE_NOT_FOUND') return '服务端找不到对应资源，请刷新后重试'
+    if (error?.code === 'INVALID_STATE_TRANSITION' && String(error?.message || '').includes('命令仍在处理中')) {
+      return '该操作已在处理中，页面已刷新，请稍候'
+    }
     if (error?.status === 409 || ['VERSION_CONFLICT', 'INVALID_STATE_TRANSITION', 'DUPLICATE_RESOURCE', 'IDEMPOTENCY_KEY_REUSED', 'STALE_JOB_ATTEMPT'].includes(error?.code)) return '数据已被其他人更新或操作重复，页面已刷新，请确认后重试'
     if (error?.code === 'PERMISSION_DENIED' || error?.status === 403) return '当前账号没有执行此操作的权限'
     if (error?.status === 422 || error?.code === 'TRANSITION_PRECONDITION_FAILED' || error?.code === 'LESSON_COMPLETION_BLOCKED') return error.message || '当前前置条件未满足'
@@ -2647,15 +2650,21 @@ export function useDeliveryWorkflow() {
       if (success) notify(success)
       return result
     } catch (error) {
+      let recovered = null
       if (error?.status === 409 && remoteReady.value) {
         try {
-          if (typeof onConflict === 'function') await onConflict()
+          if (typeof onConflict === 'function') recovered = await onConflict(error)
           else if (activeTaskId.value) await refreshRemoteLesson(activeTaskId.value, { force: true })
           else await refreshWorkbenchSummary()
         } catch {
           // 原始冲突信息仍由统一错误提示展示。
         }
       }
+      if (recovered?.handled) {
+        if (recovered.message) notify(recovered.message)
+        return recovered.value ?? true
+      }
+      if (recovered) return recovered
       notify(remoteErrorMessage(error))
       return null
     } finally {
@@ -3036,8 +3045,37 @@ export function useDeliveryWorkflow() {
   const providerTypeOptions = computed(() => providerCatalog.cloud)
   const providerTypeCatalog = computed(() => providerCatalog)
 
+  const defaultTeacherEffectTitle = (lesson = {}) => {
+    const date = lesson.dateValue || lesson.date || ''
+    const className = lesson.className || '未命名班级'
+    const course = lesson.course || lesson.courseTitle || '未命名课程'
+    const teacher = lesson.teacher || lesson.teacherName || '未命名老师'
+    const time = lesson.time || lesson.startTime || ''
+    return `${date}《${className}--${course}》${teacher}${time ? ` ${time}` : ''}`.trim()
+  }
+
+  const createTeacherEffectPlaceholder = (lesson) => ({
+    id: null,
+    lessonId: lesson?.id || null,
+    title: defaultTeacherEffectTitle(lesson),
+    width: 1080,
+    imageGap: 24,
+    sources: [],
+    layoutConfig: {},
+    status: 'PENDING',
+    jobId: null,
+    generatedVersionId: null,
+    outputFileId: null,
+    outputUrl: null,
+    failureCode: null,
+    failureReason: '',
+    version: 0,
+    skipReason: '',
+    history: []
+  })
+
   const statusForArchiveItem = (value) => ({
-    PENDING: '待处理', QUEUED: '创建中', CREATING: '创建中', RUNNING: '推送中', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SUCCEEDED: '已同步', SYNCED: '已同步', COMPLETED: '已归档', SKIPPED: '已跳过', FAILED: '发送失败', CANCELED: '已取消'
+    DRAFT: '待配置', PENDING: '待配置', QUEUED: '创建中', CREATING: '创建中', RUNNING: '推送中', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SUCCEEDED: '已同步', SYNCED: '已同步', COMPLETED: '已归档', SKIPPED: '已跳过', FAILED: '生成失败', CANCELED: '已取消'
   }[value] || value || '待处理')
 
   const applyRemoteLesson = async (lessonId, value) => {
@@ -3069,7 +3107,8 @@ export function useDeliveryWorkflow() {
       }
     })
     const wheat = mapWheat(parentModule.wheatTrace || {})
-    const teacherEffect = value?.teacherEffect?.teacherEffect || value?.m3?.teacherEffect?.teacherEffect || {}
+    const teacherEffectValue = value?.teacherEffect?.teacherEffect || value?.m3?.teacherEffect?.teacherEffect
+    const teacherEffect = teacherEffectValue || createTeacherEffectPlaceholder(lesson)
     const cloudJobs = value?.cloudArchive?.jobs || value?.m3?.cloudArchive?.jobs || []
     const archiveVersions = (value?.archive?.versions || []).map(mapArchiveVersion)
     const workspace = ensureLessonWorkspace(lesson)
@@ -4506,11 +4545,39 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const remoteArchiveTeacherEffectImage = async () => {
+  const teacherEffectSourceIds = (effect) => (effect?.sources || [])
+    .map((source) => source?.sourceAssetId)
+    .filter((sourceId) => sourceId !== null && sourceId !== undefined && sourceId !== '')
+    .map((sourceId) => String(sourceId))
+
+  const recoverTeacherEffectGeneration = async (error, lessonId) => {
+    if (error?.code !== 'INVALID_STATE_TRANSITION' || !String(error?.message || '').includes('课效图生成命令仍在处理中')) {
+      return false
+    }
+    const workspace = await refreshRemoteLesson(lessonId, { force: true })
+    const effect = workspace?.teacherEffect || activeWorkspace.value.teacherEffect
+    if (effect?.status !== 'GENERATING' || !effect?.jobId) {
+      if (effect?.status === 'PENDING' && !effect?.jobId) {
+        return { handled: true, value: false, message: '没有找到正在运行的课效图任务，请重新点击“保存并生成”' }
+      }
+      return false
+    }
+    await waitForJobs([effect.jobId], lessonId)
+    return { handled: true, value: true, message: '课效图生成已在处理中，页面状态已同步' }
+  }
+
+  const remoteArchiveTeacherEffectImage = async (config = null, renderedImage = null) => {
+    const lesson = activeTask.value
+    if (!lesson?.id) return false
+    if (!renderedImage?.file) {
+      notify('课效图预览尚未准备好，请稍候重试')
+      return false
+    }
+
     let effect = activeWorkspace.value.teacherEffect
-    if (!effect) {
+    if (!effect?.id) {
       try {
-        effect = await api.m5.teacherEffect(activeTask.value.id)
+        effect = await api.m5.teacherEffect(lesson.id)
       } catch (error) {
         if (error?.status !== 404 && error?.code !== 'RESOURCE_NOT_FOUND') {
           notify(remoteErrorMessage(error, '老师课效图加载失败'))
@@ -4518,20 +4585,55 @@ export function useDeliveryWorkflow() {
         }
       }
     }
-    if (!effect?.id) {
-      const draft = await runRemote('正在保存课效图草稿...', () => api.m5.saveTeacherEffectDraft(activeTask.value.id, {
-        sourceAssetIds: materials.value.map((item) => String(item.id)).filter(Boolean),
-        title: `${activeTask.value.date} ${activeClass.value.name}`,
-        version: effect?.version || 0
+
+    const configuredSourceIds = Array.isArray(config?.sourceAssetIds)
+      ? [...new Set(config.sourceAssetIds.filter((sourceId) => sourceId !== null && sourceId !== undefined && sourceId !== '').map((sourceId) => String(sourceId)))]
+      : teacherEffectSourceIds(effect)
+    if (!configuredSourceIds.length) {
+      notify('请先在课效图配置中选择至少一张已确认图片')
+      return false
+    }
+
+    const hasDraftConfig = Boolean(config) || !effect?.id
+    let draft = effect
+    if (hasDraftConfig) {
+      draft = await runRemote('正在保存课效图草稿...', () => api.m5.saveTeacherEffectDraft(lesson.id, {
+        sourceAssetIds: configuredSourceIds,
+        title: String(config?.title || effect?.title || defaultTeacherEffectTitle(lesson)).trim(),
+        width: Number(config?.width || effect?.width || 1080),
+        imageGap: Number(config?.imageGap ?? effect?.imageGap ?? 24),
+        layoutConfig: {
+          ...(config?.layoutConfig || effect?.layoutConfig || {}),
+          renderMode: 'CLIENT_CANVAS',
+          rendererVersion: renderedImage.rendererVersion || 'teacher-effect-canvas-v1'
+        },
+        version: effect?.id ? effect.version : 0
       }))
       if (!draft?.id) return false
-      const job = await runRemote('正在生成老师课效长图...', () => api.m5.generateTeacherEffect(activeTask.value.id, { version: draft.version }, createIdempotencyKey(`teacher-effect:${activeTask.value.id}`)), '课效图生成任务已提交')
-      if (!job) return false
-    } else {
-      const job = await runRemote('正在生成老师课效长图...', () => api.m5.generateTeacherEffect(activeTask.value.id, { version: effect.version }, createIdempotencyKey(`teacher-effect:${activeTask.value.id}`)), '课效图生成任务已提交')
-      if (!job) return false
     }
-    await refreshRemoteLesson(activeTask.value.id)
+
+    const uploaded = await runRemote('正在上传老师课效长图...', () => uploadFile(
+      renderedImage.file,
+      `teacher-effect-${lesson.id}`,
+      { idempotencyKey: createIdempotencyKey(`teacher-effect-file:${lesson.id}:${draft.version}`) }
+    ))
+    if (!uploaded?.id) return false
+
+    const committed = await runRemote(
+      '正在保存老师课效长图版本...',
+      () => api.m5.commitClientRenderedTeacherEffect(lesson.id, {
+        version: draft.version,
+        fileId: uploaded.id,
+        outputWidth: renderedImage.width,
+        outputHeight: renderedImage.height,
+        outputSizeBytes: uploaded.sizeBytes || renderedImage.file.size,
+        sha256: uploaded.sha256,
+        rendererVersion: renderedImage.rendererVersion || 'teacher-effect-canvas-v1'
+      }, createIdempotencyKey(`teacher-effect-render:${lesson.id}:${draft.version}`)),
+      '老师课效长图已生成并保存'
+    )
+    if (!committed) return false
+    await refreshRemoteLesson(lesson.id, { force: true })
     return true
   }
 
@@ -4549,7 +4651,10 @@ export function useDeliveryWorkflow() {
 
   const remoteRetryTeacherEffect = async () => {
     const effect = activeWorkspace.value.teacherEffect
-    if (!effect?.id) return remoteArchiveTeacherEffectImage()
+    if (!effect?.id) {
+      notify('请先配置课效图素材')
+      return false
+    }
     const result = await runRemote('正在重试老师课效图...', () => api.m5.retryTeacherEffect(effect.id, { version: effect.version }, createIdempotencyKey(`teacher-effect-retry:${effect.id}`)), '老师课效图已重新提交')
     if (!result) return false
     await refreshRemoteLesson(activeTask.value.id)
@@ -5495,6 +5600,7 @@ export function useDeliveryWorkflow() {
     isShareAccessible: () => false,
     pushArchiveItem: remotePushArchiveItem,
     archiveTeacherEffectImage: remoteArchiveTeacherEffectImage,
+    generateTeacherEffect: remoteArchiveTeacherEffectImage,
     confirmTeacherEffect: remoteConfirmTeacherEffect,
     retryTeacherEffect: remoteRetryTeacherEffect,
     skipTeacherEffect: remoteSkipTeacherEffect,

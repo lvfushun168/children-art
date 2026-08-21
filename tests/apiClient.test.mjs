@@ -186,6 +186,8 @@ test('maps archive, todo and teacher archive DTOs without losing string IDs', ()
   assert.equal(teacherArchive.id, 9)
   assert.equal(teacherArchive.status, '已确认')
   assert.equal(teacherArchive.time, '18:30')
+  assert.equal(mapTeacherArchive({ teacherEffectId: '11', status: 'PENDING' }).status, '待生成')
+  assert.equal(mapTeacherArchive({ teacherEffectId: '12', status: 'GENERATING' }).status, '生成中')
 })
 
 test('maps paged wheat list items with direct wheat, todo and lesson modules', () => {

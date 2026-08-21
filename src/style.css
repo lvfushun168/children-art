@@ -5446,6 +5446,222 @@ textarea:focus,
   flex-wrap: wrap;
 }
 
+.teacher-effect-drawer {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(680px, 100%);
+  height: clamp(620px, calc(100dvh - 28px), 860px);
+}
+
+.teacher-effect-drawer-body {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.teacher-effect-form,
+.teacher-effect-layout-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.teacher-effect-layout-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.teacher-effect-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.teacher-effect-form label > span,
+.teacher-effect-source-section header span,
+.teacher-effect-current-preview span {
+  color: var(--color-subtle);
+  font-size: 13px;
+}
+
+.teacher-effect-form input {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: inherit;
+}
+
+.teacher-effect-source-section,
+.teacher-effect-current-preview,
+.teacher-effect-live-preview {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  background: var(--color-status-muted-bg);
+}
+
+.teacher-effect-source-section > header,
+.teacher-effect-current-preview > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.teacher-effect-source-section > header > div,
+.teacher-effect-current-preview > div {
+  display: grid;
+  gap: 4px;
+}
+
+.teacher-effect-source-section header small {
+  color: var(--color-subtle);
+  line-height: 1.5;
+}
+
+.teacher-effect-source-list {
+  display: grid;
+  gap: 8px;
+}
+
+.teacher-effect-source-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.teacher-effect-source-row.selected {
+  border-color: color-mix(in srgb, var(--color-primary) 32%, transparent);
+  background: var(--color-primary-soft);
+}
+
+.teacher-effect-source-row > img {
+  width: 58px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--color-status-muted-bg);
+}
+
+.teacher-effect-source-row > div:not(.teacher-effect-source-actions) {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.teacher-effect-source-row strong,
+.teacher-effect-source-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher-effect-source-row small {
+  color: var(--color-subtle);
+}
+
+.teacher-effect-source-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.teacher-effect-source-actions .icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: inherit;
+}
+
+.teacher-effect-source-actions .icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.teacher-effect-current-preview img {
+  width: min(100%, 320px);
+  max-height: 260px;
+  margin: 0 auto;
+  object-fit: contain;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.teacher-effect-live-preview > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.teacher-effect-live-preview > header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.teacher-effect-live-preview > header span {
+  color: var(--color-subtle);
+  font-size: 13px;
+}
+
+.teacher-effect-live-preview > header small {
+  color: var(--color-subtle);
+  line-height: 1.5;
+}
+
+.teacher-effect-live-preview-canvas {
+  max-height: 360px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.teacher-effect-live-preview-canvas canvas {
+  display: block;
+  width: min(100%, 420px);
+  height: auto;
+  margin: 0 auto;
+  background: #fff;
+}
+
+.teacher-effect-drawer-actions {
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-soft);
+}
+
+.teacher-effect-drawer-actions > span {
+  color: var(--color-subtle);
+  font-size: 13px;
+}
+
+.teacher-effect-drawer-actions > span.teacher-effect-validation-error {
+  color: var(--color-danger, #b42318);
+}
+
+.teacher-effect-drawer-actions > div {
+  display: flex;
+  gap: 8px;
+}
+
 .archive-video-upload {
   min-height: 38px;
 }
@@ -5815,18 +6031,62 @@ textarea:focus,
   }
 }
 
-.app-shell-mobile .library-drawer.resource-drawer {
-  align-self: flex-end;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  .app-shell-mobile .library-drawer.resource-drawer {
+    align-self: flex-end;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   width: 100%;
   height: clamp(460px, 88dvh, 720px);
   max-height: none;
   padding: 18px 14px max(14px, env(safe-area-inset-bottom));
   border-radius: 18px 18px 0 0;
-  animation: bottom-sheet-enter 0.2s ease both;
-}
+    animation: bottom-sheet-enter 0.2s ease both;
+  }
 
-.app-shell-mobile .library-drawer.resource-drawer::before {
+  .app-shell-mobile .library-drawer.teacher-effect-drawer {
+    align-self: flex-end;
+    width: 100%;
+    height: clamp(560px, 92dvh, 820px);
+    max-height: none;
+    padding: 18px 14px max(14px, env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+    animation: bottom-sheet-enter 0.2s ease both;
+  }
+
+  .app-shell-mobile .teacher-effect-layout-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell-mobile .teacher-effect-source-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .app-shell-mobile .teacher-effect-source-row > img {
+    width: 52px;
+    height: 52px;
+  }
+
+  .app-shell-mobile .teacher-effect-source-actions,
+  .app-shell-mobile .teacher-effect-source-row > .secondary {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .app-shell-mobile .teacher-effect-source-actions button {
+    flex: 1;
+  }
+
+  .app-shell-mobile .teacher-effect-drawer-actions {
+    display: grid;
+    gap: 10px;
+  }
+
+  .app-shell-mobile .teacher-effect-drawer-actions > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell-mobile .library-drawer.resource-drawer::before {
   content: '';
   justify-self: center;
   width: 42px;

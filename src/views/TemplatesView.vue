@@ -238,16 +238,6 @@ const closeDrawer = () => {
   return true
 }
 
-const cancelEdit = () => {
-  if (mode.value === 'new') {
-    closeDrawer()
-    return
-  }
-  if (!confirmDiscardChanges('放弃当前编辑')) return
-  mode.value = 'detail'
-  resetDraft()
-}
-
 const save = async () => {
   if (formReadonly.value || saving.value) return
   if (mode.value === 'edit' && selectedIndex.value < 0) return
@@ -446,7 +436,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <div class="button-pair">
             <button class="ghost" type="button" @click="closeDrawer">关闭</button>
             <button v-if="mode === 'detail' && canWriteTemplates" class="secondary" type="button" @click="startEdit">编辑</button>
-            <button v-if="mode !== 'detail'" class="ghost" type="button" @click="cancelEdit">取消</button>
             <button v-if="mode !== 'detail'" class="primary" type="button" :disabled="formReadonly || (mode === 'edit' && !isDirty)" @click="save">{{ saving ? '保存中…' : '保存模板' }}</button>
           </div>
         </div>

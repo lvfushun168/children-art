@@ -204,22 +204,16 @@ onBeforeUnmount(() => cleanupMobileMedia())
   </PageHead>
 
   <section class="settings-layout" :class="`mobile-settings-stage-${mobileStage}`">
-    <aside v-show="!isMobileFlow || mobileStage === 'list'" class="panel master-list">
-      <div class="section-head">
-        <div>
-          <span>配置项</span>
-          <strong>{{ providerSettings.length }} 项</strong>
-        </div>
-      </div>
+    <aside v-show="!isMobileFlow || mobileStage === 'list'" class="panel template-type-list settings-type-list">
       <button
         v-for="setting in providerSettings"
         :key="setting.id"
-        class="master-row"
+        type="button"
         :class="{ active: sameId(setting.id, selectedId) }"
         @click="selectSetting(setting)"
       >
         <strong>{{ setting.name }}</strong>
-        <span>{{ setting.status }}</span>
+        <small>{{ setting.status }}</small>
       </button>
     </aside>
 

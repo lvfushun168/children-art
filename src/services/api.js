@@ -114,6 +114,7 @@ export const api = {
     removeArtwork: (artworkId, version) => request(`/artworks/${id(artworkId)}${queryString({ version })}`, { method: 'DELETE' }),
     removeArtworkVersion: (artworkId, versionId, version) => request(`/artworks/${id(artworkId)}/versions/${id(versionId)}${queryString({ version })}`, { method: 'DELETE' }),
     confirmArtwork: (artworkId, body) => request(`/artworks/${id(artworkId)}/confirm`, { method: 'POST', body }),
+    commitRenderedArtwork: (artworkId, body) => request(`/artworks/${id(artworkId)}/rendered-versions`, { method: 'POST', body }),
     processArtwork: (artworkId, body) => request(`/artworks/${id(artworkId)}/process-jobs`, { method: 'POST', body }),
     processArtworksBatch: (lessonId, artworkIds, body = {}) => request(`/lessons/${id(lessonId)}/artworks/process-jobs`, {
       method: 'POST', body: { artworkIds: artworkIds.map(id), ...body }
@@ -131,6 +132,8 @@ export const api = {
     regenerate: (feedbackId, body) => request(`/feedbacks/${id(feedbackId)}/regenerate`, { method: 'POST', body }),
     templates: () => request('/feedback-templates'),
     imageTemplates: () => request('/image-templates'),
+    createImageTemplate: (body) => request('/image-templates', { method: 'POST', body }),
+    updateImageTemplate: (templateId, body) => request(`/image-templates/${id(templateId)}`, { method: 'PATCH', body }),
     promptTemplates: () => request('/prompt-templates')
   },
   jobs: {

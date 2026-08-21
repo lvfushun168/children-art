@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
+import { normalizeImageTemplate } from '../services/imageTemplateRenderer'
 
 const props = defineProps({
   state: {
@@ -32,19 +33,53 @@ let cleanupMobileMedia = () => {}
 const list = computed(() => props.state.templates[activeType.value] || [])
 const selected = computed(() => list.value[selectedIndex.value] || list.value[0] || null)
 const activeLabel = computed(() => types.find((type) => type.id === activeType.value)?.label)
-const canWriteTemplates = false
+const canWriteTemplates = computed(() => activeType.value === 'image' && Boolean(
+  props.state.currentUser?.permissions?.includes('template.manage')
+))
+
+const uiStatus = (value) => ['DISABLED', '停用'].includes(String(value || '').toUpperCase()) ? '停用' : '启用'
+const imageDraftFor = (item = {}) => {
+  const config = normalizeImageTemplate(item)
+  return {
+    id: item.id,
+    templateKey: item.templateKey || '',
+    templateVersion: Number(item.templateVersion || 1),
+    version: Number(item.version || 0),
+    name: item.name || '',
+    status: uiStatus(item.status),
+    ratio: config.canvas.aspectRatio === 'original' ? '原比例' : config.canvas.aspectRatio,
+    fit: config.canvas.fit,
+    background: config.canvas.background,
+    brightness: config.adjustments.brightness,
+    contrast: config.adjustments.contrast,
+    borderEnabled: config.border.enabled,
+    borderWidth: config.border.width,
+    borderColor: config.border.color,
+    watermarkEnabled: config.watermark.enabled,
+    watermarkText: config.watermark.text,
+    watermarkPosition: config.watermark.position,
+    watermarkOpacity: config.watermark.opacity,
+    watermarkFontSize: config.watermark.fontSize,
+    watermarkPadding: config.watermark.padding,
+    watermarkColor: config.watermark.color,
+    outputFormat: config.output.format,
+    quality: config.output.quality
+  }
+}
 
 const blankDraft = () => {
   const map = {
     comment: { name: '', tone: '', length: '60-80字', structure: '', taboo: '', sample: '', status: '启用' },
-    image: { name: '', ratio: '4:5', brightness: '+10%', watermark: '', border: '', crop: '', quality: '高清', status: '启用' },
+    image: { name: '', templateKey: '', templateVersion: 1, version: 0, ratio: '4:5', fit: 'contain', background: '#ffffff', brightness: 1, contrast: 1, borderEnabled: true, borderWidth: 24, borderColor: '#f3e5d8', watermarkEnabled: false, watermarkText: '{{campusName}}', watermarkPosition: 'bottomRight', watermarkOpacity: 0.8, watermarkFontSize: 28, watermarkPadding: 24, watermarkColor: '#ffffff', outputFormat: 'image/jpeg', quality: 0.9, status: '启用' },
     prompt: { name: '', model: '', scene: 'feedback', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' },
     watermark: { name: '', value: '', position: '右下角', opacity: '80%', font: '', color: '#0018A8', status: '启用' }
   }
   return map[activeType.value]
 }
 
-const cloneSelected = () => JSON.parse(JSON.stringify(selected.value || blankDraft()))
+const cloneSelected = () => activeType.value === 'image'
+  ? imageDraftFor(selected.value || blankDraft())
+  : JSON.parse(JSON.stringify(selected.value || blankDraft()))
 
 const resetDraft = () => {
   draft.value = mode.value === 'new' ? blankDraft() : cloneSelected()
@@ -69,7 +104,7 @@ const selectTemplate = (index) => {
 }
 
 const startNew = () => {
-  if (!canWriteTemplates) {
+  if (!canWriteTemplates.value) {
     props.state.notify('模板暂不可新增')
     return
   }
@@ -79,7 +114,7 @@ const startNew = () => {
 }
 
 const startEdit = () => {
-  if (!canWriteTemplates) {
+  if (!canWriteTemplates.value) {
     props.state.notify('模板暂不可编辑')
     return
   }
@@ -87,15 +122,18 @@ const startEdit = () => {
   resetDraft()
 }
 
-const save = () => {
-  if (!canWriteTemplates) {
+const save = async () => {
+  if (!canWriteTemplates.value) {
     props.state.notify('模板暂不可保存')
     return
   }
   const saved = mode.value === 'new'
     ? props.state.addTemplate(activeType.value, draft.value)
     : props.state.updateTemplate(activeType.value, selectedIndex.value, draft.value)
-  if (mode.value === 'new') selectedIndex.value = list.value.indexOf(saved)
+  const resolved = saved && typeof saved.then === 'function' ? await saved : saved
+  if (!resolved) return
+  const savedIndex = list.value.findIndex((item) => String(item.id) === String(resolved.id))
+  if (savedIndex >= 0) selectedIndex.value = savedIndex
   mode.value = 'detail'
   if (isMobileFlow.value) mobileStage.value = 'detail'
   resetDraft()
@@ -190,7 +228,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
       >
         <strong>{{ item.name }}</strong>
         <span v-if="activeType === 'comment'">{{ item.tone }} · {{ item.length }}</span>
-        <span v-if="activeType === 'image'">{{ item.ratio }} · {{ item.brightness }} · {{ item.quality }}</span>
+        <span v-if="activeType === 'image'">{{ item.summary || `${item.ratio || '默认比例'} · ${item.watermark || '无水印'}` }}</span>
         <span v-if="activeType === 'prompt'">{{ item.scene }} · {{ item.model }}</span>
         <span v-if="activeType === 'watermark'">{{ item.position }} · {{ item.opacity }}</span>
       </button>
@@ -208,6 +246,9 @@ onBeforeUnmount(() => cleanupMobileMedia())
         </div>
       </div>
 
+      <p v-if="activeType !== 'image'" class="template-readonly-hint">一期 MVP 先开放图片处理模板；课评模板和提示词模板仍保持只读。</p>
+      <p v-else-if="!canWriteTemplates" class="template-readonly-hint">当前账号没有模板管理权限，模板可查看但不能修改。</p>
+
       <fieldset :disabled="!canWriteTemplates">
       <div v-if="activeType === 'comment'" class="form-grid">
         <label>模板名称<input v-model="draft.name" /></label>
@@ -222,12 +263,22 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <div v-if="activeType === 'image'" class="form-grid">
         <label>模板名称<input v-model="draft.name" /></label>
         <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
-        <label>图片比例<input v-model="draft.ratio" /></label>
-        <label>亮度调整<input v-model="draft.brightness" /></label>
-        <label>水印规则<input v-model="draft.watermark" /></label>
-        <label>边框样式<input v-model="draft.border" /></label>
-        <label>裁切规则<input v-model="draft.crop" /></label>
-        <label>输出质量<input v-model="draft.quality" /></label>
+        <label>图片比例<AdaptiveSelect v-model="draft.ratio" :options="['原比例', '1:1', '4:5', '3:4', '16:9']" /></label>
+        <label>图片适配<AdaptiveSelect v-model="draft.fit" :options="[{ value: 'contain', label: '完整显示（不裁切）' }, { value: 'cover', label: '铺满画布（居中裁切）' }]" /></label>
+        <label>画布背景<input v-model="draft.background" type="color" /></label>
+        <label>输出格式<AdaptiveSelect v-model="draft.outputFormat" :options="['image/jpeg', 'image/png']" /></label>
+        <label class="template-range-field">亮度 <output>{{ Number(draft.brightness || 1).toFixed(2) }}</output><input v-model.number="draft.brightness" type="range" min="0.5" max="1.5" step="0.01" /></label>
+        <label class="template-range-field">对比度 <output>{{ Number(draft.contrast || 1).toFixed(2) }}</output><input v-model.number="draft.contrast" type="range" min="0.5" max="1.5" step="0.01" /></label>
+        <label class="inline-check"><input v-model="draft.borderEnabled" type="checkbox" /><span>启用边框</span></label>
+        <label>边框宽度（设计像素）<input v-model.number="draft.borderWidth" type="number" min="0" max="200" step="1" /></label>
+        <label>边框颜色<input v-model="draft.borderColor" type="color" /></label>
+        <label class="inline-check"><input v-model="draft.watermarkEnabled" type="checkbox" /><span>启用水印</span></label>
+        <label class="wide">水印内容<input v-model="draft.watermarkText" placeholder="支持 {{campusName}}、{{studentName}}" /></label>
+        <label>水印位置<AdaptiveSelect v-model="draft.watermarkPosition" :options="[{ value: 'topLeft', label: '左上角' }, { value: 'topRight', label: '右上角' }, { value: 'bottomLeft', label: '左下角' }, { value: 'bottomRight', label: '右下角' }, { value: 'center', label: '居中' }]" /></label>
+        <label>水印颜色<input v-model="draft.watermarkColor" type="color" /></label>
+        <label class="template-range-field">水印透明度 <output>{{ Math.round(Number(draft.watermarkOpacity || 0.8) * 100) }}%</output><input v-model.number="draft.watermarkOpacity" type="range" min="0" max="1" step="0.05" /></label>
+        <label>水印字号<input v-model.number="draft.watermarkFontSize" type="number" min="8" max="160" step="1" /></label>
+        <label>输出质量 <output>{{ Math.round(Number(draft.quality || 0.9) * 100) }}%</output><input v-model.number="draft.quality" type="range" min="0.5" max="1" step="0.05" /></label>
       </div>
 
       <div v-if="activeType === 'prompt'" class="form-grid">

@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 import { sameId } from '../../services/mappers'
+import { imageTemplateSummary, isClientCanvasTemplate, renderArtworkFile } from '../../services/imageTemplateRenderer'
 
 const props = defineProps({
   state: {
@@ -29,7 +30,7 @@ const imageTemplateOptions = computed(() =>
   props.state.templates.image.map((template, index) => ({
     label: template.name,
     value: index,
-    description: `${template.ratio || '默认比例'} · ${template.brightness || ''} · ${template.watermark || ''}`
+    description: template.summary || imageTemplateSummary(template)
   }))
 )
 
@@ -82,6 +83,66 @@ const imageAsset = (row, mode) => {
 const hasImage = (asset) => Boolean(asset?.fileId || asset?.src)
 
 const hasProcessedImage = (row) => hasImage(imageAsset(row, 'processed'))
+
+const selectedImageTemplate = computed(() => props.state.templates.image[Number(props.state.selectedImageTemplate)] || null)
+const artworkPreviewUrl = ref('')
+const artworkPreviewLoading = ref(false)
+const artworkPreviewError = ref('')
+let artworkPreviewObjectUrl = ''
+let artworkPreviewRequest = 0
+
+const clearArtworkPreview = () => {
+  if (artworkPreviewObjectUrl) URL.revokeObjectURL(artworkPreviewObjectUrl)
+  artworkPreviewObjectUrl = ''
+  artworkPreviewUrl.value = ''
+}
+
+const refreshArtworkPreview = async () => {
+  const requestId = ++artworkPreviewRequest
+  clearArtworkPreview()
+  artworkPreviewLoading.value = false
+  artworkPreviewError.value = ''
+  const row = artworkRow.value
+  const template = selectedImageTemplate.value
+  const original = imageAsset(row, 'original')
+  if (!row || !template || !hasImage(original)) return
+  if (!isClientCanvasTemplate(template)) {
+    artworkPreviewError.value = '此模板为 AI 异步处理，暂不提供本地实时预览'
+    return
+  }
+  artworkPreviewLoading.value = true
+  try {
+    const rendered = await renderArtworkFile(original, template, {
+      campusName: props.state.school?.campus || props.state.school?.name || '',
+      schoolName: props.state.school?.name || props.state.school?.campus || '',
+      studentName: studentFor(row.studentId).name
+    }, { maxDimension: 900 })
+    if (requestId !== artworkPreviewRequest) return
+    artworkPreviewObjectUrl = URL.createObjectURL(rendered.blob)
+    artworkPreviewUrl.value = artworkPreviewObjectUrl
+  } catch (error) {
+    if (requestId === artworkPreviewRequest) artworkPreviewError.value = error?.message || '预览生成失败'
+  } finally {
+    if (requestId === artworkPreviewRequest) artworkPreviewLoading.value = false
+  }
+}
+
+const clientTemplateSelected = computed(() => Boolean(selectedImageTemplate.value && isClientCanvasTemplate(selectedImageTemplate.value)))
+const processActionLabel = computed(() => {
+  if (clientTemplateSelected.value) {
+    if (String(selectedImageTemplate.value?.templateKey || '').toLowerCase() === 'original') return '采用原图'
+    return hasProcessedImage(artworkRow.value) ? '重新保存处理图' : '保存处理图'
+  }
+  return hasProcessedImage(artworkRow.value) ? '重新处理' : '处理当前作品'
+})
+
+watch(
+  () => `${artworkRow.value?.originalFileId || artworkRow.value?.originalImage || ''}:${selectedImageTemplate.value?.id || selectedImageTemplate.value?.name || ''}:${selectedImageTemplate.value?.templateVersion || ''}:${selectedImageTemplate.value?.version || ''}`,
+  () => { void refreshArtworkPreview() },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => clearArtworkPreview())
 
 const selectedImageMode = (row) => {
   if (!row) return 'original'
@@ -204,6 +265,14 @@ const processCurrentImage = async (row) => {
     return
   }
   setActive(row)
+  if (selectedImageTemplate.value && isClientCanvasTemplate(selectedImageTemplate.value)) {
+    if (String(selectedImageTemplate.value.templateKey || '').toLowerCase() === 'original') {
+      await props.state.confirmCurrentImage('original', row.studentId)
+    } else {
+      await props.state.renderCurrentImage?.(row)
+    }
+    return
+  }
   await props.state.retryCurrentImageProcess()
 }
 
@@ -549,17 +618,19 @@ onMounted(() => {
           </article>
           <article class="artwork-version-card" :class="{ selected: artworkRow.imageConfirmed && selectedImageMode(artworkRow) === 'processed' }">
             <div class="artwork-version-media">
-              <ProtectedMedia v-if="hasImage(imageAsset(artworkRow, 'processed'))" :file-id="imageAsset(artworkRow, 'processed').fileId" :src="imageAsset(artworkRow, 'processed').src" alt="作品处理图" />
+              <img v-if="artworkPreviewUrl" :src="artworkPreviewUrl" alt="作品处理预览" class="artwork-live-preview" />
+              <span v-else-if="artworkPreviewLoading" class="delivery-empty">正在生成实时预览…</span>
+              <ProtectedMedia v-else-if="hasImage(imageAsset(artworkRow, 'processed'))" :file-id="imageAsset(artworkRow, 'processed').fileId" :src="imageAsset(artworkRow, 'processed').src" alt="作品处理图" />
               <span v-else class="delivery-empty">尚未生成处理图</span>
               <button v-if="hasImage(imageAsset(artworkRow, 'processed'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="删除处理图" aria-label="删除处理图" @click.stop="removeProcessedArtwork(artworkRow)">×</button>
             </div>
-            <div class="artwork-version-copy"><strong>处理图</strong><small>{{ artworkRow.imageProcessError || '可在确认后用于家长展示' }}</small></div>
+            <div class="artwork-version-copy"><strong>处理图</strong><small>{{ artworkPreviewError || (artworkPreviewUrl ? '实时预览，保存后生成可确认版本' : artworkRow.imageProcessError || '可在确认后用于家长展示') }}</small></div>
             <button type="button" class="primary" :disabled="state.isProcessing || !hasImage(imageAsset(artworkRow, 'processed'))" @click="selectImage(artworkRow, 'processed')">采用处理图</button>
           </article>
         </section>
 
         <footer class="artwork-process-actions">
-          <button type="button" class="secondary" :disabled="state.isProcessing || !artworkRow.imageMatched" @click="processCurrentImage(artworkRow)">{{ hasProcessedImage(artworkRow) ? '重新处理' : '处理当前作品' }}</button>
+          <button type="button" class="secondary" :disabled="state.isProcessing || !artworkRow.imageMatched" @click="processCurrentImage(artworkRow)">{{ processActionLabel }}</button>
         </footer>
 
         <label class="inline-check artwork-highlight-setting"><input type="checkbox" :checked="artworkRow.highlight" @change="state.toggleHighlight(artworkRow)" /><span>标记为本节高光作品</span></label>

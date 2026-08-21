@@ -81,10 +81,11 @@ defineEmits(['copy-export'])
 
 const imageTemplate = computed(() => {
   const template = props.activeImageTemplate || {}
+  const config = template.config || {}
+  const ratio = config.canvas?.aspectRatio || template.ratio || 'original'
   return {
     ...template,
-    ratio: template.ratio || '原比例',
-    watermark: template.watermark || '隐藏水印'
+    ratio: ratio === 'original' ? '原比例' : ratio
   }
 })
 
@@ -111,13 +112,11 @@ const formatHomeworkDate = (value) => {
       <div
         class="image-frame"
         :class="{
-          processed: activeSessionStudent.processed,
           square: imageTemplate.ratio === '1:1',
           raw: imageTemplate.ratio === '原比例'
         }"
       >
         <ProtectedMedia :file-id="activeSessionStudent.processedFileId || activeSessionStudent.originalFileId || activeSessionStudent.imageFileIds?.[0]" :src="activeSessionStudent.image" :alt="activeStudent.name" />
-        <span v-if="imageTemplate.watermark !== '隐藏水印'">{{ school.name }}</span>
       </div>
       <strong>{{ activeStudent.name }} · {{ activeCourse.title }}</strong>
       <small>

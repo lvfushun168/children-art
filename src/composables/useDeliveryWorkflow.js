@@ -62,6 +62,13 @@ import {
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import {
+  buildClientImageTemplateConfig,
+  imageTemplateSummary,
+  isClientCanvasTemplate,
+  normalizeImageTemplate,
+  renderArtworkFile
+} from '../services/imageTemplateRenderer'
+import {
   apiAssetTypeForUpload,
   defaultMaterialVisible,
   materialCategoryForType,
@@ -3627,12 +3634,31 @@ export function useDeliveryWorkflow() {
     }
   }
 
+  const mapImageTemplate = (item = {}) => {
+    const config = normalizeImageTemplate(item)
+    return {
+      ...item,
+      id: fromApiId(item.id),
+      templateVersion: Number(item.templateVersion || 1),
+      version: Number(item.version || 0),
+      config,
+      renderer: config.renderer,
+      ratio: config.canvas.aspectRatio,
+      brightness: config.adjustments.brightness,
+      watermark: config.watermark.enabled ? '启用水印' : '隐藏水印',
+      border: config.border.enabled ? '启用边框' : '无边框',
+      quality: config.output.quality,
+      summary: imageTemplateSummary({ ...item, config })
+    }
+  }
+
   const loadTemplates = async ({ force = false } = {}) => {
     if (pageLoaded.templates && !force) return templates
     const value = await api.workbench.templates()
     templates.comment = (value?.comment || []).map((item) => ({ ...item, length: item.hint || item.lengthHint || '', tone: item.category || item.tone || '' }))
-    templates.image = (value?.image || []).map((item) => ({ ...item }))
+    templates.image = (value?.image || []).map(mapImageTemplate)
     templates.prompt = (value?.prompt || []).map((item) => ({ ...item }))
+    templates.watermark = []
     pageLoaded.templates = true
     return templates
   }
@@ -4103,6 +4129,43 @@ export function useDeliveryWorkflow() {
     return true
   }
 
+  const imageRenderContextFor = (row) => {
+    const student = students.find((item) => sameId(item.id, row?.studentId))
+    return {
+      campusName: school.campus || school.name || '',
+      schoolName: school.name || school.campus || '',
+      studentName: student?.name || row?.studentName || ''
+    }
+  }
+
+  const renderClientArtwork = async (row, template, maxDimension = 2400) => {
+    if (!row?.artworkId || !row?.originalVersionId) throw new Error('当前作品没有可处理的原图版本')
+    if (!isClientCanvasTemplate(template)) throw new Error('当前模板需要后端异步处理')
+    const rendered = await renderArtworkFile({ fileId: row.originalFileId, src: row.originalImage || row.image }, template,
+      imageRenderContextFor(row), { maxDimension })
+    const extension = rendered.blob.type === 'image/png' ? 'png' : 'jpg'
+    const file = new File([rendered.blob], `artwork-${row.studentId}-processed.${extension}`, { type: rendered.blob.type })
+    const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-artwork-processed-${row.studentId}`)
+    return api.assets.commitRenderedArtwork(row.artworkId, {
+      sourceVersionId: String(row.originalVersionId),
+      fileId: String(uploaded.id),
+      templateId: String(template.id),
+      templateVersion: Number(template.templateVersion || 1)
+    })
+  }
+
+  const remoteRenderCurrentImage = async (row = activeSessionStudent.value) => {
+    const template = activeImageTemplate.value
+    if (!row?.artworkId) return false
+    if (!template || !isClientCanvasTemplate(template)) return false
+    const result = await runRemote('正在生成处理图预览并保存...', async () => {
+      await renderClientArtwork(row, template)
+      await refreshRemoteLesson(activeTask.value.id, { force: true })
+      return true
+    }, '处理图已保存，等待老师确认')
+    return result === true
+  }
+
   const remoteConfirmCurrentImage = async (mode = 'processed', studentId = activeStudentId.value) => {
     const targetStudentId = studentId ?? activeStudentId.value
     const row = sessionStudentFor(targetStudentId)
@@ -4124,9 +4187,22 @@ export function useDeliveryWorkflow() {
       notify('请先上传学生作品')
       return false
     }
+    const template = activeImageTemplate.value
+    if (template && isClientCanvasTemplate(template)) {
+      if (String(template.templateKey).toLowerCase() === 'original') {
+        notify('当前选择为保留原图，无需生成处理图')
+        return true
+      }
+      const result = await runRemote('正在生成并保存批量处理图...', async () => {
+        for (const row of rows) await renderClientArtwork(row, template)
+        await refreshRemoteLesson(activeTask.value.id, { force: true })
+        return true
+      }, `已按“${template.name}”生成 ${rows.length} 张处理图`)
+      return result === true
+    }
     const result = await runRemote('正在提交图片处理任务...', async () => {
       const jobs = await api.assets.processArtworksBatch(activeTask.value.id, rows.map((row) => row.artworkId), {
-        templateKey: activeImageTemplate.value?.templateKey || activeImageTemplate.value?.name || undefined,
+        templateKey: template?.templateKey || template?.name || undefined,
         parameters: JSON.stringify({})
       })
       const jobIds = (Array.isArray(jobs) ? jobs : jobs?.items || []).map((job) => job?.jobId).filter(Boolean)
@@ -4139,6 +4215,12 @@ export function useDeliveryWorkflow() {
   const remoteRetryCurrentImageProcess = async () => {
     const row = activeSessionStudent.value
     if (!row?.artworkId) return false
+    if (activeImageTemplate.value && isClientCanvasTemplate(activeImageTemplate.value)) {
+      if (String(activeImageTemplate.value.templateKey).toLowerCase() === 'original') {
+        return remoteConfirmCurrentImage('original', row.studentId)
+      }
+      return remoteRenderCurrentImage(row)
+    }
     const result = await runRemote('正在重试图片处理...', () => api.assets.processArtwork(row.artworkId, { templateKey: activeImageTemplate.value?.templateKey || undefined, parameters: JSON.stringify({}) }), '图片处理任务已重新提交')
     if (!result) return false
     await waitForJobs([result.jobId], activeTask.value.id)
@@ -5191,14 +5273,46 @@ export function useDeliveryWorkflow() {
     return result
   }
 
-  const remoteAddTemplate = () => {
-    notify('模板暂不可新增')
-    return null
+  const apiTemplateStatus = (value) => String(value || '').toUpperCase() === 'DISABLED' || value === '停用' ? 'DISABLED' : 'ENABLED'
+
+  const imageTemplateBodyFor = (payload = {}) => ({
+    templateKey: payload.templateKey || `client-${Date.now()}`,
+    name: payload.name?.trim() || '新图片模板',
+    templateVersion: Number(payload.templateVersion || 1),
+    config: payload.config || buildClientImageTemplateConfig(payload),
+    status: apiTemplateStatus(payload.status)
+  })
+
+  const remoteAddTemplate = async (type, payload) => {
+    if (type !== 'image') {
+      notify('一期 MVP 只支持图片处理模板配置，课评和提示词模板仍由后台维护')
+      return null
+    }
+    const body = imageTemplateBodyFor(payload)
+    const result = await runRemote('正在创建图片处理模板...', () => api.feedback.createImageTemplate(body), '图片处理模板已创建', () => invalidateResource('templates'))
+    if (!result) return null
+    await loadTemplates({ force: true })
+    const createdId = result.id
+    return templates.image.find((item) => sameId(item.id, createdId)) || templates.image[0] || null
   }
 
-  const remoteUpdateTemplate = () => {
-    notify('模板暂不可编辑')
-    return null
+  const remoteUpdateTemplate = async (type, index, payload) => {
+    if (type !== 'image') {
+      notify('一期 MVP 只支持图片处理模板配置，课评和提示词模板仍由后台维护')
+      return null
+    }
+    const current = templates.image[index]
+    if (!current?.id) return null
+    const result = await runRemote('正在保存图片处理模板...', () => api.feedback.updateImageTemplate(current.id, {
+      name: payload.name?.trim() || current.name,
+      config: payload.config || buildClientImageTemplateConfig(payload),
+      status: apiTemplateStatus(payload.status),
+      version: Number(current.version || 0)
+    }), '图片处理模板已保存', () => invalidateResource('templates'))
+    if (!result) return null
+    await loadTemplates({ force: true })
+    const updatedId = result.id || current.id
+    return templates.image.find((item) => sameId(item.id, updatedId)) || null
   }
 
   const pendingImportFile = ref(null)
@@ -5633,6 +5747,7 @@ export function useDeliveryWorkflow() {
     confirmImages,
     confirmCurrentImage: remoteConfirmCurrentImage,
     processImages: remoteProcessImages,
+    renderCurrentImage: remoteRenderCurrentImage,
     failCurrentImageProcess: () => notify('图片处理失败请根据服务端任务状态重试'),
     retryCurrentImageProcess: remoteRetryCurrentImageProcess,
     generateOne: remoteGenerateOne,

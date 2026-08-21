@@ -175,7 +175,6 @@ onMounted(async () => {
   <div class="schedule-page directory-page">
     <button v-if="groupLabel" class="module-back-link" type="button" @click="emit('backToGroup')">← 返回{{ groupLabel }}</button>
     <PageHead eyebrow="课后工作" title="课表 / 上课安排">
-      <button class="secondary" type="button" :disabled="state.scheduleLoading" @click="reload">刷新</button>
     </PageHead>
 
     <form class="directory-toolbar panel schedule-toolbar" @submit.prevent="reload">

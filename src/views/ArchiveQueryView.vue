@@ -397,7 +397,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
   <PageHead title="档案中心" />
 
   <section class="archive-tabs panel">
-    <button v-for="tab in archiveTabs" :key="tab.id" type="button" :class="{ selected: activeTab === tab.id }" @click="switchTab(tab.id)">
+    <button v-for="tab in archiveTabs" :key="tab.id" type="button" :class="{ active: activeTab === tab.id }" @click="switchTab(tab.id)">
       <strong>{{ tab.label }}</strong>
       <small v-if="tab.id === 'studentWorks'">{{ archiveStats.works }} 条</small>
       <small v-if="tab.id === 'lessons'">{{ archiveStats.lessons }} 节</small>

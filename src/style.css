@@ -4126,7 +4126,7 @@ textarea:focus,
   position: absolute;
   bottom: 0;
   width: 100%;
-  border-radius: 8px 8px 0 0;
+  border-radius: 8px;
 }
 
 .monthly-bar-shell i {
@@ -7991,11 +7991,15 @@ textarea:focus,
   display: grid;
   gap: 3px;
   padding: 12px;
-  border: 1px solid transparent;
+  border: 1px solid var(--color-border-soft);
   border-radius: 8px;
-  background: transparent;
+  background: var(--color-surface);
   color: inherit;
   text-align: left;
+}
+
+.archive-tabs button:hover {
+  border-color: var(--color-border-strong);
 }
 
 .archive-tabs button.active {
@@ -12853,9 +12857,9 @@ textarea:focus,
   min-width: 150px;
   min-height: 62px;
   padding: 10px 16px;
-  border-bottom: 3px solid transparent;
+  border: 1px solid var(--color-border-soft);
   border-radius: 8px 8px 0 0;
-  background: transparent;
+  background: var(--color-surface);
   color: var(--color-muted);
   transition:
     background 160ms ease,
@@ -12866,6 +12870,7 @@ textarea:focus,
 
 .material-tab:hover {
   background: color-mix(in srgb, var(--color-primary-soft) 56%, transparent);
+  border-color: var(--color-border-strong);
   color: var(--color-text);
 }
 

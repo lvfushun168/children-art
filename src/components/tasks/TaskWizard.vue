@@ -957,7 +957,7 @@ watch(homeworkEditorOpen, async (open) => {
                 <small v-if="item.meta">{{ item.meta }}</small>
                 <em v-if="item.item.detail">{{ item.item.detail }}</em>
                 <details v-if="item.key === 'parentTouch' && state.sharePage.publishedSnapshot" class="touch-fallback">
-                  <summary>学生访问凭证（企微不可用时人工发送兜底）</summary>
+                  <summary>学生访问凭证（可人工发送）</summary>
                   <div v-for="row in state.attendingRows" :key="`touch-${row.lessonId}-${row.studentId}`" class="touch-fallback-row">
                     <div>
                       <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>

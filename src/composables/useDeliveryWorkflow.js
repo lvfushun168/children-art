@@ -1049,9 +1049,9 @@ export function useDeliveryWorkflow() {
   const archiveChecklistItems = computed(() => [
     {
       key: 'parentTouch',
-      title: '家长展示发布与企微触达',
+      title: '家长展示发布与企业微信推送',
       meta: wecomEnabled.value
-        ? '发布展示页快照并创建企业微信触达任务'
+        ? '发布展示页快照并创建企业微信推送任务'
         : '企业微信未启用',
       action: '创建企微待推送',
       required: true,

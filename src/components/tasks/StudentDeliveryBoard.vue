@@ -90,7 +90,6 @@ const hasProcessedImage = (row) => hasImage(imageAsset(row, 'processed'))
 const selectedImageTemplate = computed(() => props.state.templates.image[Number(props.state.selectedImageTemplate)] || null)
 const artworkPreviewUrl = ref('')
 const artworkPreviewLoading = ref(false)
-const artworkPreviewError = ref('')
 let artworkPreviewObjectUrl = ''
 let artworkPreviewRequest = 0
 
@@ -104,15 +103,11 @@ const refreshArtworkPreview = async () => {
   const requestId = ++artworkPreviewRequest
   clearArtworkPreview()
   artworkPreviewLoading.value = false
-  artworkPreviewError.value = ''
   const row = artworkRow.value
   const template = selectedImageTemplate.value
   const original = imageAsset(row, 'original')
   if (!row || !template || !hasImage(original)) return
-  if (!isClientCanvasTemplate(template)) {
-    artworkPreviewError.value = '此模板为 AI 异步处理，暂不提供本地实时预览'
-    return
-  }
+  if (!isClientCanvasTemplate(template)) return
   artworkPreviewLoading.value = true
   try {
     const rendered = await renderArtworkFile(original, template, {
@@ -123,8 +118,8 @@ const refreshArtworkPreview = async () => {
     if (requestId !== artworkPreviewRequest) return
     artworkPreviewObjectUrl = URL.createObjectURL(rendered.blob)
     artworkPreviewUrl.value = artworkPreviewObjectUrl
-  } catch (error) {
-    if (requestId === artworkPreviewRequest) artworkPreviewError.value = error?.message || '预览生成失败'
+  } catch {
+    // Preview failure should not compete with the primary artwork actions.
   } finally {
     if (requestId === artworkPreviewRequest) artworkPreviewLoading.value = false
   }
@@ -656,7 +651,7 @@ onMounted(() => {
               </label>
               <button v-if="hasImage(imageAsset(artworkRow, 'original'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="移除原图" aria-label="移除原图" @click.stop="removeOriginalArtwork(artworkRow)">×</button>
             </div>
-            <div class="artwork-version-copy"><strong>原图</strong><small>AI 处理失败时也可以直接采用</small></div>
+            <div class="artwork-version-copy"><strong>原图</strong></div>
             <button type="button" class="secondary" :disabled="state.isProcessing || !hasImage(imageAsset(artworkRow, 'original'))" @click="selectImage(artworkRow, 'original')">采用原图</button>
           </article>
           <article class="artwork-version-card" :class="{ selected: artworkRow.imageConfirmed && selectedImageMode(artworkRow) === 'processed' }">
@@ -674,7 +669,9 @@ onMounted(() => {
               <span v-else class="delivery-empty">尚未生成处理图</span>
               <button v-if="hasImage(imageAsset(artworkRow, 'processed'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="删除处理图" aria-label="删除处理图" @click.stop="removeProcessedArtwork(artworkRow)">×</button>
             </div>
-            <div class="artwork-version-copy"><strong>处理图</strong><small>{{ artworkPreviewError || (artworkPreviewUrl ? '实时预览，点击采用时自动保存' : artworkRow.imageProcessError || '可在确认后用于家长展示') }}</small></div>
+            <div class="artwork-version-copy">
+              <strong>处理图</strong>
+            </div>
             <button type="button" class="primary" :disabled="state.isProcessing || artworkPreviewLoading || !hasImage(imageAsset(artworkRow, 'processed')) && !artworkPreviewUrl" @click="selectImage(artworkRow, 'processed')">采用处理图</button>
           </article>
         </section>

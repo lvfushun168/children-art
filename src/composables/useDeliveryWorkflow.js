@@ -70,11 +70,8 @@ import {
 } from '../services/imageTemplateRenderer'
 import {
   feedbackTemplateBodyFor,
-  feedbackTemplateJsonFor,
+  feedbackTemplateUpdateBodyFor,
   mapFeedbackTemplate,
-  mapPromptTemplate,
-  promptTemplateBodyFor,
-  promptTemplateUpdateBodyFor,
   textField
 } from '../services/templateMappers'
 import {
@@ -121,7 +118,7 @@ export function useDeliveryWorkflow() {
   const classes = reactive([])
   const courses = reactive([])
   const scheduleLessons = reactive([])
-  const templates = reactive({ image: [], comment: [], prompt: [] })
+  const templates = reactive({ image: [], comment: [] })
   const classTypes = reactive([])
   const tasks = reactive([])
   const archives = reactive([])
@@ -538,7 +535,6 @@ export function useDeliveryWorkflow() {
       ? selected
       : templates.comment.find(templateIsEnabled) || { name: '默认课评', tone: '', length: '' }
   })
-  const activePromptTemplate = computed(() => templates.prompt.find(templateIsEnabled) || null)
   const isProcessing = computed(() => Boolean(processingAction.value))
   const selectedExternalLinks = computed(() => externalLinks.filter((link) => (homework.value.externalLinkIds || []).some((id) => sameId(id, link.id))))
   const permissionSummary = computed(() => ({
@@ -3684,14 +3680,12 @@ export function useDeliveryWorkflow() {
 
   const loadTemplates = async ({ force = false } = {}) => {
     if (pageLoaded.templates && !force) return templates
-    const [feedbackValues, imageValues, promptValues] = await Promise.all([
+    const [feedbackValues, imageValues] = await Promise.all([
       api.feedback.templates(),
-      api.feedback.imageTemplates(),
-      api.feedback.promptTemplates()
+      api.feedback.imageTemplates()
     ])
     templates.comment = (feedbackValues || []).map(mapFeedbackTemplate)
     templates.image = (imageValues || []).map(mapImageTemplate)
-    templates.prompt = (promptValues || []).map(mapPromptTemplate)
     pageLoaded.templates = true
     return templates
   }
@@ -4330,8 +4324,7 @@ export function useDeliveryWorkflow() {
         : await api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row))
       if (!feedback?.id && !row.feedbackId) throw new Error('课堂记录保存失败，无法生成课评')
       const generation = await api.feedback.regenerate(feedback.id || row.feedbackId, {
-        templateId: activeCommentTemplate.value?.id,
-        promptTemplateId: activePromptTemplate.value?.id
+        templateId: activeCommentTemplate.value?.id
       })
       await waitForJobs([generation?.jobId], activeTask.value.id)
       return generation
@@ -4349,8 +4342,7 @@ export function useDeliveryWorkflow() {
     const result = await runRemote('正在保存课堂记录并生成全班 1v1 课评...', async () => {
       await api.feedback.saveBatch(activeTask.value.id, rows.map((row) => ({ studentId: String(row.studentId), ...feedbackBodyFor(row) })))
       const generation = await api.feedback.generate(activeTask.value.id, {
-        templateId: activeCommentTemplate.value?.id,
-        promptTemplateId: activePromptTemplate.value?.id
+        templateId: activeCommentTemplate.value?.id
       })
       await waitForJobs((generation?.items || []).map((item) => item.jobId), activeTask.value.id)
       return generation
@@ -5374,7 +5366,7 @@ export function useDeliveryWorkflow() {
   const remoteAddTemplate = async (type, payload) => {
     const createByType = {
       comment: {
-        label: '课评模板',
+        label: '课评生成模板',
         body: feedbackTemplateBodyFor(payload),
         action: (body) => api.feedback.createFeedbackTemplate(body)
       },
@@ -5382,11 +5374,6 @@ export function useDeliveryWorkflow() {
         label: '图片处理模板',
         body: imageTemplateBodyFor(payload),
         action: (body) => api.feedback.createImageTemplate(body)
-      },
-      prompt: {
-        label: '提示词模板',
-        body: promptTemplateBodyFor(payload),
-        action: (body) => api.feedback.createPromptTemplate(body)
       }
     }[type]
     if (!createByType) return null
@@ -5402,13 +5389,9 @@ export function useDeliveryWorkflow() {
     if (!current?.id) return null
     const updateByType = {
       comment: {
-        label: '课评模板',
+        label: '课评生成模板',
         body: {
-          name: payload.name?.trim() || current.name,
-          tone: textField(payload.tone),
-          lengthHint: textField(payload.length),
-          templateJson: feedbackTemplateJsonFor(payload, current),
-          status: apiTemplateStatus(payload.status),
+          ...feedbackTemplateUpdateBodyFor(payload, current),
           version: Number(current.version || 0)
         },
         action: (body) => api.feedback.updateFeedbackTemplate(current.id, body)
@@ -5422,14 +5405,6 @@ export function useDeliveryWorkflow() {
           version: Number(current.version || 0)
         },
         action: (body) => api.feedback.updateImageTemplate(current.id, body)
-      },
-      prompt: {
-        label: '提示词模板',
-        body: {
-          ...promptTemplateUpdateBodyFor(payload, current),
-          version: Number(current.version || 0)
-        },
-        action: (body) => api.feedback.updatePromptTemplate(current.id, body)
       }
     }[type]
     if (!updateByType) return null

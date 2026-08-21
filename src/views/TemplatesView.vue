@@ -16,9 +16,8 @@ const props = defineProps({
 defineEmits(['backToGroup'])
 
 const types = [
-  { id: 'comment', label: '课评模板' },
-  { id: 'image', label: '图片模板' },
-  { id: 'prompt', label: '提示词模板' }
+  { id: 'comment', label: '课评生成模板' },
+  { id: 'image', label: '图片模板' }
 ]
 
 const activeType = ref('comment')
@@ -68,9 +67,8 @@ const imageDraftFor = (item = {}) => {
 
 const blankDraft = () => {
   const map = {
-    comment: { name: '', tone: '', length: '60-80字', structure: '', taboo: '', sample: '', status: '启用' },
+    comment: { name: '', tone: '', length: '60-80字', structure: '', taboo: '', sample: '', model: '', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' },
     image: { name: '', templateKey: '', templateVersion: 1, version: 0, ratio: '4:5', fit: 'contain', background: '#ffffff', brightness: 1, contrast: 1, borderEnabled: true, borderWidth: 24, borderColor: '#f3e5d8', watermarkEnabled: false, watermarkText: '{{campusName}}', watermarkPosition: 'bottomRight', watermarkOpacity: 0.8, watermarkFontSize: 28, watermarkPadding: 24, watermarkColor: '#ffffff', outputFormat: 'image/jpeg', quality: 0.9, status: '启用' },
-    prompt: { name: '', model: '', scene: 'feedback', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' }
   }
   return map[activeType.value]
 }
@@ -225,9 +223,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
         @click="selectTemplate(index)"
       >
         <strong>{{ item.name }}</strong>
-        <span v-if="activeType === 'comment'">{{ item.tone }} · {{ item.length }}</span>
+        <span v-if="activeType === 'comment'">{{ item.tone }} · {{ item.length }} · {{ item.model || '默认模型' }}</span>
         <span v-if="activeType === 'image'">{{ item.summary || `${item.ratio || '默认比例'} · ${item.watermark || '无水印'}` }}</span>
-        <span v-if="activeType === 'prompt'">{{ item.scene }} · {{ item.model }}</span>
       </button>
     </aside>
 
@@ -254,6 +251,12 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <label class="wide">结构规则<textarea v-model="draft.structure" rows="3" /></label>
         <label class="wide">禁用表达<textarea v-model="draft.taboo" rows="3" /></label>
         <label class="wide">示例句<textarea v-model="draft.sample" rows="4" /></label>
+        <div class="wide template-subsection-title">AI 生成配置</div>
+        <label>上下文模型<input v-model="draft.model" /></label>
+        <label>Temperature<input v-model.number="draft.temperature" type="number" min="0" max="2" step="0.1" /></label>
+        <label>Max Tokens<input v-model.number="draft.maxTokens" type="number" min="1" max="100000" /></label>
+        <label class="wide">System Prompt<textarea v-model="draft.systemPrompt" rows="5" /></label>
+        <label class="wide">User Prompt<textarea v-model="draft.userPrompt" rows="5" /></label>
       </div>
 
       <div v-if="activeType === 'image'" class="form-grid">
@@ -275,17 +278,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <label class="template-range-field">水印透明度 <output>{{ Math.round(Number(draft.watermarkOpacity || 0.8) * 100) }}%</output><input v-model.number="draft.watermarkOpacity" type="range" min="0" max="1" step="0.05" /></label>
         <label>水印字号<input v-model.number="draft.watermarkFontSize" type="number" min="8" max="160" step="1" /></label>
         <label>输出质量 <output>{{ Math.round(Number(draft.quality || 0.9) * 100) }}%</output><input v-model.number="draft.quality" type="range" min="0.5" max="1" step="0.05" /></label>
-      </div>
-
-      <div v-if="activeType === 'prompt'" class="form-grid">
-        <label>模板名称<input v-model="draft.name" /></label>
-        <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
-        <label>使用场景<AdaptiveSelect v-model="draft.scene" :options="['feedback', 'image', 'homework']" /></label>
-        <label>上下文模型<input v-model="draft.model" /></label>
-        <label>Temperature<input v-model.number="draft.temperature" type="number" step="0.1" /></label>
-        <label>Max Tokens<input v-model.number="draft.maxTokens" type="number" /></label>
-        <label class="wide">System Prompt<textarea v-model="draft.systemPrompt" rows="5" /></label>
-        <label class="wide">User Prompt<textarea v-model="draft.userPrompt" rows="5" /></label>
       </div>
 
       </fieldset>

@@ -135,10 +135,7 @@ export const api = {
     updateFeedbackTemplate: (templateId, body) => request(`/feedback-templates/${id(templateId)}`, { method: 'PATCH', body }),
     imageTemplates: () => request('/image-templates'),
     createImageTemplate: (body) => request('/image-templates', { method: 'POST', body }),
-    updateImageTemplate: (templateId, body) => request(`/image-templates/${id(templateId)}`, { method: 'PATCH', body }),
-    promptTemplates: () => request('/prompt-templates'),
-    createPromptTemplate: (body) => request('/prompt-templates', { method: 'POST', body }),
-    updatePromptTemplate: (templateId, body) => request(`/prompt-templates/${id(templateId)}`, { method: 'PATCH', body })
+    updateImageTemplate: (templateId, body) => request(`/image-templates/${id(templateId)}`, { method: 'PATCH', body })
   },
   jobs: {
     get: (jobId) => request(`/jobs/${id(jobId)}`),

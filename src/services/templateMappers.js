@@ -19,6 +19,7 @@ export const textField = (value) => value === null || value === undefined ? '' :
 
 export const mapFeedbackTemplate = (item = {}) => {
   const templateJson = parseTemplateJson(item.templateJson)
+  const prompt = item.prompt && typeof item.prompt === 'object' ? item.prompt : {}
   const rules = Array.isArray(templateJson.rules) ? templateJson.rules.filter(Boolean).join('\n') : ''
   return {
     ...item,
@@ -30,23 +31,14 @@ export const mapFeedbackTemplate = (item = {}) => {
     structure: textField(templateJson.structure || rules),
     taboo: textField(templateJson.taboo),
     sample: textField(templateJson.sample),
+    model: textField(prompt.modelName ?? item.modelName),
+    systemPrompt: textField(prompt.systemPrompt ?? item.systemPrompt),
+    userPrompt: textField(prompt.userPrompt ?? item.userPrompt),
+    temperature: prompt.temperature ?? item.temperature ?? '',
+    maxTokens: prompt.maxTokens ?? item.maxTokens ?? '',
     _templateJson: templateJson
   }
 }
-
-export const mapPromptTemplate = (item = {}) => ({
-  ...item,
-  id: fromApiId(item.id),
-  templateKey: item.templateKey || '',
-  templateVersion: Number(item.templateVersion || 1),
-  version: Number(item.version || 0),
-  model: textField(item.modelName),
-  scene: textField(item.scene || 'FEEDBACK').toLowerCase(),
-  systemPrompt: textField(item.systemPrompt),
-  userPrompt: textField(item.userPrompt),
-  temperature: item.temperature ?? '',
-  maxTokens: item.maxTokens ?? ''
-})
 
 export const feedbackTemplateJsonFor = (payload = {}, current = {}) => {
   const source = parseTemplateJson(payload._templateJson || payload.templateJson || current._templateJson || current.templateJson)
@@ -64,30 +56,26 @@ const apiTemplateStatus = (value) => String(value || '').toUpperCase() === 'DISA
 
 export const feedbackTemplateBodyFor = (payload = {}, current = {}) => ({
   templateKey: payload.templateKey || current.templateKey || `feedback-${Date.now()}`,
-  name: payload.name?.trim() || '新课评模板',
+  name: payload.name?.trim() || '新课评生成模板',
   templateVersion: Number(payload.templateVersion || 1),
   tone: textField(payload.tone),
   lengthHint: textField(payload.length),
   templateJson: feedbackTemplateJsonFor(payload, current),
+  prompt: {
+    modelName: textField(payload.model !== undefined ? payload.model : current.model),
+    systemPrompt: textField(payload.systemPrompt !== undefined ? payload.systemPrompt : current.systemPrompt),
+    userPrompt: textField(payload.userPrompt !== undefined ? payload.userPrompt : current.userPrompt),
+    temperature: payload.temperature === '' || payload.temperature === null || payload.temperature === undefined
+      ? (current.temperature === '' || current.temperature === null || current.temperature === undefined ? null : Number(current.temperature))
+      : Number(payload.temperature),
+    maxTokens: payload.maxTokens === '' || payload.maxTokens === null || payload.maxTokens === undefined
+      ? (current.maxTokens === '' || current.maxTokens === null || current.maxTokens === undefined ? null : Number(current.maxTokens))
+      : Number(payload.maxTokens)
+  },
   status: apiTemplateStatus(payload.status)
 })
 
-export const promptTemplateBodyFor = (payload = {}, current = {}) => ({
-  templateKey: payload.templateKey || current.templateKey || `prompt-${Date.now()}`,
-  name: payload.name?.trim() || '新提示词模板',
-  scene: textField(payload.scene !== undefined ? payload.scene : current.scene || 'feedback').toUpperCase(),
-  modelName: textField(payload.model !== undefined ? payload.model : current.model),
-  systemPrompt: textField(payload.systemPrompt !== undefined ? payload.systemPrompt : current.systemPrompt),
-  userPrompt: textField(payload.userPrompt !== undefined ? payload.userPrompt : current.userPrompt),
-  temperature: payload.temperature === '' || payload.temperature === null || payload.temperature === undefined
-    ? null : Number(payload.temperature),
-  maxTokens: payload.maxTokens === '' || payload.maxTokens === null || payload.maxTokens === undefined
-    ? null : Number(payload.maxTokens),
-  templateVersion: Number(payload.templateVersion || 1),
-  status: apiTemplateStatus(payload.status)
-})
-
-export const promptTemplateUpdateBodyFor = (payload = {}, current = {}) => {
-  const { templateKey, templateVersion, ...editable } = promptTemplateBodyFor(payload, current)
+export const feedbackTemplateUpdateBodyFor = (payload = {}, current = {}) => {
+  const { templateKey, templateVersion, ...editable } = feedbackTemplateBodyFor(payload, current)
   return editable
 }

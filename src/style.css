@@ -415,6 +415,37 @@
   background: var(--color-primary-soft);
 }
 
+.artwork-ai-entry {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, white 42%, transparent);
+  border-radius: 999px;
+  background: rgba(12, 22, 31, 0.62);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.artwork-ai-entry:hover:not(:disabled) {
+  background: rgba(12, 22, 31, 0.82);
+  transform: translateY(-1px);
+}
+
+.artwork-ai-entry:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .artwork-media-upload {
   position: relative;
   display: grid;
@@ -513,6 +544,53 @@
 
 .artwork-highlight-setting {
   margin-top: 4px;
+}
+
+.modal-backdrop.ai-image-prompt-backdrop {
+  z-index: 60;
+}
+
+.ai-image-prompt-modal {
+  display: grid;
+  gap: 14px;
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-warm);
+  box-shadow: 0 24px 70px color-mix(in srgb, black 30%, transparent);
+  animation: panel-enter 0.2s ease both;
+}
+
+.ai-image-prompt-modal .modal-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.ai-image-prompt-modal .modal-head small,
+.ai-image-prompt-modal .drawer-field > small {
+  color: var(--color-muted);
+}
+
+.ai-image-prompt-modal textarea {
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+}
+
+.ai-image-prompt-context {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+}
+
+.ai-image-prompt-context small {
+  color: var(--color-muted);
+  line-height: 1.5;
 }
 
 @media (max-width: 680px) {

@@ -4274,6 +4274,27 @@ export function useDeliveryWorkflow() {
     return true
   }
 
+  const remoteProcessCurrentImageWithPrompt = async (prompt, studentId = activeStudentId.value) => {
+    const safePrompt = String(prompt || '').trim()
+    if (!safePrompt) {
+      notify('请输入 AI 处理提示词')
+      return false
+    }
+    const targetStudentId = studentId ?? activeStudentId.value
+    const row = sessionStudentFor(targetStudentId)
+    if (!row?.artworkId) {
+      notify('请先上传当前学生的作品')
+      return false
+    }
+    const result = await runRemote('正在提交 AI 图片处理任务...', () => api.assets.processArtwork(row.artworkId, {
+      templateKey: activeImageTemplate.value?.templateKey || 'original',
+      parameters: JSON.stringify({ prompt: safePrompt })
+    }), 'AI 图片处理任务已提交')
+    if (!result) return false
+    await waitForJobs([result.jobId], activeTask.value.id)
+    return true
+  }
+
   const feedbackBodyFor = (row) => ({
     classroomRecord: row.record || '',
     content: row.comment || '',
@@ -5796,6 +5817,7 @@ export function useDeliveryWorkflow() {
     adoptCurrentImage: remoteAdoptCurrentImage,
     processImages: remoteProcessImages,
     renderCurrentImage: remoteRenderCurrentImage,
+    processImageWithPrompt: remoteProcessCurrentImageWithPrompt,
     failCurrentImageProcess: () => notify('图片处理失败请根据服务端任务状态重试'),
     retryCurrentImageProcess: remoteRetryCurrentImageProcess,
     generateOne: remoteGenerateOne,

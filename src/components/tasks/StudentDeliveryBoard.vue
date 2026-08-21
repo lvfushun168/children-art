@@ -18,6 +18,9 @@ const commentStudentId = ref(null)
 const batchOpen = ref(false)
 const mobileStudentId = ref(null)
 const mobileSection = ref(null)
+const aiPromptOpen = ref(false)
+const aiPrompt = ref('')
+const aiPromptError = ref('')
 
 const studentFor = (studentId) => {
   const student = props.state.students.find((item) => sameId(item.id, studentId))
@@ -186,8 +189,46 @@ const openArtwork = (row) => {
 }
 
 const closeArtwork = () => {
+  aiPromptOpen.value = false
   artworkStudentId.value = null
   setDrawerState(false)
+}
+
+const openAiPrompt = () => {
+  if (!artworkRow.value) return
+  if (!hasImage(imageAsset(artworkRow.value, 'original'))) {
+    props.state.notify('请先上传当前学生的原图')
+    return
+  }
+  aiPrompt.value = ''
+  aiPromptError.value = ''
+  aiPromptOpen.value = true
+}
+
+const closeAiPrompt = () => {
+  if (props.state.isProcessing) return
+  aiPromptOpen.value = false
+  aiPromptError.value = ''
+}
+
+const submitAiPrompt = async () => {
+  const prompt = aiPrompt.value.trim()
+  if (!prompt) {
+    aiPromptError.value = '请输入 AI 处理提示词'
+    return
+  }
+  if (!artworkRow.value) return
+  setActive(artworkRow.value)
+  const process = props.state.processImageWithPrompt
+  if (typeof process !== 'function') {
+    aiPromptError.value = '当前版本暂不支持 AI 图片处理'
+    return
+  }
+  const submitted = await process(prompt, artworkRow.value.studentId)
+  if (submitted) {
+    aiPromptOpen.value = false
+    aiPromptError.value = ''
+  }
 }
 
 const openComment = (row) => {
@@ -382,6 +423,8 @@ watch(() => props.state.activeTask.id, () => {
   artworkStudentId.value = null
   commentStudentId.value = null
   batchOpen.value = false
+  aiPromptOpen.value = false
+  aiPromptError.value = ''
   mobileStudentId.value = null
   mobileSection.value = null
   setDrawerState(false)
@@ -618,6 +661,13 @@ onMounted(() => {
           </article>
           <article class="artwork-version-card" :class="{ selected: artworkRow.imageConfirmed && selectedImageMode(artworkRow) === 'processed' }">
             <div class="artwork-version-media">
+              <button
+                type="button"
+                class="artwork-ai-entry"
+                :disabled="state.isProcessing || !hasImage(imageAsset(artworkRow, 'original'))"
+                title="输入提示词，生成 AI 处理图"
+                @click.stop="openAiPrompt"
+              >AI处理✨</button>
               <img v-if="artworkPreviewUrl" :src="artworkPreviewUrl" alt="作品处理预览" class="artwork-live-preview" />
               <span v-else-if="artworkPreviewLoading" class="delivery-empty">正在生成实时预览…</span>
               <ProtectedMedia v-else-if="hasImage(imageAsset(artworkRow, 'processed'))" :file-id="imageAsset(artworkRow, 'processed').fileId" :src="imageAsset(artworkRow, 'processed').src" alt="作品处理图" />
@@ -636,6 +686,40 @@ onMounted(() => {
         <label class="inline-check artwork-highlight-setting"><input type="checkbox" :checked="artworkRow.highlight" @change="state.toggleHighlight(artworkRow)" /><span>标记为本节高光作品</span></label>
         <textarea v-if="artworkRow.highlight" v-model="artworkRow.highlightNote" rows="3" placeholder="补充高光说明" @blur="state.saveShareDraft?.('更新高光说明')" />
       </aside>
+    </div>
+
+    <div v-if="aiPromptOpen && artworkRow" class="modal-backdrop ai-image-prompt-backdrop" @click.self="closeAiPrompt">
+      <section class="ai-image-prompt-modal" role="dialog" aria-modal="true" aria-labelledby="ai-image-prompt-title">
+        <header class="modal-head">
+          <div>
+            <strong id="ai-image-prompt-title">AI处理✨</strong>
+            <small>{{ studentFor(artworkRow.studentId).name }} · 输入提示词生成处理图</small>
+          </div>
+          <button type="button" class="ghost" :disabled="state.isProcessing" @click="closeAiPrompt">关闭</button>
+        </header>
+
+
+        <label class="drawer-field">
+          <span>处理提示词</span>
+          <textarea
+            v-model="aiPrompt"
+            rows="6"
+            maxlength="500"
+            autofocus
+            placeholder="例如：保留儿童原作笔触，增强色彩层次，适度提亮，不改变主体构图。"
+            @keydown.esc="closeAiPrompt"
+            @keydown.ctrl.enter.prevent="submitAiPrompt"
+            @keydown.meta.enter.prevent="submitAiPrompt"
+          />
+          <small v-if="aiPromptError" class="missing-text">{{ aiPromptError }}</small>
+          <small v-else>提示：Ctrl/⌘ + Enter 可直接提交。</small>
+        </label>
+
+        <footer class="modal-actions">
+          <button type="button" class="ghost" :disabled="state.isProcessing" @click="closeAiPrompt">取消</button>
+          <button type="button" class="primary" :disabled="state.isProcessing" @click="submitAiPrompt">{{ state.isProcessing ? '处理中…' : '开始 AI 处理' }}</button>
+        </footer>
+      </section>
     </div>
 
     <div v-if="commentRow" class="drawer-backdrop" @click.self="closeComment">

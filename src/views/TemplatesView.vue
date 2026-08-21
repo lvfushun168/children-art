@@ -18,8 +18,7 @@ defineEmits(['backToGroup'])
 const types = [
   { id: 'comment', label: '课评模板' },
   { id: 'image', label: '图片模板' },
-  { id: 'prompt', label: '提示词模板' },
-  { id: 'watermark', label: '水印配置' }
+  { id: 'prompt', label: '提示词模板' }
 ]
 
 const activeType = ref('comment')
@@ -71,8 +70,7 @@ const blankDraft = () => {
   const map = {
     comment: { name: '', tone: '', length: '60-80字', structure: '', taboo: '', sample: '', status: '启用' },
     image: { name: '', templateKey: '', templateVersion: 1, version: 0, ratio: '4:5', fit: 'contain', background: '#ffffff', brightness: 1, contrast: 1, borderEnabled: true, borderWidth: 24, borderColor: '#f3e5d8', watermarkEnabled: false, watermarkText: '{{campusName}}', watermarkPosition: 'bottomRight', watermarkOpacity: 0.8, watermarkFontSize: 28, watermarkPadding: 24, watermarkColor: '#ffffff', outputFormat: 'image/jpeg', quality: 0.9, status: '启用' },
-    prompt: { name: '', model: '', scene: 'feedback', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' },
-    watermark: { name: '', value: '', position: '右下角', opacity: '80%', font: '', color: '#0018A8', status: '启用' }
+    prompt: { name: '', model: '', scene: 'feedback', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' }
   }
   return map[activeType.value]
 }
@@ -230,7 +228,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <span v-if="activeType === 'comment'">{{ item.tone }} · {{ item.length }}</span>
         <span v-if="activeType === 'image'">{{ item.summary || `${item.ratio || '默认比例'} · ${item.watermark || '无水印'}` }}</span>
         <span v-if="activeType === 'prompt'">{{ item.scene }} · {{ item.model }}</span>
-        <span v-if="activeType === 'watermark'">{{ item.position }} · {{ item.opacity }}</span>
       </button>
     </aside>
 
@@ -246,8 +243,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         </div>
       </div>
 
-      <p v-if="activeType !== 'image'" class="template-readonly-hint">一期 MVP 先开放图片处理模板；课评模板和提示词模板仍保持只读。</p>
-      <p v-else-if="!canWriteTemplates" class="template-readonly-hint">当前账号没有模板管理权限，模板可查看但不能修改。</p>
+      <p v-if="activeType === 'image' && !canWriteTemplates" class="template-readonly-hint">当前账号没有模板管理权限，模板可查看但不能修改。</p>
 
       <fieldset :disabled="!canWriteTemplates">
       <div v-if="activeType === 'comment'" class="form-grid">
@@ -292,15 +288,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <label class="wide">User Prompt<textarea v-model="draft.userPrompt" rows="5" /></label>
       </div>
 
-      <div v-if="activeType === 'watermark'" class="form-grid">
-        <label>配置名称<input v-model="draft.name" /></label>
-        <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用', '可选']" /></label>
-        <label class="wide">水印内容<input v-model="draft.value" /></label>
-        <label>位置<input v-model="draft.position" /></label>
-        <label>透明度<input v-model="draft.opacity" /></label>
-        <label>字体<input v-model="draft.font" /></label>
-        <label>颜色<input v-model="draft.color" /></label>
-      </div>
       </fieldset>
     </section>
   </section>

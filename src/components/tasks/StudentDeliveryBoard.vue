@@ -216,7 +216,7 @@ const submitAiPrompt = async () => {
   setActive(artworkRow.value)
   const process = props.state.processImageWithPrompt
   if (typeof process !== 'function') {
-    aiPromptError.value = '当前版本暂不支持 AI 图片处理'
+    aiPromptError.value = 'AI 图片处理服务暂不可用，请稍后重试'
     return
   }
   const submitted = await process(prompt, artworkRow.value.studentId)

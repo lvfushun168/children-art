@@ -111,7 +111,7 @@ export function useDeliveryWorkflow() {
   const classes = reactive([])
   const courses = reactive([])
   const scheduleLessons = reactive([])
-  const templates = reactive({ image: [], comment: [], prompt: [], watermark: [] })
+  const templates = reactive({ image: [], comment: [], prompt: [] })
   const classTypes = reactive([])
   const tasks = reactive([])
   const archives = reactive([])
@@ -2490,8 +2490,7 @@ export function useDeliveryWorkflow() {
     const defaults = {
       image: { ratio: '4:5', brightness: '+10%', watermark: '右下角校区水印', border: '米白作品框', crop: '居中裁切', quality: '高清', status: '启用' },
       comment: { tone: '温暖自然', length: '60-80字', structure: '亮点、建议、鼓励', taboo: '不夸大、不排名', sample: '', status: '启用' },
-      prompt: { model: '学生记录 + 课程参考 + 模板规则', scene: 'feedback', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' },
-      watermark: { value: school.watermark, position: '右下角', opacity: '80%', font: '授权字体', color: '#0018A8', status: '启用' }
+      prompt: { model: '学生记录 + 课程参考 + 模板规则', scene: 'feedback', systemPrompt: '', userPrompt: '', temperature: 0.7, maxTokens: 220, status: '启用' }
     }
     const template = { name: payload.name || '新模板', ...defaults[type], ...payload }
     templates[type].push(template)
@@ -3671,7 +3670,6 @@ export function useDeliveryWorkflow() {
     templates.comment = (value?.comment || []).map((item) => ({ ...item, length: item.hint || item.lengthHint || '', tone: item.category || item.tone || '' }))
     templates.image = (value?.image || []).map(mapImageTemplate)
     templates.prompt = (value?.prompt || []).map((item) => ({ ...item }))
-    templates.watermark = []
     pageLoaded.templates = true
     return templates
   }
@@ -5353,7 +5351,7 @@ export function useDeliveryWorkflow() {
 
   const remoteAddTemplate = async (type, payload) => {
     if (type !== 'image') {
-      notify('一期 MVP 只支持图片处理模板配置，课评和提示词模板仍由后台维护')
+      notify('当前模板类型暂不支持在线配置')
       return null
     }
     const body = imageTemplateBodyFor(payload)
@@ -5366,7 +5364,7 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateTemplate = async (type, index, payload) => {
     if (type !== 'image') {
-      notify('一期 MVP 只支持图片处理模板配置，课评和提示词模板仍由后台维护')
+      notify('当前模板类型暂不支持在线配置')
       return null
     }
     const current = templates.image[index]

@@ -32,6 +32,7 @@ const studentDeliveryDrawerOpen = ref(false)
 const studentDeliveryMobileDetailOpen = ref(false)
 const resourceSearch = ref('')
 const resourceFilter = ref('全部')
+const resourceLoading = ref(false)
 const homeworkEditorOpen = ref(false)
 const homeworkEditorField = ref('content')
 const homeworkEditorDraft = ref('')
@@ -368,6 +369,17 @@ const filteredExternalResources = computed(() => {
     return filterMatched && keywordMatched
   })
 })
+const openResourceDrawer = async () => {
+  showResourceDrawer.value = true
+  resourceLoading.value = true
+  try {
+    await props.state.loadResourceExternalLinks?.()
+  } catch (error) {
+    props.state.notify?.(error?.message || '学习资源加载失败')
+  } finally {
+    resourceLoading.value = false
+  }
+}
 const openArtworkLibrary = (category) => {
   artworkLibraryCategory.value = category
   showArtworkLibrary.value = true
@@ -397,6 +409,7 @@ watch(() => props.state.activeTask.id, () => {
   showSharePreview.value = false
   resourceSearch.value = ''
   resourceFilter.value = '全部'
+  resourceLoading.value = false
   studentDeliveryDrawerOpen.value = false
   studentDeliveryMobileDetailOpen.value = false
   homeworkEditorOpen.value = false
@@ -784,7 +797,7 @@ watch(homeworkEditorOpen, async (open) => {
                 <span>配套学习资源（可选）</span>
                 <strong>{{ state.selectedExternalLinks.length ? `已选 ${state.selectedExternalLinks.length} 个资源` : '未关联学习资源' }}</strong>
               </div>
-              <button class="ghost" type="button" @click="showResourceDrawer = true">选择资源</button>
+              <button class="ghost" type="button" @click="openResourceDrawer">选择资源</button>
             </div>
             <div class="selected-resource-chips">
               <button v-for="link in state.selectedExternalLinks" :key="link.id" type="button" class="resource-chip selected" @click="state.toggleHomeworkLink(link.id)">
@@ -812,18 +825,21 @@ watch(homeworkEditorOpen, async (open) => {
               </div>
             </section>
             <section class="resource-drawer-list">
-              <label v-for="link in filteredExternalResources" :key="link.id" class="resource-choice" :class="{ selected: state.homework.externalLinkIds.some((id) => sameId(id, link.id)) }">
-                <input
-                  type="checkbox"
-                  :checked="state.homework.externalLinkIds.some((id) => sameId(id, link.id))"
-                  @change="state.toggleHomeworkLink(link.id)"
-                />
-                <span>
-                  <strong>{{ link.title }}</strong>
-                  <small>{{ link.platform }} · {{ link.note }}</small>
-                </span>
-              </label>
-              <small v-if="!filteredExternalResources.length" class="empty-note">没有找到符合条件的资源。</small>
+              <small v-if="resourceLoading" class="empty-note">正在加载资源...</small>
+              <template v-else>
+                <label v-for="link in filteredExternalResources" :key="link.id" class="resource-choice" :class="{ selected: state.homework.externalLinkIds.some((id) => sameId(id, link.id)) }">
+                  <input
+                    type="checkbox"
+                    :checked="state.homework.externalLinkIds.some((id) => sameId(id, link.id))"
+                    @change="state.toggleHomeworkLink(link.id)"
+                  />
+                  <span>
+                    <strong>{{ link.title }}</strong>
+                    <small>{{ link.platform }} · {{ link.note }}</small>
+                  </span>
+                </label>
+                <small v-if="!filteredExternalResources.length" class="empty-note">没有找到符合条件的资源。</small>
+              </template>
             </section>
             <footer class="drawer-actions">
               <span>已选 {{ state.selectedExternalLinks.length }} 个</span>
@@ -959,7 +975,7 @@ watch(homeworkEditorOpen, async (open) => {
                 <template v-if="item.key === 'teacherEffectArchive'">
                   <button v-if="['PENDING', 'FAILED', 'SKIPPED'].includes(teacherEffectStatus) || !teacherEffect.id" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">{{ teacherEffectStatus === 'FAILED' ? '重新配置并生成' : '配置并生成课效图' }}</button>
                   <button v-else-if="teacherEffectStatus === 'GENERATING'" class="secondary" disabled>生成中…</button>
-                  <button v-else-if="['GENERATED', 'CONFIRMED'].includes(teacherEffectStatus)" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">编辑并重新生成</button>
+                  <button v-else-if="['GENERATED', 'CONFIRMED'].includes(teacherEffectStatus)" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">重新生成</button>
                   <button v-if="teacherEffectStatus === 'FAILED' && teacherEffect.id" class="ghost" :disabled="state.isProcessing" @click="state.retryTeacherEffect">重试任务</button>
                   <span v-if="['CONFIRMED', 'SKIPPED'].includes(teacherEffectStatus)" class="status-pill">{{ item.item.status }}</span>
                 </template>

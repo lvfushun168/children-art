@@ -1,7 +1,8 @@
 <script setup>
+import { computed } from 'vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 
-defineProps({
+const props = defineProps({
   activeStudent: {
     type: Object,
     default: null
@@ -20,7 +21,7 @@ defineProps({
   },
   activeImageTemplate: {
     type: Object,
-    required: true
+    default: null
   },
   materials: {
     type: Array,
@@ -78,6 +79,15 @@ defineProps({
 
 defineEmits(['copy-export'])
 
+const imageTemplate = computed(() => {
+  const template = props.activeImageTemplate || {}
+  return {
+    ...template,
+    ratio: template.ratio || '原比例',
+    watermark: template.watermark || '隐藏水印'
+  }
+})
+
 const homeworkIsAssigned = (value) => value?.taskMode
   ? value.taskMode === 'ASSIGNED'
   : Boolean(String(value?.content || '').trim())
@@ -102,12 +112,12 @@ const formatHomeworkDate = (value) => {
         class="image-frame"
         :class="{
           processed: activeSessionStudent.processed,
-          square: activeImageTemplate.ratio === '1:1',
-          raw: activeImageTemplate.ratio === '原比例'
+          square: imageTemplate.ratio === '1:1',
+          raw: imageTemplate.ratio === '原比例'
         }"
       >
         <ProtectedMedia :file-id="activeSessionStudent.processedFileId || activeSessionStudent.originalFileId || activeSessionStudent.imageFileIds?.[0]" :src="activeSessionStudent.image" :alt="activeStudent.name" />
-        <span v-if="activeImageTemplate.watermark !== '隐藏水印'">{{ school.name }}</span>
+        <span v-if="imageTemplate.watermark !== '隐藏水印'">{{ school.name }}</span>
       </div>
       <strong>{{ activeStudent.name }} · {{ activeCourse.title }}</strong>
       <small>
@@ -141,7 +151,7 @@ const formatHomeworkDate = (value) => {
         <small>{{ homework.content }}</small>
         <small v-if="homework.requirement">完成方式：{{ homework.requirement }}</small>
         <small v-if="homework.dueDate">截止日期：{{ formatHomeworkDate(homework.dueDate) }}</small>
-        <a v-for="link in selectedExternalLinks" :key="link.id" :href="link.url">{{ link.title }}</a>
+        <a v-for="link in selectedExternalLinks" :key="link.id" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.title }}</a>
       </div>
       <div v-if="!reviewOnly" class="share-box">
         <div class="qr-code">{{ qrText }}</div>

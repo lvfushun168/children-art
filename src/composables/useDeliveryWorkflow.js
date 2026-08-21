@@ -1638,9 +1638,12 @@ export function useDeliveryWorkflow() {
   }
 
   const toggleHomeworkLink = (id) => {
-    const index = homework.value.externalLinkIds.indexOf(id)
+    if (!Array.isArray(homework.value.externalLinkIds)) homework.value.externalLinkIds = []
+    const normalizedId = fromApiId(id)
+    if (normalizedId === null || normalizedId === undefined) return
+    const index = homework.value.externalLinkIds.findIndex((item) => sameId(item, normalizedId))
     if (index >= 0) homework.value.externalLinkIds.splice(index, 1)
-    else homework.value.externalLinkIds.push(id)
+    else homework.value.externalLinkIds.push(normalizedId)
   }
 
   const setHomeworkMode = (mode) => {
@@ -3095,6 +3098,20 @@ export function useDeliveryWorkflow() {
     const feedbacks = (feedbackModule.feedbacks || []).map(mapFeedback)
     const draft = mapSharePage(parentModule.sharePage || {})
     const currentDraft = draft.draftSnapshot || {}
+    // 课次接口返回的草稿快照可能包含已选资源详情。先合并进全局资源目录，
+    // 这样重新进入课次时，即使资源列表请求稍后完成，已保存的选择也能立即回显。
+    const savedExternalLinks = Array.isArray(currentDraft.externalLinks)
+      ? currentDraft.externalLinks.map(mapExternalLink).filter((link) => link.id !== null && link.id !== undefined)
+      : []
+    if (savedExternalLinks.length) {
+      const mergedExternalLinks = [...externalLinks]
+      savedExternalLinks.forEach((link) => {
+        const index = mergedExternalLinks.findIndex((item) => sameId(item.id, link.id))
+        if (index >= 0) mergedExternalLinks.splice(index, 1, link)
+        else mergedExternalLinks.push(link)
+      })
+      replaceReactive(externalLinks, mergedExternalLinks)
+    }
     const touchTasks = (parentModule.touchTasks || []).map((value) => {
       const task = mapTouchTask(value)
       const student = students.find((item) => sameId(item.id, task.studentId))
@@ -3445,6 +3462,13 @@ export function useDeliveryWorkflow() {
     })()
     directoryPromises.set(promiseKey, load)
     return load
+  }
+
+  const loadResourceExternalLinks = async () => {
+    if (!isLoggedIn.value) return []
+    const page = mapPage(await api.master.externalLinks({ page: 1, pageSize: 200, status: 'ENABLED' }), mapExternalLink)
+    replaceReactive(externalLinks, page.items)
+    return externalLinks
   }
 
   const loadDirectoryDetail = async (key, recordOrId) => {
@@ -3884,7 +3908,12 @@ export function useDeliveryWorkflow() {
     const workspace = ensureLessonWorkspace(task)
     if (workspace) workspace.currentStep = 0
     if (!pageLoaded.tasks) await loadPageData('tasks')
-    return runRemote('正在加载课次工作区...', () => loadLessonWorkspace(task.id))
+    return runRemote('正在加载课次工作区...', async () => {
+      // 课次工作区只保存资源 ID；预览还需要资源详情和图片模板，因此在加载草稿前一并准备。
+      // 资源目录失败不应阻断课次打开，预览组件本身还有安全兜底。
+      await Promise.allSettled([loadTemplates(), loadResourceExternalLinks()])
+      return loadLessonWorkspace(task.id)
+    })
   }
 
   const remoteTransitionLesson = async (action, reason = '', exceptionType = '') => {
@@ -5691,6 +5720,7 @@ export function useDeliveryWorkflow() {
     directoryLoading,
     directoryErrors,
     loadDirectoryPage,
+    loadResourceExternalLinks,
     loadDirectoryDetail,
     loadDirectoryExtraTaskWorks,
     loadClassTypes,

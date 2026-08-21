@@ -113,7 +113,7 @@ onMounted(async () => {
           <p>{{ homework.content }}</p>
           <small v-if="homework.requirement">完成方式：{{ homework.requirement }}</small>
           <small v-if="homework.dueDate">预计回收：{{ formatHomeworkDate(homework.dueDate) }}</small>
-          <a v-for="link in externalLinks" :key="link.title" :href="link.url">{{ link.title }}</a>
+          <a v-for="link in externalLinks" :key="link.title" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.title }}</a>
         </article>
       </section>
 

@@ -69,6 +69,15 @@ import {
   renderArtworkFile
 } from '../services/imageTemplateRenderer'
 import {
+  feedbackTemplateBodyFor,
+  feedbackTemplateJsonFor,
+  mapFeedbackTemplate,
+  mapPromptTemplate,
+  promptTemplateBodyFor,
+  promptTemplateUpdateBodyFor,
+  textField
+} from '../services/templateMappers'
+import {
   apiAssetTypeForUpload,
   defaultMaterialVisible,
   materialCategoryForType,
@@ -76,6 +85,7 @@ import {
 } from '../services/materialTypes'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
+const templateIsEnabled = (value) => String(value?.status || 'ENABLED').toUpperCase() !== 'DISABLED'
 const homeworkIsAssigned = (value) => value?.taskMode
   ? value.taskMode === 'ASSIGNED'
   : Boolean(String(value?.content || '').trim())
@@ -503,8 +513,10 @@ export function useDeliveryWorkflow() {
   const classStudents = computed(() => (activeClass.value.studentIds || []).map((id) => students.find((item) => sameId(item.id, id))).filter(Boolean))
   const attendingRows = computed(() => sessionStudents.value.filter((item) => item.attendance === '到课'))
   const activeImageTemplates = computed(() => {
-    const picked = selectedImageTemplates.value.map((index) => templates.image[index]).filter(Boolean)
-    return picked.length ? picked : templates.image[0] ? [templates.image[0]] : []
+    const picked = selectedImageTemplates.value.map((index) => templates.image[index])
+      .filter((template) => template && templateIsEnabled(template))
+    const firstEnabled = templates.image.find(templateIsEnabled)
+    return picked.length ? picked : firstEnabled ? [firstEnabled] : []
   })
   const activeImageTemplate = computed(() => activeImageTemplates.value[0] || null)
   // A template selection is preview-only until the teacher adopts it. Keep a
@@ -520,7 +532,13 @@ export function useDeliveryWorkflow() {
     row?.processedVersionId &&
     clientRenderSignatureByArtwork.get(String(row.artworkId)) === clientRenderSignature(row, template)
   )
-  const activeCommentTemplate = computed(() => templates.comment[selectedCommentTemplate.value] || { name: '默认课评', tone: '', length: '' })
+  const activeCommentTemplate = computed(() => {
+    const selected = templates.comment[selectedCommentTemplate.value]
+    return selected && templateIsEnabled(selected)
+      ? selected
+      : templates.comment.find(templateIsEnabled) || { name: '默认课评', tone: '', length: '' }
+  })
+  const activePromptTemplate = computed(() => templates.prompt.find(templateIsEnabled) || null)
   const isProcessing = computed(() => Boolean(processingAction.value))
   const selectedExternalLinks = computed(() => externalLinks.filter((link) => (homework.value.externalLinkIds || []).some((id) => sameId(id, link.id))))
   const permissionSummary = computed(() => ({
@@ -3666,10 +3684,14 @@ export function useDeliveryWorkflow() {
 
   const loadTemplates = async ({ force = false } = {}) => {
     if (pageLoaded.templates && !force) return templates
-    const value = await api.workbench.templates()
-    templates.comment = (value?.comment || []).map((item) => ({ ...item, length: item.hint || item.lengthHint || '', tone: item.category || item.tone || '' }))
-    templates.image = (value?.image || []).map(mapImageTemplate)
-    templates.prompt = (value?.prompt || []).map((item) => ({ ...item }))
+    const [feedbackValues, imageValues, promptValues] = await Promise.all([
+      api.feedback.templates(),
+      api.feedback.imageTemplates(),
+      api.feedback.promptTemplates()
+    ])
+    templates.comment = (feedbackValues || []).map(mapFeedbackTemplate)
+    templates.image = (imageValues || []).map(mapImageTemplate)
+    templates.prompt = (promptValues || []).map(mapPromptTemplate)
     pageLoaded.templates = true
     return templates
   }
@@ -4308,8 +4330,8 @@ export function useDeliveryWorkflow() {
         : await api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row))
       if (!feedback?.id && !row.feedbackId) throw new Error('课堂记录保存失败，无法生成课评')
       const generation = await api.feedback.regenerate(feedback.id || row.feedbackId, {
-        templateId: templates.comment[selectedCommentTemplate.value]?.id,
-        promptTemplateId: templates.prompt[0]?.id
+        templateId: activeCommentTemplate.value?.id,
+        promptTemplateId: activePromptTemplate.value?.id
       })
       await waitForJobs([generation?.jobId], activeTask.value.id)
       return generation
@@ -4327,8 +4349,8 @@ export function useDeliveryWorkflow() {
     const result = await runRemote('正在保存课堂记录并生成全班 1v1 课评...', async () => {
       await api.feedback.saveBatch(activeTask.value.id, rows.map((row) => ({ studentId: String(row.studentId), ...feedbackBodyFor(row) })))
       const generation = await api.feedback.generate(activeTask.value.id, {
-        templateId: templates.comment[selectedCommentTemplate.value]?.id,
-        promptTemplateId: templates.prompt[0]?.id
+        templateId: activeCommentTemplate.value?.id,
+        promptTemplateId: activePromptTemplate.value?.id
       })
       await waitForJobs((generation?.items || []).map((item) => item.jobId), activeTask.value.id)
       return generation
@@ -5350,35 +5372,72 @@ export function useDeliveryWorkflow() {
   })
 
   const remoteAddTemplate = async (type, payload) => {
-    if (type !== 'image') {
-      notify('当前模板类型暂不支持在线配置')
-      return null
-    }
-    const body = imageTemplateBodyFor(payload)
-    const result = await runRemote('正在创建图片处理模板...', () => api.feedback.createImageTemplate(body), '图片处理模板已创建', () => invalidateResource('templates'))
+    const createByType = {
+      comment: {
+        label: '课评模板',
+        body: feedbackTemplateBodyFor(payload),
+        action: (body) => api.feedback.createFeedbackTemplate(body)
+      },
+      image: {
+        label: '图片处理模板',
+        body: imageTemplateBodyFor(payload),
+        action: (body) => api.feedback.createImageTemplate(body)
+      },
+      prompt: {
+        label: '提示词模板',
+        body: promptTemplateBodyFor(payload),
+        action: (body) => api.feedback.createPromptTemplate(body)
+      }
+    }[type]
+    if (!createByType) return null
+    const result = await runRemote(`正在创建${createByType.label}...`, () => createByType.action(createByType.body), `${createByType.label}已创建`, () => invalidateResource('templates'))
     if (!result) return null
     await loadTemplates({ force: true })
     const createdId = result.id
-    return templates.image.find((item) => sameId(item.id, createdId)) || templates.image[0] || null
+    return templates[type].find((item) => sameId(item.id, createdId)) || templates[type][0] || null
   }
 
   const remoteUpdateTemplate = async (type, index, payload) => {
-    if (type !== 'image') {
-      notify('当前模板类型暂不支持在线配置')
-      return null
-    }
-    const current = templates.image[index]
+    const current = templates[type]?.[index]
     if (!current?.id) return null
-    const result = await runRemote('正在保存图片处理模板...', () => api.feedback.updateImageTemplate(current.id, {
-      name: payload.name?.trim() || current.name,
-      config: payload.config || buildClientImageTemplateConfig(payload),
-      status: apiTemplateStatus(payload.status),
-      version: Number(current.version || 0)
-    }), '图片处理模板已保存', () => invalidateResource('templates'))
+    const updateByType = {
+      comment: {
+        label: '课评模板',
+        body: {
+          name: payload.name?.trim() || current.name,
+          tone: textField(payload.tone),
+          lengthHint: textField(payload.length),
+          templateJson: feedbackTemplateJsonFor(payload, current),
+          status: apiTemplateStatus(payload.status),
+          version: Number(current.version || 0)
+        },
+        action: (body) => api.feedback.updateFeedbackTemplate(current.id, body)
+      },
+      image: {
+        label: '图片处理模板',
+        body: {
+          name: payload.name?.trim() || current.name,
+          config: payload.config || buildClientImageTemplateConfig(payload),
+          status: apiTemplateStatus(payload.status),
+          version: Number(current.version || 0)
+        },
+        action: (body) => api.feedback.updateImageTemplate(current.id, body)
+      },
+      prompt: {
+        label: '提示词模板',
+        body: {
+          ...promptTemplateUpdateBodyFor(payload, current),
+          version: Number(current.version || 0)
+        },
+        action: (body) => api.feedback.updatePromptTemplate(current.id, body)
+      }
+    }[type]
+    if (!updateByType) return null
+    const result = await runRemote(`正在保存${updateByType.label}...`, () => updateByType.action(updateByType.body), `${updateByType.label}已保存`, () => invalidateResource('templates'))
     if (!result) return null
     await loadTemplates({ force: true })
     const updatedId = result.id || current.id
-    return templates.image.find((item) => sameId(item.id, updatedId)) || null
+    return templates[type].find((item) => sameId(item.id, updatedId)) || null
   }
 
   const pendingImportFile = ref(null)

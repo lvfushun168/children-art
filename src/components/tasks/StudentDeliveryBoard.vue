@@ -29,8 +29,10 @@ const studentFor = (studentId) => {
   return row ? { name: row.studentName || '学生', parent: row.parent || '' } : { name: '学生', parent: '' }
 }
 
+const templateIsEnabled = (template) => String(template?.status || 'ENABLED').toUpperCase() !== 'DISABLED'
+
 const imageTemplateOptions = computed(() =>
-  props.state.templates.image.map((template, index) => ({
+  props.state.templates.image.map((template, index) => ({ template, index })).filter(({ template }) => templateIsEnabled(template)).map(({ template, index }) => ({
     label: template.name,
     value: index,
     description: template.summary || imageTemplateSummary(template)
@@ -38,7 +40,7 @@ const imageTemplateOptions = computed(() =>
 )
 
 const commentTemplateOptions = computed(() =>
-  props.state.templates.comment.map((template, index) => ({
+  props.state.templates.comment.map((template, index) => ({ template, index })).filter(({ template }) => templateIsEnabled(template)).map(({ template, index }) => ({
     label: template.name,
     value: index,
     description: `${template.tone || ''} · ${template.length || ''}`
@@ -87,7 +89,10 @@ const hasImage = (asset) => Boolean(asset?.fileId || asset?.src)
 
 const hasProcessedImage = (row) => hasImage(imageAsset(row, 'processed'))
 
-const selectedImageTemplate = computed(() => props.state.templates.image[Number(props.state.selectedImageTemplate)] || null)
+const selectedImageTemplate = computed(() => {
+  const selected = props.state.templates.image[Number(props.state.selectedImageTemplate)]
+  return selected && templateIsEnabled(selected) ? selected : props.state.templates.image.find(templateIsEnabled) || null
+})
 const artworkPreviewUrl = ref('')
 const artworkPreviewLoading = ref(false)
 let artworkPreviewObjectUrl = ''

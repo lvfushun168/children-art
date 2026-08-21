@@ -32,7 +32,7 @@ let cleanupMobileMedia = () => {}
 const list = computed(() => props.state.templates[activeType.value] || [])
 const selected = computed(() => list.value[selectedIndex.value] || list.value[0] || null)
 const activeLabel = computed(() => types.find((type) => type.id === activeType.value)?.label)
-const canWriteTemplates = computed(() => activeType.value === 'image' && Boolean(
+const canWriteTemplates = computed(() => Boolean(
   props.state.currentUser?.permissions?.includes('template.manage')
 ))
 
@@ -219,7 +219,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
       </div>
       <button
         v-for="(item, index) in list"
-        :key="`${activeType}-${item.name}`"
+        :key="`${activeType}-${item.id || item.name}`"
         class="master-row"
         :class="{ active: selectedIndex === index && mode !== 'new' }"
         @click="selectTemplate(index)"
@@ -243,7 +243,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         </div>
       </div>
 
-      <p v-if="activeType === 'image' && !canWriteTemplates" class="template-readonly-hint">当前账号没有模板管理权限，模板可查看但不能修改。</p>
+      <p v-if="!canWriteTemplates" class="template-readonly-hint">当前账号没有模板管理权限，模板可查看但不能修改。</p>
 
       <fieldset :disabled="!canWriteTemplates">
       <div v-if="activeType === 'comment'" class="form-grid">

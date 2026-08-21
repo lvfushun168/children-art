@@ -129,10 +129,6 @@ const refreshArtworkPreview = async () => {
 
 const clientTemplateSelected = computed(() => Boolean(selectedImageTemplate.value && isClientCanvasTemplate(selectedImageTemplate.value)))
 const processActionLabel = computed(() => {
-  if (clientTemplateSelected.value) {
-    if (String(selectedImageTemplate.value?.templateKey || '').toLowerCase() === 'original') return '采用原图'
-    return hasProcessedImage(artworkRow.value) ? '重新保存处理图' : '保存处理图'
-  }
   return hasProcessedImage(artworkRow.value) ? '重新处理' : '处理当前作品'
 })
 
@@ -345,6 +341,10 @@ const selectImage = async (row, mode) => {
     return
   }
   setActive(row)
+  if (mode === 'processed' && props.state.adoptCurrentImage) {
+    await props.state.adoptCurrentImage(row.studentId)
+    return
+  }
   await props.state.confirmCurrentImage(mode, row.studentId)
 }
 
@@ -624,12 +624,12 @@ onMounted(() => {
               <span v-else class="delivery-empty">尚未生成处理图</span>
               <button v-if="hasImage(imageAsset(artworkRow, 'processed'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="删除处理图" aria-label="删除处理图" @click.stop="removeProcessedArtwork(artworkRow)">×</button>
             </div>
-            <div class="artwork-version-copy"><strong>处理图</strong><small>{{ artworkPreviewError || (artworkPreviewUrl ? '实时预览，保存后生成可确认版本' : artworkRow.imageProcessError || '可在确认后用于家长展示') }}</small></div>
-            <button type="button" class="primary" :disabled="state.isProcessing || !hasImage(imageAsset(artworkRow, 'processed'))" @click="selectImage(artworkRow, 'processed')">采用处理图</button>
+            <div class="artwork-version-copy"><strong>处理图</strong><small>{{ artworkPreviewError || (artworkPreviewUrl ? '实时预览，点击采用时自动保存' : artworkRow.imageProcessError || '可在确认后用于家长展示') }}</small></div>
+            <button type="button" class="primary" :disabled="state.isProcessing || artworkPreviewLoading || !hasImage(imageAsset(artworkRow, 'processed')) && !artworkPreviewUrl" @click="selectImage(artworkRow, 'processed')">采用处理图</button>
           </article>
         </section>
 
-        <footer class="artwork-process-actions">
+        <footer v-if="!clientTemplateSelected" class="artwork-process-actions">
           <button type="button" class="secondary" :disabled="state.isProcessing || !artworkRow.imageMatched" @click="processCurrentImage(artworkRow)">{{ processActionLabel }}</button>
         </footer>
 

@@ -507,6 +507,19 @@ export function useDeliveryWorkflow() {
     return picked.length ? picked : templates.image[0] ? [templates.image[0]] : []
   })
   const activeImageTemplate = computed(() => activeImageTemplates.value[0] || null)
+  // A template selection is preview-only until the teacher adopts it. Keep a
+  // lightweight client-side marker so clicking "采用处理图" repeatedly does
+  // not upload the same render again during the current session.
+  const clientRenderSignatureByArtwork = new Map()
+  const clientRenderSignature = (row, template) => [
+    String(row?.originalVersionId || ''),
+    String(template?.id || template?.templateKey || ''),
+    String(template?.templateVersion || 1)
+  ].join(':')
+  const hasCurrentClientRender = (row, template) => Boolean(
+    row?.processedVersionId &&
+    clientRenderSignatureByArtwork.get(String(row.artworkId)) === clientRenderSignature(row, template)
+  )
   const activeCommentTemplate = computed(() => templates.comment[selectedCommentTemplate.value] || { name: '默认课评', tone: '', length: '' })
   const isProcessing = computed(() => Boolean(processingAction.value))
   const selectedExternalLinks = computed(() => externalLinks.filter((link) => (homework.value.externalLinkIds || []).some((id) => sameId(id, link.id))))
@@ -4146,12 +4159,14 @@ export function useDeliveryWorkflow() {
     const extension = rendered.blob.type === 'image/png' ? 'png' : 'jpg'
     const file = new File([rendered.blob], `artwork-${row.studentId}-processed.${extension}`, { type: rendered.blob.type })
     const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-artwork-processed-${row.studentId}`)
-    return api.assets.commitRenderedArtwork(row.artworkId, {
+    const committed = await api.assets.commitRenderedArtwork(row.artworkId, {
       sourceVersionId: String(row.originalVersionId),
       fileId: String(uploaded.id),
       templateId: String(template.id),
       templateVersion: Number(template.templateVersion || 1)
     })
+    clientRenderSignatureByArtwork.set(String(row.artworkId), clientRenderSignature(row, template))
+    return committed
   }
 
   const remoteRenderCurrentImage = async (row = activeSessionStudent.value) => {
@@ -4163,6 +4178,38 @@ export function useDeliveryWorkflow() {
       await refreshRemoteLesson(activeTask.value.id, { force: true })
       return true
     }, '处理图已保存，等待老师确认')
+    return result === true
+  }
+
+  const remoteAdoptCurrentImage = async (studentId = activeStudentId.value) => {
+    const targetStudentId = studentId ?? activeStudentId.value
+    const row = sessionStudentFor(targetStudentId)
+    if (!row?.artworkId) return false
+    const template = activeImageTemplate.value
+    const isOriginalTemplate = String(template?.templateKey || '').toLowerCase() === 'original'
+
+    if (isOriginalTemplate) {
+      return remoteConfirmCurrentImage('original', targetStudentId)
+    }
+    if (!template || !isClientCanvasTemplate(template)) {
+      return remoteConfirmCurrentImage('processed', targetStudentId)
+    }
+
+    const result = await runRemote('正在保存并采用处理图...', async () => {
+      if (!hasCurrentClientRender(row, template)) {
+        await renderClientArtwork(row, template)
+        await refreshRemoteLesson(activeTask.value.id, { force: true })
+      }
+      const current = sessionStudentFor(targetStudentId)
+      const versionId = current?.processedVersionId
+      if (!current?.artworkId || !versionId) throw new Error('当前预览尚未生成处理图，请稍后重试')
+      await api.assets.confirmArtwork(current.artworkId, {
+        versionId: String(versionId),
+        version: current.artworkVersion
+      })
+      await refreshRemoteLesson(activeTask.value.id)
+      return true
+    }, '处理图已保存并采用')
     return result === true
   }
 
@@ -5746,6 +5793,7 @@ export function useDeliveryWorkflow() {
     matchImages: () => notify('图片匹配暂不可用，请手工上传作品'),
     confirmImages,
     confirmCurrentImage: remoteConfirmCurrentImage,
+    adoptCurrentImage: remoteAdoptCurrentImage,
     processImages: remoteProcessImages,
     renderCurrentImage: remoteRenderCurrentImage,
     failCurrentImageProcess: () => notify('图片处理失败请根据服务端任务状态重试'),

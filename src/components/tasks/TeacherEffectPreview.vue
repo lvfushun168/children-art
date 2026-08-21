@@ -2,8 +2,8 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { api } from '../../services/api'
 
-const RENDERER_VERSION = 'teacher-effect-canvas-v1'
-const TITLE_HEIGHT = 112
+const RENDERER_VERSION = 'teacher-effect-canvas-v2'
+const MIN_TITLE_HEIGHT = 112
 const OUTER_PADDING = 24
 const MAX_OUTPUT_PIXELS = 80_000_000
 
@@ -61,6 +61,39 @@ const titleText = () => {
   return value ? value.slice(0, 120) : '老师课效图'
 }
 
+const titleFontSize = (width) => Math.max(18, Math.min(36, Math.floor(width / 35)))
+
+const wrapTitle = (context, text, maxWidth) => {
+  const lines = []
+  String(text || '').split(/\r?\n/).forEach((paragraph) => {
+    let line = ''
+    for (const character of Array.from(paragraph)) {
+      const candidate = `${line}${character}`
+      if (line && context.measureText(candidate).width > maxWidth) {
+        lines.push(line)
+        line = character
+      } else {
+        line = candidate
+      }
+    }
+    lines.push(line)
+  })
+  return lines.length ? lines : ['']
+}
+
+const layoutTitle = (context, width) => {
+  const fontSize = titleFontSize(width)
+  const lineHeight = Math.ceil(fontSize * 1.35)
+  const baseline = 54
+  context.font = `700 ${fontSize}px sans-serif`
+  const lines = wrapTitle(context, titleText(), Math.max(1, width - OUTER_PADDING * 2))
+  const height = Math.max(
+    MIN_TITLE_HEIGHT,
+    baseline + (lines.length - 1) * lineHeight + fontSize + 30
+  )
+  return { fontSize, lineHeight, baseline, lines, height }
+}
+
 const scaledHeight = (image, targetWidth) => Math.max(1, Math.round(image.naturalHeight * targetWidth / Math.max(1, image.naturalWidth)))
 
 const draw = async () => {
@@ -85,30 +118,36 @@ const draw = async () => {
     const heights = images.map((image) => scaledHeight(image, targetWidth))
     const contentHeight = heights.reduce((sum, value) => sum + value, 0)
     const gaps = Math.max(0, images.length - 1) * gap
-    const height = Math.max(1, Math.round(TITLE_HEIGHT + OUTER_PADDING * 2 + contentHeight + gaps))
-    if (Math.round(width) * height > MAX_OUTPUT_PIXELS) {
-      throw new Error('课效图预计总像素超过机构限制，请减小宽度或减少图片')
-    }
     const node = canvas.value
     if (!node) return
-    node.width = Math.round(width)
+    const outputWidth = Math.round(width)
+    node.width = outputWidth
+    node.height = 1
+    const measureContext = node.getContext('2d')
+    const title = layoutTitle(measureContext, outputWidth)
+    const height = Math.max(1, Math.round(title.height + OUTER_PADDING * 2 + contentHeight + gaps))
+    if (outputWidth * height > MAX_OUTPUT_PIXELS) {
+      throw new Error('课效图预计总像素超过机构限制，请减小宽度或减少图片')
+    }
     node.height = height
     const context = node.getContext('2d')
     context.fillStyle = '#ffffff'
     context.fillRect(0, 0, node.width, node.height)
     context.fillStyle = '#20312b'
-    context.font = `700 ${Math.max(18, Math.min(36, Math.floor(width / 35)))}px sans-serif`
+    context.font = `700 ${title.fontSize}px sans-serif`
     context.textBaseline = 'alphabetic'
-    context.fillText(titleText(), OUTER_PADDING, 54)
+    title.lines.forEach((line, index) => {
+      context.fillText(line, OUTER_PADDING, title.baseline + index * title.lineHeight)
+    })
     context.strokeStyle = '#dbe3de'
     context.lineWidth = 2
     context.beginPath()
-    context.moveTo(OUTER_PADDING, TITLE_HEIGHT - 20)
-    context.lineTo(node.width - OUTER_PADDING, TITLE_HEIGHT - 20)
+    context.moveTo(OUTER_PADDING, title.height - 20)
+    context.lineTo(node.width - OUTER_PADDING, title.height - 20)
     context.stroke()
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
-    let y = TITLE_HEIGHT
+    let y = title.height
     images.forEach((image, index) => {
       const itemHeight = heights[index]
       context.drawImage(image, OUTER_PADDING, y, targetWidth, itemHeight)

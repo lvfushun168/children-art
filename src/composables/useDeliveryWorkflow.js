@@ -4605,7 +4605,7 @@ export function useDeliveryWorkflow() {
         layoutConfig: {
           ...(config?.layoutConfig || effect?.layoutConfig || {}),
           renderMode: 'CLIENT_CANVAS',
-          rendererVersion: renderedImage.rendererVersion || 'teacher-effect-canvas-v1'
+          rendererVersion: renderedImage.rendererVersion || 'teacher-effect-canvas-v2'
         },
         version: effect?.id ? effect.version : 0
       }))
@@ -4618,17 +4618,18 @@ export function useDeliveryWorkflow() {
       { idempotencyKey: createIdempotencyKey(`teacher-effect-file:${lesson.id}:${draft.version}`) }
     ))
     if (!uploaded?.id) return false
+    const uploadedFileId = String(uploaded.id)
 
     const committed = await runRemote(
       '正在保存老师课效长图版本...',
       () => api.m5.commitClientRenderedTeacherEffect(lesson.id, {
         version: draft.version,
-        fileId: uploaded.id,
+        fileId: uploadedFileId,
         outputWidth: renderedImage.width,
         outputHeight: renderedImage.height,
         outputSizeBytes: uploaded.sizeBytes || renderedImage.file.size,
         sha256: uploaded.sha256,
-        rendererVersion: renderedImage.rendererVersion || 'teacher-effect-canvas-v1'
+        rendererVersion: renderedImage.rendererVersion || 'teacher-effect-canvas-v2'
       }, createIdempotencyKey(`teacher-effect-render:${lesson.id}:${draft.version}`)),
       '老师课效长图已生成并保存'
     )

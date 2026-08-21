@@ -27,6 +27,7 @@ const showSharePreview = ref(false)
 const showTeacherEffectDrawer = ref(false)
 const teacherEffectPreviewRef = ref(null)
 const teacherEffectPreviewState = ref({ status: 'idle', error: '', width: 0, height: 0 })
+const teacherEffectSubmitting = ref(false)
 const studentDeliveryDrawerOpen = ref(false)
 const studentDeliveryMobileDetailOpen = ref(false)
 const resourceSearch = ref('')
@@ -329,26 +330,31 @@ const moveTeacherEffectSource = (index, offset) => {
   teacherEffectDraft.sourceAssetIds.splice(targetIndex, 0, sourceId)
 }
 const saveTeacherEffectAndGenerate = async () => {
-  if (!teacherEffectDraftValid.value) return
-  let renderedImage
+  if (teacherEffectSubmitting.value || !teacherEffectDraftValid.value) return
+  teacherEffectSubmitting.value = true
   try {
-    renderedImage = await teacherEffectPreviewRef.value?.renderBlob()
-  } catch (error) {
-    props.state.notify(error?.message || '课效图预览尚未准备好，请稍候重试')
-    return
+    let renderedImage
+    try {
+      renderedImage = await teacherEffectPreviewRef.value?.renderBlob()
+    } catch (error) {
+      props.state.notify(error?.message || '课效图预览尚未准备好，请稍候重试')
+      return
+    }
+    if (!renderedImage) {
+      props.state.notify('课效图预览尚未准备好，请稍候重试')
+      return
+    }
+    const result = await props.state.generateTeacherEffect({
+      sourceAssetIds: [...teacherEffectDraft.sourceAssetIds],
+      title: teacherEffectDraft.title.trim() || teacherEffectDefaultTitle.value,
+      width: Number(teacherEffectDraft.width),
+      imageGap: Number(teacherEffectDraft.imageGap),
+      layoutConfig: { renderMode: 'CLIENT_CANVAS', rendererVersion: renderedImage.rendererVersion }
+    }, renderedImage)
+    if (result) closeTeacherEffectDrawer()
+  } finally {
+    teacherEffectSubmitting.value = false
   }
-  if (!renderedImage) {
-    props.state.notify('课效图预览尚未准备好，请稍候重试')
-    return
-  }
-  const result = await props.state.generateTeacherEffect({
-    sourceAssetIds: [...teacherEffectDraft.sourceAssetIds],
-    title: teacherEffectDraft.title.trim() || teacherEffectDefaultTitle.value,
-    width: Number(teacherEffectDraft.width),
-    imageGap: Number(teacherEffectDraft.imageGap),
-    layoutConfig: { renderMode: 'CLIENT_CANVAS', rendererVersion: renderedImage.rendererVersion }
-  }, renderedImage)
-  if (result) closeTeacherEffectDrawer()
 }
 const filteredExternalResources = computed(() => {
   const keyword = resourceSearch.value.trim().toLowerCase()
@@ -1054,7 +1060,7 @@ watch(homeworkEditorOpen, async (open) => {
             <span v-else>{{ selectedTeacherEffectSources.length }} 张图片 · 预览内容即保存版本</span>
             <div>
               <button class="ghost" type="button" @click="closeTeacherEffectDrawer">取消</button>
-              <button class="primary" type="button" :disabled="state.isProcessing || !teacherEffectDraftValid || teacherEffectPreviewState.status !== 'ready'" @click="saveTeacherEffectAndGenerate">保存并生成</button>
+              <button class="primary" type="button" :disabled="state.isProcessing || teacherEffectSubmitting || !teacherEffectDraftValid || teacherEffectPreviewState.status !== 'ready'" @click="saveTeacherEffectAndGenerate">保存并生成</button>
             </div>
           </footer>
         </aside>

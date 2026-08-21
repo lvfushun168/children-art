@@ -3916,6 +3916,26 @@ export function useDeliveryWorkflow() {
     })
   }
 
+  const remoteSelectTaskById = async (lessonId) => {
+    const key = String(lessonId || '')
+    if (!key) return null
+    const existing = visibleTasks.value.find((task) => sameId(task.id, key)) ||
+      scheduleLessons.find((lesson) => sameId(lesson.id, key))
+    if (existing) return remoteSelectTask(existing)
+    try {
+      const value = await api.lessons.get(key)
+      const task = mapLesson(value?.lesson || value)
+      if (!task.id) {
+        notify('未找到该课次或当前账号无权访问')
+        return null
+      }
+      return remoteSelectTask(task)
+    } catch (error) {
+      notify(remoteErrorMessage(error, '课次加载失败'))
+      return null
+    }
+  }
+
   const remoteTransitionLesson = async (action, reason = '', exceptionType = '') => {
     const task = activeTask.value
     if (!task?.id) return false
@@ -5583,6 +5603,7 @@ export function useDeliveryWorkflow() {
     exportText: remoteExportText,
     fileNameFor: remoteFileNameFor,
     selectTask: remoteSelectTask,
+    selectTaskById: remoteSelectTaskById,
     transitionLesson: remoteTransitionLesson,
     loginAs: () => {
       notify('请使用服务端账号登录')

@@ -20,7 +20,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'backToGroup', 'backToSource'])
+const emit = defineEmits(['navigate', 'backToGroup', 'backToSource', 'openTask'])
 
 const workspaceOpen = ref(false)
 const workspaceSource = computed(() => props.workspaceLaunch?.source || 'today')
@@ -33,8 +33,7 @@ const completedTasks = computed(() => todayTasks.value.filter((task) => task.sta
 const nextTask = computed(() => unfinishedTasks.value[0] || todayTasks.value[0])
 
 const openTask = (task) => {
-  props.state.selectTask(task)
-  workspaceOpen.value = true
+  emit('openTask', task)
 }
 
 watch(() => props.workspaceLaunch, (launch) => {
@@ -42,11 +41,7 @@ watch(() => props.workspaceLaunch, (launch) => {
 }, { immediate: true })
 
 const backFromWorkspace = () => {
-  if (workspaceSource.value === 'schedule') {
-    emit('backToSource', 'schedule')
-    return
-  }
-  workspaceOpen.value = false
+  emit('backToSource', workspaceSource.value)
 }
 </script>
 

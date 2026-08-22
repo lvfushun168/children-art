@@ -868,6 +868,7 @@ export function useDeliveryWorkflow() {
   const archiveEditLogsForRecord = (recordId) => archiveEditLogs.filter((log) => log.recordId === recordId)
   const canEditArchiveRecord = (record) => Boolean(
     record &&
+    record.archiveStatus !== 'CURRENT' &&
     (isAdmin.value || authorizedClassIds.value.some((id) => sameId(id, record.classId)))
   )
   const archiveFieldLabels = {
@@ -3200,6 +3201,7 @@ export function useDeliveryWorkflow() {
         version.versionKind === 'PROCESSED' &&
         (!originalVersion?.id || !version.sourceVersionId || sameId(version.sourceVersionId, originalVersion.id))
       )
+      const displayFileId = processedVersion?.fileId || selectedVersion?.fileId || originalVersion?.fileId || null
       const draftStudent = draftStudentById.get(String(attendanceRow.studentId))
       return {
         id: attendanceRow.studentId,
@@ -3211,6 +3213,10 @@ export function useDeliveryWorkflow() {
         attendanceVersion: attendanceRow.version,
         note: attendanceRow.note || '',
         imageFileIds: [...studentAssets.map((asset) => asset.fileId), selectedVersion?.fileId].filter(Boolean),
+        // Archive detail cards consume a single display file id. Keep the
+        // richer original/processed fields for the workbench, but expose the
+        // resolved id here so current lesson records are immediately visible.
+        fileId: displayFileId,
         images: [],
         image: '',
         originalImage: '',
@@ -3472,8 +3478,13 @@ export function useDeliveryWorkflow() {
     delete filters.pageSize
     if (key === 'archiveRecords' && !filters.sourceType) filters.sourceType = 'ALL'
     if (key === 'classroomArchives') {
-      if (!filters.status) filters.status = 'COMPLETED'
-      filters.archived = true
+      if (filters.archiveVisible) {
+        delete filters.status
+        delete filters.archived
+      } else {
+        if (!filters.status) filters.status = 'COMPLETED'
+        filters.archived = true
+      }
     }
     const promiseKey = `${key}:${page}:${pageSize}:${JSON.stringify(filters)}`
     if (directoryPromises.has(promiseKey)) return directoryPromises.get(promiseKey)
@@ -3519,6 +3530,7 @@ export function useDeliveryWorkflow() {
         if (String(value.sourceType || '').toLowerCase() === 'extratask' || value.extraTaskId) {
           return mapExtraArtwork(await api.m6.extraArtwork(value.id))
         }
+        if (value.archiveStatus === 'CURRENT') return mapArchiveRecord(value)
         return mapArchiveRecord(await api.archive.record(value.id))
       }
       if (key === 'classroomArchives') return loadLessonWorkspace(value.id)
@@ -5518,7 +5530,10 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateArchiveRecord = async (recordId, payload) => {
     const current = archiveRecords.find((item) => sameId(item.id, recordId)) || directoryPages.archiveRecords.items.find((item) => sameId(item.id, recordId))
-    if (!current) return null
+    if (!current || current.archiveStatus === 'CURRENT') {
+      notify('进行中档案不能编辑正式档案元数据')
+      return null
+    }
     const result = await runRemote('正在保存作品档案...', () => api.archive.update(recordId, {
       title: payload.title?.trim() || undefined,
       description: payload.description?.trim() || undefined,

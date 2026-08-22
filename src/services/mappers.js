@@ -236,6 +236,7 @@ export const mapLesson = (value = {}) => ({
   course: value.courseTitle || value.course || '',
   topic: value.topic || value.lessonTopic || '',
   archived: Boolean(value.archived),
+  archiveStatus: value.status === 'COMPLETED' || value.archived ? 'FORMAL' : 'CURRENT',
   lessonType: lessonType[value.lessonType] || value.lessonType || '其他',
   status: lessonStatus[value.status] || value.status || '待处理',
   sourceType: value.sourceType || '',
@@ -258,6 +259,8 @@ export const mapLesson = (value = {}) => ({
     shareReady: Number(value.deliverySummary.shareReady || 0),
     archived: Boolean(value.deliverySummary.archived)
   } : null,
+  worksCount: Number(value.worksCount ?? value.deliverySummary?.artworkReady ?? 0),
+  highlights: Number(value.highlights || 0),
   archived: lessonStatus[value.status] === '已完成',
   version: Number(value.version || 0)
 })
@@ -413,6 +416,9 @@ export const mapArchiveRecord = (value = {}) => {
   const artworkSnapshot = Array.isArray(studentSnapshot.artworks)
     ? studentSnapshot.artworks[0] || {}
     : Array.isArray(snapshot.artworks) ? snapshot.artworks[0] || {} : {}
+  const sourceType = String(value.sourceType || snapshot.sourceType || 'LESSON').toLowerCase()
+  const archiveStatus = value.archiveStatus || snapshot.archiveStatus
+    || (sourceType === 'lesson' && !value.archiveVersionId && snapshot.current ? 'CURRENT' : 'FORMAL')
   const fileId = safeUiId(value.fileId || snapshot.fileId || snapshot.artworkFileId || snapshot.file?.id || artworkSnapshot.fileId)
   return {
     ...value,
@@ -429,7 +435,10 @@ export const mapArchiveRecord = (value = {}) => {
     date: displayDate(value.dateValue || snapshot.dateValue || lessonSnapshot.dateValue || lessonSnapshot.date),
     time: displayTime(value.startTime || snapshot.startTime || lessonSnapshot.startTime),
     lessonType: lessonType[value.lessonType || snapshot.lessonType || lessonSnapshot.lessonType] || value.lessonType || snapshot.lessonType || lessonSnapshot.lessonType || '其他',
-    sourceType: String(value.sourceType || snapshot.sourceType || 'LESSON').toLowerCase(),
+    sourceType,
+    archiveStatus,
+    archiveStatusLabel: archiveStatus === 'CURRENT' ? '进行中' : '正式档案',
+    artworkConfirmationStatus: value.artworkConfirmationStatus || snapshot.confirmationStatus || '',
     sourceId: safeUiId(value.sourceId || value.lessonId || value.extraTaskId),
     extraTaskId: safeUiId(value.extraTaskId),
     archivePath: value.archivePath || '',

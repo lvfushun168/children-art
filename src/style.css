@@ -8374,6 +8374,25 @@ textarea:focus,
   color: var(--color-primary);
 }
 
+.archive-row em.current-tag,
+.lesson-archive-row em.current-tag {
+  margin-left: 5px;
+  background: var(--color-highlight-soft);
+  color: var(--color-primary);
+}
+
+.archive-row em.formal-tag,
+.lesson-archive-row em.formal-tag {
+  margin-left: 5px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.archive-row input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .archive-image-readonly {
   position: relative;
   margin: 0;
@@ -8404,6 +8423,12 @@ textarea:focus,
   line-height: inherit;
   text-align: inherit;
   cursor: zoom-in;
+}
+
+.archive-image-trigger--card {
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--color-surface-muted);
 }
 
 .archive-image-trigger:focus-visible {
@@ -8722,11 +8747,22 @@ textarea:focus,
 .lesson-work-grid article,
 .lesson-status-grid article {
   display: grid;
+  min-width: 0;
   gap: 6px;
   padding: 10px;
   border: 1px solid var(--color-border-soft);
   border-radius: 8px;
   background: var(--color-surface);
+}
+
+.lesson-asset-grid article > span,
+.lesson-asset-grid article > strong,
+.lesson-asset-grid article > small,
+.lesson-work-grid article > strong,
+.lesson-work-grid article > small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .lesson-work-grid article.missing {
@@ -8737,10 +8773,34 @@ textarea:focus,
 .lesson-asset-grid img,
 .lesson-work-grid img {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  height: 168px;
+  min-height: 0;
   object-fit: contain;
   background: var(--color-surface-muted);
   border-radius: 7px;
+}
+
+.lesson-asset-grid .archive-media-video {
+  display: block;
+  width: 100%;
+  height: 168px;
+  object-fit: contain;
+  background: var(--color-surface-muted);
+  border-radius: 7px;
+}
+
+.lesson-asset-grid .archive-image-trigger--card,
+.lesson-work-grid .archive-image-trigger--card {
+  min-height: 168px;
+}
+
+.lesson-asset-grid .archive-image-trigger--card > img,
+.lesson-work-grid .archive-image-trigger--card > img {
+  display: block;
+}
+
+.lesson-asset-grid .archive-file-tile {
+  min-height: 168px;
 }
 
 .file-tile {

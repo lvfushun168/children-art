@@ -64,7 +64,10 @@ const workRecords = computed(() => workPage.value.items || [])
 const lessonRecords = computed(() => lessonPage.value.items || [])
 const effectRecords = computed(() => effectPage.value.items || [])
 const selected = computed(() => detailRecord.value || workRecords.value.find((record) => sameId(record.id, selectedId.value)) || null)
-const selectedRecords = computed(() => selectedRecordIds.value.map((id) => workRecords.value.find((record) => sameId(record.id, id))).filter(Boolean))
+const selectableWorkRecords = computed(() => workRecords.value.filter((record) => record.archiveStatus !== 'CURRENT'))
+const selectedRecords = computed(() => selectedRecordIds.value
+  .map((id) => workRecords.value.find((record) => sameId(record.id, id)))
+  .filter((record) => record && record.archiveStatus !== 'CURRENT'))
 const selectedWorkLogs = computed(() => (selected.value ? props.state.archiveEditLogsForRecord(selected.value.id) : []))
 const canEditSelectedWork = computed(() => {
   if (!selected.value) return false
@@ -74,8 +77,8 @@ const canEditSelectedWork = computed(() => {
   return props.state.canEditArchiveRecord(selected.value)
 })
 const hasUnsavedWorkChanges = computed(() => isEditingWork.value && JSON.stringify(workDraft) !== initialWorkDraft.value)
-const visibleSelectedCount = computed(() => workRecords.value.filter((record) => selectedRecordIds.value.some((id) => sameId(id, record.id))).length)
-const allVisibleSelected = computed(() => workRecords.value.length > 0 && visibleSelectedCount.value === workRecords.value.length)
+const visibleSelectedCount = computed(() => selectableWorkRecords.value.filter((record) => selectedRecordIds.value.some((id) => sameId(id, record.id))).length)
+const allVisibleSelected = computed(() => selectableWorkRecords.value.length > 0 && visibleSelectedCount.value === selectableWorkRecords.value.length)
 const singleStudentSelection = computed(() => {
   const ids = [...new Set(selectedRecords.value.map((record) => record.studentId))]
   return ids.length === 1 ? props.state.students.find((student) => sameId(student.id, ids[0])) : null
@@ -86,7 +89,11 @@ const isWithinDateRange = (value, start, end) =>
 const filteredLessonArchives = computed(() => lessonRecords.value)
 const selectedLesson = computed(() => lessonDetail.value || filteredLessonArchives.value.find((lesson) => sameId(lesson.id, selectedLessonId.value)) || null)
 const selectedLessonAssets = computed(() => selectedLesson.value?.materials || [])
-const selectedLessonWorks = computed(() => selectedLesson.value?.studentWorks || [])
+const workFileId = (work) => work?.fileId || work?.processedFileId || work?.originalFileId || work?.imageFileIds?.[0] || null
+const selectedLessonWorks = computed(() => (selectedLesson.value?.studentWorks || []).map((work) => ({
+  ...work,
+  fileId: workFileId(work)
+})))
 
 const filteredTeacherEffects = computed(() => effectRecords.value)
 const selectedEffect = computed(() => effectDetail.value || filteredTeacherEffects.value.find((effect) => sameId(effect.id, selectedEffectId.value)) || null)
@@ -153,7 +160,8 @@ const loadStudentWorks = async (page = 1) => {
     dateFrom: props.state.archiveFilter.dateStart || undefined,
     dateTo: props.state.archiveFilter.dateEnd || undefined,
     highlight: props.state.archiveFilter.highlightOnly ? true : undefined,
-    mountingStatus: mountingParam(props.state.archiveFilter.frameStatus)
+    mountingStatus: mountingParam(props.state.archiveFilter.frameStatus),
+    includeCurrent: true
   })
 }
 const loadLessonArchives = async (page = 1) => {
@@ -162,8 +170,7 @@ const loadLessonArchives = async (page = 1) => {
   await props.state.loadDirectoryPage?.('classroomArchives', {
     page,
     pageSize: 20,
-    status: 'COMPLETED',
-    archived: true,
+    archiveVisible: true,
     classId: lessonFilter.classId === 'all' ? undefined : lessonFilter.classId,
     teacherId: lessonFilter.teacher === 'all' ? undefined : lessonFilter.teacher,
     dateFrom: lessonFilter.dateStart || undefined,
@@ -187,6 +194,7 @@ const loadTeacherEffects = async (page = 1) => {
 const selectFirstIfMissing = () => loadStudentWorks(1)
 
 const toggleRecord = (record) => {
+  if (record.archiveStatus === 'CURRENT') return
   selectedId.value = record.id
   selectedRecordIds.value = selectedRecordIds.value.some((id) => sameId(id, record.id))
     ? selectedRecordIds.value.filter((id) => !sameId(id, record.id))
@@ -194,7 +202,7 @@ const toggleRecord = (record) => {
 }
 
 const toggleAllVisible = () => {
-  const visibleIds = workRecords.value.map((record) => record.id)
+  const visibleIds = selectableWorkRecords.value.map((record) => record.id)
   if (allVisibleSelected.value) {
     selectedRecordIds.value = selectedRecordIds.value.filter((id) => !visibleIds.some((visibleId) => sameId(visibleId, id)))
     return
@@ -434,6 +442,16 @@ const assetMeta = (asset) => {
   return asset.visible ? '家长展示页可见' : '仅内部归档'
 }
 
+const mediaTypeOf = (asset) => String(asset?.file?.mediaType || asset?.mediaType || '').toLowerCase()
+const extensionOf = (asset) => String(
+  asset?.file?.extension || asset?.file?.originalFilename?.split('.').pop() || asset?.title?.split('.').pop() || ''
+).replace(/^\./, '').toLowerCase()
+const imageExtensions = new Set(['avif', 'bmp', 'gif', 'jpeg', 'jpg', 'png', 'svg', 'webp'])
+const videoExtensions = new Set(['avi', 'm4v', 'mov', 'mp4', 'mpeg', 'mpg', 'webm'])
+const isImageAsset = (asset) => Boolean(asset?.image) || mediaTypeOf(asset).startsWith('image/') || imageExtensions.has(extensionOf(asset))
+const isVideoAsset = (asset) => mediaTypeOf(asset).startsWith('video/') || videoExtensions.has(extensionOf(asset))
+const assetFileLabel = (asset) => (extensionOf(asset) || (isVideoAsset(asset) ? 'VIDEO' : 'FILE')).toUpperCase()
+
 const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
 </script>
 
@@ -516,20 +534,22 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         @click="openWorkDrawer(record)"
       >
         <label class="archive-pick" @click.stop>
-          <input type="checkbox" :checked="selectedRecordIds.some((id) => sameId(id, record.id))" @change="toggleRecord(record)" />
+          <input type="checkbox" :disabled="record.archiveStatus === 'CURRENT'" :checked="selectedRecordIds.some((id) => sameId(id, record.id))" @change="toggleRecord(record)" />
         </label>
         <ProtectedMedia :file-id="record.fileId" :src="record.artwork" :alt="record.studentName" />
         <span>
           <strong>{{ record.title || `${record.studentName} · ${record.course}` }}</strong>
           <small>{{ record.date }} {{ record.time }} · {{ record.className }} · {{ record.teacher }}</small>
           <em v-if="record.sourceType === 'extraTask'">课外作品</em>
+          <em v-if="record.archiveStatus === 'CURRENT'" class="current-tag">进行中</em>
+          <em v-else class="formal-tag">正式档案</em>
           <em v-if="record.highlight">高光作品</em>
           <em v-if="record.framed" class="framed-tag">已装裱</em>
           <em v-if="record.collectionIds?.length" class="collection-tag">已入选作品集</em>
         </span>
       </article>
       <div v-if="state.directoryErrors?.archiveRecords" class="notice-box error-box"><small>{{ state.directoryErrors.archiveRecords }}</small><button class="ghost" type="button" @click="loadStudentWorks(workPage.page)">重试</button></div>
-      <div v-else-if="!workRecords.length && !state.directoryLoading?.archiveRecords" class="notice-box"><small>没有符合条件的归档记录。</small></div>
+      <div v-else-if="!workRecords.length && !state.directoryLoading?.archiveRecords" class="notice-box"><small>没有符合条件的学生作品档案。</small></div>
       <PaginationBar :page="workPage.page" :page-size="workPage.pageSize" :total="workPage.total" :loading="state.directoryLoading?.archiveRecords" @change="loadStudentWorks" />
     </section>
 
@@ -563,7 +583,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
     <section class="archive-results panel">
       <div class="section-head">
         <div>
-          <span>课堂记录</span>
+          <span>课堂记录（上传后立即可查，提交归档后转为正式档案）</span>
           <strong>{{ lessonPage.total }} 节</strong>
         </div>
       </div>
@@ -582,6 +602,9 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
             · {{ lesson.teacher }}
             <em v-if="lesson.teacherArchived" class="archived-reference">老师已归档</em>
             · {{ lesson.lessonType }}
+            <em :class="lesson.archiveStatus === 'CURRENT' ? 'current-tag' : 'formal-tag'">
+              {{ lesson.archiveStatus === 'CURRENT' ? '进行中' : '正式档案' }}
+            </em>
           </small>
         </span>
         <div>
@@ -661,7 +684,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
     <aside class="archive-drawer" role="dialog" aria-modal="true" aria-label="作品归档详情">
       <header class="archive-drawer-head">
         <div>
-          <span>{{ isEditingWork ? '编辑作品档案' : '作品归档详情' }}</span>
+          <span>{{ isEditingWork ? '编辑作品档案' : '作品归档详情' }} · {{ selected.archiveStatus === 'CURRENT' ? '进行中' : '正式档案' }}</span>
           <strong>{{ selected.title || `${selected.studentName} · ${selected.course}` }}</strong>
         </div>
         <div class="archive-drawer-actions">
@@ -681,7 +704,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span class="archive-image-hint">点击查看原图</span>
         </button>
         <div v-else class="file-tile archive-main-image-empty">暂无原图</div>
-        <figcaption>归档原图 · 只读</figcaption>
+        <figcaption>{{ selected.archiveStatus === 'CURRENT' ? '当前课次作品 · 实时数据' : '正式归档原图 · 只读' }}</figcaption>
       </figure>
       <section class="archive-detail-group">
         <span>课次信息</span>
@@ -823,7 +846,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <header class="archive-drawer-head">
         <div>
           <span>课堂完整档案</span>
-          <strong>{{ selectedLesson.className }} · {{ selectedLesson.course }}</strong>
+          <strong>{{ selectedLesson.className }} · {{ selectedLesson.course }} · {{ selectedLesson.archiveStatus === 'CURRENT' ? '进行中' : '正式档案' }}</strong>
         </div>
         <button class="ghost" @click="showLessonDrawer = false">关闭</button>
       </header>
@@ -857,7 +880,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <div v-if="selectedLessonAssets.length" class="lesson-asset-grid">
           <article v-for="asset in selectedLessonAssets" :key="asset.id">
             <button
-              v-if="asset.image || asset.fileId"
+              v-if="isImageAsset(asset) && (asset.image || asset.fileId)"
               class="archive-image-trigger archive-image-trigger--card"
               type="button"
               :aria-label="`查看${asset.title || asset.type}原图`"
@@ -866,7 +889,19 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
               <ProtectedMedia :file-id="asset.fileId" :src="asset.image" :alt="asset.title" />
               <span class="archive-image-hint">查看原图</span>
             </button>
-            <div v-else class="file-tile">{{ asset.fileExt || 'FILE' }}</div>
+            <ProtectedMedia
+              v-else-if="isVideoAsset(asset) && asset.fileId"
+              class="archive-media-video"
+              tag="video"
+              :file-id="asset.fileId"
+              controls
+              preload="metadata"
+              :aria-label="asset.title || asset.type"
+            />
+            <div v-else class="file-tile archive-file-tile">
+              <strong>{{ assetFileLabel(asset) }}</strong>
+              <small>{{ isImageAsset(asset) ? '图片文件不可用' : '非图片文件' }}</small>
+            </div>
             <span>{{ asset.type }} · {{ asset.archiveRole }}</span>
             <strong>{{ asset.title }}</strong>
             <small>{{ assetMeta(asset) }}</small>

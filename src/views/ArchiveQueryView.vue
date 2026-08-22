@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
+import ArchiveImagePreview from '../components/common/ArchiveImagePreview.vue'
 import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import PaginationBar from '../components/common/PaginationBar.vue'
 import { sameId } from '../services/mappers'
@@ -36,6 +37,7 @@ const effectDetail = ref(null)
 const showWorkDrawer = ref(false)
 const showLessonDrawer = ref(false)
 const showEffectDrawer = ref(false)
+const imagePreview = reactive({ open: false, fileId: null, src: '', alt: '', title: '', caption: '' })
 const isEditingWork = ref(false)
 const workEditError = ref('')
 const initialWorkDraft = ref('')
@@ -201,6 +203,7 @@ const toggleAllVisible = () => {
 }
 
 const openWorkDrawer = async (record) => {
+  closeImagePreview()
   selectedId.value = record.id
   detailRecord.value = null
   isEditingWork.value = false
@@ -249,6 +252,7 @@ const cancelWorkEdit = () => {
 
 const closeWorkDrawer = () => {
   if (hasUnsavedWorkChanges.value && !window.confirm('尚有未保存的修改，确定关闭吗？')) return
+  closeImagePreview()
   isEditingWork.value = false
   workEditError.value = ''
   showWorkDrawer.value = false
@@ -314,6 +318,7 @@ const saveWorkEdit = async () => {
 }
 
 const openLessonDrawer = async (lesson) => {
+  closeImagePreview()
   selectedLessonId.value = lesson.id
   lessonDetail.value = null
   showLessonDrawer.value = true
@@ -335,6 +340,7 @@ const openLessonDrawer = async (lesson) => {
 }
 
 const openEffectDrawer = async (effect) => {
+  closeImagePreview()
   selectedEffectId.value = effect.id
   effectDetail.value = null
   showEffectDrawer.value = true
@@ -345,6 +351,46 @@ const openEffectDrawer = async (effect) => {
     effectDetail.value = effect
   }
 }
+
+const openImagePreview = ({ fileId = null, src = '', alt = '', title = '', caption = '' } = {}) => {
+  if (!fileId && !src) return
+  Object.assign(imagePreview, { open: true, fileId, src, alt, title, caption })
+}
+
+const closeImagePreview = () => {
+  imagePreview.open = false
+}
+
+const previewSelectedWork = () => openImagePreview({
+  fileId: selected.value?.fileId,
+  src: selected.value?.artwork,
+  alt: selected.value?.studentName,
+  title: selected.value?.title || `${selected.value?.studentName || '学生'} · 作品原图`,
+  caption: '归档原图 · 只读'
+})
+
+const previewLessonAsset = (asset) => openImagePreview({
+  fileId: asset.fileId,
+  src: asset.image,
+  alt: asset.title,
+  title: asset.title || asset.type,
+  caption: assetMeta(asset)
+})
+
+const previewLessonWork = (work) => openImagePreview({
+  fileId: work.fileId,
+  src: work.artwork,
+  alt: work.studentName,
+  title: `${work.studentName || '学生'} · 作品原图`,
+  caption: work.course || selectedLesson.value?.course || '课堂作品'
+})
+
+const previewTeacherEffect = () => openImagePreview({
+  fileId: selectedEffect.value?.outputFileId || selectedEffect.value?.fileId,
+  src: selectedEffect.value?.cover,
+  alt: selectedEffect.value?.title,
+  title: selectedEffect.value?.title || '老师课效长图'
+})
 
 const sendSelectionToProduction = () => {
   if (!selectedRecords.value.length) return
@@ -531,7 +577,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>
           <strong>{{ lesson.date }} {{ lesson.time }} · {{ lesson.course }}</strong>
           <small>
-            {{ lesson.className }}（{{ lesson.classType }}）
+            {{ lesson.className }}<template v-if="lesson.classType">（{{ lesson.classType }}）</template>
             <em v-if="lesson.classArchived" class="archived-reference">班级已归档</em>
             · {{ lesson.teacher }}
             <em v-if="lesson.teacherArchived" class="archived-reference">老师已归档</em>
@@ -539,7 +585,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           </small>
         </span>
         <div>
-          <em>{{ lesson.materials.length }} 份资料</em>
+          <em>{{ lesson.materialCount ?? lesson.materials?.length ?? 0 }} 份资料</em>
           <small>{{ lesson.worksCount }} 件作品 · {{ lesson.highlights }} 个高光</small>
         </div>
       </button>
@@ -595,11 +641,11 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       >
         <span>
           <strong>{{ effect.title }}</strong>
-          <small>{{ effect.teacher }} · {{ effect.className }}（{{ effect.classType }}）</small>
+          <small>{{ effect.teacher }} · {{ effect.className }}<template v-if="effect.classType">（{{ effect.classType }}）</template></small>
         </span>
         <div>
           <em>{{ effect.status }}</em>
-          <small>{{ effect.imageCount }} 张图片</small>
+          <small>{{ effect.imageCount ?? 0 }} 张图片</small>
         </div>
       </button>
       <div v-if="!filteredTeacherEffects.length" class="notice-box">
@@ -624,7 +670,17 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </div>
       </header>
       <figure class="archive-image-readonly">
-        <ProtectedMedia class="archive-main-image" :file-id="selected.fileId" :src="selected.artwork" :alt="selected.studentName" />
+        <button
+          v-if="selected.fileId || selected.artwork"
+          class="archive-image-trigger"
+          type="button"
+          aria-label="查看作品原图"
+          @click="previewSelectedWork"
+        >
+          <ProtectedMedia class="archive-main-image" :file-id="selected.fileId" :src="selected.artwork" :alt="selected.studentName" />
+          <span class="archive-image-hint">点击查看原图</span>
+        </button>
+        <div v-else class="file-tile archive-main-image-empty">暂无原图</div>
         <figcaption>归档原图 · 只读</figcaption>
       </figure>
       <section class="archive-detail-group">
@@ -784,7 +840,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <div class="archive-meta">
           <span>{{ selectedLesson.date }} {{ selectedLesson.time || '未记录时间' }}</span>
           <span>{{ selectedLesson.teacher }}<em v-if="selectedLesson.teacherArchived" class="archived-reference">（已归档）</em></span>
-          <span>{{ selectedLesson.className }}（{{ selectedLesson.classType }}）<em v-if="selectedLesson.classArchived" class="archived-reference">（已归档）</em></span>
+          <span>{{ selectedLesson.className }}<template v-if="selectedLesson.classType">（{{ selectedLesson.classType }}）</template><em v-if="selectedLesson.classArchived" class="archived-reference">（已归档）</em></span>
           <span>{{ selectedLesson.lessonType }}</span>
         </div>
       </section>
@@ -800,7 +856,16 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>备课与课堂资料</span>
         <div v-if="selectedLessonAssets.length" class="lesson-asset-grid">
           <article v-for="asset in selectedLessonAssets" :key="asset.id">
-            <ProtectedMedia v-if="asset.image || asset.fileId" :file-id="asset.fileId" :src="asset.image" :alt="asset.title" />
+            <button
+              v-if="asset.image || asset.fileId"
+              class="archive-image-trigger archive-image-trigger--card"
+              type="button"
+              :aria-label="`查看${asset.title || asset.type}原图`"
+              @click="previewLessonAsset(asset)"
+            >
+              <ProtectedMedia :file-id="asset.fileId" :src="asset.image" :alt="asset.title" />
+              <span class="archive-image-hint">查看原图</span>
+            </button>
             <div v-else class="file-tile">{{ asset.fileExt || 'FILE' }}</div>
             <span>{{ asset.type }} · {{ asset.archiveRole }}</span>
             <strong>{{ asset.title }}</strong>
@@ -816,7 +881,16 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>学生作品概览</span>
         <div class="lesson-work-grid">
           <article v-for="work in selectedLessonWorks" :key="work.id || work.studentId" :class="{ missing: !work.imageMatched }">
-            <ProtectedMedia v-if="work.artwork || work.fileId" :file-id="work.fileId" :src="work.artwork" :alt="work.studentName" />
+            <button
+              v-if="work.artwork || work.fileId"
+              class="archive-image-trigger archive-image-trigger--card"
+              type="button"
+              :aria-label="`查看${work.studentName || '学生'}作品原图`"
+              @click="previewLessonWork(work)"
+            >
+              <ProtectedMedia :file-id="work.fileId" :src="work.artwork" :alt="work.studentName" />
+              <span class="archive-image-hint">查看原图</span>
+            </button>
             <div v-else class="file-tile">缺图</div>
             <strong>{{ work.studentName }}</strong>
             <small>{{ work.course || selectedLesson.course }}</small>
@@ -840,12 +914,21 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <div>
           <strong>{{ selectedEffect.title }}</strong>
         </div>
-        <ProtectedMedia
+        <button
           v-if="selectedEffect.cover || selectedEffect.outputFileId || selectedEffect.fileId"
-          :file-id="selectedEffect.outputFileId || selectedEffect.fileId"
-          :src="selectedEffect.cover"
-          :alt="selectedEffect.title"
-        />
+          class="archive-image-trigger"
+          type="button"
+          aria-label="查看课效长图原图"
+          @click="previewTeacherEffect"
+        >
+          <ProtectedMedia
+            class="teacher-effect-preview-image"
+            :file-id="selectedEffect.outputFileId || selectedEffect.fileId"
+            :src="selectedEffect.cover"
+            :alt="selectedEffect.title"
+          />
+          <span class="archive-image-hint">点击查看原图</span>
+        </button>
         <div v-else class="file-tile">
           <strong>{{ selectedEffect.status || '待生成' }}</strong>
           <small>长图尚未生成，请返回课后工作台完成生成。</small>
@@ -855,7 +938,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>归档信息</span>
         <div class="archive-meta">
           <span>{{ selectedEffect.date }} {{ selectedEffect.time || '' }}</span>
-          <span>{{ selectedEffect.className }}（{{ selectedEffect.classType }}）</span>
+          <span>{{ selectedEffect.className }}<template v-if="selectedEffect.classType">（{{ selectedEffect.classType }}）</template></span>
           <span>{{ selectedEffect.teacher }}</span>
           <span>{{ selectedEffect.status }}</span>
         </div>
@@ -868,5 +951,15 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       </section>
     </aside>
   </div>
+
+  <ArchiveImagePreview
+    :open="imagePreview.open"
+    :file-id="imagePreview.fileId"
+    :src="imagePreview.src"
+    :alt="imagePreview.alt"
+    :title="imagePreview.title"
+    :caption="imagePreview.caption"
+    @close="closeImagePreview"
+  />
 
 </template>

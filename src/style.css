@@ -1992,6 +1992,14 @@ label {
   color: var(--color-muted);
 }
 
+.todo-drawer-head small {
+  color: var(--color-muted);
+}
+
+.todo-guidance {
+  color: var(--color-muted);
+}
+
 .todo-drawer-head strong {
   font-size: 24px;
 }
@@ -9387,9 +9395,7 @@ textarea:focus,
   box-shadow: 0 24px 72px color-mix(in srgb, var(--color-text) 12%, transparent);
 }
 
-.login-header,
-.login-form-actions,
-.login-verified-account {
+.login-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -9400,13 +9406,7 @@ textarea:focus,
   margin-bottom: 0;
 }
 
-.login-verified-account > span {
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.login-form,
-.login-role-step {
+.login-form {
   display: grid;
   gap: 18px;
 }
@@ -9485,112 +9485,6 @@ textarea:focus,
   color: var(--color-danger);
   font-size: 13px;
   line-height: 1.5;
-}
-
-.login-verified-account {
-  padding: 11px 12px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 9px;
-  background: var(--color-surface-subtle);
-}
-
-.login-verified-account strong {
-  color: var(--color-heading);
-  font-size: 13px;
-}
-
-.login-role-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.login-role-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 12px;
-  width: 100%;
-  min-height: 108px;
-  padding: 15px;
-  border: 1px solid var(--color-border);
-  border-radius: 11px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  text-align: left;
-}
-
-.login-role-card:hover,
-.login-role-card.selected {
-  border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
-  background: var(--color-primary-soft);
-}
-
-.login-role-card.selected {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 14%, transparent);
-}
-
-.login-role-mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 9px;
-  background: var(--color-primary);
-  color: var(--color-surface-warm);
-  font-weight: 800;
-}
-
-.login-role-copy {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.login-role-copy strong {
-  color: var(--color-heading);
-  font-size: 15px;
-}
-
-.login-role-copy small,
-.login-role-copy em {
-  color: var(--color-muted);
-  font-size: 12px;
-  font-style: normal;
-  line-height: 1.45;
-}
-
-.login-role-copy em {
-  color: var(--color-primary);
-  font-weight: 700;
-}
-
-.login-role-check {
-  display: grid;
-  width: 22px;
-  height: 22px;
-  place-items: center;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 50%;
-  color: var(--color-primary);
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.login-screen-enter-active,
-.login-screen-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-
-.login-screen-enter-from {
-  opacity: 0;
-  transform: translateX(14px);
-}
-
-.login-screen-leave-to {
-  opacity: 0;
-  transform: translateX(-14px);
 }
 
 .modal-backdrop {
@@ -11177,25 +11071,6 @@ textarea:focus,
 
   .login-form-head h1 {
     font-size: 24px;
-  }
-
-  .login-role-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .login-verified-account {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .login-form-actions {
-    align-items: stretch;
-    flex-direction: column-reverse;
-  }
-
-  .login-form-actions .login-submit {
-    width: 100%;
   }
 
   .parent-h5 {

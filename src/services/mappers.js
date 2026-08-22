@@ -78,6 +78,12 @@ export const mapIdentityRole = (value = {}) => ({
   version: Number(value.version || 0),
   permissions: Array.isArray(value.permissions) ? value.permissions.map((permission) => String(permission)) : []
 })
+export const identityRoleNames = (roles = []) => (Array.isArray(roles) ? roles : [])
+  .map((role) => typeof role === 'string' ? role : role?.name || role?.roleKey || '')
+  .map((name) => String(name).trim())
+  .filter(Boolean)
+  .filter((name, index, values) => values.indexOf(name) === index)
+  .join('、')
 export const mapCampusMembership = (value = {}) => ({
   ...value,
   id: safeUiId(value.id),
@@ -471,6 +477,9 @@ export const mapQualityReview = (value = {}) => ({
   lessonId: safeUiId(value.lessonId),
   classId: safeUiId(value.classId),
   teacherId: safeUiId(value.teacherId),
+  dateValue: value.dateValue || '',
+  date: displayDate(value.dateValue),
+  time: displayTime(value.startTime),
   teacher: value.teacherName || value.teacher || '',
   reviewer: value.reviewer || value.reviewedByName || safeUiId(value.reviewedBy) || '',
   reviewedBy: safeUiId(value.reviewedBy),
@@ -590,6 +599,9 @@ export const mapWheat = (value = {}) => {
     id: safeUiId(source.id),
     lessonId: safeUiId(source.lessonId),
     status: ({ PENDING: '待处理', MANUALLY_COMPLETED: '已人工处理', NOT_REQUIRED: '无需处理', EXCEPTION: '异常' }[source.status] || source.status || '待处理'),
+    note: source.note === '请回到小麦助教人工处理本节课完成状态'
+      ? '请前往小麦助教完成消课，完成后返回本系统确认'
+      : source.note || '',
     version: Number(source.version || 0),
     todo: value.todo ? mapTodo(value.todo) : null
   }
@@ -614,6 +626,30 @@ export const mapTodo = (value = {}) => ({
   dueAt: displayDateTime(value.dueAt),
   completedAt: displayDateTime(value.completedAt),
   version: Number(value.version || 0)
+})
+
+export const mapCloudArchiveJob = (value = {}) => ({
+  ...value,
+  id: safeUiId(value.id),
+  lessonId: safeUiId(value.lessonId),
+  archiveVersionId: safeUiId(value.archiveVersionId),
+  teacherEffectId: safeUiId(value.teacherEffectId),
+  teacherEffectVersionId: safeUiId(value.teacherEffectVersionId),
+  sourceId: safeUiId(value.sourceId),
+  fileId: safeUiId(value.fileId),
+  providerConfigId: safeUiId(value.providerConfigId),
+  currentJobId: safeUiId(value.currentJobId),
+  statusCode: value.status || '',
+  status: ({
+    QUEUED: '排队中',
+    RUNNING: '同步中',
+    SUCCEEDED: '已同步',
+    SKIPPED: '已跳过',
+    FAILED: '同步失败',
+    CANCELED: '已取消'
+  }[value.status] || value.status || '待处理'),
+  version: Number(value.version || 0),
+  attemptNo: Number(value.attemptNo || 0)
 })
 
 export const mapPage = (value, mapper) => ({

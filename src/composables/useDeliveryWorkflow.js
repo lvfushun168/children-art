@@ -18,6 +18,7 @@ import {
   displayTime,
   fromApiId,
   fromApiIds,
+  identityRoleNames,
   mapCampus,
   mapArchiveRecord,
   mapArchiveVersion,
@@ -25,6 +26,7 @@ import {
   mapAttendance,
   mapArtwork,
   mapClass,
+  mapCloudArchiveJob,
   mapCampusMembership,
   mapCourse,
   mapExternalLink,
@@ -96,6 +98,11 @@ const isWithinDateRange = (value, start, end) => {
   if (!value) return !start && !end
   return (!start || value >= start) && (!end || value <= end)
 }
+const localTodayValue = () => {
+  const now = new Date()
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
 
 const profileKeyAliases = {
   residential_community: 'residentialCommunity',
@@ -121,6 +128,10 @@ export function useDeliveryWorkflow() {
   const templates = reactive({ image: [], comment: [] })
   const classTypes = reactive([])
   const tasks = reactive([])
+  // The shell's inbox is deliberately separate from the Today page collection.
+  // Today is a navigation view; the inbox must also surface older lessons that
+  // are still open or were reopened for remediation.
+  const inboxLessons = reactive([])
   const archives = reactive([])
   const archiveRecords = reactive([])
   const archiveCollections = reactive([])
@@ -134,6 +145,8 @@ export function useDeliveryWorkflow() {
   const externalLinks = reactive([])
   const wheatTraces = reactive([])
   const todos = reactive([])
+  const cloudArchiveTodos = reactive([])
+  const pendingReviewQueue = reactive([])
   const importBatches = reactive([])
   const importPreviewRows = reactive([])
   const settings = reactive([])
@@ -160,6 +173,13 @@ export function useDeliveryWorkflow() {
   const archiveEditLogs = reactive([])
   const wecomSendTasks = reactive([])
 
+  // The drawer is a personal action inbox. Keep this scope explicit so a
+  // shared class or an administrator permission cannot widen it accidentally.
+  const currentTodoScope = () => {
+    const teacherId = currentTeacherProfile.value?.id
+    return teacherId ? { teacherId: String(teacherId), dateTo: localTodayValue() } : null
+  }
+
   const activeTaskId = ref(null)
   // Keeps a historical schedule lesson visible while the daily task list and
   // the aggregated lesson workspace are loading.
@@ -168,10 +188,7 @@ export function useDeliveryWorkflow() {
   const copiedStudentId = ref(null)
   const isLoggedIn = ref(Boolean(getAccessToken() && storedMe.value))
   const currentUserId = ref(null)
-  const verifiedLoginUserId = ref(null)
-  const activeLoginRole = ref(null)
-  const loginForm = reactive({ phone: '', password: '', role: '' })
-  const pendingAuth = ref(null)
+  const loginForm = reactive({ phone: '', password: '' })
   const remoteLoading = ref(false)
   const remoteReady = ref(false)
   const pageLoading = reactive({})
@@ -379,7 +396,7 @@ export function useDeliveryWorkflow() {
   const currentUser = computed(() => {
     const user = storedMe.value?.user
     if (user) {
-      const role = activeLoginRole.value || storedMe.value?.roles?.[0]?.name || storedMe.value?.roles?.[0]?.roleKey || '老师'
+      const role = identityRoleNames(storedMe.value?.roles) || '未分配角色'
       const teacherId = currentTeacherProfile.value?.id || null
       return {
         id: fromApiId(user.id),
@@ -400,7 +417,7 @@ export function useDeliveryWorkflow() {
       ...teacher,
       teacherId: teacher.id,
       teacherLinked: true,
-      role: !activeLoginRole.value || activeLoginRole.value === teacher.role ? teacher.role : activeLoginRole.value
+      role: teacher.role || '老师'
     }
   })
   const isAdmin = computed(() => {
@@ -435,23 +452,6 @@ export function useDeliveryWorkflow() {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && (isAdmin.value || permissions.includes('extra-task.edit')))
   })
-  const loginAccount = computed(() => pendingAuth.value?.me?.user || teachers.find((teacher) => sameId(teacher.id, verifiedLoginUserId.value)) || null)
-  const loginRoleOptions = computed(() => {
-    const account = loginAccount.value
-    const roles = pendingAuth.value?.me?.roles?.length
-      ? pendingAuth.value.me.roles
-      : account?.availableRoles?.length ? account.availableRoles.map((role) => ({ name: role, roleKey: role })) : account?.role ? [{ name: account.role, roleKey: account.role }] : []
-    return roles.map((role) => {
-      const value = role.roleKey || role.name || role
-      const label = role.name || role.label || value
-      return {
-        value,
-        label,
-        description: label === '管理员' || value === 'ADMIN' ? '管理基础数据、课次、模板和系统配置' : '处理本人授权班级的课后交付',
-        scope: label === '管理员' || value === 'ADMIN' ? '全部课次与后台配置' : `${account?.classes?.length || 0} 个授权班级`
-      }
-    })
-  })
   const authorizedClassIds = computed(() => {
     if (isAdmin.value) return classes.map((klass) => klass.id)
     const assigned = classes.filter((klass) => sameId(klass.teacherId, currentTeacherProfile.value?.id)).map((klass) => klass.id)
@@ -464,6 +464,15 @@ export function useDeliveryWorkflow() {
   const visibleTasks = computed(() =>
     tasks.filter((task) => isAdmin.value || authorizedClassIds.value.some((id) => sameId(id, task.classId)))
   )
+  const visibleInboxLessons = computed(() => {
+    const scope = currentTodoScope()
+    if (!scope) return []
+    return inboxLessons.filter((lesson) =>
+      sameId(lesson.teacherId, scope.teacherId)
+      && lesson.dateValue
+      && lesson.dateValue <= scope.dateTo
+    )
+  })
   const visibleNavItems = computed(() => {
     const permissions = new Set(storedMe.value?.permissions || [])
     const can = (...keys) => isAdmin.value || keys.some((key) => permissions.has(key))
@@ -575,7 +584,7 @@ export function useDeliveryWorkflow() {
     })),
     {
       id: 'wheat',
-      label: '小麦留痕待办',
+      label: '小麦消课待办',
       required: true,
       status: activeTask.value?.wheatStatus || '未生成'
     }
@@ -1110,7 +1119,7 @@ export function useDeliveryWorkflow() {
     },
     {
       key: 'wheatTrace',
-      title: '小麦留痕待办',
+      title: '小麦消课待办',
       meta: archiveChecklist.value.wheatTrace.traceId ? `待办 #${archiveChecklist.value.wheatTrace.traceId}` : '',
       action: '生成待办',
       required: true,
@@ -1275,74 +1284,6 @@ export function useDeliveryWorkflow() {
     selectedTaskSnapshot.value = task
     ensureLessonWorkspace(task)
     activeTaskId.value = task.id
-  }
-
-  const clearLoginVerification = () => {
-    verifiedLoginUserId.value = null
-    loginForm.role = ''
-  }
-
-  const verifyLogin = () => {
-    const identifier = String(loginForm.phone || '').trim()
-    const password = String(loginForm.password || '')
-    const account = teachers.find((item) =>
-      item.status === '启用' &&
-      item.password === password &&
-      (item.phone === identifier || item.username === identifier)
-    )
-    if (!account) {
-      clearLoginVerification()
-      notify('手机号或密码不正确，请检查后重试')
-      return false
-    }
-    verifiedLoginUserId.value = account.id
-    activeLoginRole.value = null
-    loginForm.role = loginRoleOptions.value[0]?.value || account.role
-    return true
-  }
-
-  const loginWithRole = (role = loginForm.role) => {
-    const account = loginAccount.value
-    const selectedRole = loginRoleOptions.value.find((option) => option.value === role)
-    if (!account || !selectedRole) {
-      notify('请选择当前账号可用的身份')
-      return false
-    }
-
-    currentUserId.value = account.id
-    activeLoginRole.value = selectedRole.value
-    loginForm.role = selectedRole.value
-    isLoggedIn.value = true
-    const firstTask = visibleTasks.value[0]
-    if (firstTask) selectTask(firstTask)
-    notify(`已登录：${account.name}（${selectedRole.label}）`)
-    return true
-  }
-
-  const loginAs = (teacherId) => {
-    const teacher = teachers.find((item) => item.id === Number(teacherId))
-    if (!teacher) return false
-    loginForm.phone = teacher.phone
-    loginForm.password = teacher.password || ''
-    verifiedLoginUserId.value = teacher.id
-    loginForm.role = teacher.availableRoles?.[0] || teacher.role
-    return loginWithRole(loginForm.role)
-  }
-
-  const loginWithForm = () => {
-    if (!verifiedLoginUserId.value) return verifyLogin()
-    return loginWithRole(loginForm.role)
-  }
-
-  const logout = () => {
-    isLoggedIn.value = false
-    currentUserId.value = 1
-    activeLoginRole.value = null
-    verifiedLoginUserId.value = null
-    loginForm.phone = ''
-    loginForm.password = ''
-    loginForm.role = ''
-    notify('已退出登录')
   }
 
   const setAttendance = (row, value) => {
@@ -1839,7 +1780,7 @@ export function useDeliveryWorkflow() {
       type: activeTask.value.lessonType,
       status: '待处理',
       source: '课后归档生成',
-      note: '请回到小麦助教人工标记课程完成状态'
+      note: '请前往小麦助教完成消课，完成后返回本系统确认'
     }
     wheatTraces.unshift(trace)
     return trace
@@ -1973,14 +1914,14 @@ export function useDeliveryWorkflow() {
   const generateWheatTraceTask = async () => {
     if (archiveActionBlocked()) return false
     if (isArchiveDone(archiveChecklist.value.wheatTrace)) {
-      notify('小麦留痕待办已经生成')
+      notify('小麦消课待办已经生成')
       return false
     }
     setArchiveChecklistItem('wheatTrace', { status: '生成中' })
-    await runAction('正在生成小麦留痕待办...', '小麦留痕待办已生成', async () => {
+    await runAction('正在生成小麦消课待办...', '小麦消课待办已生成', async () => {
       const trace = ensureWheatTrace()
       activeTask.value.wheatStatus = trace.status
-      setArchiveChecklistItem('wheatTrace', { status: '已生成', traceId: trace.id, detail: '待老师或教务回到小麦助教人工处理' })
+      setArchiveChecklistItem('wheatTrace', { status: '已生成', traceId: trace.id, detail: '请前往小麦助教完成消课，完成后返回本系统确认' })
     })
     return true
   }
@@ -2221,27 +2162,29 @@ export function useDeliveryWorkflow() {
   const markTrace = (trace, status, reason = '') => {
     const before = trace.status
     if (before === status) {
-      notify(`重复提交已拦截：该留痕已经是“${status}”`)
+      notify(`重复提交已拦截：该消课记录已经是“${status}”`)
       return false
     }
     const isCorrection = ['已人工处理', '无需处理'].includes(before)
     if ((status === '异常' || status === '无需处理' || isCorrection) && !reason?.trim()) {
-      notify(isCorrection ? '更正已完成状态必须填写更正原因' : '该状态变更必须填写说明')
+      notify(isCorrection ? '更正已完成的消课状态必须填写更正原因' : '该状态变更必须填写说明')
       return false
     }
     if (isCorrection && !isAdmin.value) {
-      notify('操作未执行：只有管理员可以更正已完成的留痕状态')
+      notify('操作未执行：只有管理员可以更正已完成的消课状态')
       return false
     }
     trace.status = status
-    trace.note = reason?.trim() || (status === '已人工处理' ? '已在小麦助教人工处理完成' : trace.note)
+    trace.note = reason?.trim() || (status === '已人工处理' ? '已在小麦助教完成消课' : trace.note)
     trace.lastReason = reason?.trim() || '人工确认已处理'
     trace.operator = currentUser.value?.name
     trace.processedAt = nowText()
     const lesson = `${activeTask.value.date} ${activeTask.value.time} · ${activeClass.value.name}`
     if (trace.lesson === lesson) activeTask.value.wheatStatus = status
-    addStatusLog('小麦留痕', trace.id, before, status, trace.lastReason, '小麦留痕页', trace.lessonId || null)
-    notify(`小麦留痕已标记为：${status}`)
+    // Keep the audit object type stable for historical records; only change
+    // the user-facing label of this workflow.
+    addStatusLog('小麦留痕', trace.id, before, status, trace.lastReason, '小麦消课页', trace.lessonId || null)
+    notify(`小麦消课已标记为：${status}`)
     return true
   }
 
@@ -3116,12 +3059,14 @@ export function useDeliveryWorkflow() {
   }[value] || value || '待处理')
 
   const applyRemoteLesson = async (lessonId, value) => {
-    const lesson = mapLesson(value?.lesson || tasks.find((item) => sameId(item.id, lessonId)) || {})
+    const lesson = mapLesson(value?.lesson || lessonForInboxId(lessonId) || {})
     if (lesson.id) {
       if (sameId(activeTaskId.value, lesson.id)) selectedTaskSnapshot.value = { ...selectedTaskSnapshot.value, ...lesson }
       const existing = tasks.findIndex((item) => sameId(item.id, lesson.id))
       if (existing >= 0) tasks.splice(existing, 1, { ...tasks[existing], ...lesson })
       else tasks.unshift(lesson)
+      const inboxExisting = inboxLessons.findIndex((item) => sameId(item.id, lesson.id))
+      if (inboxExisting >= 0) inboxLessons.splice(inboxExisting, 1, { ...inboxLessons[inboxExisting], ...lesson })
     }
     const assetsModule = value?.assets || value?.m3?.asset || value?.m3?.assets || {}
     const feedbackModule = value?.feedback || value?.m3?.feedback || {}
@@ -3146,17 +3091,7 @@ export function useDeliveryWorkflow() {
       })
       replaceReactive(externalLinks, mergedExternalLinks)
     }
-    const touchTasks = (parentModule.touchTasks || []).map((value) => {
-      const task = mapTouchTask(value)
-      const student = students.find((item) => sameId(item.id, task.studentId))
-      return {
-        ...task,
-        studentName: student?.name || task.studentName,
-        targetName: student?.parent || task.targetName || '家长',
-        parent: student?.parent || task.targetName || '',
-        lesson: `${lesson.date} ${lesson.time} · ${lesson.className || ''}`.trim()
-      }
-    })
+    const touchTasks = (parentModule.touchTasks || []).map((value) => decorateTouchTask(value, lesson))
     const wheat = mapWheat(parentModule.wheatTrace || {})
     const teacherEffectValue = value?.teacherEffect?.teacherEffect || value?.m3?.teacherEffect?.teacherEffect
     const teacherEffect = teacherEffectValue || createTeacherEffectPlaceholder(lesson)
@@ -3276,7 +3211,8 @@ export function useDeliveryWorkflow() {
       wheatTrace: { ...workspace.archiveChecklist.wheatTrace, status: wheat.status === '已人工处理' || wheat.status === '无需处理' ? wheat.status : wheat.id ? '已生成' : '待生成', traceId: wheat.id || null, detail: wheat.note || '' }
     })
     replaceReactive(wheatTraces, [...wheatTraces.filter((item) => !sameId(item.lessonId, lesson.id)), wheat.id ? { ...wheat, lesson: `${lesson.date} ${lesson.time} · ${lesson.className}`, course: lesson.courseTitle, teacher: lesson.teacher } : null].filter(Boolean))
-    replaceReactive(wecomSendTasks, touchTasks)
+    const otherTouchTasks = wecomSendTasks.filter((item) => !sameId(item.lessonId, lesson.id))
+    replaceReactive(wecomSendTasks, [...otherTouchTasks, ...touchTasks])
     return workspace
   }
 
@@ -3366,6 +3302,106 @@ export function useDeliveryWorkflow() {
       course: lesson.courseTitle || '',
       teacher: lesson.teacherName || ''
     } : null
+  }
+
+  const lessonForInboxId = (lessonId) => [...inboxLessons, ...tasks, ...scheduleLessons]
+    .find((lesson) => sameId(lesson.id, lessonId)) || null
+
+  const decorateTouchTask = (value, lessonOverride = null) => {
+    const task = mapTouchTask(value)
+    const lesson = lessonOverride || lessonForInboxId(task.lessonId)
+    const student = students.find((item) => sameId(item.id, task.studentId))
+    return {
+      ...task,
+      studentName: student?.name || task.studentName,
+      targetName: student?.parent || task.targetName || '家长',
+      parent: student?.parent || task.targetName || '',
+      lesson: lesson
+        ? `${lesson.date} ${lesson.time} · ${lesson.className || ''}`.trim()
+        : `课次 ${task.lessonId || '未知'}`
+    }
+  }
+
+  const loadAllPageItems = async (loader, mapper, params = {}) => {
+    const pageSize = 200
+    const first = mapPage(await loader({ ...params, page: 1, pageSize }), mapper)
+    const totalPages = Math.max(1, Math.ceil(first.total / pageSize))
+    if (totalPages === 1) return { items: first.items, total: first.total }
+    const rest = await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) =>
+      loader({ ...params, page: index + 2, pageSize }).then((value) => mapPage(value, mapper).items)
+    ))
+    return { items: [...first.items, ...rest.flat()], total: first.total }
+  }
+
+  const refreshInboxLessons = async () => {
+    if (!isLoggedIn.value) return null
+    const scope = currentTodoScope()
+    if (!scope) {
+      replaceReactive(inboxLessons)
+      updateListPageMeta('inboxLessons', { page: 1, pageSize: 200, total: 0 })
+      return []
+    }
+    // Keep all of the current teacher's historical lessons in the local
+    // context. The drawer filters out completed lessons, while WeCom/wheat
+    // records may still need their lesson context for display.
+    const page = await loadAllPageItems(api.lessons.list, mapLesson, scope)
+    const items = page.items.filter((lesson) =>
+      lesson?.id && lesson.dateValue && lesson.dateValue <= scope.dateTo
+    )
+    const statusOrder = { 异常: 0, 处理中: 1, 待处理: 2 }
+    items.sort((left, right) =>
+      (statusOrder[left.status] ?? 9) - (statusOrder[right.status] ?? 9)
+      || `${left.dateValue || ''} ${left.time || ''}`.localeCompare(`${right.dateValue || ''} ${right.time || ''}`)
+    )
+    replaceReactive(inboxLessons, items)
+    updateListPageMeta('inboxLessons', { page: 1, pageSize: 200, total: items.length })
+    return items
+  }
+
+  const refreshCloudArchiveTodos = async () => {
+    if (!isLoggedIn.value) return null
+    const scope = currentTodoScope()
+    if (!scope) {
+      replaceReactive(cloudArchiveTodos)
+      updateListPageMeta('cloudArchiveTodos', { page: 1, pageSize: 200, total: 0 })
+      return []
+    }
+    const page = await loadAllPageItems(api.m5.cloudJobs, mapCloudArchiveJob, { ...scope, status: 'FAILED' })
+    const items = page.items.filter((job) => job?.statusCode === 'FAILED' || job?.status === '同步失败')
+    replaceReactive(cloudArchiveTodos, items)
+    updateListPageMeta('cloudArchiveTodos', { page: 1, pageSize: 200, total: items.length })
+    return items
+  }
+
+  const refreshWecomSendTasks = async () => {
+    if (!isLoggedIn.value) return null
+    const scope = currentTodoScope()
+    if (!scope) {
+      replaceReactive(wecomSendTasks)
+      return []
+    }
+    const values = await api.parent.touchTasksForLesson(null, scope)
+    const items = (Array.isArray(values) ? values : []).map((value) => decorateTouchTask(value))
+    replaceReactive(wecomSendTasks, items)
+    return items
+  }
+
+  const refreshPendingReviewQueue = async () => {
+    if (!isLoggedIn.value || !canQualityReview.value) {
+      replaceReactive(pendingReviewQueue)
+      return []
+    }
+    const pages = await Promise.all(['PENDING_REVIEW', 'RETURNED'].map((status) =>
+      loadAllPageItems(api.m6.qualityReviews, mapQualityReview, { status })
+    ))
+    const byId = new Map()
+    pages.flatMap((page) => page.items).forEach((review) => {
+      if (review?.id) byId.set(String(review.id), review)
+    })
+    const items = [...byId.values()].filter((review) => ['待评分', '已退回'].includes(review?.status))
+    replaceReactive(pendingReviewQueue, items)
+    updateListPageMeta('pendingReviews', { page: 1, pageSize: 200, total: items.length })
+    return items
   }
 
   const updatePageMeta = (target, page) => {
@@ -3618,8 +3654,19 @@ export function useDeliveryWorkflow() {
 
   const refreshWheatTraces = async () => {
     if (!isLoggedIn.value) return null
-    const page = mapPage(await api.todo.wheatTraces({ status: ['PENDING', 'EXCEPTION'], page: 1, pageSize: 20 }), mapWheatListItem)
-    replaceReactive(wheatTraces, page.items.filter(Boolean))
+    const scope = currentTodoScope()
+    if (!scope) {
+      const emptyPage = { page: 1, pageSize: 200, total: 0, items: [] }
+      replaceReactive(wheatTraces)
+      updatePageMeta(shellPages.wheatTraces, emptyPage)
+      updateListPageMeta('wheatTraces', emptyPage)
+      return emptyPage
+    }
+    const result = await loadAllPageItems(api.todo.wheatTraces, mapWheatListItem,
+      { ...scope, status: ['PENDING', 'EXCEPTION'] })
+    const items = result.items.filter(Boolean)
+    replaceReactive(wheatTraces, items)
+    const page = { page: 1, pageSize: 200, total: result.total, items }
     updatePageMeta(shellPages.wheatTraces, page)
     updateListPageMeta('wheatTraces', page)
     return page
@@ -3642,8 +3689,6 @@ export function useDeliveryWorkflow() {
       const results = await Promise.allSettled([
         initialMe ? Promise.resolve(initialMe) : api.auth.me(),
         api.lessons.today({ page: 1, pageSize: 20 }),
-        api.todo.wheatTraces({ status: ['PENDING', 'EXCEPTION'], page: 1, pageSize: 20 }),
-        api.todo.list({ status: 'OPEN', page: 1, pageSize: 20 }),
         api.workbench.summary()
       ])
       if (results[0].status === 'rejected') throw results[0].reason
@@ -3654,15 +3699,19 @@ export function useDeliveryWorkflow() {
       replaceReactive(tasks, lessonPage.items)
       updatePageMeta(shellPages.lessons, lessonPage)
       updateListPageMeta('tasks', lessonPage)
-      const wheatPage = mapPage(valueAt(2), mapWheatListItem)
-      replaceReactive(wheatTraces, wheatPage.items.filter(Boolean))
-      updatePageMeta(shellPages.wheatTraces, wheatPage)
-      updateListPageMeta('wheatTraces', wheatPage)
-      const todoPage = mapPage(valueAt(3), mapTodo)
-      replaceReactive(todos, todoPage.items)
-      updatePageMeta(shellPages.todos, todoPage)
-      updateListPageMeta('todos', todoPage)
-      if (valueAt(4)) Object.assign(shellSummary, valueAt(4))
+      if (valueAt(2)) Object.assign(shellSummary, valueAt(2))
+      // The drawer is an action inbox, so load each business source directly.
+      // The generic todo projection remains available for source modules but is
+      // intentionally not rendered as a separate user-facing category.
+      // Load lessons first because the WeCom list is decorated with lesson
+      // context and must also cover lessons outside today's page.
+      await Promise.allSettled([refreshInboxLessons()])
+      await Promise.allSettled([
+        refreshWheatTraces(),
+        refreshCloudArchiveTodos(),
+        refreshWecomSendTasks(),
+        refreshPendingReviewQueue()
+      ])
       if (!activeTaskId.value && tasks[0]) activeTaskId.value = tasks[0].id
       pageLoaded.shell = true
       remoteReady.value = true
@@ -3825,11 +3874,15 @@ export function useDeliveryWorkflow() {
     switch (key) {
       case 'workbench.summary': return refreshWorkbenchSummary()
       case 'lessons.today': return refreshTodayLessons()
+      case 'inbox-lessons': return refreshInboxLessons()
       case 'lessons.schedule': {
         if (!Object.keys(scheduleMeta.filters || {}).length) return null
         return loadScheduleLessons({ ...scheduleMeta.filters, page: scheduleMeta.page, pageSize: scheduleMeta.pageSize }, { force })
       }
       case 'wheat-traces': return refreshWheatTraces()
+      case 'cloud-archive-todos': return refreshCloudArchiveTodos()
+      case 'touch-tasks': return refreshWecomSendTasks()
+      case 'pending-reviews': return refreshPendingReviewQueue()
       case 'todos': return refreshTodos()
       case 'lesson.workspace': return lessonId ? refreshRemoteLesson(lessonId, { force }) : null
       case 'archive.records': return loadPageData('archives', { force })
@@ -3838,48 +3891,28 @@ export function useDeliveryWorkflow() {
     }
   }
 
-  const remoteVerifyLogin = async () => {
+  const remoteLoginWithForm = async () => {
     try {
       const auth = await api.auth.login({ account: loginForm.phone.trim(), password: loginForm.password })
       setSession(auth)
-      pendingAuth.value = auth
-      verifiedLoginUserId.value = auth.me?.user?.id || null
+      storedMe.value = auth.me
+      currentUserId.value = auth.me?.user?.id || null
+      isLoggedIn.value = true
+      await loadShellData({ initialMe: auth.me })
+      notify(`欢迎回来，${currentUser.value?.name || '用户'}`)
       return true
     } catch (error) {
-      notify(remoteErrorMessage(error, '账号或密码不正确'))
+      // Authentication is atomic from the UI's perspective. If shell loading
+      // fails after the server has issued tokens, do not leave a half-logged-in
+      // browser session behind.
+      clearSession()
+      storedMe.value = null
+      currentUserId.value = null
+      isLoggedIn.value = false
+      remoteReady.value = false
+      notify(remoteErrorMessage(error, '登录失败，请检查账号密码或稍后重试'))
       return false
     }
-  }
-
-  const remoteLoginWithRole = async (role = loginForm.role) => {
-    if (!pendingAuth.value?.me) return false
-    activeLoginRole.value = role || pendingAuth.value.me.roles?.[0]?.name || '老师'
-    loginForm.role = activeLoginRole.value
-    storedMe.value = pendingAuth.value.me
-    currentUserId.value = pendingAuth.value.me.user?.id || null
-    isLoggedIn.value = true
-    try {
-      await loadShellData({ initialMe: pendingAuth.value.me })
-    } catch (error) {
-      notify(remoteErrorMessage(error, '登录后加载数据失败'))
-      return false
-    }
-    notify(`欢迎回来，${currentUser.value?.name || '用户'}`)
-    return true
-  }
-
-  const remoteLoginWithForm = async () => {
-    if (!(await remoteVerifyLogin())) return false
-    const role = loginRoleOptions.value[0]?.value || ''
-    return remoteLoginWithRole(role)
-  }
-
-  const remoteClearLoginVerification = () => {
-    pendingAuth.value = null
-    verifiedLoginUserId.value = null
-    activeLoginRole.value = null
-    loginForm.role = ''
-    clearSession()
   }
 
   const remoteLogout = async () => {
@@ -3897,7 +3930,9 @@ export function useDeliveryWorkflow() {
     clearProtectedMediaCache()
     portfolioStudioRef?.clearPortfolioSession?.()
     storedMe.value = null
-    pendingAuth.value = null
+    currentUserId.value = null
+    loginForm.phone = ''
+    loginForm.password = ''
     isLoggedIn.value = false
     remoteReady.value = false
     replaceReactive(teachers)
@@ -3906,6 +3941,7 @@ export function useDeliveryWorkflow() {
     replaceReactive(courses)
     replaceReactive(scheduleLessons)
     replaceReactive(tasks)
+    replaceReactive(inboxLessons)
     replaceReactive(archiveRecords)
     replaceReactive(artworkLibrary)
     replaceReactive(communicationRecords)
@@ -3914,6 +3950,8 @@ export function useDeliveryWorkflow() {
     replaceReactive(externalLinks)
     replaceReactive(wheatTraces)
     replaceReactive(todos)
+    replaceReactive(cloudArchiveTodos)
+    replaceReactive(pendingReviewQueue)
     replaceReactive(importBatches)
     replaceReactive(importPreviewRows)
     replaceReactive(qualityReviews)
@@ -3985,6 +4023,7 @@ export function useDeliveryWorkflow() {
     const key = String(lessonId || '')
     if (!key) return null
     const existing = visibleTasks.value.find((task) => sameId(task.id, key)) ||
+      inboxLessons.find((lesson) => sameId(lesson.id, key)) ||
       scheduleLessons.find((lesson) => sameId(lesson.id, key))
     if (existing) return remoteSelectTask(existing)
     try {
@@ -4013,7 +4052,11 @@ export function useDeliveryWorkflow() {
     const mapped = mapLesson(result)
     const index = tasks.findIndex((item) => sameId(item.id, task.id))
     if (index >= 0) tasks.splice(index, 1, { ...tasks[index], ...mapped })
-    await refreshRemoteLesson(task.id)
+    await Promise.all([
+      refreshRemoteLesson(task.id),
+      invalidateResource('inbox-lessons'),
+      invalidateResource('pending-reviews')
+    ])
     notify(`课次状态已更新为“${mapped.status}”`)
     return true
   }
@@ -4644,7 +4687,11 @@ export function useDeliveryWorkflow() {
       shareUrls: Object.fromEntries(attendingRows.value.map((row) => [String(row.studentId), remoteStudentShareUrlFor(row)]))
     }, createIdempotencyKey(`touch:${activeTask.value.id}:${sharePage.value.publishedVersion}`)), '家长触达任务已创建')
     if (!result) return false
-    await refreshRemoteLesson(activeTask.value.id)
+    await Promise.all([
+      refreshRemoteLesson(activeTask.value.id),
+      invalidateResource('touch-tasks'),
+      invalidateResource('workbench.summary')
+    ])
     return true
   }
 
@@ -4653,7 +4700,11 @@ export function useDeliveryWorkflow() {
     if (!task) return remoteCopyStudentLink(row)
     const result = await runRemote('正在记录人工触达...', () => api.parent.fallbackManual(task.id, { reason: '复制链接人工发送', version: task.version, shareUrl: task.shareUrl }))
     if (!result) return false
-    await refreshRemoteLesson(activeTask.value.id)
+    await Promise.all([
+      refreshRemoteLesson(activeTask.value.id),
+      invalidateResource('touch-tasks'),
+      invalidateResource('workbench.summary')
+    ])
     return remoteCopyStudentLink(row)
   }
 
@@ -4665,7 +4716,11 @@ export function useDeliveryWorkflow() {
       shareUrl: task.shareUrl
     }))
     if (!result) return false
-    await refreshRemoteLesson(task.lessonId)
+    await Promise.all([
+      refreshRemoteLesson(task.lessonId),
+      invalidateResource('touch-tasks'),
+      invalidateResource('workbench.summary')
+    ])
     return remoteCopyStudentLink({ studentId: task.studentId })
   }
 
@@ -4676,7 +4731,11 @@ export function useDeliveryWorkflow() {
     const body = status === '已发送' ? { version: task.version } : { reason: reason.trim() || '人工操作', version: task.version }
     const result = await runRemote('正在更新触达任务...', () => action(task.id, body))
     if (!result) return false
-    await refreshRemoteLesson(task.lessonId)
+    await Promise.all([
+      refreshRemoteLesson(task.lessonId),
+      invalidateResource('touch-tasks'),
+      invalidateResource('workbench.summary')
+    ])
     return true
   }
 
@@ -4684,13 +4743,33 @@ export function useDeliveryWorkflow() {
     if (!task?.id) return false
     const result = await runRemote('正在重试触达任务...', () => api.parent.retryTouch(task.id, { version: task.version }), '触达任务已重新提交')
     if (!result) return false
-    await refreshRemoteLesson(task.lessonId)
+    await Promise.all([
+      refreshRemoteLesson(task.lessonId),
+      invalidateResource('touch-tasks'),
+      invalidateResource('workbench.summary')
+    ])
+    return true
+  }
+
+  const remoteRetryCloudArchiveTodo = async (job) => {
+    if (!job?.id) return false
+    const result = await runRemote('正在重试网盘同步...', () => api.m5.retryCloud(
+      job.id,
+      { version: job.version },
+      createIdempotencyKey(`cloud-archive-retry:${job.id}`)
+    ), '网盘同步已重新提交')
+    if (!result) return false
+    await Promise.all([
+      invalidateResource('cloud-archive-todos'),
+      invalidateResource('workbench.summary'),
+      job.lessonId ? invalidateResource('lesson.workspace', { lessonId: job.lessonId }) : Promise.resolve()
+    ])
     return true
   }
 
   const remoteGenerateWheatTraceTask = async () => {
     if (!activeTask.value?.id) return false
-    const result = await runRemote('正在创建小麦留痕...', () => api.todo.createWheat(activeTask.value.id, createIdempotencyKey(`wheat:${activeTask.value.id}`)), '小麦留痕已创建')
+    const result = await runRemote('正在创建小麦消课待办...', () => api.todo.createWheat(activeTask.value.id, createIdempotencyKey(`wheat:${activeTask.value.id}`)), '小麦消课待办已创建')
     if (!result) return false
     await Promise.all([
       invalidateResource('lesson.workspace', { lessonId: activeTask.value.id }),
@@ -4703,7 +4782,7 @@ export function useDeliveryWorkflow() {
   const remoteMarkTrace = async (trace, status, reason = '') => {
     if (!trace?.id) return false
     const command = toApiWheatCommand(status)
-    const result = await runRemote('正在更新小麦留痕...', () => api.todo.transitionWheat(trace.id, {
+    const result = await runRemote('正在更新小麦消课状态...', () => api.todo.transitionWheat(trace.id, {
       command, reason: reason.trim() || undefined, version: trace.version, exceptionType: status === '异常' ? 'OTHER' : undefined
     }))
     if (!result) return false
@@ -4764,7 +4843,11 @@ export function useDeliveryWorkflow() {
           sourceType: 'LESSON_ASSET', sourceId: String(source.id), fileId: String(source.fileId), required: false
         }, createIdempotencyKey(`cloud-archive:${activeTask.value.id}`)), '云归档任务已创建')
     if (!result) return false
-    await refreshRemoteLesson(activeTask.value.id)
+    await Promise.all([
+      refreshRemoteLesson(activeTask.value.id),
+      invalidateResource('cloud-archive-todos'),
+      invalidateResource('workbench.summary')
+    ])
     return true
   }
 
@@ -4923,6 +5006,10 @@ export function useDeliveryWorkflow() {
       invalidateResource('lesson.workspace', { lessonId: task.id }),
       invalidateResource('archive.records'),
       invalidateResource('lessons.today'),
+      invalidateResource('inbox-lessons'),
+      invalidateResource('pending-reviews'),
+      invalidateResource('touch-tasks'),
+      invalidateResource('cloud-archive-todos'),
       invalidateResource('workbench.summary')
     ])
     return true
@@ -4947,7 +5034,12 @@ export function useDeliveryWorkflow() {
       dateValue: payload.dateValue, startTime: String(payload.time || '00:00').slice(0, 5), endTime: payload.endTime || undefined,
       lessonType: toApiLessonType(payload.lessonType || '其他'), topic: payload.topic?.trim() || undefined,
       sourceType: apiLessonSource(payload.importedFrom), sourceAttendanceCount: payload.sourceAttendanceCount
-    }), '课次已创建', () => Promise.all([invalidateResource('lessons.today'), invalidateResource('lessons.schedule'), invalidateResource('workbench.summary')]))
+    }), '课次已创建', () => Promise.all([
+      invalidateResource('lessons.today'),
+      invalidateResource('lessons.schedule'),
+      invalidateResource('inbox-lessons'),
+      invalidateResource('workbench.summary')
+    ]))
     if (!result) return null
     const lesson = mapLesson(result)
     tasks.unshift(lesson)
@@ -5479,7 +5571,7 @@ export function useDeliveryWorkflow() {
       .filter((row) => row.status !== '可导入'
         && !(row.type === 'lesson' && row.duplicateObjectType === 'LESSON' && row.topic))
       .map((row) => String(row.id))
-    const result = await runRemote('正在确认导入...', () => api.imports.confirm(pendingImportMeta.batchId, { version: pendingImportMeta.version, skipRowIds }, createIdempotencyKey(`import-confirm:${pendingImportMeta.batchId}`)), '导入已确认', () => Promise.all([invalidateResource('imports'), invalidateResource('lessons.today'), invalidateResource('lessons.schedule'), invalidateResource('workbench.summary')]))
+    const result = await runRemote('正在确认导入...', () => api.imports.confirm(pendingImportMeta.batchId, { version: pendingImportMeta.version, skipRowIds }, createIdempotencyKey(`import-confirm:${pendingImportMeta.batchId}`)), '导入已确认', () => Promise.all([invalidateResource('imports'), invalidateResource('lessons.today'), invalidateResource('lessons.schedule'), invalidateResource('inbox-lessons'), invalidateResource('workbench.summary')]))
     if (!result) return false
     replaceReactive(importBatches, [mapImportBatch(result), ...importBatches.filter((item) => !sameId(item.id, result.id))])
     pendingImportMeta.batchId = null
@@ -5488,6 +5580,7 @@ export function useDeliveryWorkflow() {
       invalidateResource('imports'),
       invalidateResource('lessons.today'),
       invalidateResource('lessons.schedule'),
+      invalidateResource('inbox-lessons'),
       invalidateResource('workbench.summary')
     ])
     return true
@@ -5509,7 +5602,10 @@ export function useDeliveryWorkflow() {
       : null)
     const result = await runRemote('正在保存质量评分...', () => existing?.id
       ? api.m6.updateQualityReview(existing.id, { score, comment: payload.comment?.trim() || '', reason: '更新课次评分', version: existing.version })
-      : api.m6.createQualityReview({ lessonId: String(payload.lessonId), score, comment: payload.comment?.trim() || '', version: payload.version }), '质量评分已保存', () => invalidateResource('supervision'))
+      : api.m6.createQualityReview({ lessonId: String(payload.lessonId), score, comment: payload.comment?.trim() || '', version: payload.version }), '质量评分已保存', () => Promise.all([
+      invalidateResource('supervision'),
+      invalidateResource('pending-reviews')
+    ]))
     if (!result) return null
     const mapped = mapQualityReview(result)
     const index = qualityReviews.findIndex((item) => sameId(item.id, mapped.id))
@@ -5691,6 +5787,7 @@ export function useDeliveryWorkflow() {
     templates,
     classTypes,
     tasks,
+    inboxLessons,
     lessonWorkspaces,
     activeWorkspace,
     sharePage,
@@ -5727,6 +5824,8 @@ export function useDeliveryWorkflow() {
     externalLinks,
     wheatTraces,
     todos,
+    cloudArchiveTodos,
+    pendingReviewQueue,
     importBatches,
     importPreviewRows,
     settings,
@@ -5769,8 +5868,6 @@ export function useDeliveryWorkflow() {
     activeShareMode,
     activeTask,
     currentUser,
-    loginAccount,
-    loginRoleOptions,
     isAdmin,
     canManageIdentityUsers,
     canManageIdentityRoles,
@@ -5781,6 +5878,7 @@ export function useDeliveryWorkflow() {
     canEditExtraTaskArtwork,
     authorizedClassIds,
     visibleTasks,
+    visibleInboxLessons,
     visibleNavItems,
     activeClass,
     activeCourse,
@@ -5824,6 +5922,7 @@ export function useDeliveryWorkflow() {
     pushParentTouch: remotePushParentTouch,
     markWecomSendTask: remoteMarkWecomSendTask,
     retryWecomSendTask: remoteRetryWecomSendTask,
+    retryCloudArchiveTodo: remoteRetryCloudArchiveTodo,
     manualCopyWecomTask: remoteManualCopyWecomTask,
     manualCopyStudentLink,
     parentShareUrl: remoteParentShareUrl,
@@ -5838,10 +5937,7 @@ export function useDeliveryWorkflow() {
       notify('请使用服务端账号登录')
       return false
     },
-    verifyLogin: remoteVerifyLogin,
-    loginWithRole: remoteLoginWithRole,
     loginWithForm: remoteLoginWithForm,
-    clearLoginVerification: remoteClearLoginVerification,
     logout: remoteLogout,
     savePreferences: remoteSavePreferences,
     setAttendance: remoteSetAttendance,

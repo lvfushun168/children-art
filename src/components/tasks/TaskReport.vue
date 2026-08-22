@@ -34,7 +34,7 @@ defineEmits(['show-archives', 'show-students', 'show-wheat'])
         <strong>{{ counts.shareReady }}/{{ counts.attend }}</strong>
       </article>
       <article>
-        <span>小麦留痕</span>
+        <span>小麦消课</span>
         <strong>{{ activeTask.wheatStatus }}</strong>
       </article>
     </div>

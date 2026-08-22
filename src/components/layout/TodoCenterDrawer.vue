@@ -13,45 +13,71 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'select-task', 'open-imports', 'open-supervision'])
+const emit = defineEmits(['close', 'select-task', 'open-supervision'])
 
+const state = props.state
 const reasons = reactive({})
-const activeCategory = ref('all')
+const activeCategory = ref('lessons')
 
-const pendingLessons = computed(() => {
-  const todayTasks = props.state.visibleTasks.filter((task) => task.dateValue === props.state.latestLessonDate)
-  const scopedTasks = todayTasks.length ? todayTasks : props.state.visibleTasks
-  return scopedTasks.filter((task) => task.status !== '已完成')
+const listValue = (value) => {
+  if (Array.isArray(value)) return value
+  if (Array.isArray(value?.value)) return value.value
+  return []
+}
+
+const stateList = (key) => listValue(state[key])
+const lessonList = computed(() => stateList('visibleInboxLessons'))
+const wheatTodos = computed(() => stateList('wheatTraces').filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)))
+const wecomTodos = computed(() => stateList('wecomSendTasks').filter((task) => ['待老师确认发送', '发送失败'].includes(task.status)))
+const cloudTodos = computed(() => stateList('cloudArchiveTodos').filter((job) => job.statusCode === 'FAILED' || job.status === '同步失败'))
+const reviewTodos = computed(() => state.canQualityReview
+  ? stateList('pendingReviewQueue').filter((review) => ['待评分', '已退回'].includes(review.status))
+  : [])
+const pendingLessons = computed(() => lessonList.value.filter((task) => task.status !== '已完成'))
+
+const categories = computed(() => {
+  const values = [
+    { id: 'lessons', label: '课后交付', count: pendingLessons.value.length },
+    { id: 'wecom', label: '企微待处理', count: wecomTodos.value.length },
+    { id: 'wheat', label: '小麦消课', count: wheatTodos.value.length },
+    { id: 'cloud', label: '网盘异常', count: cloudTodos.value.length }
+  ]
+  if (state.canQualityReview) values.push({ id: 'reviews', label: '待评分', count: reviewTodos.value.length })
+  return values
 })
-const wheatTodos = computed(() => props.state.wheatTraces.filter((trace) => trace.status !== '已人工处理' && trace.status !== '无需处理'))
-const importTodos = computed(() => props.state.importPreviewRows.filter((row) => row.status !== '可导入'))
-const cloudTodos = computed(() => props.state.visibleTasks.filter((task) => task.cloudArchiveStatus === '同步失败'))
-const wecomTodos = computed(() => props.state.wecomSendTasks.filter((task) => ['待老师确认发送', '发送失败'].includes(task.status)))
-const reviewTodos = computed(() => props.state.canQualityReview ? props.state.pendingQualityReviews : [])
-const serverTodos = computed(() => (props.state.todos || []).filter((todo) => !['已完成', '已取消'].includes(todo.status)))
-const totalCount = computed(() => pendingLessons.value.length + wheatTodos.value.length + importTodos.value.length + cloudTodos.value.length + wecomTodos.value.length + reviewTodos.value.length + serverTodos.value.length)
-const categories = computed(() => [
-  { id: 'all', label: '全部', count: totalCount.value },
-  { id: 'lessons', label: '今日课后', count: pendingLessons.value.length },
-  { id: 'reviews', label: '待评分', count: reviewTodos.value.length },
-  { id: 'wecom', label: '企微发送', count: wecomTodos.value.length },
-  { id: 'wheat', label: '小麦留痕', count: wheatTodos.value.length },
-  { id: 'cloud', label: '网盘同步', count: cloudTodos.value.length },
-  { id: 'imports', label: '导入异常', count: importTodos.value.length },
-  { id: 'server', label: '服务端任务', count: serverTodos.value.length }
-])
-const showGroup = (id) => activeCategory.value === 'all' || activeCategory.value === id
 
-const klassName = (task) => props.state.classes.find((item) => sameId(item.id, task.classId))?.name || '未命名班级'
-const courseName = (task) => props.state.courses.find((item) => sameId(item.id, task.courseId))?.title || '未命名课程'
+const totalCount = computed(() => categories.value.reduce((total, category) => total + category.count, 0))
+
+const lessonForId = (lessonId) => [
+  ...stateList('inboxLessons'),
+  ...stateList('visibleTasks'),
+  ...stateList('scheduleLessons')
+].find((lesson) => sameId(lesson.id, lessonId)) || null
+
+const klassName = (task) => task.className
+  || stateList('classes').find((item) => sameId(item.id, task.classId))?.name
+  || lessonForId(task.lessonId)?.className
+  || '未命名班级'
+
+const courseName = (task) => task.course
+  || task.courseTitle
+  || stateList('courses').find((item) => sameId(item.id, task.courseId))?.title
+  || lessonForId(task.lessonId)?.course
+  || '未命名课程'
+
+const lessonForCloudJob = (job) => lessonForId(job.lessonId)
 
 const updateTrace = (trace, status) => {
-  if (props.state.markTrace(trace, status, reasons[trace.id] || '')) reasons[trace.id] = ''
+  const reason = reasons[`wheat-${trace.id}`] || ''
+  if (state.markTrace(trace, status, reason)) reasons[`wheat-${trace.id}`] = ''
 }
 
 const updateWecomTask = (task, status) => {
-  if (props.state.markWecomSendTask(task, status, reasons[`wecom-${task.id}`] || '')) reasons[`wecom-${task.id}`] = ''
+  const reason = reasons[`wecom-${task.id}`] || ''
+  if (state.markWecomSendTask(task, status, reason)) reasons[`wecom-${task.id}`] = ''
 }
+
+const retryCloud = (job) => state.retryCloudArchiveTodo?.(job)
 
 const goTask = (task) => {
   emit('select-task', task)
@@ -62,10 +88,6 @@ const openSupervision = () => {
   emit('open-supervision')
   emit('close')
 }
-
-const serverTodoLesson = (todo) => props.state.visibleTasks.find((task) => sameId(task.id, todo.lessonId))
-const completeServerTodo = (todo) => props.state.completeTodo?.(todo)
-const cancelServerTodo = (todo) => props.state.cancelTodo?.(todo, reasons[`todo-${todo.id}`] || '')
 </script>
 
 <template>
@@ -75,15 +97,17 @@ const cancelServerTodo = (todo) => props.state.cancelTodo?.(todo, reasons[`todo-
         <div>
           <span>待办中心</span>
           <strong>{{ totalCount }} 个待办</strong>
+          <small>只显示需要当前用户采取动作的业务事项</small>
         </div>
-        <button class="ghost" @click="$emit('close')">关闭</button>
+        <button type="button" class="ghost" @click="$emit('close')">关闭</button>
       </header>
 
       <div class="todo-center-layout">
-        <nav class="todo-category-menu">
+        <nav class="todo-category-menu" aria-label="待办分类">
           <button
             v-for="category in categories"
             :key="category.id"
+            type="button"
             :class="{ active: activeCategory === category.id }"
             @click="activeCategory = category.id"
           >
@@ -93,108 +117,85 @@ const cancelServerTodo = (todo) => props.state.cancelTodo?.(todo, reasons[`todo-
         </nav>
 
         <div class="todo-list-pane">
-          <section v-if="showGroup('lessons')" class="todo-group">
-            <div class="mini-head"><div><span>今日课后</span><strong>{{ pendingLessons.length }} 节待交付</strong></div></div>
-            <button v-for="task in pendingLessons" :key="task.id" class="todo-row" @click="goTask(task)">
+          <section v-if="activeCategory === 'lessons'" class="todo-group">
+            <div class="mini-head"><div><span>课后交付</span><strong>{{ pendingLessons.length }} 节未完成</strong></div></div>
+            <button v-for="task in pendingLessons" :key="task.id" type="button" class="todo-row" @click="goTask(task)">
               <div>
-                <strong>{{ task.time }} · {{ klassName(task) }}</strong>
+                <strong>{{ task.date || task.dateValue }} {{ task.time }} · {{ klassName(task) }}</strong>
                 <small>{{ courseName(task) }} · {{ task.teacher }} · {{ task.lessonType }}</small>
               </div>
               <em>{{ task.status }} · {{ state.progressForTask(task) }}%</em>
             </button>
-            <small v-if="!pendingLessons.length" class="empty-note">今天的课后交付都处理完了。</small>
+            <small v-if="!pendingLessons.length" class="empty-note">当前没有未完成的课后交付。</small>
           </section>
 
-          <section v-if="showGroup('reviews')" class="todo-group">
-            <div class="mini-head"><div><span>课次质量评分</span><strong>{{ reviewTodos.length }} 节待评分</strong></div><button class="ghost" @click="openSupervision">去教管看板</button></div>
-            <article v-for="lesson in reviewTodos" :key="lesson.id" class="todo-row static">
-              <div>
-                <strong>{{ lesson.date }} {{ lesson.time }} · {{ lesson.className }}</strong>
-                <small>{{ lesson.course }} · {{ lesson.teacher }} · {{ lesson.lessonType }}</small>
-              </div>
-              <em>{{ lesson.reviewStatus }}</em>
-            </article>
-            <small v-if="!reviewTodos.length" class="empty-note">暂无待评分课次。</small>
-          </section>
-
-          <section v-if="showGroup('wecom')" class="todo-group">
-            <div class="mini-head"><div><span>企微发送确认</span><strong>{{ wecomTodos.length }} 条待处理</strong></div></div>
+          <section v-if="activeCategory === 'wecom'" class="todo-group">
+            <div class="mini-head"><div><span>企微待处理</span><strong>{{ wecomTodos.length }} 条待处理</strong></div></div>
             <article v-for="task in wecomTodos" :key="`wecom-${task.id}`" class="todo-trace-row">
               <div>
                 <strong>{{ task.studentName }}（{{ task.targetName }}）</strong>
-                <small>{{ task.lesson }} · 展示页 V{{ task.shareVersion }} · {{ task.shareUrl }}</small>
+                <small>{{ task.lesson }} · 展示页 V{{ task.shareVersion }}</small>
                 <small v-if="task.failureReason">失败原因：{{ task.failureReason }}</small>
               </div>
               <em>{{ task.status }}</em>
               <input v-model="reasons[`wecom-${task.id}`]" placeholder="取消触达原因（必填）" />
               <div class="button-pair">
-                <button class="secondary" @click="updateWecomTask(task, '已发送')">已确认发送</button>
-                <button class="ghost" @click="state.manualCopyWecomTask(task)">复制链接人工发送</button>
-                <button v-if="task.status === '发送失败'" class="ghost" @click="state.retryWecomSendTask(task)">重试发送</button>
-                <button v-if="task.status !== '发送失败'" class="ghost" @click="updateWecomTask(task, '已取消')">取消触达</button>
+                <button type="button" class="secondary" @click="updateWecomTask(task, '已发送')">已确认发送</button>
+                <button type="button" class="ghost" @click="state.manualCopyWecomTask(task)">复制链接人工发送</button>
+                <button v-if="task.status === '发送失败'" type="button" class="ghost" @click="state.retryWecomSendTask(task)">重试发送</button>
+                <button v-if="task.status !== '发送失败'" type="button" class="ghost" @click="updateWecomTask(task, '已取消')">取消触达</button>
               </div>
             </article>
             <small v-if="!wecomTodos.length" class="empty-note">暂无待确认的企微触达任务。</small>
           </section>
 
-          <section v-if="showGroup('wheat')" class="todo-group">
-            <div class="mini-head"><div><span>小麦留痕</span><strong>{{ wheatTodos.length }} 条待处理</strong></div></div>
+          <section v-if="activeCategory === 'wheat'" class="todo-group">
+            <div class="mini-head"><div><span>小麦消课</span><strong>{{ wheatTodos.length }} 条待处理</strong></div></div>
+            <small class="todo-guidance">请前往小麦助教完成消课，完成后返回本系统确认。</small>
             <article v-for="trace in wheatTodos" :key="trace.id" class="todo-trace-row">
               <div>
                 <strong>{{ trace.lesson }}</strong>
                 <small>{{ trace.course }} · {{ trace.teacher }} · {{ trace.note }}</small>
               </div>
               <em>{{ trace.status }}</em>
-              <input v-model="reasons[trace.id]" placeholder="异常、无需处理或更正原因" />
+              <input v-model="reasons[`wheat-${trace.id}`]" placeholder="异常、无需处理或更正原因" />
               <div class="button-pair">
-                <button class="secondary" @click="updateTrace(trace, '已人工处理')">已处理</button>
-                <button class="ghost" @click="updateTrace(trace, '无需处理')">无需处理</button>
-                <button v-if="trace.status === '待处理'" class="ghost" @click="updateTrace(trace, '异常')">异常</button>
+                <button type="button" class="secondary" @click="updateTrace(trace, '已人工处理')">标记已处理</button>
+                <button type="button" class="ghost" @click="updateTrace(trace, '无需处理')">无需处理</button>
+                <button v-if="trace.status === '待处理'" type="button" class="ghost" @click="updateTrace(trace, '异常')">异常</button>
               </div>
             </article>
-            <small v-if="!wheatTodos.length" class="empty-note">暂无小麦留痕待办。</small>
+            <small v-if="!wheatTodos.length" class="empty-note">暂无小麦消课待办。</small>
           </section>
 
-          <section v-if="showGroup('cloud')" class="todo-group">
-            <div class="mini-head"><div><span>网盘同步</span><strong>{{ cloudTodos.length }} 条异常</strong></div></div>
-            <article v-for="task in cloudTodos" :key="task.id" class="todo-row static">
+          <section v-if="activeCategory === 'cloud'" class="todo-group">
+            <div class="mini-head"><div><span>网盘异常</span><strong>{{ cloudTodos.length }} 条同步失败</strong></div></div>
+            <article v-for="job in cloudTodos" :key="`cloud-${job.id}`" class="todo-trace-row">
               <div>
-                <strong>{{ klassName(task) }} · {{ courseName(task) }}</strong>
+                <strong>{{ job.targetFilename || job.targetPath || '网盘归档任务' }}</strong>
+                <small v-if="lessonForCloudJob(job)">{{ lessonForCloudJob(job).date }} {{ lessonForCloudJob(job).time }} · {{ klassName(lessonForCloudJob(job)) }}</small>
+                <small v-if="job.failureReason">失败原因：{{ job.failureReason }}</small>
+                <small v-if="job.failureCode">错误码：{{ job.failureCode }}</small>
               </div>
               <em>同步失败</em>
+              <div class="button-pair">
+                <button v-if="lessonForCloudJob(job)" type="button" class="ghost" @click="goTask(lessonForCloudJob(job))">打开课次</button>
+                <button v-if="job.retryable !== false" type="button" class="secondary" @click="retryCloud(job)">重试同步</button>
+              </div>
             </article>
             <small v-if="!cloudTodos.length" class="empty-note">暂无网盘同步异常。</small>
           </section>
 
-          <section v-if="showGroup('imports')" class="todo-group">
-            <div class="mini-head"><div><span>导入异常</span><strong>{{ importTodos.length }} 条需处理</strong></div><button class="ghost" @click="$emit('open-imports')">去导入中心</button></div>
-            <article v-for="row in importTodos" :key="row.id" class="todo-row static">
+          <section v-if="activeCategory === 'reviews'" class="todo-group">
+            <div class="mini-head"><div><span>待评分</span><strong>{{ reviewTodos.length }} 节待评分</strong></div><button type="button" class="ghost" @click="openSupervision">去教管看板</button></div>
+            <article v-for="review in reviewTodos" :key="`review-${review.id}`" class="todo-row static">
               <div>
-                <strong>{{ row.name }}</strong>
-                <small>{{ row.issue || row.status }}</small>
+                <strong>{{ review.date || review.dateValue }}<span v-if="review.time"> {{ review.time }}</span> · {{ review.className || klassName(review) }}</strong>
+                <small>{{ review.courseTitle || review.course || courseName(review) }} · {{ review.teacher }} · {{ review.lessonType }}</small>
               </div>
-              <em>{{ row.status }}</em>
+              <em>{{ review.status }}</em>
             </article>
-            <small v-if="!importTodos.length" class="empty-note">暂无导入异常。</small>
-          </section>
-
-          <section v-if="showGroup('server')" class="todo-group">
-            <div class="mini-head"><div><span>服务端任务</span><strong>{{ serverTodos.length }} 条待处理</strong></div></div>
-            <article v-for="todo in serverTodos" :key="`todo-${todo.id}`" class="todo-trace-row">
-              <div>
-                <strong>{{ todo.title || todo.todoType }}</strong>
-                <small>{{ todo.description || '待处理任务' }}<span v-if="todo.dueAt"> · 截止 {{ todo.dueAt }}</span></small>
-                <small v-if="serverTodoLesson(todo)">课次：{{ serverTodoLesson(todo).date }} {{ serverTodoLesson(todo).time }}</small>
-              </div>
-              <em>{{ todo.status }}</em>
-              <input v-model="reasons[`todo-${todo.id}`]" placeholder="取消原因（可选完成或必填取消）" />
-              <div class="button-pair">
-                <button v-if="serverTodoLesson(todo)" class="ghost" @click="goTask(serverTodoLesson(todo))">打开课次</button>
-                <button class="secondary" @click="completeServerTodo(todo)">完成</button>
-                <button class="ghost" @click="cancelServerTodo(todo)">取消</button>
-              </div>
-            </article>
-            <small v-if="!serverTodos.length" class="empty-note">暂无服务端待办。</small>
+            <small v-if="!reviewTodos.length" class="empty-note">暂无待评分课次。</small>
           </section>
         </div>
       </div>

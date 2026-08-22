@@ -89,17 +89,16 @@ const mobileGroupEntries = computed(() =>
   }))
 )
 
-const visibleTodayTasks = computed(() => {
-  const matched = state.visibleTasks.filter((task) => task.dateValue === state.latestLessonDate)
-  return matched.length ? matched : state.visibleTasks
-})
-const pendingCount = computed(() => visibleTodayTasks.value.filter((task) => task.status !== '已完成').length)
-const wheatPendingCount = computed(() => state.wheatTraces.filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)).length)
-const importIssueCount = computed(() => state.importPreviewRows.filter((row) => row.status !== '可导入').length)
-const cloudIssueCount = computed(() => state.visibleTasks.filter((task) => task.cloudArchiveStatus === '同步失败').length)
-const reviewPendingCount = computed(() => state.canQualityReview ? state.pendingQualityReviews.length : 0)
-const serverTodoCount = computed(() => (state.todos || []).filter((todo) => !['已完成', '已取消'].includes(todo.status)).length)
-const todoCount = computed(() => pendingCount.value + wheatPendingCount.value + importIssueCount.value + cloudIssueCount.value + reviewPendingCount.value + serverTodoCount.value)
+const listValue = (value) => Array.isArray(value) ? value : Array.isArray(value?.value) ? value.value : []
+const inboxLessons = computed(() => listValue(state.visibleInboxLessons))
+const pendingCount = computed(() => inboxLessons.value.filter((task) => task.status !== '已完成').length)
+const wheatPendingCount = computed(() => listValue(state.wheatTraces).filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)).length)
+const wecomPendingCount = computed(() => listValue(state.wecomSendTasks).filter((task) => ['待老师确认发送', '发送失败'].includes(task.status)).length)
+const cloudIssueCount = computed(() => listValue(state.cloudArchiveTodos).filter((job) => job.statusCode === 'FAILED' || job.status === '同步失败').length)
+const reviewPendingCount = computed(() => state.canQualityReview
+  ? listValue(state.pendingReviewQueue).filter((review) => ['待评分', '已退回'].includes(review.status)).length
+  : 0)
+const todoCount = computed(() => pendingCount.value + wecomPendingCount.value + wheatPendingCount.value + cloudIssueCount.value + reviewPendingCount.value)
 
 const openGroup = (groupId) => {
   productionHandoff.value = null
@@ -239,7 +238,6 @@ watch([() => route.name, () => route.params.lessonId, () => state.isLoggedIn], (
       :open="showTodoCenter"
       @close="showTodoCenter = false"
       @select-task="selectTodoTask"
-      @open-imports="openImportCenter('综合课表')"
       @open-supervision="openNav('supervision')"
     />
 

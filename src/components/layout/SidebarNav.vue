@@ -56,7 +56,7 @@ defineEmits(['select-group', 'open-todo-center'])
     <button class="nav-summary todo-entry" @click="$emit('open-todo-center')">
       <span>待办中心</span>
       <strong>{{ todoCount }} 个待办</strong>
-      <small>{{ pendingCount }} 个课后交付 · {{ wheatPendingCount }} 个小麦留痕</small>
+      <small>{{ pendingCount }} 个课后交付 · {{ wheatPendingCount }} 个小麦消课</small>
     </button>
   </aside>
 </template>

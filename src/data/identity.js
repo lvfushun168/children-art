@@ -19,7 +19,7 @@ export const identityModuleLabel = (module) => ({
   share: '家长分享',
   touch: '家长触达',
   archive: '档案管理',
-  wheat: '小麦留痕',
+  wheat: '小麦消课',
   todo: '待办中心',
   quality: '教管质检',
   crm: '学生档案',

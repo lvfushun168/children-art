@@ -458,7 +458,7 @@ export const qualityReviews = [
     teacher: '周老师',
     reviewer: '王教务',
     score: 8,
-    comment: '体验课反馈完整，作品归档已完成；小麦留痕异常需要当天跟进。',
+    comment: '体验课反馈完整，作品归档已完成；小麦消课异常需要当天跟进。',
     status: '已评分',
     reviewedAt: '2026/6/21 20:12:00'
   },
@@ -1202,7 +1202,7 @@ export const wheatTraces = [
     type: '收费课',
     status: '已人工处理',
     source: '课后归档生成',
-    note: '已在小麦标记课程完成'
+    note: '已在小麦助教完成消课'
   },
   {
     id: 2,

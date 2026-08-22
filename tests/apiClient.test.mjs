@@ -12,6 +12,7 @@ globalThis.window = {
 
 const { clearSession, createIdempotencyKey, getAccessToken, getApiRequestStats, onApiRequest, pageParams, queryString, request, resetApiRequestStats, setSession } = await import('../src/services/apiClient.js')
 const { api } = await import('../src/services/api.js')
+const { downloadProtectedFile } = await import('../src/services/fileService.js')
 const { clearProtectedMediaCache, protectedMediaUrl } = await import('../src/services/protectedMediaCache.js')
 const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
 
@@ -106,6 +107,65 @@ test('returns binary responses without envelope parsing and exposes conflict met
     request('/lesson', { method: 'PATCH', body: { version: 1 } }),
     (error) => error.status === 409 && error.code === 'VERSION_CONFLICT' && error.requestId === 'req-conflict'
   )
+})
+
+test('downloads protected files through an authenticated browser blob link', async () => {
+  setSession({ accessToken: 'download-token', refreshToken: 'refresh-token', me: { user: { id: '1' } } })
+  let requestOptions
+  let clicked = false
+  let removed = false
+  let appended = null
+  const revoked = []
+  const anchor = {
+    href: '',
+    download: '',
+    rel: '',
+    style: {},
+    click: () => { clicked = true },
+    remove: () => { removed = true }
+  }
+  const previousDocument = globalThis.document
+  const previousCreateObjectUrl = URL.createObjectURL
+  const previousRevokeObjectUrl = URL.revokeObjectURL
+  const previousSetTimeout = globalThis.setTimeout
+  globalThis.fetch = async (_url, options) => {
+    requestOptions = options
+    return response(200, new Blob(['port']), 'text/plain')
+  }
+  URL.createObjectURL = (blob) => {
+    assert.equal(blob instanceof Blob, true)
+    return 'blob:test'
+  }
+  URL.revokeObjectURL = (url) => revoked.push(url)
+  globalThis.setTimeout = (callback) => {
+    callback()
+    return 0
+  }
+  globalThis.document = {
+    createElement: (tag) => {
+      assert.equal(tag, 'a')
+      return anchor
+    },
+    body: {
+      appendChild: (node) => { appended = node }
+    }
+  }
+
+  try {
+    await downloadProtectedFile('87', 'port.txt')
+    assert.equal(requestOptions.headers.Authorization, 'Bearer download-token')
+    assert.equal(appended, anchor)
+    assert.equal(anchor.href, 'blob:test')
+    assert.equal(anchor.download, 'port.txt')
+    assert.equal(clicked, true)
+    assert.equal(removed, true)
+    assert.deepEqual(revoked, ['blob:test'])
+  } finally {
+    globalThis.document = previousDocument
+    URL.createObjectURL = previousCreateObjectUrl
+    URL.revokeObjectURL = previousRevokeObjectUrl
+    globalThis.setTimeout = previousSetTimeout
+  }
 })
 
 test('maps protocol IDs, statuses and pages into stable view values', () => {

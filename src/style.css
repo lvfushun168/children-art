@@ -8803,6 +8803,20 @@ textarea:focus,
   min-height: 168px;
 }
 
+.lesson-asset-grid .archive-file-download {
+  min-height: 168px;
+  padding: 0;
+  text-align: center;
+}
+
+.lesson-asset-grid .archive-file-download:hover {
+  background: var(--color-primary-mist);
+}
+
+.archive-download-error {
+  color: var(--color-danger);
+}
+
 .file-tile {
   display: grid;
   place-items: center;

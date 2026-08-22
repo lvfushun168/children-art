@@ -5,6 +5,7 @@ import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
 import ArchiveImagePreview from '../components/common/ArchiveImagePreview.vue'
 import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import PaginationBar from '../components/common/PaginationBar.vue'
+import { downloadProtectedFile } from '../services/fileService'
 import { sameId } from '../services/mappers'
 
 const props = defineProps({
@@ -38,6 +39,8 @@ const showWorkDrawer = ref(false)
 const showLessonDrawer = ref(false)
 const showEffectDrawer = ref(false)
 const imagePreview = reactive({ open: false, fileId: null, src: '', alt: '', title: '', caption: '' })
+const downloadingFileId = ref('')
+const fileDownloadError = ref('')
 const isEditingWork = ref(false)
 const workEditError = ref('')
 const initialWorkDraft = ref('')
@@ -384,6 +387,29 @@ const previewLessonAsset = (asset) => openImagePreview({
   title: asset.title || asset.type,
   caption: assetMeta(asset)
 })
+
+const assetDownloadName = (asset) => {
+  const file = asset?.file || {}
+  const name = file.originalFilename || asset?.fileName || asset?.title
+  if (name) return String(name).replace(/[\\/:*?"<>|]/g, '_')
+  const extension = extensionOf(asset)
+  return extension ? `download.${extension}` : `download-${asset?.fileId || 'file'}`
+}
+
+const downloadLessonAsset = async (asset) => {
+  const fileId = asset?.fileId
+  if (!fileId || downloadingFileId.value) return
+  const filename = assetDownloadName(asset)
+  downloadingFileId.value = String(fileId)
+  fileDownloadError.value = ''
+  try {
+    await downloadProtectedFile(fileId, filename)
+  } catch {
+    fileDownloadError.value = '文件下载失败，请稍后重试。'
+  } finally {
+    downloadingFileId.value = ''
+  }
+}
 
 const previewLessonWork = (work) => openImagePreview({
   fileId: work.fileId,
@@ -898,6 +924,17 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
               preload="metadata"
               :aria-label="asset.title || asset.type"
             />
+            <button
+              v-else-if="asset.fileId"
+              class="file-tile archive-file-tile archive-file-download"
+              type="button"
+              :disabled="downloadingFileId === String(asset.fileId)"
+              :aria-label="`下载${asset.title || asset.type || '文件'}`"
+              @click="downloadLessonAsset(asset)"
+            >
+              <strong>{{ assetFileLabel(asset) }}</strong>
+              <small>{{ downloadingFileId === String(asset.fileId) ? '下载中…' : '点击下载' }}</small>
+            </button>
             <div v-else class="file-tile archive-file-tile">
               <strong>{{ assetFileLabel(asset) }}</strong>
               <small>{{ isImageAsset(asset) ? '图片文件不可用' : '非图片文件' }}</small>
@@ -909,6 +946,9 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </div>
         <div v-else class="notice-box">
           <small>这节课暂无课堂资料记录。</small>
+        </div>
+        <div v-if="fileDownloadError" class="notice-box archive-download-error">
+          <small>{{ fileDownloadError }}</small>
         </div>
       </section>
 

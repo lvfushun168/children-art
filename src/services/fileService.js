@@ -50,6 +50,29 @@ export const loadProtectedBlobUrl = async (fileId) => {
   return URL.createObjectURL(blob)
 }
 
+export const downloadProtectedFile = async (fileId, filename = 'download') => {
+  if (!fileId) throw new Error('文件不存在')
+  const blob = await api.files.content(fileId)
+  const urlApi = globalThis.URL
+  if (typeof document === 'undefined' || typeof urlApi?.createObjectURL !== 'function') {
+    throw new Error('当前环境不支持文件下载')
+  }
+
+  const objectUrl = urlApi.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = filename || 'download'
+  anchor.rel = 'noopener'
+  anchor.style.display = 'none'
+  document.body.appendChild(anchor)
+  try {
+    anchor.click()
+  } finally {
+    anchor.remove()
+    globalThis.setTimeout(() => urlApi.revokeObjectURL(objectUrl), 1000)
+  }
+}
+
 export const loadPublicBlobUrl = async (token, accessKey) => {
   const blob = await api.parent.publicAsset(token, accessKey)
   return URL.createObjectURL(blob)

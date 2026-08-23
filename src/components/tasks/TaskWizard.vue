@@ -915,7 +915,7 @@ watch(homeworkEditorOpen, async (open) => {
         <div class="section-head">
           <div>
             <span>第 5 步</span>
-            <strong>提交归档与交付收口</strong>
+            <strong>提交归档与交付收尾</strong>
           </div>
           <button class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">
             完成本节归档交付
@@ -989,7 +989,7 @@ watch(homeworkEditorOpen, async (open) => {
                   <button v-if="teacherEffectStatus === 'FAILED' && teacherEffect.id" class="ghost" :disabled="state.isProcessing" @click="state.retryTeacherEffect">重试任务</button>
                   <span v-if="['CONFIRMED', 'SKIPPED'].includes(teacherEffectStatus)" class="status-pill">{{ item.item.status }}</span>
                 </template>
-                <button v-if="item.key === 'wheatTrace'" class="secondary" :disabled="state.isProcessing || item.item.status === '已生成'" @click="state.generateWheatTraceTask">{{ item.item.status === '已生成' ? '已生成' : item.action }}</button>
+                <button v-if="item.key === 'wheatTrace'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.generateWheatTraceTask">{{ state.isArchiveDone(item.item) ? item.item.status : item.action }}</button>
               </div>
             </article>
           </section>

@@ -1099,7 +1099,7 @@ export function useDeliveryWorkflow() {
     return warnings
   })
 
-  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工触达', '发送失败']
+  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工触达', '发送失败', '已人工处理', '无需处理']
   const archiveWorkingStatuses = ['推送中', '生成中', '创建中']
   const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
   const isArchiveWorking = (item) => archiveWorkingStatuses.includes(item.status)

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import { sameId } from '../services/mappers'
 
@@ -19,6 +19,21 @@ const providerGroupDefinitions = [
   { id: 'cloud', name: '网盘配置', category: 'cloud', providerLabel: '网盘' },
   { id: 'wecom', name: '企业微信配置', category: 'wecom', providerLabel: '企业微信' },
   { id: 'ai', name: 'AI 配置', category: 'ai', providerLabel: 'AI' }
+]
+const DEFAULT_ARCHIVE_RULE = '/{campus}/教学资料归档/课程归总/{year}/{term}+{classType}归总'
+const archiveRuleVariables = [
+  { token: '{campus}', label: '校区' },
+  { token: '{year}', label: '年份' },
+  { token: '{month}', label: '月份' },
+  { token: '{term}', label: '学期' },
+  { token: '{classType}', label: '班型' },
+  { token: '{className}', label: '班级' },
+  { token: '{courseTitle}', label: '课程' },
+  { token: '{teacherName}', label: '老师' },
+  { token: '{studentName}', label: '学生' },
+  { token: '{assetType}', label: '资料类型' },
+  { token: '{date}', label: '日期' },
+  { token: '{lessonId}', label: '课次ID' }
 ]
 
 const selectedId = ref(null)
@@ -72,7 +87,8 @@ const providerSettings = computed(() => {
       status: providers.length ? (providers.some((provider) => provider.enabled) ? '已启用' : '未启用') : '未配置',
       value: {
         ...(base.value || {}),
-        providers
+        providers,
+        directoryRule: group.category === 'cloud' ? (base.value?.directoryRule || DEFAULT_ARCHIVE_RULE) : ''
       }
     }
   })
@@ -80,6 +96,27 @@ const providerSettings = computed(() => {
 
 const selected = () => providerSettings.value.find((item) => sameId(item.id, selectedId.value))
 const draft = ref({})
+const archiveRuleInput = ref(null)
+const archiveRuleValue = computed(() => draft.value.value?.directoryRule || DEFAULT_ARCHIVE_RULE)
+const archiveRulePreview = computed(() => {
+  const values = {
+    campus: '大学城校区',
+    date: '2026-08-23',
+    year: '2026',
+    month: '08',
+    term: '秋季学期',
+    classType: '创想班',
+    className: '大班A',
+    course: '秋日树屋',
+    courseTitle: '秋日树屋',
+    teacher: '李老师',
+    teacherName: '李老师',
+    lessonId: '1024',
+    studentName: '小明',
+    assetType: '学生作品'
+  }
+  return archiveRuleValue.value.replace(/\{([A-Za-z][A-Za-z0-9_]*)}/g, (match, key) => values[key] || match)
+})
 
 watch(providerSettings, (settings) => {
   if (!settings.length) {
@@ -99,12 +136,27 @@ const selectSetting = (setting) => {
   if (isMobileFlow.value) mobileStage.value = 'detail'
 }
 
+const insertArchiveVariable = (token) => {
+  if (!isCloudCategory.value) return
+  const current = archiveRuleValue.value
+  const input = archiveRuleInput.value
+  const start = input && typeof input.selectionStart === 'number' ? input.selectionStart : current.length
+  const end = input && typeof input.selectionEnd === 'number' ? input.selectionEnd : start
+  draft.value.value.directoryRule = `${current.slice(0, start)}${token}${current.slice(end)}`
+  nextTick(() => {
+    if (!archiveRuleInput.value) return
+    const caret = start + token.length
+    archiveRuleInput.value.focus()
+    archiveRuleInput.value.setSelectionRange(caret, caret)
+  })
+}
+
 const save = () => {
   if (!isProviderSetting.value) {
     props.state.notify('当前配置不可保存')
     return
   }
-  if (!draft.value.value?.providers?.length) {
+  if (!draft.value.value?.providers?.length && !isCloudCategory.value) {
     props.state.notify(`请先添加${currentProviderLabel.value}通道`)
     return
   }
@@ -115,15 +167,18 @@ const selectedGroup = computed(() => providerSettings.value.find((group) => same
 const currentProviderLabel = computed(() => selectedGroup.value?.providerLabel || '通道')
 const isCloudCategory = computed(() => selectedGroup.value?.category === 'cloud')
 const isProviderSetting = computed(() => Boolean(draft.value.category))
-const canSave = computed(() => Boolean(isProviderSetting.value && draft.value.value?.providers?.length))
+const canSave = computed(() => Boolean(
+  isProviderSetting.value && (isCloudCategory.value
+    ? draft.value.value?.directoryRule !== undefined
+    : draft.value.value?.providers?.length)
+))
 const providerTypeCatalog = computed(() => props.state.providerTypeCatalog || {
   cloud: props.state.providerTypeOptions || [],
   wecom: [],
   ai: []
 })
 const providerTypes = computed(() => {
-  // The cloud configuration is intentionally Baidu-only. FAKE_CLOUD remains
-  // available to backend tests, but must not appear as a user-facing option.
+  // 云盘配置固定使用百度网盘，不向用户开放 Provider 类型选择。
   if (isCloudCategory.value) return ['BAIDU_NETDISK']
   const options = providerTypeCatalog.value?.[selectedGroup.value?.category] || []
   if (options.length) return options
@@ -161,7 +216,7 @@ const addProvider = () => {
   if (!draft.value.value?.providers) {
     draft.value.value = {
       providers: [],
-      directoryRule: '校区 / 班级 / 学生 / 年月 / 课程名',
+      directoryRule: DEFAULT_ARCHIVE_RULE,
       defaultArchiveTargets: []
     }
   }
@@ -323,15 +378,30 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <div class="form-grid">
           <label>配置名称<input :value="draft.name" disabled /></label>
           <label>当前状态<input :value="draft.status" disabled /></label>
-          <label v-if="isCloudCategory" class="wide">默认归档目录规则<input :value="draft.value.directoryRule || '由课次归档策略自动生成'" disabled /></label>
-        </div>
-        <div class="section-head compact">
-          <div>
-            <span>{{ currentProviderLabel }}通道</span>
-            <strong>{{ draft.value.providers.length }} 个接口</strong>
+          <div v-if="isCloudCategory" class="wide archive-rule-editor">
+            <label>默认归档目录规则
+              <input
+                ref="archiveRuleInput"
+                v-model="draft.value.directoryRule"
+                :placeholder="DEFAULT_ARCHIVE_RULE"
+                autocomplete="off"
+              />
+            </label>
+            <div class="archive-rule-toolbar">
+              <span>插入变量：</span>
+              <button
+                v-for="variable in archiveRuleVariables"
+                :key="variable.token"
+                class="ghost archive-rule-variable"
+                type="button"
+                @click="insertArchiveVariable(variable.token)"
+              >{{ variable.label }}</button>
+            </div>
+            <p class="settings-hint">使用花括号变量组成目录层级，保存后由后端归档任务按当前校区、课次和资料信息渲染。</p>
+            <p class="archive-rule-preview">预览：<code>{{ archiveRulePreview }}</code></p>
           </div>
-          <button class="secondary" :disabled="!canAddProvider" @click="addProvider">新增{{ currentProviderLabel }}</button>
         </div>
+
         <div v-if="!draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道。</div>
         <article v-for="provider in draft.value.providers" :key="provider.id" class="cloud-provider-card">
           <template v-if="isBaiduProvider(provider)">

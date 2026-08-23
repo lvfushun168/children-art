@@ -7362,6 +7362,41 @@ textarea:focus,
   line-height: 1.6;
 }
 
+.archive-rule-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.archive-rule-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.archive-rule-variable {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-heading);
+  font-size: 12px;
+}
+
+.archive-rule-preview {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.archive-rule-preview code {
+  color: var(--color-heading);
+  font-family: inherit;
+}
+
 .settings-error {
   margin: 0;
   padding: 10px 12px;

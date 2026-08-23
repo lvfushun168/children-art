@@ -86,6 +86,7 @@ import {
 } from '../services/materialTypes'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
+const DEFAULT_ARCHIVE_RULE = '/{campus}/教学资料归档/课程归总/{year}/{term}+{classType}归总'
 const templateIsEnabled = (value) => String(value?.status || 'ENABLED').toUpperCase() !== 'DISABLED'
 const homeworkIsAssigned = (value) => value?.taskMode
   ? value.taskMode === 'ASSIGNED'
@@ -153,6 +154,13 @@ export function useDeliveryWorkflow() {
   const importPreviewRows = reactive([])
   const settings = reactive([])
   const providerGroups = reactive([])
+  const cloudArchiveRule = reactive({
+    id: null,
+    pathTemplate: DEFAULT_ARCHIVE_RULE,
+    required: false,
+    duplicateStrategy: 'SUFFIX',
+    configured: false
+  })
   const qualityReviews = reactive([])
   const terms = reactive([])
   const supervisionDashboard = reactive([])
@@ -2966,7 +2974,6 @@ export function useDeliveryWorkflow() {
       id: fromApiId(provider.id),
       type: providerType,
       providerType,
-      version: Number(provider.version || 0),
       name: provider.name,
       enabled: ['ENABLED', '启用', 'ACTIVE'].includes(provider.status),
       status: ['ENABLED', 'ACTIVE'].includes(provider.status) ? '已启用' : provider.status || '未启用',
@@ -2985,6 +2992,15 @@ export function useDeliveryWorkflow() {
     return providers.some((provider) => provider.enabled) ? '已启用' : '未启用'
   }
 
+  const mapArchiveRule = (value = {}) => {
+    cloudArchiveRule.id = fromApiId(value.id)
+    cloudArchiveRule.pathTemplate = value.pathTemplate || DEFAULT_ARCHIVE_RULE
+    cloudArchiveRule.required = Boolean(value.required)
+    cloudArchiveRule.duplicateStrategy = value.duplicateStrategy || 'SUFFIX'
+    cloudArchiveRule.configured = value.configured !== false
+    return cloudArchiveRule
+  }
+
   const mapProviderGroupsFromProviders = (providers = []) => {
     replaceReactive(providerGroups, providerGroupDefinitions.map((definition) => {
       const groupProviders = providers.filter((provider) => provider.category === definition.category)
@@ -2996,7 +3012,7 @@ export function useDeliveryWorkflow() {
         status: providerGroupStatusLabel(groupProviders),
         value: {
           providers: groupProviders,
-          directoryRule: '',
+          directoryRule: definition.category === 'CLOUD' ? cloudArchiveRule.pathTemplate : '',
           defaultArchiveTargets: []
         }
       }
@@ -3006,15 +3022,16 @@ export function useDeliveryWorkflow() {
   const mapProviderGroups = (groups = []) => {
     replaceReactive(providerGroups, groups.map((group) => {
       const providers = (group.providers || []).map(mapProvider)
+      const category = String(group.category || '').toLowerCase()
       return {
         ...group,
         id: group.key || group.id,
         name: group.name,
-        category: String(group.category || '').toLowerCase(),
+        category,
         status: ['ENABLED', 'ACTIVE'].includes(group.status) ? '已启用' : group.status === 'UNCONFIGURED' ? '未配置' : ['DISABLED', '停用'].includes(group.status) ? '未启用' : group.status || providerGroupStatusLabel(providers),
         value: {
           providers,
-          directoryRule: group.directoryRule || '',
+          directoryRule: category === 'cloud' ? cloudArchiveRule.pathTemplate : group.directoryRule || '',
           defaultArchiveTargets: group.defaultArchiveTargets || []
         }
       }
@@ -3990,7 +4007,13 @@ export function useDeliveryWorkflow() {
             break
           }
           case 'settings': {
-            const [providers, providerTypes, groups] = await Promise.all([api.m5.providers({ page: 1, pageSize: 20 }), api.m5.providerTypes(), api.m5.providerGroups()])
+            const [providers, providerTypes, groups, archiveRule] = await Promise.all([
+              api.m5.providers({ page: 1, pageSize: 20 }),
+              api.m5.providerTypes(),
+              api.m5.providerGroups(),
+              api.m5.archiveRule()
+            ])
+            mapArchiveRule(archiveRule)
             mapProviderSetting(providers?.items || providers || [])
             Object.assign(providerCatalog, providerTypes || {})
             if (groups) mapProviderGroups(groups)
@@ -5575,7 +5598,8 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateSetting = async (settingId, payload) => {
     const providers = payload.value?.providers || []
-    if (!providers.length) {
+    const isCloudSetting = String(payload.category || '').toLowerCase() === 'cloud'
+    if (!providers.length && !isCloudSetting) {
       notify('请先添加配置通道')
       return null
     }
@@ -5624,9 +5648,16 @@ export function useDeliveryWorkflow() {
         const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
         if (!saved) return null
       } else {
-        const saved = await runRemote('正在保存通道配置...', () => api.m5.updateProvider(provider.id, { name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED', version: provider.version || 0 }), '', () => invalidateResource('settings'))
+        const saved = await runRemote('正在保存通道配置...', () => api.m5.updateProvider(provider.id, { name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
         if (!saved) return null
       }
+    }
+    if (isCloudSetting && payload.value?.directoryRule !== undefined) {
+      const savedRule = await runRemote('正在保存归档目录规则...', () => api.m5.updateArchiveRule({
+        pathTemplate: payload.value.directoryRule
+      }), '归档目录规则已保存')
+      if (!savedRule) return null
+      mapArchiveRule(savedRule)
     }
     const latest = await runRemote('正在刷新通道配置...', () => api.m5.providers(), '', () => invalidateResource('settings'))
     if (!latest) return null

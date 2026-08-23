@@ -174,6 +174,20 @@ test('serializes cloud archive batch IDs as strings at the API boundary', async 
   assert.equal(received.headers['Idempotency-Key'], 'cloud-archive-test')
 })
 
+test('serializes feedback generation template IDs as strings at the API boundary', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return response(200, { data: { jobId: '11' }, meta: {}, error: null })
+  }
+
+  await api.feedback.regenerate(39, { templateId: 3 })
+  await api.feedback.generate(12, { templateId: 4 })
+
+  assert.deepEqual(JSON.parse(calls[0].options.body), { templateId: '3' })
+  assert.deepEqual(JSON.parse(calls[1].options.body), { templateId: '4' })
+})
+
 test('downloads protected files through an authenticated browser blob link', async () => {
   setSession({ accessToken: 'download-token', refreshToken: 'refresh-token', me: { user: { id: '1' } } })
   let requestOptions

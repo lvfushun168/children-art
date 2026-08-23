@@ -4576,11 +4576,16 @@ export function useDeliveryWorkflow() {
   const remoteGenerateOne = async (row) => {
     if (!row) return null
     const result = await runRemote('正在生成当前学生课评...', async () => {
-      const feedback = row.feedbackId
-        ? row
-        : await api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row))
-      if (!feedback?.id && !row.feedbackId) throw new Error('课堂记录保存失败，无法生成课评')
-      const generation = await api.feedback.regenerate(feedback.id || row.feedbackId, {
+      // Persist the latest classroom record before every single-student generation.
+      // Omit content so regeneration does not create an unnecessary manual version
+      // from the currently displayed AI candidate.
+      const feedback = await api.feedback.saveForStudent(activeTask.value.id, row.studentId, {
+        classroomRecord: row.record || '',
+        clear: false,
+        version: row.feedbackVersion || 0
+      })
+      if (!feedback?.id) throw new Error('课堂记录保存失败，无法生成课评')
+      const generation = await api.feedback.regenerate(feedback.id, {
         templateId: activeCommentTemplate.value?.id
       })
       await waitForJobs([generation?.jobId], activeTask.value.id)

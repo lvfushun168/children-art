@@ -21,7 +21,7 @@ test('maps feedback template fields and keeps legacy rules plus extension fields
     version: 2
   })
 
-  assert.equal(mapped.id, 7)
+  assert.equal(mapped.id, '7')
   assert.equal(mapped.length, '100-160字')
   assert.equal(mapped.structure, '先肯定\n再建议')
   assert.equal(mapped.taboo, '')

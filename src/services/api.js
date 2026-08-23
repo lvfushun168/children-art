@@ -2,6 +2,10 @@ import { pageParams, queryString, request } from './apiClient.js'
 
 const id = (value) => (value === null || value === undefined || value === '' ? undefined : String(value))
 const stringId = (value) => (value === null || value === undefined ? value : String(value))
+const feedbackGenerationBody = (body) => {
+  if (body === null || body === undefined) return body
+  return { ...body, templateId: stringId(body.templateId) }
+}
 const cloudArchiveBatchBody = (body) => {
   if (!body) return body
   return {
@@ -145,8 +149,8 @@ export const api = {
     confirm: (feedbackId, body) => request(`/feedbacks/${id(feedbackId)}/confirm`, { method: 'POST', body }),
     confirmBatch: (lessonId, items) => request(`/lessons/${id(lessonId)}/feedbacks/confirm-batch`, { method: 'POST', body: { items } }),
     versions: (feedbackId) => request(`/feedbacks/${id(feedbackId)}/versions`),
-    generate: (lessonId, body) => request(`/lessons/${id(lessonId)}/feedbacks/generate`, { method: 'POST', body }),
-    regenerate: (feedbackId, body) => request(`/feedbacks/${id(feedbackId)}/regenerate`, { method: 'POST', body }),
+    generate: (lessonId, body) => request(`/lessons/${id(lessonId)}/feedbacks/generate`, { method: 'POST', body: feedbackGenerationBody(body) }),
+    regenerate: (feedbackId, body) => request(`/feedbacks/${id(feedbackId)}/regenerate`, { method: 'POST', body: feedbackGenerationBody(body) }),
     templates: () => request('/feedback-templates'),
     createFeedbackTemplate: (body) => request('/feedback-templates', { method: 'POST', body }),
     updateFeedbackTemplate: (templateId, body) => request(`/feedback-templates/${id(templateId)}`, { method: 'PATCH', body }),

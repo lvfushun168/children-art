@@ -1,6 +1,5 @@
-import { fromApiId } from './mappers.js'
-
 const clone = (value) => JSON.parse(JSON.stringify(value))
+const templateId = (value) => value === null || value === undefined || value === '' ? null : String(value)
 
 export const parseTemplateJson = (value) => {
   if (value && typeof value === 'object' && !Array.isArray(value)) return clone(value)
@@ -23,7 +22,7 @@ export const mapFeedbackTemplate = (item = {}) => {
   const rules = Array.isArray(templateJson.rules) ? templateJson.rules.filter(Boolean).join('\n') : ''
   return {
     ...item,
-    id: fromApiId(item.id),
+    id: templateId(item.id),
     templateVersion: Number(item.templateVersion || 1),
     version: Number(item.version || 0),
     length: textField(item.lengthHint),

@@ -1244,7 +1244,7 @@ export const settings = [
           secretKey: '',
           backendBaseUrl: '',
           frontendBaseUrl: '',
-          frontendReturnPath: '/settings',
+          frontendReturnPath: '/workspace/operations/settings',
           tokenStatus: '已授权',
           archiveDefault: true,
           enabled: true

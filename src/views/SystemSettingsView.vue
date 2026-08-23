@@ -2,6 +2,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import { sameId } from '../services/mappers'
+import {
+  DEFAULT_BAIDU_BACKEND_BASE_URL,
+  DEFAULT_BAIDU_FRONTEND_BASE_URL,
+  DEFAULT_BAIDU_FRONTEND_RETURN_PATH
+} from '../services/baiduConfig'
 
 const props = defineProps({
   state: {
@@ -284,9 +289,9 @@ const addProvider = () => {
     appKey: '',
     appId: '',
     secretKey: '',
-    backendBaseUrl: '',
-    frontendBaseUrl: '',
-    frontendReturnPath: '/settings',
+    backendBaseUrl: DEFAULT_BAIDU_BACKEND_BASE_URL,
+    frontendBaseUrl: DEFAULT_BAIDU_FRONTEND_BASE_URL,
+    frontendReturnPath: DEFAULT_BAIDU_FRONTEND_RETURN_PATH,
     authorizeUrl: '',
     tokenUrl: '',
     scope: '',
@@ -495,9 +500,9 @@ onBeforeUnmount(() => {
               <label>百度 AppID<input v-model="provider.appId" placeholder="百度开放平台 AppID" /></label>
               <label>百度 AppKey<input v-model="provider.appKey" placeholder="百度开放平台 AppKey" /></label>
               <label>百度 SecretKey<input v-model="provider.secretKey" type="password" :placeholder="provider.baiduSecretKeyConfigured ? '已配置，留空保持不变' : '百度开放平台 SecretKey'" autocomplete="new-password" /></label>
-              <label>后端公开地址<input v-model="provider.backendBaseUrl" placeholder="https://api.example.com" /></label>
-              <label>前端域名<input v-model="provider.frontendBaseUrl" placeholder="https://app.example.com" /></label>
-              <label>前端回跳路径<input v-model="provider.frontendReturnPath" placeholder="/settings" /></label>
+              <label>后端公开地址<input v-model="provider.backendBaseUrl" placeholder="http://mengdi.ccwu.cc:10001" /></label>
+              <label>前端域名<input v-model="provider.frontendBaseUrl" placeholder="http://mengdi.ccwu.cc:10001" /></label>
+              <label>前端回跳路径<input v-model="provider.frontendReturnPath" :placeholder="DEFAULT_BAIDU_FRONTEND_RETURN_PATH" /></label>
               <label>最近授权时间<input :value="formatDateTime(provider.authorizedAt)" disabled /></label>
               <label>授权有效期<input :value="formatDateTime(provider.expiresAt)" disabled /></label>
               <label>授权范围<input :value="provider.oauthScope || '—'" disabled /></label>

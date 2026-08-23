@@ -1,6 +1,23 @@
 import { pageParams, queryString, request } from './apiClient.js'
 
 const id = (value) => (value === null || value === undefined || value === '' ? undefined : String(value))
+const stringId = (value) => (value === null || value === undefined ? value : String(value))
+const cloudArchiveBatchBody = (body) => {
+  if (!body) return body
+  return {
+    ...body,
+    providerConfigId: stringId(body.providerConfigId),
+    items: Array.isArray(body.items)
+      ? body.items.map((item) => item == null ? item : ({
+        ...item,
+        sourceId: stringId(item.sourceId),
+        fileId: stringId(item.fileId),
+        archiveVersionId: stringId(item.archiveVersionId),
+        providerConfigId: stringId(item.providerConfigId)
+      }))
+      : body.items
+  }
+}
 const page = (path, params = {}) => request(`${path}${queryString(pageParams(params))}`)
 
 export const api = {
@@ -186,7 +203,9 @@ export const api = {
     retryTeacherEffect: (effectId, body, key) => request(`/teacher-effects/${id(effectId)}/retry`, { method: 'POST', body, idempotencyKey: key }),
     skipTeacherEffect: (effectId, body) => request(`/teacher-effects/${id(effectId)}/skip`, { method: 'POST', body }),
     cloudArchive: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/cloud-archive-jobs`, { method: 'POST', body, idempotencyKey: key }),
-    cloudArchiveBatch: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/cloud-archive-batches`, { method: 'POST', body, idempotencyKey: key }),
+    cloudArchiveBatch: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/cloud-archive-batches`, {
+      method: 'POST', body: cloudArchiveBatchBody(body), idempotencyKey: key
+    }),
     cloudArchiveBatchGet: (batchId) => request(`/cloud-archive-batches/${id(batchId)}`),
     retryCloudBatch: (batchId, key) => request(`/cloud-archive-batches/${id(batchId)}/retry`, { method: 'POST', idempotencyKey: key }),
     cloudArchiveEventsPath: (batchId) => `/cloud-archive-batches/${id(batchId)}/events`,

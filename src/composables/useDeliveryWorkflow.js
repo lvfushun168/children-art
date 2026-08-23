@@ -66,6 +66,13 @@ import {
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import {
+  DEFAULT_BAIDU_BACKEND_BASE_URL,
+  DEFAULT_BAIDU_FRONTEND_BASE_URL,
+  DEFAULT_BAIDU_FRONTEND_RETURN_PATH,
+  normalizeBaiduBaseUrl,
+  normalizeBaiduReturnPath
+} from '../services/baiduConfig'
+import {
   buildClientImageTemplateConfig,
   imageTemplateSummary,
   isClientCanvasTemplate,
@@ -2951,15 +2958,25 @@ export function useDeliveryWorkflow() {
 
   const mapProvider = (provider = {}) => {
     const providerType = provider.providerType || provider.type || ''
+    const isBaidu = String(providerType).toUpperCase() === 'BAIDU_NETDISK'
+    const rawBackendBaseUrl = provider.backendBaseUrl || provider.config?.backendBaseUrl || ''
+    const rawFrontendBaseUrl = provider.frontendBaseUrl || provider.config?.frontendBaseUrl || ''
+    const rawFrontendReturnPath = provider.frontendReturnPath || provider.config?.frontendReturnPath || ''
     return {
       ...provider,
       category: mapProviderCategory({ ...provider, providerType }),
       endpoint: provider.endpoint || provider.config?.endpoint || '',
       appKey: provider.appKey || provider.config?.appKey || '',
       appId: provider.appId || provider.config?.appId || '',
-      backendBaseUrl: provider.backendBaseUrl || provider.config?.backendBaseUrl || '',
-      frontendBaseUrl: provider.frontendBaseUrl || provider.config?.frontendBaseUrl || '',
-      frontendReturnPath: provider.frontendReturnPath || provider.config?.frontendReturnPath || '/settings',
+      backendBaseUrl: isBaidu
+        ? normalizeBaiduBaseUrl(rawBackendBaseUrl, DEFAULT_BAIDU_BACKEND_BASE_URL)
+        : rawBackendBaseUrl,
+      frontendBaseUrl: isBaidu
+        ? normalizeBaiduBaseUrl(rawFrontendBaseUrl, DEFAULT_BAIDU_FRONTEND_BASE_URL)
+        : rawFrontendBaseUrl,
+      frontendReturnPath: isBaidu
+        ? normalizeBaiduReturnPath(rawFrontendReturnPath)
+        : rawFrontendReturnPath,
       authorizeUrl: provider.authorizeUrl || provider.config?.authorizeUrl || '',
       tokenUrl: provider.tokenUrl || provider.config?.tokenUrl || '',
       scope: provider.scope || provider.config?.scope || '',
@@ -5610,8 +5627,18 @@ export function useDeliveryWorkflow() {
         return null
       }
       const isBaidu = String(providerType).toUpperCase() === 'BAIDU_NETDISK'
-      const frontendBaseUrl = provider.frontendBaseUrl || provider.config?.frontendBaseUrl || ''
-      const frontendReturnPath = provider.frontendReturnPath || provider.config?.frontendReturnPath || '/settings'
+      const rawFrontendBaseUrl = provider.frontendBaseUrl || provider.config?.frontendBaseUrl || ''
+      const rawFrontendReturnPath = provider.frontendReturnPath || provider.config?.frontendReturnPath || ''
+      const frontendBaseUrl = isBaidu
+        ? normalizeBaiduBaseUrl(rawFrontendBaseUrl, DEFAULT_BAIDU_FRONTEND_BASE_URL)
+        : rawFrontendBaseUrl
+      const frontendReturnPath = isBaidu
+        ? normalizeBaiduReturnPath(rawFrontendReturnPath)
+        : rawFrontendReturnPath
+      const rawBackendBaseUrl = provider.backendBaseUrl || provider.config?.backendBaseUrl || ''
+      const backendBaseUrl = isBaidu
+        ? normalizeBaiduBaseUrl(rawBackendBaseUrl, DEFAULT_BAIDU_BACKEND_BASE_URL)
+        : rawBackendBaseUrl
       const config = isBaidu
         ? {
             ...(provider.config || {}),
@@ -5619,7 +5646,7 @@ export function useDeliveryWorkflow() {
             appId: provider.appId || provider.config?.appId || '',
             appKey: provider.appKey || provider.config?.appKey || '',
             secretKey: provider.secretKey || '',
-            backendBaseUrl: provider.backendBaseUrl || provider.config?.backendBaseUrl || '',
+            backendBaseUrl,
             frontendBaseUrl,
             frontendReturnPath,
             // Keep every Baidu endpoint and upload tuning value in the Provider config.

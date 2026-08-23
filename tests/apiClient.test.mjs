@@ -139,6 +139,41 @@ test('reads authenticated SSE snapshots and progress events', async () => {
   assert.equal(events[1].data.percent, 100)
 })
 
+test('serializes cloud archive batch IDs as strings at the API boundary', async () => {
+  let received
+  globalThis.fetch = async (_url, options) => {
+    received = options
+    return response(200, { data: { id: '9' }, meta: {}, error: null })
+  }
+
+  await api.m5.cloudArchiveBatch(1, {
+    providerConfigId: 2,
+    includeTeacherEffect: false,
+    items: [{
+      sourceType: 'LESSON_ASSET',
+      sourceId: 3,
+      fileId: 4,
+      archiveVersionId: 5,
+      providerConfigId: 6,
+      filename: 'demo.png'
+    }]
+  }, 'cloud-archive-test')
+
+  assert.deepEqual(JSON.parse(received.body), {
+    providerConfigId: '2',
+    includeTeacherEffect: false,
+    items: [{
+      sourceType: 'LESSON_ASSET',
+      sourceId: '3',
+      fileId: '4',
+      archiveVersionId: '5',
+      providerConfigId: '6',
+      filename: 'demo.png'
+    }]
+  })
+  assert.equal(received.headers['Idempotency-Key'], 'cloud-archive-test')
+})
+
 test('downloads protected files through an authenticated browser blob link', async () => {
   setSession({ accessToken: 'download-token', refreshToken: 'refresh-token', me: { user: { id: '1' } } })
   let requestOptions

@@ -639,10 +639,15 @@ export const mapCloudArchiveJob = (value = {}) => ({
   fileId: safeUiId(value.fileId),
   providerConfigId: safeUiId(value.providerConfigId),
   currentJobId: safeUiId(value.currentJobId),
+  batchId: safeUiId(value.batchId),
+  totalBytes: Number(value.totalBytes || 0),
+  uploadedBytes: Number(value.uploadedBytes || 0),
+  currentFilename: value.currentFilename || '',
   statusCode: value.status || '',
   status: ({
     QUEUED: '排队中',
     RUNNING: '同步中',
+    SYNCED: '已同步',
     SUCCEEDED: '已同步',
     SKIPPED: '已跳过',
     FAILED: '同步失败',
@@ -650,6 +655,27 @@ export const mapCloudArchiveJob = (value = {}) => ({
   }[value.status] || value.status || '待处理'),
   version: Number(value.version || 0),
   attemptNo: Number(value.attemptNo || 0)
+})
+
+export const mapCloudArchiveBatch = (value = {}) => ({
+  ...value,
+  id: safeUiId(value.id || value.batchId),
+  batchId: safeUiId(value.batchId || value.id),
+  lessonId: safeUiId(value.lessonId),
+  providerConfigId: safeUiId(value.providerConfigId),
+  statusCode: value.status || '',
+  status: value.status || 'QUEUED',
+  required: Boolean(value.required),
+  totalFiles: Number(value.totalFiles || 0),
+  completedFiles: Number(value.completedFiles || 0),
+  failedFiles: Number(value.failedFiles || 0),
+  totalBytes: Number(value.totalBytes || 0),
+  uploadedBytes: Number(value.uploadedBytes || 0),
+  currentJobId: safeUiId(value.currentJobId),
+  currentFileUploadedBytes: Number(value.currentFileUploadedBytes || 0),
+  currentFileTotalBytes: Number(value.currentFileTotalBytes || 0),
+  percent: Number(value.percent || 0),
+  version: Number(value.version || 0)
 })
 
 export const mapPage = (value, mapper) => ({

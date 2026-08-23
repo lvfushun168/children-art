@@ -127,6 +127,7 @@ const providerTypes = computed(() => {
   return [...new Set((draft.value.value?.providers || []).map((provider) => provider.providerType || provider.type).filter(Boolean))]
 })
 const authTypes = ['OAuth2', 'Access Token', 'AK/SK', '自定义签名']
+const isBaiduProvider = (provider) => String(provider?.providerType || provider?.type || '').toUpperCase() === 'BAIDU_NETDISK'
 
 const addProvider = () => {
   if (!draft.value.value?.providers) {
@@ -143,7 +144,7 @@ const addProvider = () => {
     name: `新的${currentProviderLabel.value}`,
     type: providerType,
     providerType,
-    authType: 'Access Token',
+    authType: providerType === 'BAIDU_NETDISK' ? 'OAuth2' : 'Access Token',
     endpoint: '',
     appKey: '',
     tokenStatus: '未授权',
@@ -155,10 +156,25 @@ const addProvider = () => {
 const setProviderType = (provider, value) => {
   provider.type = value
   provider.providerType = value
+  if (isBaiduProvider(provider)) provider.authType = 'OAuth2'
 }
 
 const testProvider = async (provider) => {
   await props.state.testProvider(provider)
+}
+
+const authorizeBaidu = async (provider) => {
+  await props.state.startBaiduOAuth(provider)
+}
+
+const refreshBaiduStatuses = async () => {
+  const providers = draft.value.value?.providers || []
+  for (const provider of providers.filter(isBaiduProvider)) {
+    const status = await props.state.baiduOAuthStatus?.(provider)
+    if (status) provider.tokenStatus = status.authorized
+      ? `已授权${status.displayName ? `（${status.displayName}）` : ''}`
+      : '待授权'
+  }
 }
 
 const returnToList = () => {
@@ -175,6 +191,10 @@ onMounted(() => {
   syncMobile()
   media.addEventListener('change', syncMobile)
   cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
+  const oauthResult = new URLSearchParams(window.location.search).get('baiduOAuth')
+  if (oauthResult === 'success') props.state.notify('百度网盘授权成功')
+  if (oauthResult === 'failure') props.state.notify('百度网盘授权失败，请重试')
+  refreshBaiduStatuses().catch(() => {})
 })
 
 onBeforeUnmount(() => cleanupMobileMedia())
@@ -243,7 +263,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <div class="cloud-provider-head">
             <label>{{ currentProviderLabel }}名称<input v-model="provider.name" /></label>
             <label>{{ currentProviderLabel }}类型<AdaptiveSelect :model-value="provider.providerType || provider.type" :options="providerTypes" @update:model-value="setProviderType(provider, $event)" /></label>
-            <label>授权方式<AdaptiveSelect v-model="provider.authType" :options="authTypes" /></label>
+            <label>授权方式<AdaptiveSelect v-model="provider.authType" :options="isBaiduProvider(provider) ? ['OAuth2'] : authTypes" :disabled="isBaiduProvider(provider)" /></label>
           </div>
           <div class="form-grid">
             <label class="wide">接口地址<input v-model="provider.endpoint" placeholder="https://..." /></label>
@@ -253,6 +273,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <div class="cloud-provider-actions">
             <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该{{ currentProviderLabel }}</span></label>
             <label v-if="isCloudCategory" class="inline-check"><input v-model="provider.archiveDefault" type="checkbox" disabled /> <span>课次归档默认勾选</span></label>
+            <button v-if="isBaiduProvider(provider)" class="secondary" @click="authorizeBaidu(provider)">{{ provider.tokenStatus?.includes('已授权') ? '重新授权百度网盘' : '授权百度网盘' }}</button>
             <button class="ghost" @click="testProvider(provider)">测试连接</button>
           </div>
         </article>

@@ -186,6 +186,10 @@ export const api = {
     retryTeacherEffect: (effectId, body, key) => request(`/teacher-effects/${id(effectId)}/retry`, { method: 'POST', body, idempotencyKey: key }),
     skipTeacherEffect: (effectId, body) => request(`/teacher-effects/${id(effectId)}/skip`, { method: 'POST', body }),
     cloudArchive: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/cloud-archive-jobs`, { method: 'POST', body, idempotencyKey: key }),
+    cloudArchiveBatch: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/cloud-archive-batches`, { method: 'POST', body, idempotencyKey: key }),
+    cloudArchiveBatchGet: (batchId) => request(`/cloud-archive-batches/${id(batchId)}`),
+    retryCloudBatch: (batchId, key) => request(`/cloud-archive-batches/${id(batchId)}/retry`, { method: 'POST', idempotencyKey: key }),
+    cloudArchiveEventsPath: (batchId) => `/cloud-archive-batches/${id(batchId)}/events`,
     syncTeacherArchive: (effectId, key) => request(`/teacher-archives/${id(effectId)}/sync`, { method: 'POST', idempotencyKey: key }),
     cloudJobs: (params) => page('/cloud-archive-jobs', params),
     retryCloud: (jobId, body, key) => request(`/cloud-archive-jobs/${id(jobId)}/retry`, { method: 'POST', body, idempotencyKey: key }),
@@ -195,6 +199,8 @@ export const api = {
     createProvider: (body) => request('/configuration/providers', { method: 'POST', body }),
     updateProvider: (providerId, body) => request(`/configuration/providers/${id(providerId)}`, { method: 'PUT', body }),
     testProvider: (providerId) => request(`/configuration/providers/${id(providerId)}/test`, { method: 'POST' }),
+    startBaiduOAuth: (providerId) => request(`/configuration/providers/${id(providerId)}/baidu/oauth/start`, { method: 'POST' }),
+    baiduOAuthStatus: (providerId) => request(`/configuration/providers/${id(providerId)}/baidu/oauth/status`),
     wecomNotice: (body, key) => request('/wecom/internal-notices', { method: 'POST', body, idempotencyKey: key })
   },
   m6: {

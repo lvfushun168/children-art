@@ -9,6 +9,7 @@ import {
   getSession,
   onSessionChanged,
   recordApiCacheHit,
+  subscribeSse,
   setSession,
   updateStoredMe
 } from '../services/apiClient'
@@ -27,6 +28,7 @@ import {
   mapArtwork,
   mapClass,
   mapCloudArchiveJob,
+  mapCloudArchiveBatch,
   mapCampusMembership,
   mapCourse,
   mapExternalLink,
@@ -287,6 +289,8 @@ export function useDeliveryWorkflow() {
     activeStudentId: null,
     teacherEffect: null,
     cloudJobs: [],
+    cloudBatch: null,
+    cloudProgress: null,
     archiveVersions: [],
     selectedArchiveTargets: ['system', 'wheat'],
     archiveChecklist: createArchiveChecklist(),
@@ -3095,9 +3099,11 @@ export function useDeliveryWorkflow() {
     const wheat = mapWheat(parentModule.wheatTrace || {})
     const teacherEffectValue = value?.teacherEffect?.teacherEffect || value?.m3?.teacherEffect?.teacherEffect
     const teacherEffect = teacherEffectValue || createTeacherEffectPlaceholder(lesson)
-    const cloudJobs = value?.cloudArchive?.jobs || value?.m3?.cloudArchive?.jobs || []
-    const archiveVersions = (value?.archive?.versions || []).map(mapArchiveVersion)
     const workspace = ensureLessonWorkspace(lesson)
+    const cloudArchiveModule = value?.cloudArchive || value?.m3?.cloudArchive || {}
+    const cloudJobs = (cloudArchiveModule.jobs || []).map(mapCloudArchiveJob)
+    const cloudBatch = cloudArchiveModule.batch ? mapCloudArchiveBatch(cloudArchiveModule.batch) : workspace.cloudBatch
+    const archiveVersions = (value?.archive?.versions || []).map(mapArchiveVersion)
     const draftDisplayConfig = {
       ...workspace.displayConfig,
       ...(currentDraft.displayConfig || draft.displayConfig || {})
@@ -3198,6 +3204,8 @@ export function useDeliveryWorkflow() {
       sharePage: mergeSharePageForWorkspace(workspace, draft),
       teacherEffect,
       cloudJobs,
+      cloudBatch: cloudBatch || null,
+      cloudProgress: cloudBatch || workspace.cloudProgress || null,
       archiveVersions,
       artworkJobs: {},
       completion: value?.completion || value?.completionCheck || null,
@@ -3260,6 +3268,131 @@ export function useDeliveryWorkflow() {
       return lessonWorkspaces[key]
     }
     return refreshRemoteLesson(lessonId, { force })
+  }
+
+  const cloudBatchWatchers = new Map()
+  const cloudBatchTerminal = (status) => ['SUCCEEDED', 'FAILED', 'PARTIAL_FAILED', 'CANCELED'].includes(String(status || '').toUpperCase())
+  const cloudBatchPayload = (value) => {
+    if (!value) return null
+    if (typeof value === 'string') {
+      try { return JSON.parse(value) } catch { return null }
+    }
+    return value
+  }
+  const applyCloudBatchProgress = (lessonId, value) => {
+    const payload = cloudBatchPayload(value)
+    const batchId = payload?.batchId || payload?.id
+    if (!batchId) return null
+    payload.batchId = batchId
+    const workspace = ensureLessonWorkspace(tasks.find((task) => sameId(task.id, lessonId)) || { id: lessonId })
+    workspace.cloudBatch = { ...(workspace.cloudBatch || {}), ...payload }
+    workspace.cloudProgress = workspace.cloudBatch
+    const status = String(payload.status || '').toUpperCase()
+    if (status === 'SUCCEEDED') {
+      workspace.archiveChecklist.studentCloudArchive = {
+        ...workspace.archiveChecklist.studentCloudArchive,
+        status: '已同步',
+        detail: `${payload.completedFiles || 0} 个文件 · ${payload.percent || 0}%`
+      }
+    } else if (['FAILED', 'PARTIAL_FAILED'].includes(status)) {
+      workspace.archiveChecklist.studentCloudArchive = {
+        ...workspace.archiveChecklist.studentCloudArchive,
+        status: '同步失败',
+        detail: payload.failureSummary || `${payload.failedFiles || 0} 个文件失败`
+      }
+    } else if (['QUEUED', 'RUNNING'].includes(status)) {
+      workspace.archiveChecklist.studentCloudArchive = {
+        ...workspace.archiveChecklist.studentCloudArchive,
+        status: '推送中',
+        detail: `${payload.percent || 0}% · ${payload.currentFilename || '准备中'}`
+      }
+    }
+    return workspace.cloudBatch
+  }
+  const watchCloudArchiveBatch = (batchId, lessonId) => {
+    const key = String(batchId)
+    if (cloudBatchWatchers.has(key)) return cloudBatchWatchers.get(key)
+    const controller = new AbortController()
+    let settled = false
+    let resolveResult
+    let rejectResult
+    const promise = new Promise((resolve, reject) => {
+      resolveResult = resolve
+      rejectResult = reject
+    })
+    const finish = (value) => {
+      if (settled) return
+      settled = true
+      cloudBatchWatchers.delete(key)
+      controller.abort()
+      resolveResult(value)
+    }
+    const loop = async () => {
+      while (!controller.signal.aborted && !settled) {
+        try {
+          await subscribeSse(api.m5.cloudArchiveEventsPath(batchId), {
+            signal: controller.signal,
+            onEvent: (event) => {
+              const payload = applyCloudBatchProgress(lessonId, event.data)
+              if (payload && cloudBatchTerminal(payload.status)) finish(payload)
+            }
+          })
+          if (settled || controller.signal.aborted) return
+          const latest = await api.m5.cloudArchiveBatchGet(batchId)
+          const payload = applyCloudBatchProgress(lessonId, latest)
+          if (payload && cloudBatchTerminal(payload.status)) {
+            finish(payload)
+            return
+          }
+        } catch (error) {
+          if (controller.signal.aborted || settled) return
+          if (error?.status === 401 || error?.code === 'PERMISSION_DENIED') {
+            rejectResult(error)
+            cloudBatchWatchers.delete(key)
+            return
+          }
+        }
+        if (!controller.signal.aborted && !settled) await wait(800)
+      }
+    }
+    const watcher = { promise, controller, cancel: () => controller.abort() }
+    cloudBatchWatchers.set(key, watcher)
+    loop().catch((error) => {
+      if (!settled) rejectResult(error)
+      cloudBatchWatchers.delete(key)
+    })
+    return watcher
+  }
+  const archiveProvider = () => enabledCloudProviders.value.find((provider) =>
+    String(provider.providerType || provider.type).toUpperCase() === 'BAIDU_NETDISK'
+  ) || enabledCloudProviders.value[0]
+  const ensureCloudArchiveBatch = async (lessonId, { waitForCompletion = false } = {}) => {
+    const workspace = ensureLessonWorkspace(tasks.find((task) => sameId(task.id, lessonId)) || { id: lessonId })
+    const current = workspace.cloudBatch
+    if (current?.batchId && ['FAILED', 'PARTIAL_FAILED'].includes(String(current.status).toUpperCase())) {
+      const retried = await runRemote('正在重试百度网盘归档批次...', () => api.m5.retryCloudBatch(current.batchId,
+        createIdempotencyKey(`cloud-archive-batch-retry:${current.batchId}`)), '百度网盘归档已重新提交')
+      if (!retried) return null
+      applyCloudBatchProgress(lessonId, retried)
+      const watcher = watchCloudArchiveBatch(retried.id || retried.batchId || current.batchId, lessonId)
+      return waitForCompletion && !cloudBatchTerminal(retried.status) ? watcher.promise : retried
+    }
+    if (current?.batchId) {
+      const watcher = watchCloudArchiveBatch(current.batchId, lessonId)
+      return waitForCompletion && !cloudBatchTerminal(current.status) ? watcher.promise : current
+    }
+    const provider = archiveProvider()
+    if (!provider?.id || String(provider.id).startsWith('provider-')) return null
+    const result = await runRemote('正在创建百度网盘归档批次...', () => api.m5.cloudArchiveBatch(lessonId, {
+      providerConfigId: provider.id,
+      includeTeacherEffect: false,
+      items: []
+    }, createIdempotencyKey(`cloud-archive-batch:${lessonId}`)), '', () => refreshRemoteLesson(lessonId, { force: true }))
+    if (!result) return null
+    applyCloudBatchProgress(lessonId, result)
+    const watcher = watchCloudArchiveBatch(result.id || result.batchId, lessonId)
+    if (waitForCompletion && !cloudBatchTerminal(result.status)) return watcher.promise
+    return result
   }
 
   const waitForJobs = async (jobIds = [], lessonId) => {
@@ -4831,18 +4964,19 @@ export function useDeliveryWorkflow() {
 
   const remotePushArchiveItem = async (key) => {
     if (key !== 'studentCloudArchive') return false
-    const source = materials.value.find((item) => item.id && item.fileId)
-    if (!source) {
-      notify('请先上传至少一份课堂资料，再创建云归档任务')
+    const current = activeWorkspace.value.cloudBatch
+    if (current?.batchId && ['FAILED', 'PARTIAL_FAILED'].includes(String(current.status).toUpperCase())) {
+      const retried = await runRemote('正在重试百度网盘归档批次...', () => api.m5.retryCloudBatch(current.batchId,
+        createIdempotencyKey(`cloud-archive-batch-retry:${current.batchId}`)), '百度网盘归档已重新提交')
+      if (!retried) return false
+      applyCloudBatchProgress(activeTask.value.id, retried)
+    }
+    const result = await ensureCloudArchiveBatch(activeTask.value.id, { waitForCompletion: true })
+    if (!result) {
+      notify('未找到已启用的百度网盘通道，请先完成授权并启用')
       return false
     }
-    const failedJob = (activeWorkspace.value.cloudJobs || []).find((job) => ['FAILED', 'CANCELED'].includes(job.status) && job.retryable)
-    const result = failedJob
-      ? await runRemote('正在重试云归档任务...', () => api.m5.retryCloud(failedJob.id, { version: failedJob.version }, createIdempotencyKey(`cloud-archive-retry:${failedJob.id}`)), '云归档任务已重新提交')
-      : await runRemote('正在创建云归档任务...', () => api.m5.cloudArchive(activeTask.value.id, {
-          sourceType: 'LESSON_ASSET', sourceId: String(source.id), fileId: String(source.fileId), required: false
-        }, createIdempotencyKey(`cloud-archive:${activeTask.value.id}`)), '云归档任务已创建')
-    if (!result) return false
+    if (['FAILED', 'PARTIAL_FAILED'].includes(String(result.status).toUpperCase())) return false
     await Promise.all([
       refreshRemoteLesson(activeTask.value.id),
       invalidateResource('cloud-archive-todos'),
@@ -4992,6 +5126,16 @@ export function useDeliveryWorkflow() {
     if (!touchReady && !(await remotePushParentTouch())) return false
     const lessonWheat = wheatTraces.find((item) => sameId(item.lessonId, task.id))
     if (!lessonWheat?.id && !(await remoteGenerateWheatTraceTask())) return false
+
+    const cloudBatch = await ensureCloudArchiveBatch(task.id, { waitForCompletion: false })
+    if (cloudBatch?.required && !cloudBatchTerminal(cloudBatch.status)) {
+      const watcher = watchCloudArchiveBatch(cloudBatch.batchId || cloudBatch.id, task.id)
+      const completed = await watcher.promise
+      if (!completed || !['SUCCEEDED'].includes(String(completed.status).toUpperCase())) {
+        notify(completed?.failureSummary || '必需的百度网盘归档尚未完成')
+        return false
+      }
+    }
 
     const completion = await runRemote('正在检查归档前置条件...', () => api.lessons.completion(task.id))
     if (!completion) return false
@@ -5455,6 +5599,23 @@ export function useDeliveryWorkflow() {
     const result = await runRemote('正在测试通道连接...', () => api.m5.testProvider(provider.id), '通道测试完成', () => invalidateResource('settings'))
     if (result) provider.tokenStatus = result.success ? '连接正常' : (result.message || '连接失败')
     return result
+  }
+
+  const remoteStartBaiduOAuth = async (provider) => {
+    if (!provider?.id || String(provider.id).startsWith('provider-')) {
+      notify('请先保存百度网盘通道配置')
+      return null
+    }
+    const result = await runRemote('正在准备百度网盘授权...', () => api.m5.startBaiduOAuth(provider.id))
+    if (result?.authorizeUrl && typeof window !== 'undefined') {
+      window.location.assign(result.authorizeUrl)
+    }
+    return result
+  }
+
+  const remoteBaiduOAuthStatus = async (provider) => {
+    if (!provider?.id || String(provider.id).startsWith('provider-')) return null
+    return runRemote('', () => api.m5.baiduOAuthStatus(provider.id))
   }
 
   const apiTemplateStatus = (value) => String(value || '').toUpperCase() === 'DISABLED' || value === '停用' ? 'DISABLED' : 'ENABLED'
@@ -5923,6 +6084,8 @@ export function useDeliveryWorkflow() {
     markWecomSendTask: remoteMarkWecomSendTask,
     retryWecomSendTask: remoteRetryWecomSendTask,
     retryCloudArchiveTodo: remoteRetryCloudArchiveTodo,
+    startBaiduOAuth: remoteStartBaiduOAuth,
+    baiduOAuthStatus: remoteBaiduOAuthStatus,
     manualCopyWecomTask: remoteManualCopyWecomTask,
     manualCopyStudentLink,
     parentShareUrl: remoteParentShareUrl,

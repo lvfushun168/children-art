@@ -10,7 +10,7 @@ globalThis.window = {
   }
 }
 
-const { clearSession, createIdempotencyKey, getAccessToken, getApiRequestStats, onApiRequest, pageParams, queryString, request, resetApiRequestStats, setSession } = await import('../src/services/apiClient.js')
+const { clearSession, createIdempotencyKey, getAccessToken, getApiRequestStats, onApiRequest, pageParams, queryString, request, resetApiRequestStats, setSession, subscribeSse } = await import('../src/services/apiClient.js')
 const { api } = await import('../src/services/api.js')
 const { downloadProtectedFile } = await import('../src/services/fileService.js')
 const { clearProtectedMediaCache, protectedMediaUrl } = await import('../src/services/protectedMediaCache.js')
@@ -107,6 +107,36 @@ test('returns binary responses without envelope parsing and exposes conflict met
     request('/lesson', { method: 'PATCH', body: { version: 1 } }),
     (error) => error.status === 409 && error.code === 'VERSION_CONFLICT' && error.requestId === 'req-conflict'
   )
+})
+
+test('reads authenticated SSE snapshots and progress events', async () => {
+  setSession({ accessToken: 'sse-token', refreshToken: 'refresh-token', me: { user: { id: '1' } } })
+  const chunks = [
+    'event: snapshot\ndata: {"batchId":"9","status":"RUNNING"}\n\n',
+    'event: progress\ndata: {"batchId":"9","percent":100,"status":"SUCCEEDED"}\n\n'
+  ]
+  let received
+  globalThis.fetch = async (_url, options) => {
+    received = options
+    let index = 0
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => index < chunks.length
+            ? { value: new TextEncoder().encode(chunks[index++]), done: false }
+            : { value: undefined, done: true },
+          releaseLock: () => {}
+        })
+      }
+    }
+  }
+  const events = []
+  await subscribeSse('/cloud-archive-batches/9/events', { onEvent: (event) => events.push(event) })
+  assert.equal(received.headers.Authorization, 'Bearer sse-token')
+  assert.deepEqual(events.map((event) => event.event), ['snapshot', 'progress'])
+  assert.equal(events[1].data.percent, 100)
 })
 
 test('downloads protected files through an authenticated browser blob link', async () => {

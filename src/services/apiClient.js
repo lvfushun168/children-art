@@ -267,6 +267,58 @@ export const request = async (path, options = {}, retry = true) => {
   return responseType ? payload : unwrap(payload, response)
 }
 
+/** Reads an authenticated Server-Sent Events stream. Native EventSource cannot send our Bearer header. */
+export const subscribeSse = async (path, { signal, onEvent, authRetry = true } = {}) => {
+  const url = resolveUrl(path)
+  const headers = { Accept: 'text/event-stream', 'Cache-Control': 'no-cache' }
+  const token = getAccessToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+  let response
+  try {
+    response = await fetch(url, { method: 'GET', headers, signal })
+  } catch (error) {
+    throw new ApiError(error?.message || '实时进度连接失败', { code: 'NETWORK_ERROR', url })
+  }
+  if (response.status === 401 && authRetry && getRefreshToken()) {
+    await refreshAccessToken()
+    return subscribeSse(path, { signal, onEvent, authRetry: false })
+  }
+  if (!response.ok) throw await errorFromResponse(response, url)
+  if (!response.body) throw new ApiError('实时进度流不可用', { code: 'SSE_UNSUPPORTED', url })
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  const dispatch = (chunk) => {
+    const lines = chunk.replace(/\r/g, '').split('\n')
+    let event = 'message'
+    const data = []
+    lines.forEach((line) => {
+      if (line.startsWith('event:')) event = line.slice(6).trim() || 'message'
+      if (line.startsWith('data:')) data.push(line.slice(5).trimStart())
+    })
+    if (!data.length) return
+    const raw = data.join('\n')
+    let value = raw
+    try { value = JSON.parse(raw) } catch { /* heartbeat or legacy text */ }
+    onEvent?.({ event, data: value, raw })
+  }
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const parts = buffer.split(/\n\n/)
+      buffer = parts.pop() || ''
+      parts.forEach(dispatch)
+    }
+    buffer += decoder.decode()
+    if (buffer.trim()) dispatch(buffer)
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 export const queryString = (params = {}) => {
   const search = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {

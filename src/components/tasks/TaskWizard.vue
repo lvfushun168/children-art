@@ -956,6 +956,16 @@ watch(homeworkEditorOpen, async (open) => {
                 <strong>{{ item.item.status }}</strong>
                 <small v-if="item.meta">{{ item.meta }}</small>
                 <em v-if="item.item.detail">{{ item.item.detail }}</em>
+                <template v-if="item.key === 'studentCloudArchive' && state.activeWorkspace?.cloudBatch">
+                  <small>
+                    百度网盘：{{ state.activeWorkspace.cloudBatch.completedFiles || 0 }}/{{ state.activeWorkspace.cloudBatch.totalFiles || 0 }} 个文件
+                    · {{ state.activeWorkspace.cloudBatch.percent || 0 }}%
+                    <span v-if="state.activeWorkspace.cloudBatch.currentFilename"> · {{ state.activeWorkspace.cloudBatch.currentFilename }}</span>
+                  </small>
+                  <div v-if="['QUEUED', 'RUNNING'].includes(state.activeWorkspace.cloudBatch.status)" class="progress-track slim">
+                    <i :style="{ width: `${state.activeWorkspace.cloudBatch.percent || 0}%` }"></i>
+                  </div>
+                </template>
                 <details v-if="item.key === 'parentTouch' && state.sharePage.publishedSnapshot" class="touch-fallback">
                   <summary>学生访问凭证（可人工发送）</summary>
                   <div v-for="row in state.attendingRows" :key="`touch-${row.lessonId}-${row.studentId}`" class="touch-fallback-row">
@@ -971,7 +981,7 @@ watch(homeworkEditorOpen, async (open) => {
               </div>
               <div class="archive-check-actions">
                 <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.pushParentTouch">{{ state.isArchiveDone(item.item) ? '已创建触达' : item.action }}</button>
-                <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已同步' || item.item.status === '已跳过'" @click="state.pushArchiveItem(item.key)">{{ item.item.status === '已同步' ? '已同步' : item.action }}</button>
+                <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已同步' || item.item.status === '已跳过' || item.item.status === '推送中'" @click="state.pushArchiveItem(item.key)">{{ item.item.status === '已同步' ? '已同步' : item.item.status === '推送中' ? '上传中…' : item.item.status === '同步失败' ? '重试' : item.action }}</button>
                 <template v-if="item.key === 'teacherEffectArchive'">
                   <button v-if="['PENDING', 'FAILED', 'SKIPPED'].includes(teacherEffectStatus) || !teacherEffect.id" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">{{ teacherEffectStatus === 'FAILED' ? '重新配置并生成' : '配置并生成课效图' }}</button>
                   <button v-else-if="teacherEffectStatus === 'GENERATING'" class="secondary" disabled>生成中…</button>

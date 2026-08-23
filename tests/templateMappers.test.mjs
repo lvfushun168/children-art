@@ -35,7 +35,7 @@ test('maps merged feedback content and prompt configuration', () => {
     templateKey: 'standard',
     templateJson: { scene: 'FEEDBACK', rules: ['先肯定'] },
     prompt: {
-      modelName: 'fake-ai',
+      modelName: 'qwen3.8-max',
       systemPrompt: 'system',
       userPrompt: 'user',
       temperature: 0.7,
@@ -45,7 +45,7 @@ test('maps merged feedback content and prompt configuration', () => {
     version: 4
   })
 
-  assert.equal(mapped.model, 'fake-ai')
+  assert.equal(mapped.model, 'qwen3.8-max')
   assert.equal(mapped.systemPrompt, 'system')
   assert.equal(mapped.userPrompt, 'user')
   assert.equal(mapped.temperature, 0.7)
@@ -60,7 +60,7 @@ test('builds merged feedback create and update payloads with legal keys and vers
     structure: '亮点、建议',
     taboo: '',
     sample: '',
-    model: 'fake-ai',
+    model: 'qwen3.8-max',
     systemPrompt: 'system',
     userPrompt: 'user',
     temperature: 0.7,
@@ -69,14 +69,14 @@ test('builds merged feedback create and update payloads with legal keys and vers
   assert.match(feedback.templateKey, /^feedback-\d+$/)
   assert.equal(feedback.templateJson.scene, 'FEEDBACK')
   assert.equal(feedback.templateJson.structure, '亮点、建议')
-  assert.equal(feedback.prompt.modelName, 'fake-ai')
+  assert.equal(feedback.prompt.modelName, 'qwen3.8-max')
   assert.equal(feedback.prompt.systemPrompt, 'system')
 
-  const update = feedbackTemplateUpdateBodyFor({ ...feedback, model: 'fake-ai-2' }, {
+  const update = feedbackTemplateUpdateBodyFor({ ...feedback, model: 'qwen3.8-max' }, {
     templateKey: 'old-key',
     version: 3
   })
-  assert.equal(update.prompt.modelName, 'fake-ai-2')
+  assert.equal(update.prompt.modelName, 'qwen3.8-max')
   assert.equal('templateKey' in update, false)
   assert.equal('templateVersion' in update, false)
 })

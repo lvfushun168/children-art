@@ -95,8 +95,8 @@ const blankDraft = () => {
       taboo: '',
       sample: '',
       model: '',
-      systemPrompt: '',
-      userPrompt: '',
+      systemPrompt: '你是少儿美术老师助手，生成自然、具体、适合家长阅读的课评。',
+      userPrompt: '学生：{{student}}；课程：{{course}}；课堂记录：{{record}}；语气：{{tone}}；长度：{{length}}；课程参考：{{courseContext}}；模板规则：{{templateRules}}',
       temperature: 0.7,
       maxTokens: 220,
       status: '启用'
@@ -468,11 +468,11 @@ onBeforeUnmount(() => cleanupMobileMedia())
               <details class="template-form-details">
                 <summary>AI 生成配置 <small>{{ draft.model || '默认模型' }}</small></summary>
                 <div class="form-grid">
-                  <label>上下文模型<input v-model="draft.model" /></label>
+                  <label>指定模型（可选）<input v-model="draft.model" placeholder="留空使用系统 AI 配置中的文本模型" /></label>
                   <label>Temperature<input v-model.number="draft.temperature" type="number" min="0" max="2" step="0.1" /></label>
                   <label>Max Tokens<input v-model.number="draft.maxTokens" type="number" min="1" max="100000" /></label>
                   <label class="wide">System Prompt<textarea v-model="draft.systemPrompt" rows="6" /></label>
-                  <label class="wide">User Prompt<textarea v-model="draft.userPrompt" rows="6" /></label>
+                  <label class="wide">User Prompt<textarea v-model="draft.userPrompt" rows="6" /><small v-pre>可用变量：{{student}}、{{course}}、{{record}}、{{tone}}、{{length}}、{{courseContext}}、{{templateRules}}。课程参考和模板规则会自动进入生成上下文。</small></label>
                 </div>
               </details>
             </template>

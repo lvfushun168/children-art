@@ -325,7 +325,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <label>当前状态<input :value="draft.status" disabled /></label>
           <label v-if="isCloudCategory" class="wide">默认归档目录规则<input :value="draft.value.directoryRule || '由课次归档策略自动生成'" disabled /></label>
         </div>
-        <p v-if="isCloudCategory" class="settings-hint">百度网盘现在通过校区管理员 OAuth 绑定账号。归档范围、重复文件策略和必选/可选门槛由课次归档流程控制。</p>
         <div class="section-head compact">
           <div>
             <span>{{ currentProviderLabel }}通道</span>
@@ -372,7 +371,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
                 <label>Token 刷新提前量<input v-model="provider.tokenRefreshSkew" placeholder="PT5M" /></label>
               </div>
             </details>
-            <p class="settings-hint">百度网盘应用配置和域名均保存在本 Provider 中。Access Token、Refresh Token 仍只保存在 Redis，不会显示在本页面或写入数据库。</p>
             <p v-if="provider.authErrorMessage" class="settings-error">{{ provider.authErrorMessage }}</p>
             <div class="cloud-provider-actions">
               <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用百度网盘归档</span></label>

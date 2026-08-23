@@ -221,6 +221,7 @@ const save = () => {
 const selectedGroup = computed(() => providerSettings.value.find((group) => sameId(group.id, selectedId.value)) || providerGroupDefinitions.find((group) => group.id === selectedId.value) || providerGroupDefinitions[0])
 const currentProviderLabel = computed(() => selectedGroup.value?.providerLabel || '通道')
 const isCloudCategory = computed(() => selectedGroup.value?.category === 'cloud')
+const isAiCategory = computed(() => selectedGroup.value?.category === 'ai')
 const isProviderSetting = computed(() => Boolean(draft.value.category))
 const canSave = computed(() => Boolean(
   isProviderSetting.value && (isCloudCategory.value
@@ -236,10 +237,19 @@ const providerTypes = computed(() => {
   // 云盘配置固定使用百度网盘，不向用户开放 Provider 类型选择。
   if (isCloudCategory.value) return ['BAIDU_NETDISK']
   const options = providerTypeCatalog.value?.[selectedGroup.value?.category] || []
+  if (isAiCategory.value) return ['HTTP_AI']
   if (options.length) return options
   return [...new Set((draft.value.value?.providers || []).map((provider) => provider.providerType || provider.type).filter(Boolean))]
 })
-const authTypes = ['OAuth2', 'Access Token', 'AK/SK', '自定义签名']
+const authTypes = ['OAuth2', 'Access Token', 'API Key（secretRef）', 'AK/SK', '自定义签名']
+const textProtocolOptions = ['OPENAI_COMPATIBLE', 'CHILDREN_ART']
+const imageProtocolOptions = ['WAN_NATIVE', 'OPENAI_COMPATIBLE']
+const imageSizeOptions = ['1K', '2K', '4K']
+const aiCapabilityOptions = [
+  { value: 'FEEDBACK_GENERATION', label: '文本生成 / 课评' },
+  { value: 'TEXT_TO_IMAGE', label: '文生图' },
+  { value: 'IMAGE_TO_IMAGE', label: '图生图' }
+]
 const isBaiduProvider = (provider) => String(provider?.providerType || provider?.type || '').toUpperCase() === 'BAIDU_NETDISK'
 const baiduProviders = computed(() => (draft.value.value?.providers || []).filter(isBaiduProvider))
 const canAddProvider = computed(() => {
@@ -284,11 +294,25 @@ const addProvider = () => {
     name: `新的${currentProviderLabel.value}`,
     type: providerType,
     providerType,
-    authType: providerType === 'BAIDU_NETDISK' ? 'OAuth2' : 'Access Token',
+    authType: isAiCategory.value ? 'API Key' : providerType === 'BAIDU_NETDISK' ? 'OAuth2' : 'Access Token',
     endpoint: '',
     appKey: '',
     appId: '',
     secretKey: '',
+    secretRef: '',
+    capabilities: isAiCategory.value ? ['FEEDBACK_GENERATION', 'TEXT_TO_IMAGE', 'IMAGE_TO_IMAGE'] : [],
+    config: isAiCategory.value ? {
+      protocol: 'OPENAI_COMPATIBLE',
+      textProtocol: 'OPENAI_COMPATIBLE',
+      textEndpoint: '',
+      textModel: '',
+      imageProtocol: 'WAN_NATIVE',
+      imageEndpoint: '',
+      imageModel: '',
+      imageSize: '1K',
+      watermark: false,
+      thinkingMode: false
+    } : {},
     backendBaseUrl: DEFAULT_BAIDU_BACKEND_BASE_URL,
     frontendBaseUrl: DEFAULT_BAIDU_FRONTEND_BASE_URL,
     frontendReturnPath: DEFAULT_BAIDU_FRONTEND_RETURN_PATH,
@@ -310,6 +334,24 @@ const addProvider = () => {
 const setProviderType = (provider, value) => {
   provider.type = value
   provider.providerType = value
+  if (String(value).toUpperCase() === 'HTTP_AI') {
+    provider.authType = 'API Key'
+    provider.capabilities = provider.capabilities?.length
+      ? provider.capabilities
+      : ['FEEDBACK_GENERATION', 'TEXT_TO_IMAGE', 'IMAGE_TO_IMAGE']
+    provider.config = {
+      protocol: 'OPENAI_COMPATIBLE',
+      textProtocol: 'OPENAI_COMPATIBLE',
+      textEndpoint: provider.config?.textEndpoint || provider.endpoint || '',
+      textModel: provider.config?.textModel || '',
+      imageProtocol: provider.config?.imageProtocol || 'WAN_NATIVE',
+      imageEndpoint: provider.config?.imageEndpoint || '',
+      imageModel: provider.config?.imageModel || '',
+      imageSize: provider.config?.imageSize || '1K',
+      watermark: provider.config?.watermark === true,
+      thinkingMode: provider.config?.thinkingMode === true
+    }
+  }
   if (isBaiduProvider(provider)) {
     provider.authType = 'OAuth2'
     provider.endpoint = ''
@@ -437,8 +479,6 @@ onBeforeUnmount(() => {
       <div v-if="!isProviderSetting" class="notice-box">暂无可配置的第三方通道。</div>
       <div v-else class="cloud-setting-panel">
         <div class="form-grid">
-          <label>配置名称<input :value="draft.name" disabled /></label>
-          <label>当前状态<input :value="draft.status" disabled /></label>
           <div v-if="isCloudCategory" class="wide archive-rule-editor">
             <label>默认归档目录规则
               <input
@@ -528,6 +568,46 @@ onBeforeUnmount(() => {
               <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用百度网盘归档</span></label>
               <button class="secondary" @click="authorizeBaidu(provider)">{{ provider.oauthAuthorized ? '重新授权百度网盘' : '授权百度网盘' }}</button>
               <button class="ghost" @click="testProvider(provider)">测试连接</button>
+            </div>
+          </template>
+          <template v-else-if="isAiCategory">
+            <div class="cloud-provider-head">
+              <label>{{ currentProviderLabel }}名称<input v-model="provider.name" /></label>
+              <label>{{ currentProviderLabel }}类型<AdaptiveSelect :model-value="provider.providerType || provider.type" :options="providerTypes" @update:model-value="setProviderType(provider, $event)" /></label>
+              <label>授权方式<input value="API Key" disabled /></label>
+            </div>
+            <div class="form-grid ai-provider-grid">
+              <label class="wide">API Key（直接保存到当前校区配置）
+                <input v-model="provider.secretRef" type="password" :placeholder="provider.secretRefPresent ? '已配置，留空保持不变' : '请输入 API Key'" autocomplete="new-password" />
+              </label>
+              <label>授权状态<input :value="provider.tokenStatus" disabled /></label>
+              <div class="wide ai-capabilities">
+                <span class="field-label">支持能力</span>
+                <label v-for="capability in aiCapabilityOptions" :key="capability.value" class="inline-check">
+                  <input v-model="provider.capabilities" type="checkbox" :value="capability.value" />
+                  <span>{{ capability.label }}</span>
+                </label>
+              </div>
+              <div class="wide ai-section-title">文本调用</div>
+              <label>文本协议<AdaptiveSelect v-model="provider.config.textProtocol" :options="textProtocolOptions" /></label>
+              <label>文本模型<input v-model="provider.config.textModel" placeholder="例如 qwen3.8-max" /></label>
+              <label class="wide">文本接口地址
+                <input v-model="provider.config.textEndpoint" placeholder="https://.../compatible-mode/v1" />
+              </label>
+              <div class="wide ai-section-title">文生图 / 图生图</div>
+              <label>图片协议<AdaptiveSelect v-model="provider.config.imageProtocol" :options="imageProtocolOptions" /></label>
+              <label>图片模型<input v-model="provider.config.imageModel" placeholder="例如 wan2.7-image-pro" /></label>
+              <label class="wide">图片接口地址
+                <input v-model="provider.config.imageEndpoint" placeholder="Wan 原生接口；可填 /api/v1/services/aigc/multimodal-generation/generation" />
+              </label>
+              <label>默认图片尺寸<AdaptiveSelect v-model="provider.config.imageSize" :options="imageSizeOptions" /></label>
+              <label class="inline-check ai-toggle"><input v-model="provider.config.watermark" type="checkbox" /> <span>启用图片水印</span></label>
+              <label class="inline-check ai-toggle"><input v-model="provider.config.thinkingMode" type="checkbox" /> <span>启用图片思考模式</span></label>
+            </div>
+            <p class="settings-hint">文本和图片可以共用一个密钥，但允许使用不同协议和接口地址。图片协议选 WAN_NATIVE 时支持把学生原图作为输入进行图生图。</p>
+            <div class="cloud-provider-actions">
+              <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该 AI</span></label>
+              <button class="ghost" type="button" @click="testProvider(provider)">测试连接</button>
             </div>
           </template>
           <template v-else>

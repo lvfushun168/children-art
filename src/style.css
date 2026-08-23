@@ -7507,6 +7507,52 @@ textarea:focus,
   background: var(--color-surface);
 }
 
+.provider-add-row,
+.cloud-provider-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.provider-add-row {
+  justify-content: flex-end;
+}
+
+.cloud-provider-head {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.ai-provider-grid {
+  align-items: start;
+}
+
+.ai-section-title {
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border-soft);
+  color: var(--color-heading);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ai-capabilities {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.ai-capabilities .field-label {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.ai-toggle {
+  align-self: end;
+}
+
 .baidu-provider-heading {
   display: flex;
   align-items: flex-start;

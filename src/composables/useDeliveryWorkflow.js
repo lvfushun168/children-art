@@ -2959,14 +2959,29 @@ export function useDeliveryWorkflow() {
   const mapProvider = (provider = {}) => {
     const providerType = provider.providerType || provider.type || ''
     const isBaidu = String(providerType).toUpperCase() === 'BAIDU_NETDISK'
+    const isAi = mapProviderCategory({ ...provider, providerType }) === 'AI'
+    const config = provider.config && typeof provider.config === 'object' ? { ...provider.config } : {}
+    if (isAi) {
+      config.protocol = config.protocol || 'OPENAI_COMPATIBLE'
+      config.textProtocol = config.textProtocol || config.protocol || 'OPENAI_COMPATIBLE'
+      config.textEndpoint = config.textEndpoint || config.endpoint || ''
+      config.textModel = config.textModel || config.modelName || ''
+      config.imageProtocol = config.imageProtocol || 'WAN_NATIVE'
+      config.imageEndpoint = config.imageEndpoint || ''
+      config.imageModel = config.imageModel || ''
+      config.imageSize = config.imageSize || '1K'
+      config.watermark = config.watermark === true
+      config.thinkingMode = config.thinkingMode === true
+    }
     const rawBackendBaseUrl = provider.backendBaseUrl || provider.config?.backendBaseUrl || ''
     const rawFrontendBaseUrl = provider.frontendBaseUrl || provider.config?.frontendBaseUrl || ''
     const rawFrontendReturnPath = provider.frontendReturnPath || provider.config?.frontendReturnPath || ''
     return {
       ...provider,
+      config,
       category: mapProviderCategory({ ...provider, providerType }),
-      endpoint: provider.endpoint || provider.config?.endpoint || '',
-      appKey: provider.appKey || provider.config?.appKey || '',
+      endpoint: provider.endpoint || config.endpoint || config.textEndpoint || '',
+      appKey: provider.appKey || config.appKey || '',
       appId: provider.appId || provider.config?.appId || '',
       backendBaseUrl: isBaidu
         ? normalizeBaiduBaseUrl(rawBackendBaseUrl, DEFAULT_BAIDU_BACKEND_BASE_URL)
@@ -5627,6 +5642,7 @@ export function useDeliveryWorkflow() {
         return null
       }
       const isBaidu = String(providerType).toUpperCase() === 'BAIDU_NETDISK'
+      const isAi = mapProviderCategory({ ...provider, providerType }) === 'AI'
       const rawFrontendBaseUrl = provider.frontendBaseUrl || provider.config?.frontendBaseUrl || ''
       const rawFrontendReturnPath = provider.frontendReturnPath || provider.config?.frontendReturnPath || ''
       const frontendBaseUrl = isBaidu
@@ -5664,6 +5680,20 @@ export function useDeliveryWorkflow() {
             stateTtl: provider.stateTtl || provider.config?.stateTtl || 'PT10M',
             chunkSizeBytes: provider.chunkSizeBytes || provider.config?.chunkSizeBytes || 4194304,
             tokenRefreshSkew: provider.tokenRefreshSkew || provider.config?.tokenRefreshSkew || 'PT5M'
+          }
+        : isAi
+        ? {
+            ...(provider.config || {}),
+            protocol: provider.config?.protocol || provider.config?.textProtocol || 'OPENAI_COMPATIBLE',
+            textProtocol: provider.config?.textProtocol || provider.config?.protocol || 'OPENAI_COMPATIBLE',
+            textEndpoint: provider.config?.textEndpoint || provider.endpoint || '',
+            textModel: provider.config?.textModel || '',
+            imageProtocol: provider.config?.imageProtocol || 'WAN_NATIVE',
+            imageEndpoint: provider.config?.imageEndpoint || '',
+            imageModel: provider.config?.imageModel || '',
+            imageSize: provider.config?.imageSize || '1K',
+            watermark: provider.config?.watermark === true,
+            thinkingMode: provider.config?.thinkingMode === true
           }
         : {
             ...(provider.config || {}),

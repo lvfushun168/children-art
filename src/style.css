@@ -7376,13 +7376,86 @@ textarea:focus,
   font-size: 12px;
 }
 
-.archive-rule-variable {
-  padding: 4px 8px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 6px;
+.archive-rule-variable-menu {
+  position: relative;
+  z-index: 10;
+}
+
+.archive-rule-variable-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 118px;
+  min-height: 36px;
+  padding: 0 10px;
+  justify-content: space-between;
+}
+
+.archive-rule-variable-trigger b {
+  color: var(--color-primary);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.archive-rule-variable-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 40px));
+  max-height: min(360px, 60vh);
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
   background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.archive-rule-variable-group {
+  display: grid;
+  gap: 4px;
+}
+
+.archive-rule-variable-group + .archive-rule-variable-group {
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-soft);
+}
+
+.archive-rule-variable-group > strong {
+  padding: 2px 8px;
+  color: var(--color-muted);
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+
+.archive-rule-variable-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--color-heading);
-  font-size: 12px;
+  text-align: left;
+}
+
+.archive-rule-variable-option:hover,
+.archive-rule-variable-option:focus-visible {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.archive-rule-variable-option code {
+  color: var(--color-muted);
+  font-family: inherit;
+  font-size: 11px;
 }
 
 .archive-rule-preview {
@@ -7395,6 +7468,24 @@ textarea:focus,
 .archive-rule-preview code {
   color: var(--color-heading);
   font-family: inherit;
+}
+
+@media (max-width: 680px) {
+  .archive-rule-variable-menu {
+    z-index: 220;
+  }
+
+  .archive-rule-variable-popover {
+    position: fixed;
+    top: auto;
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    width: auto;
+    max-height: min(420px, 58vh);
+    z-index: 260;
+    box-shadow: 0 18px 60px color-mix(in srgb, var(--color-ink) 18%, transparent);
+  }
 }
 
 .settings-error {

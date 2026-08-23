@@ -21,19 +21,34 @@ const providerGroupDefinitions = [
   { id: 'ai', name: 'AI 配置', category: 'ai', providerLabel: 'AI' }
 ]
 const DEFAULT_ARCHIVE_RULE = '/{campus}/教学资料归档/课程归总/{year}/{term}+{classType}归总'
-const archiveRuleVariables = [
-  { token: '{campus}', label: '校区' },
-  { token: '{year}', label: '年份' },
-  { token: '{month}', label: '月份' },
-  { token: '{term}', label: '学期' },
-  { token: '{classType}', label: '班型' },
-  { token: '{className}', label: '班级' },
-  { token: '{courseTitle}', label: '课程' },
-  { token: '{teacherName}', label: '老师' },
-  { token: '{studentName}', label: '学生' },
-  { token: '{assetType}', label: '资料类型' },
-  { token: '{date}', label: '日期' },
-  { token: '{lessonId}', label: '课次ID' }
+const archiveRuleVariableGroups = [
+  {
+    label: '课次信息',
+    variables: [
+      { token: '{year}', label: '年份' },
+      { token: '{month}', label: '月份' },
+      { token: '{term}', label: '学期' },
+      { token: '{date}', label: '日期' },
+      { token: '{lessonId}', label: '课次 ID' }
+    ]
+  },
+  {
+    label: '教学组织',
+    variables: [
+      { token: '{campus}', label: '校区' },
+      { token: '{classType}', label: '班型' },
+      { token: '{className}', label: '班级' },
+      { token: '{courseTitle}', label: '课程' },
+      { token: '{teacherName}', label: '老师' }
+    ]
+  },
+  {
+    label: '归档内容',
+    variables: [
+      { token: '{studentName}', label: '学生' },
+      { token: '{assetType}', label: '资料类型' }
+    ]
+  }
 ]
 
 const selectedId = ref(null)
@@ -97,6 +112,9 @@ const providerSettings = computed(() => {
 const selected = () => providerSettings.value.find((item) => sameId(item.id, selectedId.value))
 const draft = ref({})
 const archiveRuleInput = ref(null)
+const archiveRuleVariableMenu = ref(null)
+const archiveRuleVariableMenuOpen = ref(false)
+const archiveRuleVariableSelection = ref({ start: 0, end: 0 })
 const archiveRuleValue = computed(() => draft.value.value?.directoryRule || DEFAULT_ARCHIVE_RULE)
 const archiveRulePreview = computed(() => {
   const values = {
@@ -136,13 +154,45 @@ const selectSetting = (setting) => {
   if (isMobileFlow.value) mobileStage.value = 'detail'
 }
 
+const captureArchiveRuleVariableSelection = () => {
+  const input = archiveRuleInput.value
+  if (!input || typeof input.selectionStart !== 'number' || typeof input.selectionEnd !== 'number') return
+  archiveRuleVariableSelection.value = {
+    start: input.selectionStart,
+    end: input.selectionEnd
+  }
+}
+
+const toggleArchiveRuleVariableMenu = () => {
+  if (!archiveRuleVariableMenuOpen.value) captureArchiveRuleVariableSelection()
+  archiveRuleVariableMenuOpen.value = !archiveRuleVariableMenuOpen.value
+}
+
+const closeArchiveRuleVariableMenu = () => {
+  archiveRuleVariableMenuOpen.value = false
+}
+
+const closeArchiveRuleVariableMenuFromOutside = (event) => {
+  if (!archiveRuleVariableMenuOpen.value || archiveRuleVariableMenu.value?.contains(event.target)) return
+  closeArchiveRuleVariableMenu()
+}
+
+const closeArchiveRuleVariableMenuFromKeyboard = (event) => {
+  if (event.key === 'Escape') closeArchiveRuleVariableMenu()
+}
+
 const insertArchiveVariable = (token) => {
   if (!isCloudCategory.value) return
   const current = archiveRuleValue.value
   const input = archiveRuleInput.value
-  const start = input && typeof input.selectionStart === 'number' ? input.selectionStart : current.length
-  const end = input && typeof input.selectionEnd === 'number' ? input.selectionEnd : start
+  const start = archiveRuleVariableMenuOpen.value
+    ? archiveRuleVariableSelection.value.start
+    : input && typeof input.selectionStart === 'number' ? input.selectionStart : current.length
+  const end = archiveRuleVariableMenuOpen.value
+    ? archiveRuleVariableSelection.value.end
+    : input && typeof input.selectionEnd === 'number' ? input.selectionEnd : start
   draft.value.value.directoryRule = `${current.slice(0, start)}${token}${current.slice(end)}`
+  closeArchiveRuleVariableMenu()
   nextTick(() => {
     if (!archiveRuleInput.value) return
     const caret = start + token.length
@@ -313,6 +363,8 @@ onMounted(() => {
   syncMobile()
   media.addEventListener('change', syncMobile)
   cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
+  document.addEventListener('pointerdown', closeArchiveRuleVariableMenuFromOutside)
+  document.addEventListener('keydown', closeArchiveRuleVariableMenuFromKeyboard)
   const oauthResult = new URLSearchParams(window.location.search).get('baiduOAuth')
   if (oauthResult === 'success') props.state.notify('百度网盘授权成功')
   if (oauthResult === 'failure') props.state.notify('百度网盘授权失败，请重试')
@@ -326,7 +378,11 @@ onMounted(() => {
   }
 })
 
-onBeforeUnmount(() => cleanupMobileMedia())
+onBeforeUnmount(() => {
+  cleanupMobileMedia()
+  document.removeEventListener('pointerdown', closeArchiveRuleVariableMenuFromOutside)
+  document.removeEventListener('keydown', closeArchiveRuleVariableMenuFromKeyboard)
+})
 </script>
 
 <template>
@@ -389,13 +445,34 @@ onBeforeUnmount(() => cleanupMobileMedia())
             </label>
             <div class="archive-rule-toolbar">
               <span>插入变量：</span>
-              <button
-                v-for="variable in archiveRuleVariables"
-                :key="variable.token"
-                class="ghost archive-rule-variable"
-                type="button"
-                @click="insertArchiveVariable(variable.token)"
-              >{{ variable.label }}</button>
+              <div ref="archiveRuleVariableMenu" class="archive-rule-variable-menu">
+                <button
+                  class="ghost archive-rule-variable-trigger"
+                  type="button"
+                  :aria-expanded="archiveRuleVariableMenuOpen"
+                  aria-haspopup="menu"
+                  @click.stop="toggleArchiveRuleVariableMenu"
+                >
+                  <span>选择变量</span>
+                  <b aria-hidden="true">⌄</b>
+                </button>
+                <div v-if="archiveRuleVariableMenuOpen" class="archive-rule-variable-popover" role="menu" aria-label="目录规则变量">
+                  <section v-for="group in archiveRuleVariableGroups" :key="group.label" class="archive-rule-variable-group">
+                    <strong>{{ group.label }}</strong>
+                    <button
+                      v-for="variable in group.variables"
+                      :key="variable.token"
+                      class="archive-rule-variable-option"
+                      type="button"
+                      role="menuitem"
+                      @click="insertArchiveVariable(variable.token)"
+                    >
+                      <span>{{ variable.label }}</span>
+                      <code>{{ variable.token }}</code>
+                    </button>
+                  </section>
+                </div>
+              </div>
             </div>
             <p class="settings-hint">使用花括号变量组成目录层级，保存后由后端归档任务按当前校区、课次和资料信息渲染。</p>
             <p class="archive-rule-preview">预览：<code>{{ archiveRulePreview }}</code></p>

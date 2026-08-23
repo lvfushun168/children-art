@@ -98,6 +98,11 @@ const artworkPreviewLoading = ref(false)
 let artworkPreviewObjectUrl = ''
 let artworkPreviewRequest = 0
 
+const hasProcessedCandidate = (row) => Boolean(
+  hasProcessedImage(row) ||
+  (sameId(artworkRow.value?.studentId, row?.studentId) && artworkPreviewUrl.value)
+)
+
 const clearArtworkPreview = () => {
   if (artworkPreviewObjectUrl) URL.revokeObjectURL(artworkPreviewObjectUrl)
   artworkPreviewObjectUrl = ''
@@ -162,6 +167,25 @@ const artworkVersionStatus = (row) => {
 }
 
 const artworkVersionStatusClass = (row) => row?.imageConfirmed ? 'ok-text' : 'missing-text'
+
+const feedbackProgress = (row) => props.state.jobProgressFor?.(row, 'FEEDBACK') || null
+const artworkProgress = (row) => props.state.jobProgressFor?.(row, 'ARTWORK') || null
+const jobIsActive = (progress) => Boolean(progress && !['SUCCEEDED', 'FAILED', 'CANCELED'].includes(progress.status))
+const jobProgressLabel = (progress) => {
+  if (!progress) return ''
+  const percent = Number.isFinite(Number(progress.progressPercent)) ? ` ${Number(progress.progressPercent)}%` : ''
+  return `${progress.message || progress.stage || '处理中'}${percent}`
+}
+const feedbackJobActive = (row) => jobIsActive(feedbackProgress(row))
+const artworkJobActive = (row) => jobIsActive(artworkProgress(row))
+const batchJobProgressText = (type) => {
+  const rows = props.state.attendingRows || []
+  const targets = rows.filter((row) => type === 'ARTWORK' ? row.artworkId : row.record?.trim())
+  const values = targets.map((row) => type === 'ARTWORK' ? artworkProgress(row) : feedbackProgress(row)).filter(Boolean)
+  if (!values.length) return ''
+  const done = values.filter((value) => ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(value.status)).length
+  return `${done}/${targets.length} 已完成`
+}
 
 const statusFor = (row) => {
   if (!row?.imageMatched) return '作品待上传'
@@ -301,6 +325,7 @@ const processCurrentImage = async (row) => {
     props.state.notify('请先上传当前学生的作品')
     return
   }
+  if (artworkJobActive(row)) return
   setActive(row)
   if (selectedImageTemplate.value && isClientCanvasTemplate(selectedImageTemplate.value)) {
     if (String(selectedImageTemplate.value.templateKey || '').toLowerCase() === 'original') {
@@ -350,10 +375,13 @@ const saveRecord = async (row) => {
 
 const regenerateComment = async (row) => {
   if (!row) return
+  if (feedbackJobActive(row)) return
   setActive(row)
-  await props.state.generateOne(row)
-  props.state.pulseComment?.()
-  props.state.notify(`已重新生成${studentFor(row.studentId).name}的课评`)
+  const generated = await props.state.generateOne(row)
+  if (generated) {
+    props.state.pulseComment?.()
+    props.state.notify(`已重新生成${studentFor(row.studentId).name}的课评`)
+  }
 }
 
 const confirmComment = async (row) => {
@@ -377,14 +405,24 @@ const confirmMobileComment = async (row) => {
 }
 
 const selectImage = async (row, mode) => {
-  if (!hasImage(imageAsset(row, mode))) {
+  if (mode === 'processed' && !hasProcessedCandidate(row)) {
+    props.state.notify('当前学生还没有处理图')
+    return
+  }
+  if (mode !== 'processed' && !hasImage(imageAsset(row, mode))) {
     props.state.notify(mode === 'processed' ? '当前学生还没有处理图' : '当前学生还没有原图')
     return
   }
   setActive(row)
-  if (mode === 'processed' && props.state.adoptCurrentImage) {
-    await props.state.adoptCurrentImage(row.studentId)
-    return
+  if (mode === 'processed') {
+    if (props.state.adoptCurrentImage) {
+      await props.state.adoptCurrentImage(row.studentId)
+      return
+    }
+    if (!hasImage(imageAsset(row, 'processed'))) {
+      props.state.notify('当前学生还没有可确认的处理图')
+      return
+    }
   }
   await props.state.confirmCurrentImage(mode, row.studentId)
 }
@@ -498,6 +536,7 @@ onMounted(() => {
                 <div class="delivery-artwork-meta">
                   <span :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${workImages(row).length || 1} 张` : '待上传' }}</span>
                   <span v-if="row.imageMatched" class="delivery-artwork-version-status" :class="artworkVersionStatusClass(row)">{{ artworkVersionStatus(row) }}</span>
+                  <span v-if="artworkProgress(row)" class="delivery-job-progress" :class="{ 'delivery-job-failed': artworkProgress(row).status === 'FAILED' }">{{ jobProgressLabel(artworkProgress(row)) }}</span>
                 </div>
               </td>
               <td class="delivery-record-cell">
@@ -510,8 +549,9 @@ onMounted(() => {
               <td class="delivery-comment-cell">
                 <span class="delivery-comment-status" :class="row.comment?.trim() ? 'ok-text' : 'missing-text'">{{ row.confirmed ? '已确认' : row.comment?.trim() ? '已生成，待确认' : '尚未生成' }}</span>
                 <p class="delivery-comment-preview">{{ row.comment?.trim() || '先录入课堂记录，再从抽屉生成家长课评。' }}</p>
+                <span v-if="feedbackProgress(row)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(row).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(row)) }}</span>
                 <div class="delivery-cell-actions">
-                  <button type="button" class="secondary" :disabled="!row.record?.trim()" @click="openComment(row)">生成课评</button>
+                  <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(row) || !row.record?.trim()" @click="openComment(row)">生成课评</button>
                 </div>
               </td>
               <td class="delivery-status-cell">
@@ -611,8 +651,9 @@ onMounted(() => {
             <p class="mobile-comment-preview">{{ mobileStudent.comment?.trim() || '先录入课堂记录，再生成家长课评。' }}</p>
             <textarea v-model="mobileStudent.comment" rows="9" placeholder="先录入课堂记录，再生成家长课评……" @input="mobileStudent.confirmed = false" />
             <div class="mobile-student-editor-actions">
-              <button type="button" class="secondary" :disabled="state.isProcessing || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)">{{ state.isProcessing ? '生成中…' : '重新生成' }}</button>
-              <button type="button" class="primary" :disabled="state.isProcessing || !mobileStudent.comment?.trim()" @click="confirmMobileComment(mobileStudent)">确认课评</button>
+              <small v-if="feedbackProgress(mobileStudent)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(mobileStudent).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(mobileStudent)) }}</small>
+              <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)">{{ feedbackJobActive(mobileStudent) ? '生成中…' : '重新生成' }}</button>
+              <button type="button" class="primary" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.comment?.trim()" @click="confirmMobileComment(mobileStudent)">确认课评</button>
             </div>
           </article>
         </section>
@@ -630,7 +671,7 @@ onMounted(() => {
           <div>
             <span>作品处理</span>
             <strong>{{ studentFor(artworkRow.studentId).name }}</strong>
-            <small>{{ artworkRow.imageProcessStatus || '尚未处理' }} · 当前采用：{{ selectedImageMode(artworkRow) === 'processed' ? '处理图' : '原图' }}</small>
+            <small>{{ jobProgressLabel(artworkProgress(artworkRow)) || artworkRow.imageProcessStatus || '尚未处理' }} · 当前采用：{{ selectedImageMode(artworkRow) === 'processed' ? '处理图' : '原图' }}</small>
           </div>
           <button type="button" class="ghost" @click="closeArtwork">关闭</button>
         </header>
@@ -664,7 +705,7 @@ onMounted(() => {
               <button
                 type="button"
                 class="artwork-ai-entry"
-                :disabled="state.isProcessing || !hasImage(imageAsset(artworkRow, 'original'))"
+                :disabled="state.isProcessing || artworkJobActive(artworkRow) || !hasImage(imageAsset(artworkRow, 'original'))"
                 title="输入提示词，生成 AI 处理图"
                 @click.stop="openAiPrompt"
               >AI处理✨</button>
@@ -677,12 +718,13 @@ onMounted(() => {
             <div class="artwork-version-copy">
               <strong>处理图</strong>
             </div>
-            <button type="button" class="primary" :disabled="state.isProcessing || artworkPreviewLoading || !hasImage(imageAsset(artworkRow, 'processed')) && !artworkPreviewUrl" @click="selectImage(artworkRow, 'processed')">采用处理图</button>
+            <button type="button" class="primary" :disabled="state.isProcessing || artworkPreviewLoading || !hasProcessedCandidate(artworkRow)" @click="selectImage(artworkRow, 'processed')">采用处理图</button>
           </article>
         </section>
 
         <footer v-if="!clientTemplateSelected" class="artwork-process-actions">
-          <button type="button" class="secondary" :disabled="state.isProcessing || !artworkRow.imageMatched" @click="processCurrentImage(artworkRow)">{{ processActionLabel }}</button>
+          <small v-if="artworkProgress(artworkRow)" class="delivery-job-progress" :class="{ 'delivery-job-failed': artworkProgress(artworkRow).status === 'FAILED' }">{{ jobProgressLabel(artworkProgress(artworkRow)) }}</small>
+          <button type="button" class="secondary" :disabled="state.isProcessing || artworkJobActive(artworkRow) || !artworkRow.imageMatched" @click="processCurrentImage(artworkRow)">{{ artworkJobActive(artworkRow) ? '处理中…' : processActionLabel }}</button>
         </footer>
 
         <label class="inline-check artwork-highlight-setting"><input type="checkbox" :checked="artworkRow.highlight" @change="state.toggleHighlight(artworkRow)" /><span>标记为本节高光作品</span></label>
@@ -719,7 +761,7 @@ onMounted(() => {
 
         <footer class="modal-actions">
           <button type="button" class="ghost" :disabled="state.isProcessing" @click="closeAiPrompt">取消</button>
-          <button type="button" class="primary" :disabled="state.isProcessing" @click="submitAiPrompt">{{ state.isProcessing ? '处理中…' : '开始 AI 处理' }}</button>
+          <button type="button" class="primary" :disabled="state.isProcessing || artworkJobActive(artworkRow)" @click="submitAiPrompt">{{ artworkJobActive(artworkRow) ? '处理中…' : '开始 AI 处理' }}</button>
         </footer>
       </section>
     </div>
@@ -730,7 +772,7 @@ onMounted(() => {
           <div>
             <span>家长课评</span>
             <strong>{{ studentFor(commentRow.studentId).name }}</strong>
-            <small>课堂记录完成后，在这里生成、编辑并确认课评。</small>
+            <small>{{ jobProgressLabel(feedbackProgress(commentRow)) || '课堂记录完成后，在这里生成、编辑并确认课评。' }}</small>
           </div>
           <button type="button" class="ghost" @click="closeComment">关闭</button>
         </header>
@@ -758,8 +800,8 @@ onMounted(() => {
         </div>
 
         <footer class="drawer-action-bar">
-          <button type="button" class="secondary" :disabled="state.isProcessing || !commentRow.record?.trim()" @click="regenerateComment(commentRow)">{{ state.isProcessing ? '生成中…' : '重新生成' }}</button>
-          <button type="button" class="primary" :disabled="state.isProcessing || !commentRow.comment?.trim()" @click="confirmComment(commentRow)">确认课评</button>
+          <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(commentRow) || !commentRow.record?.trim()" @click="regenerateComment(commentRow)">{{ feedbackJobActive(commentRow) ? '生成中…' : '重新生成' }}</button>
+          <button type="button" class="primary" :disabled="state.isProcessing || feedbackJobActive(commentRow) || !commentRow.comment?.trim()" @click="confirmComment(commentRow)">确认课评</button>
         </footer>
       </aside>
     </div>
@@ -790,6 +832,7 @@ onMounted(() => {
                 @update:model-value="updateImageTemplate"
               />
             </label>
+            <small v-if="batchJobProgressText('ARTWORK')" class="delivery-job-progress">{{ batchJobProgressText('ARTWORK') }}</small>
             <button type="button" class="secondary" :disabled="state.isProcessing || !state.counts.matched" @click="processAll">{{ state.isProcessing ? '处理中…' : '批量处理作品' }}</button>
           </section>
 
@@ -807,6 +850,7 @@ onMounted(() => {
                 @update:model-value="updateCommentTemplate"
               />
             </label>
+            <small v-if="batchJobProgressText('FEEDBACK')" class="delivery-job-progress">{{ batchJobProgressText('FEEDBACK') }}</small>
             <button type="button" class="secondary" :disabled="state.isProcessing || !state.counts.records" @click="generateAll">{{ state.isProcessing ? '生成中…' : '批量生成课评' }}</button>
           </section>
         </div>

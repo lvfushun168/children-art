@@ -188,6 +188,10 @@ test('serializes feedback generation template IDs as strings at the API boundary
   assert.deepEqual(JSON.parse(calls[1].options.body), { templateId: '4' })
 })
 
+test('builds one authenticated job SSE path with repeated string IDs', () => {
+  assert.equal(api.jobs.eventsPath([1, '2', null]), '/jobs/events?ids=1&ids=2')
+})
+
 test('downloads protected files through an authenticated browser blob link', async () => {
   setSession({ accessToken: 'download-token', refreshToken: 'refresh-token', me: { user: { id: '1' } } })
   let requestOptions

@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { usePortfolioStudio } from './usePortfolioStudio'
 import { api } from '../services/api'
 import {
@@ -243,6 +243,8 @@ export function useDeliveryWorkflow() {
   const directoryPromises = new Map()
   const schedulePromises = new Map()
   const processingAction = ref('')
+  const jobProgress = reactive({})
+  const jobWatchers = new Map()
   const toast = ref('')
   const previewPulse = ref(false)
   const commentPulse = ref(false)
@@ -1300,6 +1302,7 @@ export function useDeliveryWorkflow() {
       notify('无权限查看该课次，请联系管理员授权班级')
       return
     }
+    cancelJobWatchers()
     selectedTaskSnapshot.value = task
     ensureLessonWorkspace(task)
     activeTaskId.value = task.id
@@ -3458,19 +3461,174 @@ export function useDeliveryWorkflow() {
     return result
   }
 
-  const waitForJobs = async (jobIds = [], lessonId) => {
-    const pendingIds = jobIds.filter(Boolean).map(String)
-    if (!pendingIds.length) return
-    const terminal = new Set(['SUCCEEDED', 'FAILED', 'CANCELED', 'STALE'])
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      if (attempt > 0) await wait(700)
-      const results = await Promise.allSettled([api.jobs.list({ ids: pendingIds })])
-      const snapshots = results[0]?.status === 'fulfilled' ? (results[0].value || []) : []
-      if (!snapshots.length) break
-      if (snapshots.length && snapshots.every((job) => terminal.has(job.status))) break
+  const jobTerminalStatuses = new Set(['SUCCEEDED', 'FAILED', 'CANCELED'])
+  const jobStaleNotices = new Set()
+
+  const jobPayload = (value) => {
+    let source = value
+    if (typeof source === 'string') {
+      try { source = JSON.parse(source) } catch { return null }
     }
-    if (lessonId) await refreshRemoteLesson(lessonId)
+    if (!source || typeof source !== 'object') return null
+    const jobId = source.jobId ?? source.id
+    if (jobId === null || jobId === undefined || jobId === '') return null
+    const status = String(source.status || 'QUEUED').toUpperCase()
+    const failureCode = source.failureCode || null
+    const stale = failureCode === 'STALE_JOB_ATTEMPT'
+    const progressPercent = Number.isFinite(Number(source.progressPercent))
+      ? Math.max(0, Math.min(100, Number(source.progressPercent)))
+      : status === 'SUCCEEDED' ? 100 : 0
+    const stage = source.stage || (stale ? 'STALE' : {
+      QUEUED: 'QUEUED', RUNNING: 'GENERATING', SUCCEEDED: 'SUCCEEDED', FAILED: 'FAILED', CANCELED: 'CANCELED'
+    }[status] || 'QUEUED')
+    const message = source.message || (stale
+      ? '输入已变化，本次结果未应用'
+      : source.failureReason || ({ QUEUED: '排队中', RUNNING: '正在处理', SUCCEEDED: '已完成', FAILED: '处理失败', CANCELED: '已取消' }[status] || '正在处理'))
+    return {
+      ...source,
+      jobId: String(jobId),
+      status,
+      progressPercent,
+      stage,
+      message,
+      failureCode,
+      failureReason: source.failureReason || '',
+      businessObjectId: source.businessObjectId === null || source.businessObjectId === undefined
+        ? null : String(source.businessObjectId),
+      receivedAt: Date.now()
+    }
   }
+
+  const applyJobProgress = (value) => {
+    const payload = jobPayload(value)
+    if (!payload) return null
+    jobProgress[payload.jobId] = payload
+    if (payload.status === 'FAILED' && payload.failureCode === 'STALE_JOB_ATTEMPT'
+      && !jobStaleNotices.has(payload.jobId)) {
+      jobStaleNotices.add(payload.jobId)
+      notify('原输入已变化，本次 AI 结果未应用，请确认最新内容后重新生成')
+    }
+    return payload
+  }
+
+  const jobProgressFor = (row, type) => {
+    if (!row) return null
+    const businessObjectType = String(type || '').toUpperCase() === 'ARTWORK' ? 'ARTWORK' : 'FEEDBACK'
+    const businessObjectId = businessObjectType === 'ARTWORK' ? row.artworkId : row.feedbackId
+    if (businessObjectId === null || businessObjectId === undefined || businessObjectId === '') return null
+    const candidates = Object.values(jobProgress).filter((job) =>
+      String(job.businessObjectType || '').toUpperCase() === businessObjectType
+      && String(job.businessObjectId ?? '') === String(businessObjectId))
+    if (!candidates.length) return null
+    const active = candidates.filter((job) => !jobTerminalStatuses.has(job.status))
+    return [...(active.length ? active : candidates)].sort((left, right) =>
+      (right.receivedAt || 0) - (left.receivedAt || 0) || String(right.jobId).localeCompare(String(left.jobId), undefined, { numeric: true })
+    )[0] || null
+  }
+
+  const loadJobSnapshots = async (jobIds) => {
+    const snapshots = await api.jobs.list({ ids: jobIds })
+    const values = Array.isArray(snapshots) ? snapshots : snapshots?.items || []
+    values.forEach((snapshot) => applyJobProgress({ ...snapshot, jobId: snapshot.jobId || snapshot.id }))
+    return values
+  }
+
+  const areJobsTerminal = (jobIds) => jobIds.every((jobId) =>
+    jobTerminalStatuses.has(String(jobProgress[String(jobId)]?.status || ''))
+  )
+
+  // Polling remains the compatibility path for an older API deployment, a
+  // proxy that strips SSE, or a temporary Redis/pub-sub outage.
+  const waitForJobs = async (jobIds = [], lessonId) => {
+    const pendingIds = [...new Set(jobIds.filter(Boolean).map(String))]
+    if (!pendingIds.length) {
+      if (lessonId) await refreshRemoteLesson(lessonId, { force: true })
+      return []
+    }
+    let snapshots = []
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      if (attempt > 0) await wait(1000)
+      try {
+        snapshots = await loadJobSnapshots(pendingIds)
+      } catch {
+        // Preserve the old behavior: a failed status refresh must not hide the
+        // result that the worker may already have committed.
+      }
+      if (pendingIds.every((jobId) => jobTerminalStatuses.has(String(
+        snapshots.find((snapshot) => String(snapshot.id || snapshot.jobId) === jobId)?.status || ''
+      )))) break
+    }
+    if (lessonId) await refreshRemoteLesson(lessonId, { force: true })
+    return snapshots
+  }
+
+  const watchJobs = (jobIds = [], lessonId) => {
+    const ids = [...new Set(jobIds.filter(Boolean).map(String))]
+    if (!ids.length) return waitForJobs([], lessonId)
+    const key = ids.slice().sort((left, right) => left.localeCompare(right, undefined, { numeric: true })).join(',')
+    const existing = jobWatchers.get(key)
+    if (existing) return existing.promise
+
+    const controller = new AbortController()
+    const promise = (async () => {
+      let refreshed = false
+      let snapshots = []
+      let completed = false
+      for (let attempt = 0; attempt < 3 && !controller.signal.aborted; attempt += 1) {
+        if (attempt > 0) await wait(600)
+        let terminalFromStream = false
+        try {
+          await subscribeSse(api.jobs.eventsPath(ids), {
+            signal: controller.signal,
+            onEvent: (event) => {
+              const payload = applyJobProgress(event.data)
+              if (payload && jobTerminalStatuses.has(payload.status) && areJobsTerminal(ids)) {
+                terminalFromStream = true
+                completed = true
+                controller.abort()
+              }
+            }
+          })
+        } catch (error) {
+          if (controller.signal.aborted && (terminalFromStream || areJobsTerminal(ids))) break
+          if (controller.signal.aborted) return snapshots
+          // Reconnect a few times before falling back to the task query.
+        }
+        if (controller.signal.aborted) break
+        if (areJobsTerminal(ids)) break
+        try {
+          snapshots = await loadJobSnapshots(ids)
+        } catch {
+          // The polling fallback below will retry the same query.
+        }
+        if (areJobsTerminal(ids)) break
+      }
+
+      if (!controller.signal.aborted && !areJobsTerminal(ids)) {
+        snapshots = await waitForJobs(ids, lessonId)
+        refreshed = Boolean(lessonId)
+      }
+      if (lessonId && !refreshed && (completed || !controller.signal.aborted)) {
+        await refreshRemoteLesson(lessonId, { force: true })
+      }
+      const progress = ids.map((jobId) => jobProgress[String(jobId)]).filter(Boolean)
+      return progress.length ? progress : snapshots
+    })().catch((error) => {
+      if (controller.signal.aborted) return []
+      throw error
+    }).finally(() => {
+      if (jobWatchers.get(key)?.promise === promise) jobWatchers.delete(key)
+    })
+    jobWatchers.set(key, { promise, controller, cancel: () => controller.abort() })
+    return promise
+  }
+
+  const cancelJobWatchers = () => {
+    jobWatchers.forEach((watcher) => watcher.cancel())
+    jobWatchers.clear()
+  }
+
+  onBeforeUnmount(cancelJobWatchers)
 
   let portfolioStudioRef = null
 
@@ -4124,6 +4282,7 @@ export function useDeliveryWorkflow() {
       // 服务端会话失效时仍清理本地凭据。
     }
     clearSession()
+    cancelJobWatchers()
     lessonWorkspaceControllers.forEach((controller) => controller.abort())
     lessonWorkspaceControllers.clear()
     lessonWorkspacePromises.clear()
@@ -4208,6 +4367,7 @@ export function useDeliveryWorkflow() {
 
   const remoteSelectTask = async (task) => {
     if (!task?.id) return null
+    cancelJobWatchers()
     activeTaskId.value = task.id
     selectedTaskSnapshot.value = task
     const workspace = ensureLessonWorkspace(task)
@@ -4524,9 +4684,14 @@ export function useDeliveryWorkflow() {
         parameters: JSON.stringify({})
       })
       const jobIds = (Array.isArray(jobs) ? jobs : jobs?.items || []).map((job) => job?.jobId).filter(Boolean)
-      await waitForJobs(jobIds, activeTask.value.id)
+      const progress = await watchJobs(jobIds, activeTask.value.id)
+      const failed = progress.filter((job) => ['FAILED', 'CANCELED'].includes(job.status))
+      if (failed.length) {
+        notify(failed.length === 1 ? failed[0].message : `${failed.length} 个作品处理任务失败，请按学生重试`)
+        return null
+      }
       return true
-    }, '图片处理任务已提交')
+    }, '图片处理已完成')
     return result === true
   }
 
@@ -4539,9 +4704,19 @@ export function useDeliveryWorkflow() {
       }
       return remoteRenderCurrentImage(row)
     }
-    const result = await runRemote('正在重试图片处理...', () => api.assets.processArtwork(row.artworkId, { templateKey: activeImageTemplate.value?.templateKey || undefined, parameters: JSON.stringify({}) }), '图片处理任务已重新提交')
+    const result = await runRemote('正在重试图片处理...', async () => {
+      const submitted = await api.assets.processArtwork(row.artworkId, {
+        templateKey: activeImageTemplate.value?.templateKey || undefined,
+        parameters: JSON.stringify({})
+      })
+      const progress = await watchJobs([submitted?.jobId], activeTask.value.id)
+      if (progress.some((job) => ['FAILED', 'CANCELED'].includes(job.status))) {
+        notify(progress.find((job) => ['FAILED', 'CANCELED'].includes(job.status))?.message || '图片处理失败，可直接重试')
+        return null
+      }
+      return submitted
+    }, '图片处理已完成')
     if (!result) return false
-    await waitForJobs([result.jobId], activeTask.value.id)
     return true
   }
 
@@ -4557,12 +4732,19 @@ export function useDeliveryWorkflow() {
       notify('请先上传当前学生的作品')
       return false
     }
-    const result = await runRemote('正在提交 AI 图片处理任务...', () => api.assets.processArtwork(row.artworkId, {
-      templateKey: activeImageTemplate.value?.templateKey || 'original',
-      parameters: JSON.stringify({ prompt: safePrompt })
-    }), 'AI 图片处理任务已提交')
+    const result = await runRemote('正在提交 AI 图片处理任务...', async () => {
+      const submitted = await api.assets.processArtwork(row.artworkId, {
+        templateKey: activeImageTemplate.value?.templateKey || 'original',
+        parameters: JSON.stringify({ prompt: safePrompt })
+      })
+      const progress = await watchJobs([submitted?.jobId], activeTask.value.id)
+      if (progress.some((job) => ['FAILED', 'CANCELED'].includes(job.status))) {
+        notify(progress.find((job) => ['FAILED', 'CANCELED'].includes(job.status))?.message || 'AI 图片处理失败，可直接重试')
+        return null
+      }
+      return submitted
+    }, 'AI 图片处理已完成')
     if (!result) return false
-    await waitForJobs([result.jobId], activeTask.value.id)
     return true
   }
 
@@ -4585,13 +4767,26 @@ export function useDeliveryWorkflow() {
         version: row.feedbackVersion || 0
       })
       if (!feedback?.id) throw new Error('课堂记录保存失败，无法生成课评')
+      Object.assign(row, {
+        feedbackId: feedback.id,
+        feedbackVersion: feedback.version ?? row.feedbackVersion ?? 0,
+        feedbackVersionId: feedback.currentVersionId || row.feedbackVersionId || null,
+        record: feedback.classroomRecord ?? row.record
+      })
       const generation = await api.feedback.regenerate(feedback.id, {
         templateId: activeCommentTemplate.value?.id
       })
-      await waitForJobs([generation?.jobId], activeTask.value.id)
+      if (generation?.status && generation.status !== 'QUEUED') {
+        notify(generation.message || '课评任务提交失败，请稍后重试')
+        return null
+      }
+      const progress = await watchJobs([generation?.jobId], activeTask.value.id)
+      if (progress.some((job) => ['FAILED', 'CANCELED'].includes(job.status))) {
+        notify(progress.find((job) => ['FAILED', 'CANCELED'].includes(job.status))?.message || '课评生成失败，可直接重试')
+        return null
+      }
       return generation
     })
-    if (result) await refreshRemoteLesson(activeTask.value.id)
     return result
   }
 
@@ -4602,14 +4797,30 @@ export function useDeliveryWorkflow() {
       return false
     }
     const result = await runRemote('正在保存课堂记录并生成全班 1v1 课评...', async () => {
-      await api.feedback.saveBatch(activeTask.value.id, rows.map((row) => ({ studentId: String(row.studentId), ...feedbackBodyFor(row) })))
+      const savedFeedbacks = await api.feedback.saveBatch(activeTask.value.id,
+        rows.map((row) => ({ studentId: String(row.studentId), ...feedbackBodyFor(row) })))
+      ;(Array.isArray(savedFeedbacks) ? savedFeedbacks : []).forEach((feedback) => {
+        const row = rows.find((item) => sameId(item.studentId, feedback.studentId))
+        if (!row || !feedback?.id) return
+        Object.assign(row, {
+          feedbackId: feedback.id,
+          feedbackVersion: feedback.version ?? row.feedbackVersion ?? 0,
+          feedbackVersionId: feedback.currentVersionId || row.feedbackVersionId || null,
+          record: feedback.classroomRecord ?? row.record
+        })
+      })
       const generation = await api.feedback.generate(activeTask.value.id, {
         templateId: activeCommentTemplate.value?.id
       })
-      await waitForJobs((generation?.items || []).map((item) => item.jobId), activeTask.value.id)
+      const immediateFailures = (generation?.items || []).filter((item) => item?.status && item.status !== 'QUEUED')
+      const progress = await watchJobs((generation?.items || []).map((item) => item.jobId), activeTask.value.id)
+      const failed = progress.filter((job) => ['FAILED', 'CANCELED'].includes(job.status))
+      if (immediateFailures.length || failed.length) {
+        notify(`${immediateFailures.length + failed.length} 个学生课评生成失败，可在对应学生行重试`)
+        return null
+      }
       return generation
     }, '课评生成任务已提交')
-    if (result) await refreshRemoteLesson(activeTask.value.id)
     return result
   }
 
@@ -6157,6 +6368,8 @@ export function useDeliveryWorkflow() {
     loginForm,
     showReport,
     processingAction,
+    jobProgress,
+    jobProgressFor,
     toast,
     previewPulse,
     commentPulse,

@@ -215,6 +215,16 @@
   line-height: 1.4;
 }
 
+.delivery-job-progress {
+  color: var(--color-primary, #4f46e5);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.delivery-job-failed {
+  color: var(--color-danger, #b42318);
+}
+
 .delivery-record-cell textarea {
   min-height: 84px;
   resize: vertical;

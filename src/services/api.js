@@ -161,6 +161,9 @@ export const api = {
   jobs: {
     get: (jobId) => request(`/jobs/${id(jobId)}`),
     list: (params) => request(`/jobs${queryString(params)}`),
+    eventsPath: (jobIds = []) => `/jobs/events${queryString({
+      ids: (Array.isArray(jobIds) ? jobIds : [jobIds]).filter(Boolean).map(String)
+    })}`,
     retry: (jobId) => request(`/jobs/${id(jobId)}/retry`, { method: 'POST' }),
     cancel: (jobId, reason) => request(`/jobs/${id(jobId)}/cancel${queryString({ reason })}`, { method: 'POST' })
   },

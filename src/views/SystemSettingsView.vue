@@ -122,12 +122,40 @@ const providerTypeCatalog = computed(() => props.state.providerTypeCatalog || {
   ai: []
 })
 const providerTypes = computed(() => {
+  // The cloud configuration is intentionally Baidu-only. FAKE_CLOUD remains
+  // available to backend tests, but must not appear as a user-facing option.
+  if (isCloudCategory.value) return ['BAIDU_NETDISK']
   const options = providerTypeCatalog.value?.[selectedGroup.value?.category] || []
   if (options.length) return options
   return [...new Set((draft.value.value?.providers || []).map((provider) => provider.providerType || provider.type).filter(Boolean))]
 })
 const authTypes = ['OAuth2', 'Access Token', 'AK/SK', '自定义签名']
 const isBaiduProvider = (provider) => String(provider?.providerType || provider?.type || '').toUpperCase() === 'BAIDU_NETDISK'
+const baiduProviders = computed(() => (draft.value.value?.providers || []).filter(isBaiduProvider))
+const canAddProvider = computed(() => {
+  if (!providerTypes.value.length) return false
+  if (isCloudCategory.value) return !baiduProviders.value.length
+  return providerTypes.value.some((type) => String(type).toUpperCase() !== 'BAIDU_NETDISK' || !baiduProviders.value.length)
+})
+
+const formatDateTime = (value) => {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', { hour12: false })
+}
+
+const baiduStatusLabel = (provider) => {
+  if (provider.oauthConfigured === false) return '后端未配置'
+  if (provider.oauthStatus === 'AUTH_REQUIRED') return '需要重新授权'
+  if (provider.oauthAuthorized) return provider.baiduDisplayName ? `已授权（${provider.baiduDisplayName}）` : '已授权'
+  return '待授权'
+}
+
+const baiduStatusClass = (provider) => {
+  if (provider.oauthConfigured === false || provider.oauthStatus === 'AUTH_REQUIRED') return 'warning'
+  if (provider.oauthAuthorized) return 'success'
+  return 'muted'
+}
 
 const addProvider = () => {
   if (!draft.value.value?.providers) {
@@ -138,7 +166,9 @@ const addProvider = () => {
     }
   }
   const id = `provider-${Date.now()}`
-  const providerType = providerTypes.value[0] || ''
+  const providerType = isCloudCategory.value
+    ? 'BAIDU_NETDISK'
+    : providerTypes.value.find((type) => String(type).toUpperCase() !== 'BAIDU_NETDISK' || !baiduProviders.value.length) || ''
   draft.value.value.providers.push({
     id,
     name: `新的${currentProviderLabel.value}`,
@@ -147,6 +177,20 @@ const addProvider = () => {
     authType: providerType === 'BAIDU_NETDISK' ? 'OAuth2' : 'Access Token',
     endpoint: '',
     appKey: '',
+    appId: '',
+    secretKey: '',
+    backendBaseUrl: '',
+    frontendBaseUrl: '',
+    frontendReturnPath: '/settings',
+    authorizeUrl: '',
+    tokenUrl: '',
+    scope: '',
+    callbackPath: '',
+    apiBaseUrl: '',
+    uploadBaseUrl: '',
+    stateTtl: 'PT10M',
+    chunkSizeBytes: 4194304,
+    tokenRefreshSkew: 'PT5M',
     tokenStatus: '未授权',
     archiveDefault: false,
     enabled: false
@@ -156,11 +200,17 @@ const addProvider = () => {
 const setProviderType = (provider, value) => {
   provider.type = value
   provider.providerType = value
-  if (isBaiduProvider(provider)) provider.authType = 'OAuth2'
+  if (isBaiduProvider(provider)) {
+    provider.authType = 'OAuth2'
+    provider.endpoint = ''
+    provider.appKey = ''
+    provider.secretRef = ''
+  }
 }
 
 const testProvider = async (provider) => {
   await props.state.testProvider(provider)
+  if (isBaiduProvider(provider)) await refreshBaiduStatuses()
 }
 
 const authorizeBaidu = async (provider) => {
@@ -169,17 +219,34 @@ const authorizeBaidu = async (provider) => {
 
 const refreshBaiduStatuses = async () => {
   const providers = draft.value.value?.providers || []
-  for (const provider of providers.filter(isBaiduProvider)) {
+  await Promise.all(providers.filter(isBaiduProvider).map(async (provider) => {
     const status = await props.state.baiduOAuthStatus?.(provider)
-    if (status) provider.tokenStatus = status.authorized
-      ? `已授权${status.displayName ? `（${status.displayName}）` : ''}`
-      : '待授权'
-  }
+    if (!status) return
+    provider.oauthStatus = status.status || ''
+    provider.oauthAuthorized = Boolean(status.authorized)
+    provider.oauthConfigured = status.oauthConfigured !== false
+    provider.baiduUid = status.baiduUid || ''
+    provider.baiduDisplayName = status.displayName || ''
+    provider.authorizedAt = status.authorizedAt || ''
+    provider.expiresAt = status.expiresAt || ''
+    provider.oauthScope = status.scope || ''
+    provider.authErrorCode = status.errorCode || ''
+    provider.authErrorMessage = status.errorMessage || ''
+    provider.callbackUrl = status.callbackUrl || ''
+    provider.frontendReturnUrl = status.frontendReturnUrl || ''
+    provider.tokenStatus = baiduStatusLabel(provider)
+  }))
 }
+
+watch(() => (providerSettings.value || []).flatMap((group) => group.value?.providers || [])
+  .filter(isBaiduProvider).map((provider) => String(provider.id)).join(','), () => {
+  refreshBaiduStatuses().catch(() => {})
+}, { immediate: true })
 
 const returnToList = () => {
   draft.value = clone(selected() || {})
   mobileStage.value = 'list'
+  refreshBaiduStatuses().catch(() => {})
 }
 
 onMounted(() => {
@@ -195,6 +262,13 @@ onMounted(() => {
   if (oauthResult === 'success') props.state.notify('百度网盘授权成功')
   if (oauthResult === 'failure') props.state.notify('百度网盘授权失败，请重试')
   refreshBaiduStatuses().catch(() => {})
+  if (oauthResult) {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('baiduOAuth')
+    url.searchParams.delete('providerId')
+    url.searchParams.delete('reason')
+    window.history.replaceState({}, document.title, url.toString())
+  }
 })
 
 onBeforeUnmount(() => cleanupMobileMedia())
@@ -249,33 +323,79 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <div class="form-grid">
           <label>配置名称<input :value="draft.name" disabled /></label>
           <label>当前状态<input :value="draft.status" disabled /></label>
-          <label v-if="isCloudCategory" class="wide">默认归档目录规则<input v-model="draft.value.directoryRule" disabled /></label>
+          <label v-if="isCloudCategory" class="wide">默认归档目录规则<input :value="draft.value.directoryRule || '由课次归档策略自动生成'" disabled /></label>
         </div>
+        <p v-if="isCloudCategory" class="settings-hint">百度网盘现在通过校区管理员 OAuth 绑定账号。归档范围、重复文件策略和必选/可选门槛由课次归档流程控制。</p>
         <div class="section-head compact">
           <div>
             <span>{{ currentProviderLabel }}通道</span>
             <strong>{{ draft.value.providers.length }} 个接口</strong>
           </div>
-          <button class="secondary" :disabled="!providerTypes.length" @click="addProvider">新增{{ currentProviderLabel }}</button>
+          <button class="secondary" :disabled="!canAddProvider" @click="addProvider">新增{{ currentProviderLabel }}</button>
         </div>
         <div v-if="!draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道。</div>
         <article v-for="provider in draft.value.providers" :key="provider.id" class="cloud-provider-card">
-          <div class="cloud-provider-head">
-            <label>{{ currentProviderLabel }}名称<input v-model="provider.name" /></label>
-            <label>{{ currentProviderLabel }}类型<AdaptiveSelect :model-value="provider.providerType || provider.type" :options="providerTypes" @update:model-value="setProviderType(provider, $event)" /></label>
-            <label>授权方式<AdaptiveSelect v-model="provider.authType" :options="isBaiduProvider(provider) ? ['OAuth2'] : authTypes" :disabled="isBaiduProvider(provider)" /></label>
-          </div>
-          <div class="form-grid">
-            <label class="wide">接口地址<input v-model="provider.endpoint" placeholder="https://..." /></label>
-            <label>AppKey / 标识<input v-model="provider.appKey" /></label>
-            <label>授权状态<input v-model="provider.tokenStatus" disabled /></label>
-          </div>
-          <div class="cloud-provider-actions">
-            <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该{{ currentProviderLabel }}</span></label>
-            <label v-if="isCloudCategory" class="inline-check"><input v-model="provider.archiveDefault" type="checkbox" disabled /> <span>课次归档默认勾选</span></label>
-            <button v-if="isBaiduProvider(provider)" class="secondary" @click="authorizeBaidu(provider)">{{ provider.tokenStatus?.includes('已授权') ? '重新授权百度网盘' : '授权百度网盘' }}</button>
-            <button class="ghost" @click="testProvider(provider)">测试连接</button>
-          </div>
+          <template v-if="isBaiduProvider(provider)">
+            <div class="baidu-provider-heading">
+              <div>
+                <span class="provider-card-eyebrow">百度网盘账号</span>
+                <strong>{{ provider.baiduDisplayName || '尚未绑定百度账号' }}</strong>
+                <small>{{ provider.baiduUid ? `账号标识：${provider.baiduUid}` : '每个校区绑定一个百度网盘账号' }}</small>
+              </div>
+              <span class="status-pill" :class="baiduStatusClass(provider)">{{ baiduStatusLabel(provider) }}</span>
+            </div>
+            <div class="form-grid baidu-meta-grid">
+              <label>配置名称<input v-model="provider.name" /></label>
+              <label>百度 AppID<input v-model="provider.appId" placeholder="百度开放平台 AppID" /></label>
+              <label>百度 AppKey<input v-model="provider.appKey" placeholder="百度开放平台 AppKey" /></label>
+              <label>百度 SecretKey<input v-model="provider.secretKey" type="password" :placeholder="provider.baiduSecretKeyConfigured ? '已配置，留空保持不变' : '百度开放平台 SecretKey'" autocomplete="new-password" /></label>
+              <label>后端公开地址<input v-model="provider.backendBaseUrl" placeholder="https://api.example.com" /></label>
+              <label>前端域名<input v-model="provider.frontendBaseUrl" placeholder="https://app.example.com" /></label>
+              <label>前端回跳路径<input v-model="provider.frontendReturnPath" placeholder="/settings" /></label>
+              <label>最近授权时间<input :value="formatDateTime(provider.authorizedAt)" disabled /></label>
+              <label>授权有效期<input :value="formatDateTime(provider.expiresAt)" disabled /></label>
+              <label>授权范围<input :value="provider.oauthScope || '—'" disabled /></label>
+              <label class="wide">OAuth 回调地址<input :value="provider.callbackUrl || '保存后读取后端配置'" disabled /></label>
+              <label class="wide">授权完成回跳<input :value="provider.frontendReturnUrl || '保存后读取前端配置'" disabled /></label>
+            </div>
+            <details class="baidu-advanced-settings">
+              <summary>高级百度接口配置</summary>
+              <div class="form-grid">
+                <label>授权地址<input v-model="provider.authorizeUrl" placeholder="https://openapi.baidu.com/oauth/2.0/authorize" /></label>
+                <label>Token 地址<input v-model="provider.tokenUrl" placeholder="https://openapi.baidu.com/oauth/2.0/token" /></label>
+                <label>授权范围<input v-model="provider.scope" placeholder="basic,netdisk" /></label>
+                <label>回调路径<input v-model="provider.callbackPath" placeholder="/api/v1/configuration/providers/%s/baidu/oauth/callback" /></label>
+                <label>百度 API 地址<input v-model="provider.apiBaseUrl" placeholder="https://pan.baidu.com" /></label>
+                <label>分片上传地址<input v-model="provider.uploadBaseUrl" placeholder="https://d.pcs.baidu.com" /></label>
+                <label>OAuth State 有效期<input v-model="provider.stateTtl" placeholder="PT10M" /></label>
+                <label>分片大小（字节）<input v-model="provider.chunkSizeBytes" type="number" min="262144" max="33554432" /></label>
+                <label>Token 刷新提前量<input v-model="provider.tokenRefreshSkew" placeholder="PT5M" /></label>
+              </div>
+            </details>
+            <p class="settings-hint">百度网盘应用配置和域名均保存在本 Provider 中。Access Token、Refresh Token 仍只保存在 Redis，不会显示在本页面或写入数据库。</p>
+            <p v-if="provider.authErrorMessage" class="settings-error">{{ provider.authErrorMessage }}</p>
+            <div class="cloud-provider-actions">
+              <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用百度网盘归档</span></label>
+              <button class="secondary" @click="authorizeBaidu(provider)">{{ provider.oauthAuthorized ? '重新授权百度网盘' : '授权百度网盘' }}</button>
+              <button class="ghost" @click="testProvider(provider)">测试连接</button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="cloud-provider-head">
+              <label>{{ currentProviderLabel }}名称<input v-model="provider.name" /></label>
+              <label v-if="!isCloudCategory">{{ currentProviderLabel }}类型<AdaptiveSelect :model-value="provider.providerType || provider.type" :options="providerTypes" @update:model-value="setProviderType(provider, $event)" /></label>
+              <label>授权方式<AdaptiveSelect v-model="provider.authType" :options="authTypes" /></label>
+            </div>
+            <div class="form-grid">
+              <label class="wide">接口地址<input v-model="provider.endpoint" placeholder="https://..." /></label>
+              <label>AppKey / 标识<input v-model="provider.appKey" /></label>
+              <label>授权状态<input v-model="provider.tokenStatus" disabled /></label>
+            </div>
+            <div class="cloud-provider-actions">
+              <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该{{ currentProviderLabel }}</span></label>
+              <button class="ghost" @click="testProvider(provider)">测试连接</button>
+            </div>
+          </template>
         </article>
 
       </div>

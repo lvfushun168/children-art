@@ -2948,6 +2948,20 @@ export function useDeliveryWorkflow() {
       category: mapProviderCategory({ ...provider, providerType }),
       endpoint: provider.endpoint || provider.config?.endpoint || '',
       appKey: provider.appKey || provider.config?.appKey || '',
+      appId: provider.appId || provider.config?.appId || '',
+      backendBaseUrl: provider.backendBaseUrl || provider.config?.backendBaseUrl || '',
+      frontendBaseUrl: provider.frontendBaseUrl || provider.config?.frontendBaseUrl || '',
+      frontendReturnPath: provider.frontendReturnPath || provider.config?.frontendReturnPath || '/settings',
+      authorizeUrl: provider.authorizeUrl || provider.config?.authorizeUrl || '',
+      tokenUrl: provider.tokenUrl || provider.config?.tokenUrl || '',
+      scope: provider.scope || provider.config?.scope || '',
+      callbackPath: provider.callbackPath || provider.config?.callbackPath || '',
+      apiBaseUrl: provider.apiBaseUrl || provider.config?.apiBaseUrl || '',
+      uploadBaseUrl: provider.uploadBaseUrl || provider.config?.uploadBaseUrl || '',
+      stateTtl: provider.stateTtl || provider.config?.stateTtl || 'PT10M',
+      chunkSizeBytes: provider.chunkSizeBytes || provider.config?.chunkSizeBytes || 4194304,
+      tokenRefreshSkew: provider.tokenRefreshSkew || provider.config?.tokenRefreshSkew || 'PT5M',
+      baiduSecretKeyConfigured: Boolean(provider.baiduSecretConfigured),
       authType: provider.authType || provider.config?.authType || '',
       id: fromApiId(provider.id),
       type: providerType,
@@ -5571,17 +5585,46 @@ export function useDeliveryWorkflow() {
         notify('缺少服务端提供的通道类型，无法保存配置')
         return null
       }
-      const config = {
-        ...(provider.config || {}),
-        endpoint: provider.endpoint || provider.config?.endpoint || '',
-        appKey: provider.appKey || provider.config?.appKey || '',
-        authType: provider.authType || provider.config?.authType || ''
-      }
+      const isBaidu = String(providerType).toUpperCase() === 'BAIDU_NETDISK'
+      const frontendBaseUrl = provider.frontendBaseUrl || provider.config?.frontendBaseUrl || ''
+      const frontendReturnPath = provider.frontendReturnPath || provider.config?.frontendReturnPath || '/settings'
+      const config = isBaidu
+        ? {
+            ...(provider.config || {}),
+            authType: 'OAuth2',
+            appId: provider.appId || provider.config?.appId || '',
+            appKey: provider.appKey || provider.config?.appKey || '',
+            secretKey: provider.secretKey || '',
+            backendBaseUrl: provider.backendBaseUrl || provider.config?.backendBaseUrl || '',
+            frontendBaseUrl,
+            frontendReturnPath,
+            // Keep every Baidu endpoint and upload tuning value in the Provider config.
+            // The API deliberately redacts secretKey on reads; an empty value means
+            // "preserve the existing SecretKey" on the backend.
+            // Preserve legacy direct return URLs only while the new base/path fields
+            // are still empty; once a domain is entered, base + path becomes canonical.
+            frontendReturnUrl: frontendBaseUrl ? '' : provider.config?.frontendReturnUrl || '',
+            authorizeUrl: provider.authorizeUrl || provider.config?.authorizeUrl || '',
+            tokenUrl: provider.tokenUrl || provider.config?.tokenUrl || '',
+            scope: provider.scope || provider.config?.scope || '',
+            callbackPath: provider.callbackPath || provider.config?.callbackPath || '',
+            apiBaseUrl: provider.apiBaseUrl || provider.config?.apiBaseUrl || '',
+            uploadBaseUrl: provider.uploadBaseUrl || provider.config?.uploadBaseUrl || '',
+            stateTtl: provider.stateTtl || provider.config?.stateTtl || 'PT10M',
+            chunkSizeBytes: provider.chunkSizeBytes || provider.config?.chunkSizeBytes || 4194304,
+            tokenRefreshSkew: provider.tokenRefreshSkew || provider.config?.tokenRefreshSkew || 'PT5M'
+          }
+        : {
+            ...(provider.config || {}),
+            endpoint: provider.endpoint || provider.config?.endpoint || '',
+            appKey: provider.appKey || provider.config?.appKey || '',
+            authType: provider.authType || provider.config?.authType || ''
+          }
       if (!provider.id || String(provider.id).startsWith('provider-')) {
-        const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
+        const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
         if (!saved) return null
       } else {
-        const saved = await runRemote('正在保存通道配置...', () => api.m5.updateProvider(provider.id, { name: provider.name, capabilities: provider.capabilities || [], config, status: provider.enabled ? 'ENABLED' : 'DISABLED', version: provider.version || 0 }), '', () => invalidateResource('settings'))
+        const saved = await runRemote('正在保存通道配置...', () => api.m5.updateProvider(provider.id, { name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED', version: provider.version || 0 }), '', () => invalidateResource('settings'))
         if (!saved) return null
       }
     }

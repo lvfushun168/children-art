@@ -7346,6 +7346,114 @@ textarea:focus,
   align-items: start;
 }
 
+.cloud-setting-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-hint {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.settings-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-status-warning-border);
+  border-radius: 8px;
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning-text);
+  font-size: 13px;
+}
+
+.cloud-provider-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.baidu-provider-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.baidu-provider-heading > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.provider-card-eyebrow {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.baidu-provider-heading strong {
+  color: var(--color-heading);
+  font-size: 16px;
+}
+
+.baidu-provider-heading small {
+  color: var(--color-muted);
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-pill.success {
+  background: var(--color-status-success-bg, #e6f5e9);
+  color: var(--color-status-success-text, #26713d);
+}
+
+.status-pill.warning {
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning-text);
+}
+
+.status-pill.muted {
+  background: var(--color-status-muted-bg);
+  color: var(--color-status-muted-text);
+}
+
+.baidu-meta-grid input {
+  text-overflow: ellipsis;
+}
+
+.baidu-advanced-settings {
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--color-surface-muted);
+}
+
+.baidu-advanced-settings summary {
+  cursor: pointer;
+  color: var(--color-heading);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.baidu-advanced-settings[open] summary {
+  margin-bottom: 12px;
+}
+
 .settings-type-list {
   position: sticky;
   top: 14px;
@@ -11025,6 +11133,14 @@ textarea:focus,
   .page-head {
     padding-right: 0;
     padding-top: 58px;
+  }
+
+  .baidu-provider-heading {
+    flex-direction: column;
+  }
+
+  .status-pill {
+    justify-self: start;
   }
 
   .user-menu {

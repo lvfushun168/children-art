@@ -1236,10 +1236,15 @@ export const settings = [
         {
           id: 'baidu',
           name: '百度网盘',
-          type: '百度网盘',
+          type: 'BAIDU_NETDISK',
+          providerType: 'BAIDU_NETDISK',
           authType: 'OAuth2',
-          endpoint: 'https://pan.baidu.com/rest/2.0/xpan/file',
-          appKey: 'demo-baidu-app-key',
+          appId: '',
+          appKey: '',
+          secretKey: '',
+          backendBaseUrl: '',
+          frontendBaseUrl: '',
+          frontendReturnPath: '/settings',
           tokenStatus: '已授权',
           archiveDefault: true,
           enabled: true

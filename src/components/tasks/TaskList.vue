@@ -89,7 +89,7 @@ const saveLesson = () => {
         <span>课表生成</span>
         <strong>{{ tasks.length }} 个课后任务</strong>
       </div>
-      <button class="secondary" @click="openLessonDialog">补录课次</button>
+      <button class="secondary" @click="openLessonDialog">新增临时课</button>
     </div>
     <button
       v-for="task in tasks"

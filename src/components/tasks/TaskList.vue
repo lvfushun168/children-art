@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { sameId } from '../../services/mappers'
+import DateTimeRangeField from '../common/DateTimeRangeField.vue'
 
 const props = defineProps({
   tasks: {
@@ -23,6 +24,10 @@ const props = defineProps({
     type: Array,
     required: true
   },
+  students: {
+    type: Array,
+    required: true
+  },
   loadReferences: {
     type: Function,
     default: null
@@ -37,34 +42,79 @@ const emit = defineEmits(['select-task', 'add-lesson'])
 
 const showLessonDialog = ref(false)
 const lessonTypeOptions = ['收费课', '免费课', '体验课']
-const statusOptions = ['待处理', '处理中', '异常']
-const importSourceOptions = ['手动补录', '小麦课表复制', '小麦 Excel 导入']
-const lessonDraft = ref({
-  dateValue: '2026-06-21',
-  time: '20:10',
-  classId: props.classes.find((item) => !item.archived)?.id,
-  teacherId: props.teachers.find((item) => !item.archived && item.role === '老师')?.id,
-  courseId: props.courses.find((item) => !item.archived)?.id,
-  topic: '',
-  lessonType: '收费课',
-  status: '待处理',
-  importedFrom: '手动补录'
-})
+const lessonModeOptions = [
+  { label: '临时补课', value: 'temporary' },
+  { label: '已有班级补录', value: 'class' }
+]
+const lessonDraft = ref(createLessonDraft('temporary'))
+const formError = ref('')
+const isSubmitting = ref(false)
+
+function localDateValue() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function firstActive(items, predicate = () => true) {
+  return items.find((item) => !item.archived && predicate(item))?.id
+}
+
+function createLessonDraft(mode = 'temporary') {
+  return {
+    mode,
+    dateValue: localDateValue(),
+    startTime: '',
+    endTime: '',
+    classId: mode === 'class' ? firstActive(props.classes, (item) => item.classTypeName !== '临时班') : null,
+    teacherId: firstActive(props.teachers),
+    courseId: firstActive(props.courses),
+    studentIds: [],
+    topic: '',
+    lessonType: '收费课'
+  }
+}
 
 const openLessonDialog = async () => {
   try { await props.loadReferences?.() } catch { /* dialog can still show its empty state */ }
+  lessonDraft.value = createLessonDraft('temporary')
+  formError.value = ''
+  isSubmitting.value = false
   showLessonDialog.value = true
 }
 
 const selectedClass = computed(() => props.classes.find((item) => sameId(item.id, lessonDraft.value.classId)))
-const activeClasses = computed(() => props.classes.filter((klass) => !klass.archived))
+const isTemporary = computed(() => lessonDraft.value.mode === 'temporary')
+const activeClasses = computed(() => props.classes.filter((klass) => !klass.archived && klass.classTypeName !== '临时班'))
 const activeTeachers = computed(() => props.teachers.filter((teacher) => !teacher.archived))
 const activeCourses = computed(() => props.courses.filter((course) => !course.archived))
+const activeStudents = computed(() => props.students.filter((student) => !student.archived && ['在读', '请假'].includes(student.status)))
 const classOptions = computed(() => activeClasses.value.map((klass) => ({ label: klass.name, value: klass.id })))
 const teacherOptions = computed(() =>
-  activeTeachers.value.filter((item) => item.role === '老师').map((teacher) => ({ label: teacher.name, value: teacher.id }))
+  activeTeachers.value.map((teacher) => ({ label: teacher.name, value: teacher.id }))
 )
 const courseOptions = computed(() => activeCourses.value.map((course) => ({ label: course.title, value: course.id })))
+const studentOptions = computed(() => activeStudents.value.map((student) => ({
+  label: student.name,
+  value: student.id,
+  description: student.classIds?.length ? `已有 ${student.classIds.length} 个班级归属` : '暂无班级归属'
+})))
+
+watch(
+  () => lessonDraft.value.mode,
+  (mode) => {
+    if (mode === 'temporary') {
+      lessonDraft.value.classId = null
+      return
+    }
+    lessonDraft.value.studentIds = []
+    if (!lessonDraft.value.classId) {
+      lessonDraft.value.classId = firstActive(activeClasses.value, () => true)
+    }
+  }
+)
 
 watch(
   () => lessonDraft.value.classId,
@@ -77,7 +127,42 @@ watch(
 )
 
 const saveLesson = () => {
-  emit('add-lesson', { ...lessonDraft.value })
+  if (isSubmitting.value) return
+  const draft = lessonDraft.value
+  if (!draft.dateValue || !draft.startTime || !draft.endTime) {
+    formError.value = '请填写日期、开始时间和结束时间'
+    return
+  }
+  if (draft.endTime <= draft.startTime) {
+    formError.value = '结束时间必须晚于开始时间'
+    return
+  }
+  if (!draft.teacherId || !draft.courseId) {
+    formError.value = '请选择任课老师和课程类别/课程资料'
+    return
+  }
+  if (isTemporary.value && !draft.studentIds.length) {
+    formError.value = '临时课至少需要选择一名学生'
+    return
+  }
+  if (!isTemporary.value && !draft.classId) {
+    formError.value = '请选择班级'
+    return
+  }
+  formError.value = ''
+  isSubmitting.value = true
+  emit('add-lesson', {
+    temporary: isTemporary.value,
+    classId: isTemporary.value ? undefined : draft.classId,
+    teacherId: draft.teacherId,
+    courseId: draft.courseId,
+    dateValue: draft.dateValue,
+    startTime: draft.startTime,
+    endTime: draft.endTime,
+    lessonType: draft.lessonType,
+    topic: draft.topic,
+    studentIds: isTemporary.value ? [...draft.studentIds] : undefined
+  })
   showLessonDialog.value = false
 }
 </script>
@@ -117,20 +202,53 @@ const saveLesson = () => {
       <em>{{ task.status }} · {{ progressForTask(task) }}%</em>
     </button>
 
-    <div v-if="showLessonDialog" class="modal-backdrop">
-      <section class="import-modal lesson-modal">
-        <header class="modal-head">
+    <div
+      v-if="showLessonDialog"
+      class="directory-drawer-backdrop lesson-drawer-backdrop"
+      @click.self="showLessonDialog = false"
+    >
+      <section
+        class="master-detail panel directory-drawer lesson-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="新增课次 / 手动补录"
+      >
+        <div class="section-head">
           <div>
             <span>新增课次 / 手动补录</span>
-            <strong>创建课后待办</strong>
+            <strong>{{ isTemporary ? '创建临时课' : '补录班级课次' }}</strong>
           </div>
-          <button class="ghost" @click="showLessonDialog = false">关闭</button>
-        </header>
+          <div class="button-pair lesson-drawer-actions">
+            <button class="ghost" type="button" @click="showLessonDialog = false">关闭</button>
+            <button class="primary" type="button" :disabled="isSubmitting" @click="saveLesson">
+              {{ isSubmitting ? '正在创建…' : isTemporary ? '创建临时课' : '创建课后待办' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="lesson-mode-switch" role="tablist" aria-label="课次类型">
+          <button
+            v-for="option in lessonModeOptions"
+            :key="option.value"
+            type="button"
+            :class="{ active: lessonDraft.mode === option.value }"
+            @click="lessonDraft.mode = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
 
         <div class="form-grid">
-          <label>日期<input v-model="lessonDraft.dateValue" type="date" /></label>
-          <label>时间<input v-model="lessonDraft.time" /></label>
-          <label>
+          <DateTimeRangeField
+            class="wide"
+            :date="lessonDraft.dateValue"
+            :start-time="lessonDraft.startTime"
+            :end-time="lessonDraft.endTime"
+            @update:date="lessonDraft.dateValue = $event"
+            @update:start-time="lessonDraft.startTime = $event"
+            @update:end-time="lessonDraft.endTime = $event"
+          />
+          <label v-if="!isTemporary">
             班级
             <AdaptiveSelect v-model="lessonDraft.classId" :options="classOptions" />
           </label>
@@ -142,25 +260,25 @@ const saveLesson = () => {
             课程类别/课程资料
             <AdaptiveSelect v-model="lessonDraft.courseId" :options="courseOptions" />
           </label>
+          <label v-if="isTemporary" class="wide">
+            本次学生
+            <AdaptiveMultiSelect
+              v-model="lessonDraft.studentIds"
+              :options="studentOptions"
+              placeholder="请选择本节课学生"
+              searchable
+              search-placeholder="输入学生姓名搜索"
+            />
+            <small class="field-hint">仅可选择已有的在读或请假学生，创建后将生成本节课独立的临时班。</small>
+          </label>
           <label>本次课题<input v-model="lessonDraft.topic" maxlength="255" placeholder="可选，如：素描考级" /></label>
           <label>
             课次类型
             <AdaptiveSelect v-model="lessonDraft.lessonType" :options="lessonTypeOptions" />
           </label>
-          <label>
-            初始状态
-            <AdaptiveSelect v-model="lessonDraft.status" :options="statusOptions" />
-          </label>
-          <label>
-            数据来源
-            <AdaptiveSelect v-model="lessonDraft.importedFrom" :options="importSourceOptions" />
-          </label>
         </div>
 
-        <footer class="modal-actions">
-          <button class="ghost" @click="showLessonDialog = false">取消</button>
-          <button class="primary" @click="saveLesson">创建课后待办</button>
-        </footer>
+        <p v-if="formError" class="lesson-form-error">{{ formError }}</p>
       </section>
     </div>
   </aside>

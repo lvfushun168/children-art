@@ -4184,8 +4184,8 @@ export function useDeliveryWorkflow() {
             // only needed by the lesson-maintenance dialog and are loaded with that
             // page instead of adding another request to the delivery workflow.
             const [teacherPage, studentPage, classPage, coursePage] = await Promise.all([
-              api.master.teachers({ page: 1, pageSize: 20 }), api.master.students({ page: 1, pageSize: 20 }),
-              api.master.classes({ page: 1, pageSize: 20 }), api.master.courses({ page: 1, pageSize: 20 })
+              api.master.teachers({ page: 1, pageSize: 200, archiveState: 'ACTIVE' }), api.master.students({ page: 1, pageSize: 200, archiveState: 'ACTIVE' }),
+              api.master.classes({ page: 1, pageSize: 200, archiveState: 'ACTIVE' }), api.master.courses({ page: 1, pageSize: 200, archiveState: 'ACTIVE' })
             ])
             const mappedTeachers = mapPage(teacherPage, mapTeacher)
             const mappedStudents = mapPage(studentPage, mapStudent)
@@ -5516,7 +5516,6 @@ export function useDeliveryWorkflow() {
   const apiStudentStatus = (value) => ({ 在读: 'ACTIVE', 停课: 'SUSPENDED', 请假: 'LEAVE', 退费: 'REFUNDED' }[value] || value || 'ACTIVE')
   const apiEnabledStatus = (value) => ({ 启用: 'ENABLED', 停用: 'DISABLED' }[value] || value || 'ENABLED')
   const apiClassStatus = (value) => ({ 筹备中: 'PREPARING', 开班中: 'ACTIVE', 停课: 'SUSPENDED', 结课: 'COMPLETED' }[value] || value || 'PREPARING')
-  const apiLessonSource = (value) => ({ 手动补录: 'MANUAL', 小麦课表复制: 'WHEAT_COPY', '小麦 Excel 导入': 'WHEAT_EXCEL' }[value] || value || 'MANUAL')
   const apiExtraTaskStatus = (value) => ({
     待发布: 'DRAFT',
     已发布: 'PUBLISHED',
@@ -5527,18 +5526,37 @@ export function useDeliveryWorkflow() {
   }[value] || value || 'DRAFT')
 
   const remoteAddLesson = async (payload) => {
+    const idempotencyKey = payload.idempotencyKey || createIdempotencyKey('lesson-create')
     const result = await runRemote('正在创建课次...', () => api.lessons.create({
-      classId: String(payload.classId), teacherId: payload.teacherId ? String(payload.teacherId) : undefined, courseId: payload.courseId ? String(payload.courseId) : undefined,
-      dateValue: payload.dateValue, startTime: String(payload.time || '00:00').slice(0, 5), endTime: payload.endTime || undefined,
-      lessonType: toApiLessonType(payload.lessonType || '其他'), topic: payload.topic?.trim() || undefined,
-      sourceType: apiLessonSource(payload.importedFrom), sourceAttendanceCount: payload.sourceAttendanceCount
-    }), '课次已创建', () => Promise.all([
+      temporary: Boolean(payload.temporary),
+      classId: payload.temporary ? undefined : (payload.classId ? String(payload.classId) : undefined),
+      teacherId: payload.teacherId ? String(payload.teacherId) : undefined,
+      courseId: payload.courseId ? String(payload.courseId) : undefined,
+      dateValue: payload.dateValue,
+      startTime: String(payload.startTime || '').slice(0, 5),
+      endTime: String(payload.endTime || '').slice(0, 5),
+      lessonType: toApiLessonType(payload.lessonType || '其他'),
+      topic: payload.topic?.trim() || undefined,
+      studentIds: payload.temporary ? (payload.studentIds || []).map((id) => String(id)) : undefined
+    }, idempotencyKey), '课次已创建')
+    if (!result) return null
+    await Promise.all([
       invalidateResource('lessons.today'),
       invalidateResource('lessons.schedule'),
       invalidateResource('inbox-lessons'),
       invalidateResource('workbench.summary')
-    ]))
-    if (!result) return null
+    ])
+    if (result.classId) {
+      try {
+        const classValue = mapClass(await api.master.class(result.classId))
+        const classIndex = classes.findIndex((item) => sameId(item.id, classValue.id))
+        if (classIndex >= 0) classes.splice(classIndex, 1, classValue)
+        else classes.unshift(classValue)
+      } catch {
+        // The lesson itself is already created; the next page refresh will
+        // repopulate the generated temporary class.
+      }
+    }
     const lesson = mapLesson(result)
     tasks.unshift(lesson)
     activeTaskId.value = lesson.id

@@ -174,6 +174,39 @@ test('serializes cloud archive batch IDs as strings at the API boundary', async 
   assert.equal(received.headers['Idempotency-Key'], 'cloud-archive-test')
 })
 
+test('creates a temporary lesson with an explicit date and time range', async () => {
+  let received
+  globalThis.fetch = async (_url, options) => {
+    received = options
+    return response(200, { data: { id: '99', classId: '70' }, meta: {}, error: null })
+  }
+
+  await api.lessons.create({
+    temporary: true,
+    teacherId: '20',
+    courseId: '80',
+    dateValue: '2026-08-24',
+    startTime: '18:30',
+    endTime: '19:30',
+    lessonType: 'PAID',
+    topic: '补课',
+    studentIds: ['40']
+  }, 'lesson-create-test')
+
+  assert.deepEqual(JSON.parse(received.body), {
+    temporary: true,
+    teacherId: '20',
+    courseId: '80',
+    dateValue: '2026-08-24',
+    startTime: '18:30',
+    endTime: '19:30',
+    lessonType: 'PAID',
+    topic: '补课',
+    studentIds: ['40']
+  })
+  assert.equal(received.headers['Idempotency-Key'], 'lesson-create-test')
+})
+
 test('serializes feedback generation template IDs as strings at the API boundary', async () => {
   const calls = []
   globalThis.fetch = async (url, options) => {

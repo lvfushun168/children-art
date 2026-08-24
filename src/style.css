@@ -3266,6 +3266,28 @@ textarea:focus,
   box-shadow: var(--shadow-popover);
 }
 
+.adaptive-select-search {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 7px;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.adaptive-select-search:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+.adaptive-select-empty {
+  padding: 10px;
+  color: var(--color-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 .adaptive-select-menu button {
   display: flex;
   align-items: center;
@@ -3341,6 +3363,11 @@ textarea:focus,
   }
 
   .adaptive-select-menu button {
+    min-height: 44px;
+    font-size: 15px;
+  }
+
+  .adaptive-select-search {
     min-height: 44px;
     font-size: 15px;
   }
@@ -3511,6 +3538,26 @@ textarea:focus,
   overflow-y: auto;
   padding: 24px;
   width: min(900px, 92vw);
+}
+
+.lesson-drawer {
+  align-content: start;
+  display: grid;
+  gap: 14px;
+  width: min(840px, 92vw);
+}
+
+.lesson-drawer > .section-head {
+  margin-bottom: 0;
+}
+
+.lesson-drawer-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.lesson-drawer .form-grid {
+  margin-top: 2px;
 }
 
 .directory-drawer > .section-head {
@@ -9563,6 +9610,80 @@ textarea:focus,
   grid-column: 1 / -1;
 }
 
+.date-time-range-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.date-time-range-label {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.date-time-range-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.25fr) minmax(130px, 1fr) auto minmax(130px, 1fr);
+  align-items: end;
+  gap: 8px;
+}
+
+.date-time-range-item {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.date-time-range-item span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.date-time-range-date {
+  cursor: pointer;
+}
+
+.date-time-range-separator {
+  padding-bottom: 11px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.lesson-mode-switch {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.lesson-mode-switch button {
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.lesson-mode-switch button.active {
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+}
+
+.field-hint {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.lesson-form-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
 .template-readonly-hint {
   margin: 0 0 4px;
   padding: 10px 12px;
@@ -9797,10 +9918,6 @@ textarea:focus,
   border-radius: 8px;
   background: var(--color-surface);
   box-shadow: var(--shadow-modal);
-}
-
-.lesson-modal {
-  width: min(760px, 100%);
 }
 
 .modal-head,
@@ -11740,10 +11857,12 @@ textarea:focus,
     justify-self: start;
   }
 
-  .app-shell-mobile .lesson-modal {
-    width: min(100%, calc(100vw - 20px));
-    max-height: calc(100vh - 20px);
-    overflow: auto;
+  .date-time-range-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .date-time-range-separator {
+    display: none;
   }
 
   .app-shell-mobile .wizard.panel {

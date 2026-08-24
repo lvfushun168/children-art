@@ -77,6 +77,7 @@ const backFromWorkspace = () => {
       :classes="state.classes"
       :courses="state.courses"
       :teachers="state.teachers"
+      :students="state.students"
       :load-references="() => state.ensurePageData?.('tasks')"
       :progress-for-task="state.progressForTask"
       @select-task="openTask"

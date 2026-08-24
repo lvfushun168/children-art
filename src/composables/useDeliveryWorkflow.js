@@ -3197,9 +3197,15 @@ export function useDeliveryWorkflow() {
       const artwork = artworkByStudent.get(String(attendanceRow.studentId))
       const feedback = feedbackByStudent.get(String(attendanceRow.studentId))
       const studentAssets = assetsByStudent.get(String(attendanceRow.studentId)) || []
-      const versions = artwork?.versions || []
-      const latestVersionJob = versions.filter((version) => version.jobId).at(-1)
-      const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || versions.at(-1)
+      // The API currently returns versions newest-first, but the workbench
+      // must not depend on transport ordering. In particular, an AI result
+      // can be inserted while an older processed version is still present.
+      const versions = [...(artwork?.versions || [])].sort((left, right) =>
+        Number(right.versionNo || 0) - Number(left.versionNo || 0)
+        || String(right.id || '').localeCompare(String(left.id || ''), undefined, { numeric: true })
+      )
+      const latestVersionJob = versions.find((version) => version.jobId)
+      const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || versions[0]
       const originalVersion = versions.find((version) => version.versionKind === 'ORIGINAL') || selectedVersion
       // A processed candidate is only current when it was generated from the
       // latest original. Older processed candidates remain historical records
@@ -3208,6 +3214,12 @@ export function useDeliveryWorkflow() {
         version.versionKind === 'PROCESSED' &&
         (!originalVersion?.id || !version.sourceVersionId || sameId(version.sourceVersionId, originalVersion.id))
       )
+      let processedSnapshot = {}
+      if (processedVersion?.templateSnapshot && typeof processedVersion.templateSnapshot === 'object') {
+        processedSnapshot = processedVersion.templateSnapshot
+      } else if (typeof processedVersion?.templateSnapshot === 'string') {
+        try { processedSnapshot = JSON.parse(processedVersion.templateSnapshot) || {} } catch { /* legacy snapshot */ }
+      }
       const displayFileId = processedVersion?.fileId || selectedVersion?.fileId || originalVersion?.fileId || null
       const draftStudent = draftStudentById.get(String(attendanceRow.studentId))
       return {
@@ -3234,9 +3246,16 @@ export function useDeliveryWorkflow() {
         imageConfirmed: artwork?.confirmationStatus === 'CONFIRMED' || artwork?.status === 'CONFIRMED',
         artworkId: artwork?.id || null,
         artworkVersion: artwork?.version || 0,
-        selectedVersionId: selectedVersion?.id || null,
+        // Keep the server's adopted version separate from the latest version
+        // used as the display fallback above. A newly generated processed
+        // version is intentionally not adopted yet, so selected_version_id
+        // remains null until the teacher confirms it.
+        selectedVersionId: artwork?.selectedVersionId || null,
         originalVersionId: originalVersion?.id || null,
         processedVersionId: processedVersion?.id || null,
+        processedTemplateKey: processedSnapshot.templateKey || null,
+        processedRenderer: processedSnapshot.renderer || (processedSnapshot.operation ? 'AI_ASYNC' : null),
+        processedOperation: processedSnapshot.operation || null,
         processed: Boolean(processedVersion && processedVersion.versionKind === 'PROCESSED'),
         imageProcessStatus: artwork?.job?.statusLabel || latestVersionJob?.job?.statusLabel || artwork?.statusLabel || '未处理',
         imageProcessError: artwork?.job?.failureReason || latestVersionJob?.job?.failureReason || artwork?.failureReason || '',
@@ -3511,6 +3530,49 @@ export function useDeliveryWorkflow() {
     return payload
   }
 
+  const jobResultFor = (jobId, key) => {
+    const payload = jobProgress[String(jobId)]
+    return payload?.result?.[key] || payload?.[key] || null
+  }
+
+  const workspaceContainsJobResults = (workspace, jobIds = []) => {
+    const rows = Array.isArray(workspace?.studentDeliveries) ? workspace.studentDeliveries : []
+    return jobIds.every((jobId) => {
+      const processedVersionId = jobResultFor(jobId, 'processedVersionId')
+      const feedbackVersionId = jobResultFor(jobId, 'feedbackVersionId')
+      const feedbackId = jobResultFor(jobId, 'feedbackId')
+      if (processedVersionId && !rows.some((row) => sameId(row.processedVersionId, processedVersionId))) return false
+      if (feedbackVersionId && !rows.some((row) => sameId(row.feedbackVersionId, feedbackVersionId))) return false
+      if (feedbackId && !rows.some((row) => sameId(row.feedbackId, feedbackId))) return false
+      return true
+    })
+  }
+
+  // A worker publishes the terminal job event from inside its transaction.
+  // The SSE client can therefore receive SUCCEEDED a few milliseconds before
+  // the lesson workspace query can see the new artwork/feedback version. Keep
+  // the realtime UX, but refetch until the result IDs are visible (or the
+  // short compatibility window is exhausted).
+  const refreshRemoteLessonAfterJobs = async (lessonId, jobIds = []) => {
+    if (!lessonId) return null
+    const ids = [...new Set(jobIds.filter(Boolean).map(String))]
+    const hasResultIds = ids.some((jobId) =>
+      jobResultFor(jobId, 'processedVersionId')
+      || jobResultFor(jobId, 'feedbackVersionId')
+      || jobResultFor(jobId, 'feedbackId')
+    )
+    const attempts = hasResultIds ? 4 : 2
+    let workspace = null
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (attempt > 0) await wait(Math.min(800, 180 * attempt))
+      workspace = await refreshRemoteLesson(lessonId, { force: true })
+      if (workspace && ((hasResultIds && workspaceContainsJobResults(workspace, ids)) || attempt === attempts - 1)) {
+        return workspace
+      }
+    }
+    return workspace
+  }
+
   const jobProgressFor = (row, type) => {
     if (!row) return null
     const businessObjectType = String(type || '').toUpperCase() === 'ARTWORK' ? 'ARTWORK' : 'FEEDBACK'
@@ -3558,7 +3620,7 @@ export function useDeliveryWorkflow() {
         snapshots.find((snapshot) => String(snapshot.id || snapshot.jobId) === jobId)?.status || ''
       )))) break
     }
-    if (lessonId) await refreshRemoteLesson(lessonId, { force: true })
+    if (lessonId) await refreshRemoteLessonAfterJobs(lessonId, pendingIds)
     return snapshots
   }
 
@@ -3608,8 +3670,9 @@ export function useDeliveryWorkflow() {
         snapshots = await waitForJobs(ids, lessonId)
         refreshed = Boolean(lessonId)
       }
-      if (lessonId && !refreshed && (completed || !controller.signal.aborted)) {
-        await refreshRemoteLesson(lessonId, { force: true })
+      const terminal = completed || areJobsTerminal(ids)
+      if (lessonId && !refreshed && terminal && (completed || !controller.signal.aborted)) {
+        await refreshRemoteLessonAfterJobs(lessonId, ids)
       }
       const progress = ids.map((jobId) => jobProgress[String(jobId)]).filter(Boolean)
       return progress.length ? progress : snapshots
@@ -4620,6 +4683,12 @@ export function useDeliveryWorkflow() {
     const isOriginalTemplate = String(template?.templateKey || '').toLowerCase() === 'original'
 
     if (isOriginalTemplate) {
+      // AI processing also uses the "original" template as its source marker.
+      // When a persisted candidate exists, this branch confirms that AI result
+      // rather than mistaking the source marker for "adopt original".
+      if (row.processedVersionId && row.processedFileId) {
+        return remoteConfirmCurrentImage('processed', targetStudentId)
+      }
       return remoteConfirmCurrentImage('original', targetStudentId)
     }
     if (!template || !isClientCanvasTemplate(template)) {

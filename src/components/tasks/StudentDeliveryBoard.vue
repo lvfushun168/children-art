@@ -103,6 +103,22 @@ const hasProcessedCandidate = (row) => Boolean(
   (sameId(artworkRow.value?.studentId, row?.studentId) && artworkPreviewUrl.value)
 )
 
+const showPersistedProcessedImage = (row) => {
+  if (!hasProcessedImage(row)) return false
+  if (!artworkPreviewUrl.value) return true
+  const selectedKey = String(selectedImageTemplate.value?.templateKey || '').trim().toLowerCase()
+  const processedKey = String(row?.processedTemplateKey || '').trim().toLowerCase()
+  // A processed version with a known template key is the authoritative image
+  // when it belongs to the currently selected template. If the teacher has
+  // selected another client template, keep the live Canvas preview visible
+  // until that new result is adopted.
+  if (processedKey && selectedKey) return processedKey === selectedKey
+  // Legacy artwork versions did not expose templateSnapshot. The original
+  // template is also the AI prompt source marker, so prefer its persisted
+  // result; other templates can still show their live preview.
+  return selectedKey === 'original'
+}
+
 const clearArtworkPreview = () => {
   if (artworkPreviewObjectUrl) URL.revokeObjectURL(artworkPreviewObjectUrl)
   artworkPreviewObjectUrl = ''
@@ -151,6 +167,11 @@ onBeforeUnmount(() => clearArtworkPreview())
 const selectedImageMode = (row) => {
   if (!row) return 'original'
   if (row.selectedVersionId && row.processedVersionId && sameId(row.selectedVersionId, row.processedVersionId)) return 'processed'
+  if (row.selectedVersionId && row.originalVersionId && sameId(row.selectedVersionId, row.originalVersionId)) return 'original'
+  // A newly generated processed version is the result currently shown in the
+  // drawer even before the teacher confirms it. Confirmation status controls
+  // workflow completion, not which result card should be displayed.
+  if (row.processedVersionId || hasProcessedImage(row)) return 'processed'
   if (!row.selectedVersionId && row.image === row.processedImage && row.processedImage) return 'processed'
   return 'original'
 }
@@ -687,7 +708,7 @@ onMounted(() => {
         </label>
 
         <section class="artwork-version-list">
-          <article class="artwork-version-card" :class="{ selected: artworkRow.imageConfirmed && selectedImageMode(artworkRow) === 'original' }">
+          <article class="artwork-version-card" :class="{ selected: selectedImageMode(artworkRow) === 'original' && hasImage(imageAsset(artworkRow, 'original')) }">
             <div class="artwork-version-media">
               <label class="artwork-media-upload" :class="{ empty: !hasImage(imageAsset(artworkRow, 'original')) }" title="点击替换原图">
                 <ProtectedMedia v-if="hasImage(imageAsset(artworkRow, 'original'))" :file-id="imageAsset(artworkRow, 'original').fileId" :src="imageAsset(artworkRow, 'original').src" alt="作品原图" />
@@ -700,7 +721,7 @@ onMounted(() => {
             <div class="artwork-version-copy"><strong>原图</strong></div>
             <button type="button" class="secondary" :disabled="state.isProcessing || !hasImage(imageAsset(artworkRow, 'original'))" @click="selectImage(artworkRow, 'original')">采用原图</button>
           </article>
-          <article class="artwork-version-card" :class="{ selected: artworkRow.imageConfirmed && selectedImageMode(artworkRow) === 'processed' }">
+          <article class="artwork-version-card" :class="{ selected: selectedImageMode(artworkRow) === 'processed' && hasProcessedCandidate(artworkRow) }">
             <div class="artwork-version-media">
               <button
                 type="button"
@@ -709,9 +730,9 @@ onMounted(() => {
                 title="输入提示词，生成 AI 处理图"
                 @click.stop="openAiPrompt"
               >AI处理✨</button>
-              <img v-if="artworkPreviewUrl" :src="artworkPreviewUrl" alt="作品处理预览" class="artwork-live-preview" />
+              <ProtectedMedia v-if="showPersistedProcessedImage(artworkRow)" :file-id="imageAsset(artworkRow, 'processed').fileId" :src="imageAsset(artworkRow, 'processed').src" alt="作品处理图" />
+              <img v-else-if="artworkPreviewUrl" :src="artworkPreviewUrl" alt="作品处理预览" class="artwork-live-preview" />
               <span v-else-if="artworkPreviewLoading" class="delivery-empty">正在生成实时预览…</span>
-              <ProtectedMedia v-else-if="hasImage(imageAsset(artworkRow, 'processed'))" :file-id="imageAsset(artworkRow, 'processed').fileId" :src="imageAsset(artworkRow, 'processed').src" alt="作品处理图" />
               <span v-else class="delivery-empty">尚未生成处理图</span>
               <button v-if="hasImage(imageAsset(artworkRow, 'processed'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="删除处理图" aria-label="删除处理图" @click.stop="removeProcessedArtwork(artworkRow)">×</button>
             </div>

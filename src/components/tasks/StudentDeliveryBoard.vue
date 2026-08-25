@@ -51,6 +51,57 @@ const artworkRow = computed(() =>
   props.state.attendingRows.find((row) => sameId(row.studentId, artworkStudentId.value)) || null
 )
 
+const artworkNameDraft = ref('')
+const artworkNameSaving = ref(false)
+
+const syncArtworkNameDraft = (row = artworkRow.value) => {
+  if (artworkNameSaving.value) return
+  artworkNameDraft.value = String(row?.artworkTitle || '').trim()
+}
+
+watch(
+  () => `${artworkRow.value?.artworkId || ''}:${artworkRow.value?.artworkTitle || ''}`,
+  () => syncArtworkNameDraft(),
+  { immediate: true }
+)
+
+const cancelArtworkNameEdit = () => syncArtworkNameDraft()
+
+const saveArtworkName = async () => {
+  const row = artworkRow.value
+  if (!row?.artworkId || artworkNameSaving.value) return false
+  const originalTitle = String(row.artworkTitle || '').trim()
+  const nextTitle = artworkNameDraft.value.trim()
+  if (!nextTitle) {
+    props.state.notify('作品名称不能为空')
+    artworkNameDraft.value = originalTitle
+    return false
+  }
+  if (nextTitle.length > 255) {
+    props.state.notify('作品名称不能超过 255 个字符')
+    artworkNameDraft.value = originalTitle
+    return false
+  }
+  if (nextTitle === originalTitle) return true
+  if (typeof props.state.renameArtwork !== 'function') {
+    props.state.notify('作品名称保存功能暂不可用，请稍后重试')
+    artworkNameDraft.value = originalTitle
+    return false
+  }
+  artworkNameSaving.value = true
+  try {
+    const saved = await props.state.renameArtwork(row, nextTitle)
+    if (saved !== false) {
+      artworkNameDraft.value = nextTitle
+      return true
+    }
+    artworkNameDraft.value = originalTitle
+    return false
+  } finally {
+    artworkNameSaving.value = false
+  }
+}
+
 const commentRow = computed(() =>
   props.state.attendingRows.find((row) => sameId(row.studentId, commentStudentId.value)) || null
 )
@@ -230,11 +281,13 @@ const setDrawerState = (open) => emit('drawer-state', open)
 const openArtwork = (row) => {
   setActive(row)
   artworkStudentId.value = row?.studentId ?? null
+  syncArtworkNameDraft(row)
   setDrawerState(true)
 }
 
 const closeArtwork = () => {
   aiPromptOpen.value = false
+  artworkNameDraft.value = ''
   artworkStudentId.value = null
   setDrawerState(false)
 }
@@ -696,6 +749,21 @@ onMounted(() => {
           </div>
           <button type="button" class="ghost" @click="closeArtwork">关闭</button>
         </header>
+
+        <label class="drawer-field artwork-name-field">
+          <span>作品名称</span>
+          <input
+            v-model="artworkNameDraft"
+            class="artwork-name-input"
+            maxlength="255"
+            :disabled="!artworkRow.artworkId || artworkNameSaving"
+            :placeholder="artworkRow.artworkId ? '请输入作品名称' : '请先上传作品后命名'"
+            @keydown.enter.prevent="saveArtworkName"
+            @keydown.esc.prevent="cancelArtworkNameEdit"
+            @blur="saveArtworkName"
+          />
+          <small>{{ artworkNameSaving ? '正在保存作品名称…' : artworkRow.artworkId ? '失焦或回车保存，Esc 取消；名称会用于新建网盘归档。' : '上传作品后可编辑业务名称。' }}</small>
+        </label>
 
         <label class="drawer-field">
           <span>作品处理模板</span>

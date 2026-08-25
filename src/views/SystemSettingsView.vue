@@ -55,7 +55,8 @@ const archiveRuleVariableGroups = [
     variables: [
       { token: '{studentName}', label: '学生' },
       { token: '{assetType}', label: '资料类型' },
-      { token: '{assetSequence}', label: '素材序号' }
+      { token: '{assetSequence}', label: '素材序号' },
+      { token: '{assetName}', label: '素材/作品名称' }
     ]
   }
 ]
@@ -147,6 +148,7 @@ const archiveRulePreview = computed(() => {
     teacherName: '李老师',
     lessonId: '1024',
     studentName: '小明',
+    assetName: '小狗原图',
     assetType: '学生作品',
     assetSequence: '3'
   }
@@ -161,6 +163,7 @@ const archiveFilenamePreview = computed(() => {
     assetSequence: '3',
     teacherName: '李老师',
     studentName: '小明',
+    assetName: '小狗原图',
     assetType: '学生作品'
   }
   const rendered = configured.replace(/\{([A-Za-z][A-Za-z0-9_]*)}/g, (match, key) => values[key] || '')
@@ -596,7 +599,7 @@ onBeforeUnmount(() => {
             </div>
             <p class="settings-hint">使用花括号变量组成目录层级，保存后由后端归档任务按当前校区、课次和资料信息渲染。</p>
             <p class="archive-rule-preview">预览：<code>{{ archiveRulePreview }}</code></p>
-            <p class="settings-hint">文件名模板不填写扩展名；文件扩展名由系统根据源文件自动追加。留空时沿用现有默认命名。</p>
+            <p class="settings-hint">文件名模板不填写扩展名；文件扩展名由系统根据源文件自动追加。留空时新归档优先使用素材或作品名称，未填写时沿用源文件名。</p>
             <p class="archive-rule-preview">文件名预览：<code>{{ archiveFilenamePreview }}</code></p>
           </div>
         </div>

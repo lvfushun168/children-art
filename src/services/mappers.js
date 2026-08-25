@@ -313,6 +313,7 @@ export const mapArtwork = (value = {}) => ({
   id: safeUiId(value.id),
   lessonId: safeUiId(value.lessonId),
   studentId: safeUiId(value.studentId),
+  title: value.title || '',
   selectedVersionId: safeUiId(value.selectedVersionId),
   confirmedBy: safeUiId(value.confirmedBy),
   status: value.status || 'ACTIVE',

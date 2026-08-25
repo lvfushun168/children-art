@@ -180,6 +180,67 @@ const activeMaterialSectionKey = ref('demo')
 const activeMaterialSection = computed(() => materialSections.value.find((section) => section.key === activeMaterialSectionKey.value) || materialSections.value[0] || null)
 const classroomMaterialSection = computed(() => materialSections.value.find((section) => section.key === 'classroom'))
 const classroomMaterialCount = computed(() => classroomMaterialSection.value?.materials.length || 0)
+const editingMaterialId = ref(null)
+const materialNameDraft = ref('')
+const materialNameSaving = ref(false)
+const materialNameInput = ref(null)
+
+const setMaterialNameInput = (element) => {
+  materialNameInput.value = element
+}
+
+const startMaterialNameEdit = (material) => {
+  if (!material?.id || materialNameSaving.value) return
+  editingMaterialId.value = material.id
+  materialNameDraft.value = String(material.title || material.file?.originalFilename || '')
+  nextTick(() => {
+    materialNameInput.value?.focus()
+    materialNameInput.value?.select()
+  })
+}
+
+const cancelMaterialNameEdit = () => {
+  editingMaterialId.value = null
+  materialNameDraft.value = ''
+}
+
+const saveMaterialName = async (material) => {
+  if (!material || !sameId(editingMaterialId.value, material.id) || materialNameSaving.value) return false
+  const nextTitle = materialNameDraft.value.trim()
+  if (!nextTitle) {
+    props.state.notify('素材名称不能为空')
+    materialNameDraft.value = String(material.title || material.file?.originalFilename || '')
+    return false
+  }
+  if (nextTitle.length > 255) {
+    props.state.notify('素材名称不能超过 255 个字符')
+    return false
+  }
+  if (nextTitle === String(material.title || '').trim()) {
+    cancelMaterialNameEdit()
+    return true
+  }
+  if (typeof props.state.renameLessonMaterial !== 'function') {
+    props.state.notify('素材名称保存功能暂不可用，请稍后重试')
+    materialNameDraft.value = String(material.title || material.file?.originalFilename || '')
+    editingMaterialId.value = null
+    return false
+  }
+  materialNameSaving.value = true
+  try {
+    const saved = await props.state.renameLessonMaterial(material, nextTitle)
+    if (saved !== false) {
+      cancelMaterialNameEdit()
+      return true
+    }
+    materialNameDraft.value = String(material.title || material.file?.originalFilename || '')
+    editingMaterialId.value = null
+    return false
+  } finally {
+    materialNameSaving.value = false
+  }
+}
+
 const materialTabStatusKey = (section) => {
   if (section.materials.length) return 'ready'
   if (section.key === 'classroom') return resolveStateValue(props.state.materialsConfirmedEmpty) ? 'confirmed' : 'pending'
@@ -593,8 +654,26 @@ watch(homeworkEditorOpen, async (open) => {
               <article v-for="material in activeMaterialSection.materials" :key="material.id" class="courseware-file-card">
                 <span class="courseware-file-type">{{ material.fileExt ? material.fileExt.toUpperCase() : material.file?.extension?.toUpperCase() || '文件' }}</span>
                 <div>
-                  <strong>{{ material.title || material.file?.originalFilename || '未命名课件' }}</strong>
-                  <small>仅内部归档</small>
+                  <input
+                    v-if="sameId(editingMaterialId, material.id)"
+                    :ref="setMaterialNameInput"
+                    v-model="materialNameDraft"
+                    class="material-name-input"
+                    maxlength="255"
+                    :disabled="materialNameSaving"
+                    @click.stop
+                    @keydown.enter.prevent="saveMaterialName(material)"
+                    @keydown.esc.prevent.stop="cancelMaterialNameEdit"
+                    @blur="saveMaterialName(material)"
+                  />
+                  <button
+                    v-else
+                    type="button"
+                    class="material-name-trigger"
+                    :title="material.title || material.file?.originalFilename || '未命名课件'"
+                    @click.stop="startMaterialNameEdit(material)"
+                  >{{ material.title || material.file?.originalFilename || '未命名课件' }}</button>
+                  <small>{{ sameId(editingMaterialId, material.id) && materialNameSaving ? '正在保存名称…' : '仅内部归档' }}</small>
                 </div>
                 <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || '课件'}`" @click="state.removeLessonMaterial(material)">×</button>
               </article>
@@ -622,8 +701,27 @@ watch(homeworkEditorOpen, async (open) => {
                 <div class="material-card-copy">
                   <div class="material-card-title">
                     <span>{{ material.type }}</span>
-                    <strong>{{ material.title || '未命名素材' }}</strong>
+                    <input
+                      v-if="sameId(editingMaterialId, material.id)"
+                      :ref="setMaterialNameInput"
+                      v-model="materialNameDraft"
+                      class="material-name-input"
+                      maxlength="255"
+                      :disabled="materialNameSaving"
+                      @click.stop
+                      @keydown.enter.prevent="saveMaterialName(material)"
+                      @keydown.esc.prevent.stop="cancelMaterialNameEdit"
+                      @blur="saveMaterialName(material)"
+                    />
+                    <button
+                      v-else
+                      type="button"
+                      class="material-name-trigger"
+                      :title="material.title || '未命名素材'"
+                      @click.stop="startMaterialNameEdit(material)"
+                    >{{ material.title || '未命名素材' }}</button>
                   </div>
+                  <small v-if="sameId(editingMaterialId, material.id) && materialNameSaving" class="material-name-saving">正在保存名称…</small>
                   <label class="material-visibility-switch">
                     <input type="checkbox" :checked="material.visible" @change="state.toggleMaterialVisible(material)" />
                     <span class="switch-track" aria-hidden="true"><span></span></span>

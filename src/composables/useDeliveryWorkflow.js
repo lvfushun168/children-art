@@ -3231,6 +3231,7 @@ export function useDeliveryWorkflow() {
         lessonId: lesson.id,
         studentId: attendanceRow.studentId,
         studentName: attendanceRow.studentName || '',
+        artworkTitle: artwork?.title || originalVersion?.file?.originalFilename || '',
         studentArchived: Boolean(attendanceRow.studentArchived),
         attendance: attendanceRow.attendance,
         attendanceVersion: attendanceRow.version,
@@ -4562,6 +4563,30 @@ export function useDeliveryWorkflow() {
     return true
   }
 
+  const remoteRenameLessonMaterial = async (material, title) => {
+    if (!material?.id) return false
+    const nextTitle = String(title || '').trim()
+    if (!nextTitle) {
+      notify('素材名称不能为空')
+      return false
+    }
+    if (nextTitle.length > 255) {
+      notify('素材名称不能超过 255 个字符')
+      return false
+    }
+    if (nextTitle === String(material.title || '').trim()) return true
+    const result = await runRemote('正在保存素材名称...', () => api.assets.update(material.id, {
+      studentId: material.studentId === null || material.studentId === undefined ? undefined : String(material.studentId),
+      title: nextTitle,
+      visible: material.visible,
+      sortOrder: material.sortOrder || 0,
+      version: material.version
+    }), '素材名称已保存')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
   const remoteUploadLessonMaterialFiles = async (files, category = '范画', replacement = null) => {
     if (!files.length || !activeTask.value?.id) return false
     const result = await runRemote(
@@ -4666,6 +4691,30 @@ export function useDeliveryWorkflow() {
       return true
     }, '学生作品已替换')
     return result === true
+  }
+
+  const remoteRenameArtwork = async (row, title) => {
+    if (!row?.artworkId) {
+      notify('请先上传学生作品')
+      return false
+    }
+    const nextTitle = String(title || '').trim()
+    if (!nextTitle) {
+      notify('作品名称不能为空')
+      return false
+    }
+    if (nextTitle.length > 255) {
+      notify('作品名称不能超过 255 个字符')
+      return false
+    }
+    if (nextTitle === String(row.artworkTitle || '').trim()) return true
+    const result = await runRemote('正在保存作品名称...', () => api.assets.updateArtwork(row.artworkId, {
+      title: nextTitle,
+      version: row.artworkVersion
+    }), '作品名称已保存')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
   }
 
   const remoteRemoveStudentImage = async (row) => {
@@ -6595,6 +6644,7 @@ export function useDeliveryWorkflow() {
     savePreferences: remoteSavePreferences,
     setAttendance: remoteSetAttendance,
     toggleMaterialVisible: remoteToggleMaterialVisible,
+    renameLessonMaterial: remoteRenameLessonMaterial,
     addMaterial: remoteUploadLessonMaterial,
     uploadLessonMaterial: remoteUploadLessonMaterial,
     replaceLessonMaterial: remoteReplaceLessonMaterial,
@@ -6642,6 +6692,7 @@ export function useDeliveryWorkflow() {
     copyStudentLink: remoteCopyStudentLink,
     updateImage: remoteUpdateImage,
     replaceStudentImage: remoteReplaceStudentImage,
+    renameArtwork: remoteRenameArtwork,
     removeArtwork: remoteRemoveStudentImage,
     removeArtworkVersion: remoteRemoveArtworkVersion,
     removeStudentImage: remoteRemoveStudentImage,

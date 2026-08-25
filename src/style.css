@@ -278,6 +278,15 @@
   resize: vertical;
 }
 
+.drawer-field > input {
+  width: 100%;
+  min-width: 0;
+}
+
+.artwork-name-field > small {
+  color: var(--color-muted);
+}
+
 .comment-review-drawer {
   grid-template-rows: auto auto auto;
   width: min(560px, 100%);
@@ -1148,6 +1157,34 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.material-name-trigger {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  line-height: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.material-name-trigger:hover,
+.material-name-trigger:focus-visible {
+  color: var(--color-primary);
+}
+
+.material-name-input,
+.artwork-name-input {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .material-card-copy > small {

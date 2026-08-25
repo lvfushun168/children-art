@@ -232,6 +232,19 @@ test('returns provider test message for visible connection feedback', async () =
   assert.equal(result.message, '百度授权已过期')
 })
 
+test('updates an artwork business title with its current version', async () => {
+  let received
+  globalThis.fetch = async (url, options) => {
+    received = { url, options }
+    return response(200, { data: { id: '20', title: '小狗', version: 4 }, meta: {}, error: null })
+  }
+
+  await api.assets.updateArtwork('20', { title: '小狗', version: 3 })
+
+  assert.match(received.url, /\/artworks\/20$/)
+  assert.deepEqual(JSON.parse(received.options.body), { title: '小狗', version: 3 })
+})
+
 test('creates a temporary lesson with an explicit date and time range', async () => {
   let received
   globalThis.fetch = async (_url, options) => {
@@ -458,6 +471,7 @@ test('maps artwork, feedback, job and share DTOs while preserving protocol codes
     id: '9007199254740993',
     lessonId: '12',
     studentId: '13',
+    title: '小狗',
     status: 'ACTIVE',
     confirmationStatus: 'CONFIRMED',
     selectedVersionId: '14',
@@ -465,6 +479,7 @@ test('maps artwork, feedback, job and share DTOs while preserving protocol codes
     versions: [{ id: '14', versionKind: 'PROCESSED', status: 'SUCCEEDED', fileId: '15' }]
   })
   assert.equal(artwork.id, '9007199254740993')
+  assert.equal(artwork.title, '小狗')
   assert.equal(artwork.confirmationStatus, 'CONFIRMED')
   assert.equal(artwork.confirmationStatusLabel, '已确认')
   assert.equal(artwork.versions[0].versionKindLabel, '处理版')

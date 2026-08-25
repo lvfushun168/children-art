@@ -3516,9 +3516,11 @@ export function useDeliveryWorkflow() {
       return waitForCompletion && !cloudBatchTerminal(current.status) ? watcher.promise : current
     }
     const provider = archiveProvider()
-    if (!provider?.id || String(provider.id).startsWith('provider-')) return null
+    const providerConfigId = provider?.id && !String(provider.id).startsWith('provider-')
+      ? provider.id
+      : null
     const result = await runRemote('正在创建百度网盘归档批次...', () => api.m5.cloudArchiveBatch(lessonId, {
-      providerConfigId: provider.id,
+      providerConfigId,
       includeTeacherEffect: false,
       items: []
     }, createIdempotencyKey(`cloud-archive-batch:${lessonId}`)), '', () => refreshRemoteLesson(lessonId, { force: true }))
@@ -5376,10 +5378,7 @@ export function useDeliveryWorkflow() {
       applyCloudBatchProgress(activeTask.value.id, retried)
     }
     const result = await ensureCloudArchiveBatch(activeTask.value.id, { waitForCompletion: true })
-    if (!result) {
-      notify('未找到已启用的百度网盘通道，请先完成授权并启用')
-      return false
-    }
+    if (!result) return false
     if (['FAILED', 'PARTIAL_FAILED'].includes(String(result.status).toUpperCase())) return false
     await Promise.all([
       refreshRemoteLesson(activeTask.value.id),

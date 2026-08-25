@@ -174,6 +174,26 @@ test('serializes cloud archive batch IDs as strings at the API boundary', async 
   assert.equal(received.headers['Idempotency-Key'], 'cloud-archive-test')
 })
 
+test('allows the backend to resolve the cloud provider when the client has no provider ID', async () => {
+  let received
+  globalThis.fetch = async (_url, options) => {
+    received = options
+    return response(200, { data: { id: '10', providerConfigId: null }, meta: {}, error: null })
+  }
+
+  await api.m5.cloudArchiveBatch(75, {
+    providerConfigId: null,
+    includeTeacherEffect: false,
+    items: []
+  }, 'cloud-archive-backend-provider')
+
+  assert.deepEqual(JSON.parse(received.body), {
+    providerConfigId: null,
+    includeTeacherEffect: false,
+    items: []
+  })
+})
+
 test('saves archive directory and filename templates together', async () => {
   let received
   globalThis.fetch = async (_url, options) => {

@@ -164,6 +164,7 @@ export function useDeliveryWorkflow() {
   const cloudArchiveRule = reactive({
     id: null,
     pathTemplate: DEFAULT_ARCHIVE_RULE,
+    filenameTemplate: '',
     required: false,
     duplicateStrategy: 'SUFFIX',
     configured: false
@@ -3030,6 +3031,7 @@ export function useDeliveryWorkflow() {
   const mapArchiveRule = (value = {}) => {
     cloudArchiveRule.id = fromApiId(value.id)
     cloudArchiveRule.pathTemplate = value.pathTemplate || DEFAULT_ARCHIVE_RULE
+    cloudArchiveRule.filenameTemplate = value.filenameTemplate || ''
     cloudArchiveRule.required = Boolean(value.required)
     cloudArchiveRule.duplicateStrategy = value.duplicateStrategy || 'SUFFIX'
     cloudArchiveRule.configured = value.configured !== false
@@ -3048,6 +3050,7 @@ export function useDeliveryWorkflow() {
         value: {
           providers: groupProviders,
           directoryRule: definition.category === 'CLOUD' ? cloudArchiveRule.pathTemplate : '',
+          filenameTemplate: definition.category === 'CLOUD' ? cloudArchiveRule.filenameTemplate : '',
           defaultArchiveTargets: []
         }
       }
@@ -3067,6 +3070,7 @@ export function useDeliveryWorkflow() {
         value: {
           providers,
           directoryRule: category === 'cloud' ? cloudArchiveRule.pathTemplate : group.directoryRule || '',
+          filenameTemplate: category === 'cloud' ? cloudArchiveRule.filenameTemplate : group.filenameTemplate || '',
           defaultArchiveTargets: group.defaultArchiveTargets || []
         }
       }
@@ -6013,9 +6017,10 @@ export function useDeliveryWorkflow() {
       }
     }
     if (isCloudSetting && payload.value?.directoryRule !== undefined) {
-      const savedRule = await runRemote('正在保存归档目录规则...', () => api.m5.updateArchiveRule({
-        pathTemplate: payload.value.directoryRule
-      }), '归档目录规则已保存')
+      const savedRule = await runRemote('正在保存归档规则...', () => api.m5.updateArchiveRule({
+        pathTemplate: payload.value.directoryRule,
+        filenameTemplate: payload.value.filenameTemplate || ''
+      }), '归档规则已保存')
       if (!savedRule) return null
       mapArchiveRule(savedRule)
     }
@@ -6030,8 +6035,11 @@ export function useDeliveryWorkflow() {
       notify('请先保存通道配置后再测试')
       return null
     }
-    const result = await runRemote('正在测试通道连接...', () => api.m5.testProvider(provider.id), '通道测试完成', () => invalidateResource('settings'))
-    if (result) provider.tokenStatus = result.success ? '连接正常' : (result.message || '连接失败')
+    const result = await runRemote('正在测试通道连接...', () => api.m5.testProvider(provider.id), '', () => invalidateResource('settings'))
+    if (result) {
+      provider.tokenStatus = result.success ? '连接正常' : (result.message || '连接失败')
+      notify(result.message || (result.success ? '连接成功' : '连接失败'))
+    }
     return result
   }
 

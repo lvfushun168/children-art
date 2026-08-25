@@ -174,6 +174,44 @@ test('serializes cloud archive batch IDs as strings at the API boundary', async 
   assert.equal(received.headers['Idempotency-Key'], 'cloud-archive-test')
 })
 
+test('saves archive directory and filename templates together', async () => {
+  let received
+  globalThis.fetch = async (_url, options) => {
+    received = options
+    return response(200, {
+      data: {
+        pathTemplate: '/{campus}/归档/{year}',
+        filenameTemplate: '{dateShort} 《{topic}》({assetSequence}) {teacherName} {studentName}'
+      },
+      meta: {},
+      error: null
+    })
+  }
+
+  await api.m5.updateArchiveRule({
+    pathTemplate: '/{campus}/归档/{year}',
+    filenameTemplate: '{dateShort} 《{topic}》({assetSequence}) {teacherName} {studentName}'
+  })
+
+  assert.deepEqual(JSON.parse(received.body), {
+    pathTemplate: '/{campus}/归档/{year}',
+    filenameTemplate: '{dateShort} 《{topic}》({assetSequence}) {teacherName} {studentName}'
+  })
+})
+
+test('returns provider test message for visible connection feedback', async () => {
+  globalThis.fetch = async () => response(200, {
+    data: { id: '7', providerType: 'BAIDU_NETDISK', success: false, code: 'AUTH_REQUIRED', message: '百度授权已过期', latencyMs: 42 },
+    meta: {},
+    error: null
+  })
+
+  const result = await api.m5.testProvider(7)
+
+  assert.equal(result.success, false)
+  assert.equal(result.message, '百度授权已过期')
+})
+
 test('creates a temporary lesson with an explicit date and time range', async () => {
   let received
   globalThis.fetch = async (_url, options) => {

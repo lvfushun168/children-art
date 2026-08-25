@@ -26,6 +26,7 @@ const providerGroupDefinitions = [
   { id: 'ai', name: 'AI 配置', category: 'ai', providerLabel: 'AI' }
 ]
 const DEFAULT_ARCHIVE_RULE = '/{campus}/教学资料归档/课程归总/{year}/{term}+{classType}归总'
+const DEFAULT_FILENAME_TEMPLATE = '{dateShort} 《{topic}》({assetSequence}) {teacherName} {studentName}'
 const archiveRuleVariableGroups = [
   {
     label: '课次信息',
@@ -34,6 +35,8 @@ const archiveRuleVariableGroups = [
       { token: '{month}', label: '月份' },
       { token: '{term}', label: '学期' },
       { token: '{date}', label: '日期' },
+      { token: '{dateShort}', label: '日期（短格式）' },
+      { token: '{topic}', label: '本次课题' },
       { token: '{lessonId}', label: '课次 ID' }
     ]
   },
@@ -51,7 +54,8 @@ const archiveRuleVariableGroups = [
     label: '归档内容',
     variables: [
       { token: '{studentName}', label: '学生' },
-      { token: '{assetType}', label: '资料类型' }
+      { token: '{assetType}', label: '资料类型' },
+      { token: '{assetSequence}', label: '素材序号' }
     ]
   }
 ]
@@ -89,6 +93,7 @@ const providerSettings = computed(() => {
           ...(group.value || {}),
           providers,
           directoryRule: group.value?.directoryRule || '',
+          filenameTemplate: group.value?.filenameTemplate || '',
           defaultArchiveTargets: group.value?.defaultArchiveTargets || []
         }
       }
@@ -108,7 +113,8 @@ const providerSettings = computed(() => {
       value: {
         ...(base.value || {}),
         providers,
-        directoryRule: group.category === 'cloud' ? (base.value?.directoryRule || DEFAULT_ARCHIVE_RULE) : ''
+        directoryRule: group.category === 'cloud' ? (base.value?.directoryRule || DEFAULT_ARCHIVE_RULE) : '',
+        filenameTemplate: group.category === 'cloud' ? (base.value?.filenameTemplate || '') : ''
       }
     }
   })
@@ -117,14 +123,18 @@ const providerSettings = computed(() => {
 const selected = () => providerSettings.value.find((item) => sameId(item.id, selectedId.value))
 const draft = ref({})
 const archiveRuleInput = ref(null)
+const archiveFilenameInput = ref(null)
 const archiveRuleVariableMenu = ref(null)
 const archiveRuleVariableMenuOpen = ref(false)
 const archiveRuleVariableSelection = ref({ start: 0, end: 0 })
+const activeArchiveTemplate = ref('directory')
 const archiveRuleValue = computed(() => draft.value.value?.directoryRule || DEFAULT_ARCHIVE_RULE)
+const archiveFilenameValue = computed(() => draft.value.value?.filenameTemplate || DEFAULT_FILENAME_TEMPLATE)
 const archiveRulePreview = computed(() => {
   const values = {
     campus: '大学城校区',
     date: '2026-08-23',
+    dateShort: '2026.8.23',
     year: '2026',
     month: '08',
     term: '秋季学期',
@@ -132,13 +142,35 @@ const archiveRulePreview = computed(() => {
     className: '大班A',
     course: '秋日树屋',
     courseTitle: '秋日树屋',
+    topic: '小狗',
     teacher: '李老师',
     teacherName: '李老师',
     lessonId: '1024',
     studentName: '小明',
-    assetType: '学生作品'
+    assetType: '学生作品',
+    assetSequence: '3'
   }
   return archiveRuleValue.value.replace(/\{([A-Za-z][A-Za-z0-9_]*)}/g, (match, key) => values[key] || match)
+})
+const archiveFilenamePreview = computed(() => {
+  const configured = String(draft.value.value?.filenameTemplate || '').trim()
+  if (!configured) return '沿用系统默认命名（扩展名由系统自动追加）'
+  const values = {
+    dateShort: '2026.8.23',
+    topic: '小狗',
+    assetSequence: '3',
+    teacherName: '李老师',
+    studentName: '小明',
+    assetType: '学生作品'
+  }
+  const rendered = configured.replace(/\{([A-Za-z][A-Za-z0-9_]*)}/g, (match, key) => values[key] || '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/（\s*）/g, '')
+    .replace(/《\s*》/g, '')
+    .replace(/【\s*】/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return `${rendered || '沿用系统默认命名'}.jpg`
 })
 
 watch(providerSettings, (settings) => {
@@ -156,11 +188,24 @@ watch(providerSettings, (settings) => {
 const selectSetting = (setting) => {
   selectedId.value = setting.id
   draft.value = clone(setting)
+  activeArchiveTemplate.value = 'directory'
   if (isMobileFlow.value) mobileStage.value = 'detail'
 }
 
+const setActiveArchiveTemplate = (templateType) => {
+  activeArchiveTemplate.value = templateType
+}
+
+const activeArchiveInput = () => activeArchiveTemplate.value === 'filename'
+  ? archiveFilenameInput.value
+  : archiveRuleInput.value
+
+const activeArchiveValue = () => activeArchiveTemplate.value === 'filename'
+  ? archiveFilenameValue.value
+  : archiveRuleValue.value
+
 const captureArchiveRuleVariableSelection = () => {
-  const input = archiveRuleInput.value
+  const input = activeArchiveInput()
   if (!input || typeof input.selectionStart !== 'number' || typeof input.selectionEnd !== 'number') return
   archiveRuleVariableSelection.value = {
     start: input.selectionStart,
@@ -188,21 +233,24 @@ const closeArchiveRuleVariableMenuFromKeyboard = (event) => {
 
 const insertArchiveVariable = (token) => {
   if (!isCloudCategory.value) return
-  const current = archiveRuleValue.value
-  const input = archiveRuleInput.value
+  const current = activeArchiveValue()
+  const input = activeArchiveInput()
   const start = archiveRuleVariableMenuOpen.value
     ? archiveRuleVariableSelection.value.start
     : input && typeof input.selectionStart === 'number' ? input.selectionStart : current.length
   const end = archiveRuleVariableMenuOpen.value
     ? archiveRuleVariableSelection.value.end
     : input && typeof input.selectionEnd === 'number' ? input.selectionEnd : start
-  draft.value.value.directoryRule = `${current.slice(0, start)}${token}${current.slice(end)}`
+  const nextValue = `${current.slice(0, start)}${token}${current.slice(end)}`
+  if (activeArchiveTemplate.value === 'filename') draft.value.value.filenameTemplate = nextValue
+  else draft.value.value.directoryRule = nextValue
   closeArchiveRuleVariableMenu()
   nextTick(() => {
-    if (!archiveRuleInput.value) return
+    const activeInput = activeArchiveInput()
+    if (!activeInput) return
     const caret = start + token.length
-    archiveRuleInput.value.focus()
-    archiveRuleInput.value.setSelectionRange(caret, caret)
+    activeInput.focus()
+    activeInput.setSelectionRange(caret, caret)
   })
 }
 
@@ -282,6 +330,7 @@ const addProvider = () => {
     draft.value.value = {
       providers: [],
       directoryRule: DEFAULT_ARCHIVE_RULE,
+      filenameTemplate: '',
       defaultArchiveTargets: []
     }
   }
@@ -361,7 +410,16 @@ const setProviderType = (provider, value) => {
 }
 
 const testProvider = async (provider) => {
-  await props.state.testProvider(provider)
+  provider.testMessage = ''
+  provider.testSuccess = null
+  const result = await props.state.testProvider(provider)
+  if (result) {
+    provider.testMessage = result.message || (result.success ? '连接成功' : '连接失败')
+    provider.testSuccess = Boolean(result.success)
+  } else {
+    provider.testMessage = props.state.toast || '测试连接失败，请稍后重试'
+    provider.testSuccess = false
+  }
   if (isBaiduProvider(provider)) await refreshBaiduStatuses()
 }
 
@@ -486,6 +544,19 @@ onBeforeUnmount(() => {
                 v-model="draft.value.directoryRule"
                 :placeholder="DEFAULT_ARCHIVE_RULE"
                 autocomplete="off"
+                @focus="setActiveArchiveTemplate('directory')"
+                @click="setActiveArchiveTemplate('directory')"
+              />
+            </label>
+            <label>默认归档文件名规则
+              <input
+                ref="archiveFilenameInput"
+                v-model="draft.value.filenameTemplate"
+                :placeholder="DEFAULT_FILENAME_TEMPLATE"
+                maxlength="500"
+                autocomplete="off"
+                @focus="setActiveArchiveTemplate('filename')"
+                @click="setActiveArchiveTemplate('filename')"
               />
             </label>
             <div class="archive-rule-toolbar">
@@ -501,7 +572,7 @@ onBeforeUnmount(() => {
                   <span>选择变量</span>
                   <b aria-hidden="true">⌄</b>
                 </button>
-                <div v-if="archiveRuleVariableMenuOpen" class="archive-rule-variable-popover" role="menu" aria-label="目录规则变量">
+                <div v-if="archiveRuleVariableMenuOpen" class="archive-rule-variable-popover" role="menu" aria-label="归档规则变量">
                   <section v-for="group in archiveRuleVariableGroups" :key="group.label" class="archive-rule-variable-group">
                     <strong>{{ group.label }}</strong>
                     <button
@@ -521,6 +592,8 @@ onBeforeUnmount(() => {
             </div>
             <p class="settings-hint">使用花括号变量组成目录层级，保存后由后端归档任务按当前校区、课次和资料信息渲染。</p>
             <p class="archive-rule-preview">预览：<code>{{ archiveRulePreview }}</code></p>
+            <p class="settings-hint">文件名模板不填写扩展名；文件扩展名由系统根据源文件自动追加。留空时沿用现有默认命名。</p>
+            <p class="archive-rule-preview">文件名预览：<code>{{ archiveFilenamePreview }}</code></p>
           </div>
         </div>
 
@@ -569,6 +642,13 @@ onBeforeUnmount(() => {
               <button class="secondary" @click="authorizeBaidu(provider)">{{ provider.oauthAuthorized ? '重新授权百度网盘' : '授权百度网盘' }}</button>
               <button class="ghost" @click="testProvider(provider)">测试连接</button>
             </div>
+            <p
+              v-if="provider.testMessage"
+              class="provider-test-feedback"
+              :class="provider.testSuccess ? 'success' : 'error'"
+            >
+              {{ provider.testMessage }}
+            </p>
           </template>
           <template v-else-if="isAiCategory">
             <div class="cloud-provider-head">

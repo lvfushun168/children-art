@@ -7555,6 +7555,27 @@ textarea:focus,
   font-size: 13px;
 }
 
+.provider-test-feedback {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-status-danger-text);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.provider-test-feedback.success {
+  border-color: var(--color-status-working-border);
+  background: var(--color-status-working-bg);
+  color: var(--color-status-working-text);
+}
+
+.provider-test-feedback.error {
+  background: var(--color-status-danger-bg);
+  color: var(--color-status-danger-text);
+}
+
 .cloud-provider-card {
   display: grid;
   gap: 14px;

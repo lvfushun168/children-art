@@ -171,7 +171,6 @@ const saveLesson = () => {
   <aside class="task-list panel">
     <div class="section-head">
       <div>
-        <span>课表生成</span>
         <strong>{{ tasks.length }} 个课后任务</strong>
       </div>
       <button class="secondary" @click="openLessonDialog">新增临时课</button>

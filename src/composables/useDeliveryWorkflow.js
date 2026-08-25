@@ -5680,7 +5680,15 @@ export function useDeliveryWorkflow() {
       }
     }
     const lesson = mapLesson(result)
-    tasks.unshift(lesson)
+    // The cache invalidations above refresh today's lessons before this
+    // response is merged. The newly created lesson may therefore already be
+    // present in tasks; upsert it instead of blindly inserting a second row.
+    const existingTaskIndex = tasks.findIndex((item) => sameId(item.id, lesson.id))
+    if (existingTaskIndex >= 0) {
+      tasks.splice(existingTaskIndex, 1, { ...tasks[existingTaskIndex], ...lesson })
+    } else {
+      tasks.unshift(lesson)
+    }
     activeTaskId.value = lesson.id
     await refreshRemoteLesson(lesson.id)
     return lesson

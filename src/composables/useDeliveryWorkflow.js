@@ -3317,6 +3317,7 @@ export function useDeliveryWorkflow() {
   const lessonWorkspaceControllers = new Map()
   const lessonWorkspaceEpochs = new Map()
   const lessonWorkspaceLoaded = new Set()
+  const lessonStartPromises = new Map()
   // 展示草稿会同时被高光勾选、说明输入框失焦等事件触发；按课次串行保存，
   // 确保后一个请求使用前一个请求返回的 page/homework 版本。
   const shareDraftSaveChains = new Map()
@@ -3357,6 +3358,50 @@ export function useDeliveryWorkflow() {
       return lessonWorkspaces[key]
     }
     return refreshRemoteLesson(lessonId, { force })
+  }
+
+  const mergeLessonRecord = (value) => {
+    const lesson = mapLesson(value?.lesson || value || {})
+    if (!lesson.id) return lesson
+    ;[tasks, inboxLessons, scheduleLessons].forEach((collection) => {
+      const index = collection.findIndex((item) => sameId(item.id, lesson.id))
+      if (index >= 0) collection.splice(index, 1, { ...collection[index], ...lesson })
+    })
+    if (sameId(activeTaskId.value, lesson.id)) {
+      selectedTaskSnapshot.value = { ...selectedTaskSnapshot.value, ...lesson }
+    }
+    return lesson
+  }
+
+  const startLessonProcessingOnOpen = async (task) => {
+    if (!task?.id || toApiLessonStatus(task.status) !== 'PENDING') return task
+    const key = String(task.id)
+    if (lessonStartPromises.has(key)) return lessonStartPromises.get(key)
+    const promise = (async () => {
+      const result = await runRemote(
+        '正在开始处理课次...',
+        () => api.lessons.transition(task.id, {
+          command: 'START_PROCESSING',
+          version: task.version
+        }),
+        '课次已进入处理中',
+        async () => {
+          // 其他页面或账号可能已经完成了状态推进；读取最新课次后继续打开工作台。
+          const latest = mapLesson(await api.lessons.get(task.id))
+          return toApiLessonStatus(latest.status) === 'PROCESSING'
+            ? { handled: true, value: latest }
+            : null
+        }
+      )
+      if (!result) return null
+      return mergeLessonRecord(result)
+    })()
+    lessonStartPromises.set(key, promise)
+    try {
+      return await promise
+    } finally {
+      if (lessonStartPromises.get(key) === promise) lessonStartPromises.delete(key)
+    }
   }
 
   const cloudBatchWatchers = new Map()
@@ -4355,6 +4400,7 @@ export function useDeliveryWorkflow() {
     lessonWorkspacePromises.clear()
     lessonWorkspaceEpochs.clear()
     lessonWorkspaceLoaded.clear()
+    lessonStartPromises.clear()
     clearProtectedMediaCache()
     portfolioStudioRef?.clearPortfolioSession?.()
     storedMe.value = null
@@ -4435,9 +4481,11 @@ export function useDeliveryWorkflow() {
   const remoteSelectTask = async (task) => {
     if (!task?.id) return null
     cancelJobWatchers()
+    const openedTask = await startLessonProcessingOnOpen(task)
+    if (!openedTask) return null
     activeTaskId.value = task.id
-    selectedTaskSnapshot.value = task
-    const workspace = ensureLessonWorkspace(task)
+    selectedTaskSnapshot.value = openedTask
+    const workspace = ensureLessonWorkspace(openedTask)
     if (workspace) workspace.currentStep = 0
     if (!pageLoaded.tasks) await loadPageData('tasks')
     return runRemote('正在加载课次工作区...', async () => {
@@ -4478,9 +4526,7 @@ export function useDeliveryWorkflow() {
       command: commands[action], version: task.version, reason: reason?.trim() || undefined, exceptionType: exceptionType || undefined
     }))
     if (!result) return false
-    const mapped = mapLesson(result)
-    const index = tasks.findIndex((item) => sameId(item.id, task.id))
-    if (index >= 0) tasks.splice(index, 1, { ...tasks[index], ...mapped })
+    const mapped = mergeLessonRecord(result)
     await Promise.all([
       refreshRemoteLesson(task.id),
       invalidateResource('inbox-lessons'),
@@ -6027,6 +6073,7 @@ export function useDeliveryWorkflow() {
     const latest = await runRemote('正在刷新通道配置...', () => api.m5.providers(), '', () => invalidateResource('settings'))
     if (!latest) return null
     mapProviderSetting(latest)
+    if (!isCloudSetting || payload.value?.directoryRule === undefined) notify('当前配置已保存')
     return settings[0]
   }
 

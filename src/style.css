@@ -9701,6 +9701,59 @@ textarea:focus,
   cursor: pointer;
 }
 
+.date-time-range-time,
+.date-time-range-time input {
+  cursor: pointer;
+}
+
+.date-time-range-time {
+  position: relative;
+}
+
+.time-picker-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  display: grid;
+  min-width: 220px;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.time-picker-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.time-picker-controls select {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 7px;
+}
+
+.time-picker-controls span {
+  color: var(--color-muted);
+  font-weight: 800;
+}
+
+.time-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.time-picker-actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .date-time-range-separator {
   padding-bottom: 11px;
   color: var(--color-muted);

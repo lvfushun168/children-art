@@ -95,7 +95,7 @@ export const teachers = [
     name: '系统管理员',
     username: 'admin',
     phone: '13800000000',
-    password: 'admin123',
+    password: 'admin114514,./',
     role: '管理员',
     availableRoles: ['管理员'],
     status: '启用',

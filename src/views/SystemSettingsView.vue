@@ -491,6 +491,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <div v-if="props.state.toast" class="toast" role="status" aria-live="polite">
+    {{ props.state.toast }}
+  </div>
+
   <button
     v-if="groupLabel && (!isMobileFlow || mobileStage === 'list')"
     class="module-back-link"

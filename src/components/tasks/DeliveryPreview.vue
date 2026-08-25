@@ -116,7 +116,7 @@ const formatHomeworkDate = (value) => {
           raw: imageTemplate.ratio === '原比例'
         }"
       >
-        <ProtectedMedia :file-id="activeSessionStudent.processedFileId || activeSessionStudent.originalFileId || activeSessionStudent.imageFileIds?.[0]" :src="activeSessionStudent.image" :alt="activeStudent.name" />
+        <ProtectedMedia :file-id="activeSessionStudent.displayFileId || activeSessionStudent.fileId || (activeSessionStudent.imageConfirmed ? activeSessionStudent.processedFileId : null) || activeSessionStudent.originalFileId || activeSessionStudent.imageFileIds?.[0]" :src="activeSessionStudent.image" :alt="activeStudent.name" />
       </div>
       <strong>{{ activeStudent.name }} · {{ activeCourse.title }}</strong>
       <small>

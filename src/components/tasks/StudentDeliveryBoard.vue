@@ -219,10 +219,9 @@ const selectedImageMode = (row) => {
   if (!row) return 'original'
   if (row.selectedVersionId && row.processedVersionId && sameId(row.selectedVersionId, row.processedVersionId)) return 'processed'
   if (row.selectedVersionId && row.originalVersionId && sameId(row.selectedVersionId, row.originalVersionId)) return 'original'
-  // A newly generated processed version is the result currently shown in the
-  // drawer even before the teacher confirms it. Confirmation status controls
-  // workflow completion, not which result card should be displayed.
-  if (row.processedVersionId || hasProcessedImage(row)) return 'processed'
+  // A processed candidate is not selected until the server records the
+  // teacher's confirmation. Keep the original card selected while the
+  // candidate is waiting for review.
   if (!row.selectedVersionId && row.image === row.processedImage && row.processedImage) return 'processed'
   return 'original'
 }

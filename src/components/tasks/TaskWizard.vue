@@ -312,12 +312,12 @@ const teacherEffectSourceOptions = computed(() => {
       meta: `${material.type || '课堂素材'} · 课堂资料`
     }))
   ;(props.state.sessionStudents || [])
-    .filter((row) => row?.artworkId && row.imageConfirmed && (row.processedFileId || row.originalFileId || row.imageFileIds?.[0]))
+    .filter((row) => row?.artworkId && row.imageConfirmed && (row.displayFileId || row.fileId || row.processedFileId || row.originalFileId || row.imageFileIds?.[0]))
     .forEach((row) => sourceOptions.push({
       sourceAssetId: String(row.artworkId),
       sourceType: 'ARTWORK',
-      fileId: row.processedFileId || row.originalFileId || row.imageFileIds?.[0],
-      image: row.processedImage || row.originalImage || row.image || '',
+      fileId: row.displayFileId || row.fileId || (row.imageConfirmed ? row.processedFileId : null) || row.originalFileId || row.imageFileIds?.[0],
+      image: row.image || row.originalImage || row.processedImage || '',
       title: `${studentFor(row.studentId).name}的作品`,
       meta: '学生作品 · 已确认'
     }))

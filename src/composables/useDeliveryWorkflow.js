@@ -651,7 +651,7 @@ export function useDeliveryWorkflow() {
           lessonId: task.id,
           studentId: row.studentId,
           studentName: student?.name || row.studentName || '学生',
-          fileId: row.processedFileId || row.originalFileId || row.imageFileIds?.[0] || null,
+          fileId: row.displayFileId || row.fileId || (row.imageConfirmed ? row.processedFileId : null) || row.originalFileId || row.imageFileIds?.[0] || null,
           artwork: row.image,
           feedback: row.comment,
           highlight: row.highlight,
@@ -3209,8 +3209,8 @@ export function useDeliveryWorkflow() {
         || String(right.id || '').localeCompare(String(left.id || ''), undefined, { numeric: true })
       )
       const latestVersionJob = versions.find((version) => version.jobId)
-      const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || versions[0]
-      const originalVersion = versions.find((version) => version.versionKind === 'ORIGINAL') || selectedVersion
+      const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || null
+      const originalVersion = versions.find((version) => version.versionKind === 'ORIGINAL') || selectedVersion || versions[0]
       // A processed candidate is only current when it was generated from the
       // latest original. Older processed candidates remain historical records
       // after an original replacement and must not reappear in the drawer.
@@ -3224,7 +3224,12 @@ export function useDeliveryWorkflow() {
       } else if (typeof processedVersion?.templateSnapshot === 'string') {
         try { processedSnapshot = JSON.parse(processedVersion.templateSnapshot) || {} } catch { /* legacy snapshot */ }
       }
-      const displayFileId = processedVersion?.fileId || selectedVersion?.fileId || originalVersion?.fileId || null
+      // selectedVersionId is the only source of truth for the image currently
+      // adopted by the teacher. A newly generated processed version is only a
+      // candidate until confirmArtwork succeeds and must not replace the
+      // original image in the workbench or the parent preview.
+      const displayVersion = selectedVersion || originalVersion
+      const displayFileId = displayVersion?.fileId || studentAssets[0]?.fileId || null
       const draftStudent = draftStudentById.get(String(attendanceRow.studentId))
       return {
         id: attendanceRow.studentId,
@@ -3236,11 +3241,12 @@ export function useDeliveryWorkflow() {
         attendance: attendanceRow.attendance,
         attendanceVersion: attendanceRow.version,
         note: attendanceRow.note || '',
-        imageFileIds: [...studentAssets.map((asset) => asset.fileId), selectedVersion?.fileId].filter(Boolean),
+        imageFileIds: [...studentAssets.map((asset) => asset.fileId), displayVersion?.fileId].filter(Boolean),
         // Archive detail cards consume a single display file id. Keep the
         // richer original/processed fields for the workbench, but expose the
         // resolved id here so current lesson records are immediately visible.
         fileId: displayFileId,
+        displayFileId,
         images: [],
         image: '',
         originalImage: '',
@@ -3251,14 +3257,15 @@ export function useDeliveryWorkflow() {
         imageConfirmed: artwork?.confirmationStatus === 'CONFIRMED' || artwork?.status === 'CONFIRMED',
         artworkId: artwork?.id || null,
         artworkVersion: artwork?.version || 0,
-        // Keep the server's adopted version separate from the latest version
-        // used as the display fallback above. A newly generated processed
-        // version is intentionally not adopted yet, so selected_version_id
-        // remains null until the teacher confirms it.
+        // Keep the server's adopted version separate from the latest processed
+        // candidate. A newly generated processed version is intentionally not
+        // adopted yet, so selected_version_id remains unchanged until the
+        // teacher confirms it.
         selectedVersionId: artwork?.selectedVersionId || null,
         originalVersionId: originalVersion?.id || null,
         processedVersionId: processedVersion?.id || null,
         processedTemplateKey: processedSnapshot.templateKey || null,
+        processedTemplateVersion: Number(processedSnapshot.templateVersion || 0) || null,
         processedRenderer: processedSnapshot.renderer || (processedSnapshot.operation ? 'AI_ASYNC' : null),
         processedOperation: processedSnapshot.operation || null,
         processed: Boolean(processedVersion && processedVersion.versionKind === 'PROCESSED'),
@@ -4781,19 +4788,36 @@ export function useDeliveryWorkflow() {
     const row = sessionStudentFor(targetStudentId)
     if (!row?.artworkId) return false
     const template = activeImageTemplate.value
-    const isOriginalTemplate = String(template?.templateKey || '').toLowerCase() === 'original'
+    const hasPersistedProcessedCandidate = Boolean(row.processedVersionId && row.processedFileId)
+    const persistedRenderer = String(row.processedRenderer || '').toUpperCase()
+    const isPersistedAiCandidate = hasPersistedProcessedCandidate && persistedRenderer !== 'CLIENT_CANVAS'
+    const isOriginalTemplate = String(template?.templateKey || '').trim().toLowerCase() === 'original'
 
-    if (isOriginalTemplate) {
-      // AI processing also uses the "original" template as its source marker.
-      // When a persisted candidate exists, this branch confirms that AI result
-      // rather than mistaking the source marker for "adopt original".
-      if (row.processedVersionId && row.processedFileId) {
-        return remoteConfirmCurrentImage('processed', targetStudentId)
-      }
-      return remoteConfirmCurrentImage('original', targetStudentId)
-    }
+    // An AI result is already an immutable server-side version. Confirm that
+    // version directly; the selected client template must not cause the AI
+    // result to be replaced by a second browser-rendered candidate.
+    if (isPersistedAiCandidate) return remoteConfirmCurrentImage('processed', targetStudentId)
+    if (!hasPersistedProcessedCandidate && isOriginalTemplate) return remoteConfirmCurrentImage('original', targetStudentId)
+
+    const selectedTemplateKey = String(template?.templateKey || '').trim().toLowerCase()
+    const processedTemplateKey = String(row.processedTemplateKey || '').trim().toLowerCase()
+    const selectedTemplateVersion = Number(template?.templateVersion || 1)
+    const processedTemplateVersion = Number(row.processedTemplateVersion || 0)
+    const persistedClientCandidateMatchesTemplate = Boolean(
+      hasPersistedProcessedCandidate &&
+      persistedRenderer === 'CLIENT_CANVAS' &&
+      selectedTemplateKey &&
+      selectedTemplateKey === processedTemplateKey &&
+      (!processedTemplateVersion || processedTemplateVersion === selectedTemplateVersion)
+    )
+
+    // Reuse a persisted browser-rendered candidate only when it represents
+    // the template currently selected by the teacher. Otherwise continue with
+    // the normal render-and-confirm flow below.
+    if (persistedClientCandidateMatchesTemplate) return remoteConfirmCurrentImage('processed', targetStudentId)
+
     if (!template || !isClientCanvasTemplate(template)) {
-      return remoteConfirmCurrentImage('processed', targetStudentId)
+      return remoteConfirmCurrentImage(hasPersistedProcessedCandidate ? 'processed' : 'original', targetStudentId)
     }
 
     const result = await runRemote('正在保存并采用处理图...', async () => {

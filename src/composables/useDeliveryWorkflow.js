@@ -462,6 +462,10 @@ export function useDeliveryWorkflow() {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && permissions.includes('masterdata.edit'))
   })
+  const canEditLessons = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && permissions.includes('lesson.edit'))
+  })
   const canQualityReview = computed(() => {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && (isAdmin.value || permissions.includes('quality.review')))
@@ -2329,6 +2333,7 @@ export function useDeliveryWorkflow() {
       id: nextId(classes),
       name: payload.name || '新班级',
       time: payload.time || '待排课',
+      scheduleSlots: payload.scheduleSlots || [],
       teacherId: Number(payload.teacherId) || teachers[0]?.id,
       teacher: teacher?.name || payload.teacher || '待配置',
       group: payload.group || '待创建家长群',
@@ -5637,7 +5642,7 @@ export function useDeliveryWorkflow() {
 
   const apiStudentStatus = (value) => ({ 在读: 'ACTIVE', 停课: 'SUSPENDED', 请假: 'LEAVE', 退费: 'REFUNDED' }[value] || value || 'ACTIVE')
   const apiEnabledStatus = (value) => ({ 启用: 'ENABLED', 停用: 'DISABLED' }[value] || value || 'ENABLED')
-  const apiClassStatus = (value) => ({ 筹备中: 'PREPARING', 开班中: 'ACTIVE', 停课: 'SUSPENDED', 结课: 'COMPLETED' }[value] || value || 'PREPARING')
+  const apiClassStatus = (value) => ({ 筹备中: 'PREPARING', 开班中: 'ACTIVE', 停课: 'SUSPENDED', 结课: 'CLOSED' }[value] || value || 'PREPARING')
   const apiExtraTaskStatus = (value) => ({
     待发布: 'DRAFT',
     已发布: 'PUBLISHED',
@@ -5711,10 +5716,13 @@ export function useDeliveryWorkflow() {
         teacherId: klass.teacherId ? String(klass.teacherId) : undefined,
         courseId: klass.courseId ? String(klass.courseId) : undefined,
         name: klass.name,
-        scheduleText: klass.scheduleText || klass.time || '',
         status: apiClassStatus(klass.status),
         studentIds: nextStudentIds,
-        version: klass.version
+        version: klass.version,
+        scheduleSlots: (klass.scheduleSlots || []).map((slot) => ({
+          id: slot.id ? String(slot.id) : undefined, weekday: Number(slot.weekday), startTime: slot.startTime || undefined,
+          endTime: slot.endTime || undefined
+        }))
       })
       const mapped = mapClass(saved)
       const index = classes.findIndex((item) => sameId(item.id, klass.id))
@@ -5911,8 +5919,12 @@ export function useDeliveryWorkflow() {
   const remoteAddClass = async (payload) => {
     const result = await runRemote('正在创建班级...', () => api.master.createClass({
       classTypeId: payload.classTypeId ? String(payload.classTypeId) : undefined, teacherId: payload.teacherId ? String(payload.teacherId) : undefined,
-      courseId: payload.courseId ? String(payload.courseId) : undefined, name: payload.name, scheduleText: payload.time || payload.scheduleText || '',
-      status: apiClassStatus(payload.status), studentIds: (payload.studentIds || []).map(String)
+      courseId: payload.courseId ? String(payload.courseId) : undefined, name: payload.name,
+      status: apiClassStatus(payload.status), studentIds: (payload.studentIds || []).map(String),
+      scheduleSlots: (payload.scheduleSlots || []).map((slot) => ({
+        id: slot.id ? String(slot.id) : undefined, weekday: Number(slot.weekday), startTime: slot.startTime || undefined,
+        endTime: slot.endTime || undefined
+      }))
     }), '班级已创建', () => invalidateResource('classes'))
     if (!result) return null
     const klass = mapClass(result)
@@ -5924,14 +5936,39 @@ export function useDeliveryWorkflow() {
     const current = classes.find((item) => sameId(item.id, classId))
     const result = await runRemote('正在保存班级...', () => api.master.updateClass(classId, {
       classTypeId: payload.classTypeId ? String(payload.classTypeId) : undefined, teacherId: payload.teacherId ? String(payload.teacherId) : undefined,
-      courseId: payload.courseId ? String(payload.courseId) : undefined, name: payload.name, scheduleText: payload.time || payload.scheduleText || '',
-      status: apiClassStatus(payload.status), studentIds: (payload.studentIds || []).map(String), version: current?.version || 0
+      courseId: payload.courseId ? String(payload.courseId) : undefined, name: payload.name,
+      status: apiClassStatus(payload.status), studentIds: (payload.studentIds || []).map(String), version: current?.version || 0,
+      scheduleSlots: (payload.scheduleSlots || []).map((slot) => ({
+        id: slot.id ? String(slot.id) : undefined, weekday: Number(slot.weekday), startTime: slot.startTime || undefined,
+        endTime: slot.endTime || undefined
+      }))
     }), '班级信息已保存', () => invalidateResource('classes'))
     if (!result) return null
     const klass = mapClass(result)
     const index = classes.findIndex((item) => sameId(item.id, classId))
     classes.splice(index, 1, klass)
     return klass
+  }
+
+  const previewLessonGeneration = async (classId, payload) => runRemote('正在预览固定课次...',
+    () => api.master.previewLessonGeneration(classId, {
+      dateFrom: payload.dateFrom, dateTo: payload.dateTo, lessonType: payload.lessonType || 'PAID'
+    }))
+
+  const generateLessonGeneration = async (classId, payload) => {
+    const result = await runRemote('正在生成固定课次...', () => api.master.generateLessonGeneration(classId, {
+      dateFrom: payload.dateFrom, dateTo: payload.dateTo, lessonType: payload.lessonType || 'PAID'
+    }, createIdempotencyKey(`class-lesson-generation:${classId}:${payload.dateFrom}:${payload.dateTo}:${payload.lessonType || 'PAID'}`)), '固定课次已生成')
+    if (!result) return null
+    await Promise.all([
+      invalidateResource('lessons.today'),
+      invalidateResource('lessons.schedule'),
+      invalidateResource('inbox-lessons'),
+      invalidateResource('workbench.summary'),
+      invalidateResource('todos'),
+      invalidateResource('classes')
+    ])
+    return result
   }
 
   const remoteAddCourse = async (payload) => {
@@ -6605,6 +6642,7 @@ export function useDeliveryWorkflow() {
     canManageIdentityRoles,
     canManageIdentityMemberships,
     canEditMasterData,
+    canEditLessons,
     canQualityReview,
     canQualityRead,
     canEditExtraTaskArtwork,
@@ -6745,6 +6783,8 @@ export function useDeliveryWorkflow() {
     loadStudentProfileAudits: remoteLoadStudentProfileAudits,
     addClass: remoteAddClass,
     updateClass: remoteUpdateClass,
+    previewLessonGeneration,
+    generateLessonGeneration,
     addCourse: remoteAddCourse,
     updateCourse: remoteUpdateCourse,
     addExternalLink: remoteAddExternalLink,

@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import PaginationBar from '../components/common/PaginationBar.vue'
+import ScheduleSlotEditor from '../components/masterdata/ScheduleSlotEditor.vue'
+import ClassLessonGenerationDialog from '../components/masterdata/ClassLessonGenerationDialog.vue'
 import { sameId } from '../services/mappers'
 
 const props = defineProps({
@@ -41,6 +43,8 @@ const detailLoading = ref(false)
 const saving = ref(false)
 const detailRequestId = ref(0)
 const draftBaseline = ref('')
+const generationClass = ref(null)
+const showGenerationDialog = ref(false)
 let cleanupMobileMedia = () => {}
 
 const studentProfileSections = [
@@ -109,6 +113,11 @@ const canEditMasterData = computed(() => {
   const permissions = props.state.currentUser?.permissions || []
   return permissions.includes('masterdata.edit')
 })
+const canGenerateLessons = computed(() => canEditMasterData.value && (props.state.canEditLessons?.value ?? props.state.canEditLessons) !== false)
+const closeGenerationDialog = (result) => {
+  showGenerationDialog.value = false
+  props.state.notify?.(`新生成 ${result?.createdCount || 0} 节，已有 ${result?.existingCount || 0} 节，跳过 ${result?.skippedCount || 0} 节`)
+}
 const entityLabel = computed(() => ({ teachers: '老师', students: '学生', classes: '班级', courses: '课程', externalLinks: '外部课程链接' }[props.entity] || '记录'))
 const isArchivableEntity = computed(() => props.entity !== 'externalLinks')
 const draftSnapshot = (value) => JSON.stringify(value || {})
@@ -186,7 +195,7 @@ const blankDraft = () => {
   if (props.entity === 'classes') {
     return {
       name: '',
-      time: '每周五 18:30',
+      scheduleSlots: [],
       teacherId: activeItems(props.state.teachers)[0]?.id,
       courseId: activeItems(props.state.courses)[0]?.id,
       group: '',
@@ -532,6 +541,10 @@ const save = async () => {
     }
     if (wasNew) {
       await loadDirectory(1, { skipGuard: true })
+      if (props.entity === 'classes' && saved.status === '开班中' && saved.scheduleSlots?.length) {
+        generationClass.value = saved
+        showGenerationDialog.value = true
+      }
       return
     }
     mode.value = canEditMasterData.value && !saved.archived ? 'edit' : 'detail'
@@ -543,6 +556,10 @@ const save = async () => {
       if (profile?.valueMap) draft.value = { ...draft.value, ...profile.valueMap }
     }
     markDraftClean()
+    if (props.entity === 'classes' && saved.status === '开班中' && saved.scheduleSlots?.length) {
+      generationClass.value = saved
+      showGenerationDialog.value = true
+    }
     await loadDirectory(page, { skipGuard: true, preserveSelection: true, selectionId: saved.id })
   } finally {
     saving.value = false
@@ -673,6 +690,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
   <PageHead :eyebrow="config.eyebrow" :title="config.title">
     <div class="button-pair">
+      <button v-if="entity === 'classes' && selected?.id && selected?.status === '开班中' && selected?.scheduleSlots?.length" class="secondary" type="button" :disabled="!canGenerateLessons" @click="generationClass = selected; showGenerationDialog = true">生成固定课次</button>
       <button class="primary" :disabled="archiveState !== 'ACTIVE' || !canEditMasterData" @click="startNew">{{ config.action }}</button>
     </div>
   </PageHead>
@@ -963,7 +981,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <template v-if="entity === 'classes'">
         <div class="form-grid">
           <label>班级名<input v-model="draft.name" :disabled="formReadonly" /></label>
-          <label>上课时间<input v-model="draft.time" :disabled="formReadonly" /></label>
           <label>
             任课老师
             <AdaptiveSelect v-model="draft.teacherId" :options="activeItems(state.teachers).map((teacher) => ({ label: teacher.name, value: teacher.id }))" :disabled="formReadonly" />
@@ -980,6 +997,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
             家长群
             <input v-model="draft.group" disabled />
           </label>
+        </div>
+        <ScheduleSlotEditor v-model="draft.scheduleSlots" :disabled="formReadonly" />
+        <div v-if="draft.legacySchedulePending" class="notice-box error-box">
+          <small>历史“上课时间”暂时无法识别，请重新配置固定时段后再生成课次。</small>
         </div>
         <div class="member-picker">
           <strong>学生名单</strong>
@@ -1032,4 +1053,11 @@ onBeforeUnmount(() => cleanupMobileMedia())
     </section>
     </div>
   </section>
+  <ClassLessonGenerationDialog
+    v-if="showGenerationDialog && entity === 'classes'"
+    :state="state"
+    :class-record="generationClass"
+    @close="showGenerationDialog = false"
+    @generated="closeGenerationDialog"
+  />
 </template>

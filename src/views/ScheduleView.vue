@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import PaginationBar from '../components/common/PaginationBar.vue'
+import ClassLessonGenerationDialog from '../components/masterdata/ClassLessonGenerationDialog.vue'
 
 const props = defineProps({
   state: { type: Object, required: true },
@@ -38,6 +39,7 @@ const teacherId = ref('all')
 const classId = ref('all')
 const page = ref(1)
 const ready = ref(false)
+const showGenerationDialog = ref(false)
 
 const applyPreset = (value) => {
   preset.value = value
@@ -64,6 +66,14 @@ const teacherOptions = computed(() => (props.state.teachers || [])
 const classOptions = computed(() => (props.state.classes || [])
   .filter((klass) => !klass.archived)
   .map((klass) => ({ value: String(klass.id), label: klass.name || '未命名班级' })))
+const canGenerateLessons = computed(() => {
+  const read = (value) => value?.value ?? value
+  return read(props.state.canEditMasterData) !== false && read(props.state.canEditLessons) !== false
+})
+const closeGenerationDialog = (result) => {
+  showGenerationDialog.value = false
+  props.state.notify?.(`新生成 ${result?.createdCount || 0} 节，已有 ${result?.existingCount || 0} 节，跳过 ${result?.skippedCount || 0} 节`)
+}
 
 const visibleLessons = computed(() => {
   const lessons = Array.isArray(props.state.scheduleLessons) ? props.state.scheduleLessons : []
@@ -107,6 +117,7 @@ const sourceLabel = (value) => ({
   WHEAT_CALENDAR: '小麦课表',
   WHEAT_COPY: '小麦复制',
   WHEAT_EXCEL: '小麦 Excel',
+  CLASS_SCHEDULE: '固定排课',
   MANUAL: '手动补录'
 }[value] || value || '未标记来源')
 
@@ -175,6 +186,7 @@ onMounted(async () => {
   <div class="schedule-page directory-page">
     <button v-if="groupLabel" class="module-back-link" type="button" @click="emit('backToGroup')">← 返回{{ groupLabel }}</button>
     <PageHead eyebrow="课后工作" title="课表 / 上课安排">
+      <button class="primary" type="button" :disabled="!canGenerateLessons" @click="showGenerationDialog = true">创建固定排课</button>
     </PageHead>
 
     <form class="directory-toolbar panel schedule-toolbar" @submit.prevent="reload">
@@ -281,6 +293,14 @@ onMounted(async () => {
       </div>
     </section>
   </div>
+  <ClassLessonGenerationDialog
+    v-if="showGenerationDialog"
+    :state="state"
+    :class-options="state.classes || []"
+    allow-class-select
+    @close="showGenerationDialog = false"
+    @generated="closeGenerationDialog"
+  />
 </template>
 
 <style scoped>

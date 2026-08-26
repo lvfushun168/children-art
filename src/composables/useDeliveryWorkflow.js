@@ -65,6 +65,7 @@ import {
 } from '../services/mappers'
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
+import { loadAllPageItems } from '../utils/pagination'
 import {
   DEFAULT_BAIDU_BACKEND_BASE_URL,
   DEFAULT_BAIDU_FRONTEND_BASE_URL,
@@ -222,7 +223,7 @@ export function useDeliveryWorkflow() {
   // screen only renders page one. This prevents components from having to
   // infer totals from the currently loaded array.
   const pageMeta = reactive({})
-  const scheduleMeta = reactive({ page: 1, pageSize: 200, total: 0, filters: {} })
+  const scheduleMeta = reactive({ page: 1, pageSize: 200, total: 0, filters: {}, allPages: false })
   const scheduleLoading = ref(false)
   const scheduleError = ref('')
   // Directory pages are intentionally separate from the reference collections
@@ -3803,17 +3804,6 @@ export function useDeliveryWorkflow() {
     }
   }
 
-  const loadAllPageItems = async (loader, mapper, params = {}) => {
-    const pageSize = 200
-    const first = mapPage(await loader({ ...params, page: 1, pageSize }), mapper)
-    const totalPages = Math.max(1, Math.ceil(first.total / pageSize))
-    if (totalPages === 1) return { items: first.items, total: first.total }
-    const rest = await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) =>
-      loader({ ...params, page: index + 2, pageSize }).then((value) => mapPage(value, mapper).items)
-    ))
-    return { items: [...first.items, ...rest.flat()], total: first.total }
-  }
-
   const refreshInboxLessons = async () => {
     if (!isLoggedIn.value) return null
     const scope = currentTodoScope()
@@ -3898,22 +3888,35 @@ export function useDeliveryWorkflow() {
     updatePageMeta(pageMeta[key], page)
   }
 
-  const loadScheduleLessons = async (params = {}, { force = false } = {}) => {
+  const loadScheduleLessons = async (params = {}, { force = false, allPages = false } = {}) => {
     if (!isLoggedIn.value) return null
     const page = Math.max(1, Number(params.page || scheduleMeta.page || 1))
     const pageSize = Math.min(200, Math.max(1, Number(params.pageSize || scheduleMeta.pageSize || 200)))
     const filters = { ...params }
     delete filters.page
     delete filters.pageSize
-    const promiseKey = `${page}:${pageSize}:${JSON.stringify(filters)}`
+    const promiseKey = `${allPages ? 'all' : page}:${pageSize}:${JSON.stringify(filters)}`
     if (!force && schedulePromises.has(promiseKey)) return schedulePromises.get(promiseKey)
     const load = (async () => {
       scheduleLoading.value = true
       scheduleError.value = ''
       try {
+        if (allPages) {
+          const result = await loadAllPageItems(api.lessons.list, mapLesson, filters, pageSize)
+          const byId = new Map()
+          result.items.forEach((lesson) => {
+            const hasId = lesson?.id !== null && lesson?.id !== undefined && lesson?.id !== ''
+            const key = hasId ? String(lesson.id) : `${lesson?.dateValue || ''}:${lesson?.time || ''}:${lesson?.classId || ''}`
+            if (!byId.has(key)) byId.set(key, lesson)
+          })
+          const mapped = { items: [...byId.values()], page: 1, pageSize, total: result.total }
+          replaceReactive(scheduleLessons, mapped.items)
+          Object.assign(scheduleMeta, { page: 1, pageSize, total: mapped.total, filters, allPages: true })
+          return mapped
+        }
         const mapped = mapPage(await api.lessons.list({ ...filters, page, pageSize }), mapLesson)
         replaceReactive(scheduleLessons, mapped.items)
-        Object.assign(scheduleMeta, { page: mapped.page, pageSize: mapped.pageSize, total: mapped.total, filters })
+        Object.assign(scheduleMeta, { page: mapped.page, pageSize: mapped.pageSize, total: mapped.total, filters, allPages: false })
         return mapped
       } catch (error) {
         scheduleError.value = remoteErrorMessage(error, '课表加载失败')
@@ -4364,7 +4367,7 @@ export function useDeliveryWorkflow() {
       case 'inbox-lessons': return refreshInboxLessons()
       case 'lessons.schedule': {
         if (!Object.keys(scheduleMeta.filters || {}).length) return null
-        return loadScheduleLessons({ ...scheduleMeta.filters, page: scheduleMeta.page, pageSize: scheduleMeta.pageSize }, { force })
+        return loadScheduleLessons({ ...scheduleMeta.filters, page: scheduleMeta.page, pageSize: scheduleMeta.pageSize }, { force, allPages: Boolean(scheduleMeta.allPages) })
       }
       case 'wheat-traces': return refreshWheatTraces()
       case 'cloud-archive-todos': return refreshCloudArchiveTodos()
@@ -4468,7 +4471,7 @@ export function useDeliveryWorkflow() {
     Object.keys(pageLoaded).forEach((key) => delete pageLoaded[key])
     Object.keys(pageErrors).forEach((key) => delete pageErrors[key])
     Object.keys(pageMeta).forEach((key) => delete pageMeta[key])
-    Object.assign(scheduleMeta, { page: 1, pageSize: 200, total: 0, filters: {} })
+    Object.assign(scheduleMeta, { page: 1, pageSize: 200, total: 0, filters: {}, allPages: false })
     scheduleError.value = ''
     schedulePromises.clear()
     Object.assign(shellSummary, { pendingLessons: 0, wheatPending: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })

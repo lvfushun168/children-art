@@ -1,8 +1,17 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
-import PaginationBar from '../components/common/PaginationBar.vue'
 import ClassLessonGenerationDialog from '../components/masterdata/ClassLessonGenerationDialog.vue'
+import ScheduleCalendar from '../components/schedule/ScheduleCalendar.vue'
+import {
+  endOfMonthValue,
+  endOfWeekValue,
+  resolveCalendarMode,
+  shiftDateRange,
+  startOfMonthValue,
+  startOfWeekValue,
+  toDateValue
+} from '../utils/scheduleCalendar.js'
 
 const props = defineProps({
   state: { type: Object, required: true },
@@ -11,48 +20,36 @@ const props = defineProps({
 
 const emit = defineEmits(['backToGroup', 'open-task'])
 
-const pad = (value) => String(value).padStart(2, '0')
-const toIsoDate = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-const fromIsoDate = (value) => {
-  const [year, month, day] = String(value || '').split('-').map(Number)
-  return year && month && day ? new Date(year, month - 1, day) : new Date()
-}
-const startOfWeek = (date) => {
-  const result = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const day = result.getDay()
-  result.setDate(result.getDate() - (day === 0 ? 6 : day - 1))
-  return result
-}
-const endOfWeek = (date) => {
-  const result = startOfWeek(date)
-  result.setDate(result.getDate() + 6)
-  return result
-}
-const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1)
-const endOfMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0)
-
 const today = new Date()
-const preset = ref('week')
-const dateFrom = ref(toIsoDate(startOfWeek(today)))
-const dateTo = ref(toIsoDate(endOfWeek(today)))
+const todayValue = toDateValue(today)
+const preset = ref('month')
+const dateFrom = ref(startOfMonthValue(todayValue))
+const dateTo = ref(endOfMonthValue(todayValue))
 const teacherId = ref('all')
 const classId = ref('all')
-const page = ref(1)
 const ready = ref(false)
 const showGenerationDialog = ref(false)
+const rangeOptions = [
+  { value: 'today', label: '今天' },
+  { value: 'week', label: '本周' },
+  { value: 'month', label: '本月' },
+  { value: 'custom', label: '自定义' }
+]
 
 const applyPreset = (value) => {
   preset.value = value
   const base = new Date()
   if (value === 'today') {
-    dateFrom.value = toIsoDate(base)
-    dateTo.value = toIsoDate(base)
+    dateFrom.value = toDateValue(base)
+    dateTo.value = toDateValue(base)
   } else if (value === 'month') {
-    dateFrom.value = toIsoDate(startOfMonth(base))
-    dateTo.value = toIsoDate(endOfMonth(base))
+    const current = toDateValue(base)
+    dateFrom.value = startOfMonthValue(current)
+    dateTo.value = endOfMonthValue(current)
   } else if (value === 'week') {
-    dateFrom.value = toIsoDate(startOfWeek(base))
-    dateTo.value = toIsoDate(endOfWeek(base))
+    const current = toDateValue(base)
+    dateFrom.value = startOfWeekValue(current)
+    dateTo.value = endOfWeekValue(current)
   }
 }
 
@@ -82,56 +79,11 @@ const visibleLessons = computed(() => {
   return lessons.filter((lesson) => allowed.has(String(lesson.classId)))
 })
 
-const groupedLessons = computed(() => {
-  const groups = new Map()
-  visibleLessons.value.forEach((lesson) => {
-    const key = lesson.dateValue || ''
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(lesson)
-  })
-  return [...groups.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([dateValue, lessons]) => ({
-      dateValue,
-      label: dateLabel(dateValue),
-      lessons: [...lessons].sort((left, right) => `${left.dateValue} ${left.startTime || left.time}`.localeCompare(`${right.dateValue} ${right.startTime || right.time}`))
-    }))
-})
-
-const mobileLessons = computed(() => groupedLessons.value.flatMap((group) =>
-  group.lessons.map((lesson) => ({
-    ...lesson,
-    scheduleDate: group.label,
-    scheduleDateValue: group.dateValue
-  }))
-))
-
-const dateLabel = (value) => {
-  if (!value) return '未设置日期'
-  const date = fromIsoDate(value)
-  const weekday = ['日', '一', '二', '三', '四', '五', '六'][date.getDay()]
-  return `${date.getMonth() + 1}月${date.getDate()}日（周${weekday}）`
-}
-
-const sourceLabel = (value) => ({
-  WHEAT_CALENDAR: '小麦课表',
-  WHEAT_COPY: '小麦复制',
-  WHEAT_EXCEL: '小麦 Excel',
-  CLASS_SCHEDULE: '固定排课',
-  MANUAL: '手动补录'
-}[value] || value || '未标记来源')
-
-const statusClass = (value) => ({
-  已完成: 'is-done',
-  处理中: 'is-processing',
-  异常: 'is-warning'
-}[value] || 'is-pending')
-
 const rangeLabel = computed(() => {
   if (!dateFrom.value || !dateTo.value) return '请选择日期范围'
   return dateFrom.value === dateTo.value ? dateFrom.value : `${dateFrom.value} 至 ${dateTo.value}`
 })
-const pageCount = computed(() => Math.max(1, Math.ceil(Number(props.state.scheduleMeta?.total || 0) / Number(props.state.scheduleMeta?.pageSize || 200))))
+const calendarMode = computed(() => resolveCalendarMode(preset.value, dateFrom.value, dateTo.value))
 
 const reload = async () => {
   if (!dateFrom.value || !dateTo.value || dateFrom.value > dateTo.value) return
@@ -140,10 +92,8 @@ const reload = async () => {
       dateFrom: dateFrom.value,
       dateTo: dateTo.value,
       teacherId: teacherId.value === 'all' ? undefined : teacherId.value,
-      classId: classId.value === 'all' ? undefined : classId.value,
-      page: page.value,
-      pageSize: 200
-    }, { force: true })
+      classId: classId.value === 'all' ? undefined : classId.value
+    }, { force: true, allPages: true })
   } catch {
     // The composable stores the user-facing error; keep the page mounted for retry.
   }
@@ -152,23 +102,23 @@ const reload = async () => {
 const resetFilters = () => {
   teacherId.value = 'all'
   classId.value = 'all'
-  page.value = 1
-  applyPreset('week')
+  applyPreset('month')
 }
 
-const changePage = (nextPage) => {
-  page.value = Math.min(pageCount.value, Math.max(1, nextPage))
+const navigateRange = (direction) => {
+  if (!dateFrom.value || !dateTo.value) return
+  const mode = preset.value === 'custom' ? 'custom' : calendarMode.value
+  const next = shiftDateRange(dateFrom.value, dateTo.value, direction, mode)
+  if (preset.value === 'today') preset.value = 'custom'
+  dateFrom.value = next.dateFrom
+  dateTo.value = next.dateTo
 }
 
 const openLesson = (lesson) => emit('open-task', lesson)
 
 watch([dateFrom, dateTo, teacherId, classId], () => {
   if (!ready.value) return
-  page.value = 1
   void reload()
-})
-watch(page, () => {
-  if (ready.value) void reload()
 })
 
 onMounted(async () => {
@@ -190,12 +140,10 @@ onMounted(async () => {
     </PageHead>
 
     <form class="directory-toolbar panel schedule-toolbar" @submit.prevent="reload">
-      <div class="schedule-presets">
+      <label class="schedule-range-select">
         <span>查看范围</span>
-        <button v-for="item in [{ value: 'today', label: '今天' }, { value: 'week', label: '本周' }, { value: 'month', label: '本月' }, { value: 'custom', label: '自定义' }]" :key="item.value" type="button" :class="{ selected: preset === item.value }" @click="item.value === 'custom' ? markCustom() : applyPreset(item.value)">
-          {{ item.label }}
-        </button>
-      </div>
+        <AdaptiveSelect v-model="preset" :options="rangeOptions" @change="applyPreset" />
+      </label>
       <label>
         <span>开始日期</span>
         <input v-model="dateFrom" type="date" @change="markCustom" />
@@ -219,14 +167,7 @@ onMounted(async () => {
     </form>
 
     <section class="master-list panel directory-list-panel">
-      <div class="section-head">
-        <div>
-          <span>课表列表</span>
-          <strong>{{ state.scheduleMeta?.total || 0 }} 条课次</strong>
-        </div>
-        <small v-if="state.scheduleLoading">正在加载…</small>
-        <small v-else>{{ rangeLabel }} · {{ props.state.isAdmin ? '全部课次' : '本人授权班级' }}</small>
-      </div>
+
 
       <div v-if="state.scheduleError" class="notice-box error-box" role="alert">
         <small>{{ state.scheduleError }}</small>
@@ -235,61 +176,19 @@ onMounted(async () => {
       <div v-else-if="state.scheduleLoading" class="notice-box">
         <small>正在加载课表，请稍候……</small>
       </div>
-      <div v-else-if="!groupedLessons.length" class="notice-box">
-        <strong>当前范围没有课次</strong>
-        <small>如果刚导入了月课表，请选择对应月份；“今日课后”只显示当天课次。</small>
-      </div>
-      <div v-else class="directory-table-wrap">
-        <table class="directory-table schedule-table">
-          <thead>
-            <tr>
-              <th>时间</th>
-              <th>班级</th>
-              <th>上课老师</th>
-              <th>课程类别 / 本次课题</th>
-              <th>状态</th>
-              <th>来源</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="group in groupedLessons" :key="group.dateValue">
-              <tr class="schedule-date-row">
-                <th colspan="7">
-                  <div>
-                    <span>{{ group.dateValue }}</span>
-                    <strong>{{ group.label }}</strong>
-                    <em>{{ group.lessons.length }} 节</em>
-                  </div>
-                </th>
-              </tr>
-              <tr v-for="lesson in group.lessons" :key="lesson.id" class="directory-table-row" @click="openLesson(lesson)">
-                <td class="schedule-time-cell"><strong>{{ lesson.time || '待定' }}</strong><small v-if="lesson.endTime">至 {{ lesson.endTime }}</small></td>
-                <td><strong>{{ lesson.className || '未配置班级' }}</strong></td>
-                <td>{{ lesson.teacher || '未配置老师' }}</td>
-                <td class="schedule-course-cell">
-                  <strong>{{ lesson.courseTitle || lesson.course || '未配置课程类别' }}</strong>
-                  <small :class="{ 'topic-empty': !lesson.topic }">课题：{{ lesson.topic || '未填写' }}</small>
-                </td>
-                <td><span class="schedule-status-tag" :class="statusClass(lesson.status)">{{ lesson.status }}</span></td>
-                <td>{{ sourceLabel(lesson.sourceType) }}</td>
-                <td><button class="ghost" type="button" @click.stop="openLesson(lesson)">处理本节课</button></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-
-        <div class="directory-mobile-cards">
-          <button v-for="lesson in mobileLessons" :key="lesson.id" type="button" class="directory-card schedule-mobile-card" @click="openLesson(lesson)">
-            <strong>{{ lesson.className || '未配置班级' }}</strong>
-            <span>{{ lesson.scheduleDate }} · {{ lesson.time || '待定' }}{{ lesson.endTime ? ` 至 ${lesson.endTime}` : '' }}</span>
-            <small>{{ lesson.teacher || '未配置老师' }} · {{ lesson.courseTitle || lesson.course || '未配置课程类别' }}</small>
-            <small :class="{ 'topic-empty': !lesson.topic }">课题：{{ lesson.topic || '未填写' }}</small>
-            <em>{{ lesson.status }} · {{ sourceLabel(lesson.sourceType) }}</em>
-          </button>
+      <div v-else class="schedule-calendar-state">
+        <div v-if="!visibleLessons.length" class="notice-box">
+          <strong>当前范围没有课次</strong>
+          <small>如果刚导入了月课表，请选择对应月份；“今日课后”只显示当天课次。</small>
         </div>
-
-        <PaginationBar :page="state.scheduleMeta?.page || 1" :page-size="state.scheduleMeta?.pageSize || 200" :total="state.scheduleMeta?.total || 0" :loading="state.scheduleLoading" @change="changePage" />
+        <ScheduleCalendar
+          :lessons="visibleLessons"
+          :date-from="dateFrom"
+          :date-to="dateTo"
+          :mode="calendarMode"
+          :today="todayValue"
+          @open-lesson="openLesson"
+        />
       </div>
     </section>
   </div>
@@ -308,143 +207,63 @@ onMounted(async () => {
   min-width: 0;
 }
 
+.schedule-calendar-state {
+  display: grid;
+  gap: 12px;
+}
+
+.schedule-calendar-state > .notice-box {
+  border-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-border-soft));
+  background: color-mix(in srgb, var(--color-primary-soft) 42%, var(--color-surface));
+}
+
 .schedule-toolbar {
   align-items: end;
 }
 
-.schedule-presets {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+.schedule-range-select {
+  flex: 0 1 190px;
+  min-width: 180px;
 }
 
-.schedule-presets > span {
-  margin-right: 6px;
+.schedule-range-select > span {
   color: var(--color-muted);
   font-size: 13px;
 }
 
-.schedule-presets button {
-  min-height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 8px;
-  background: var(--color-surface);
-  color: var(--color-heading);
-  cursor: pointer;
+.schedule-calendar-head-actions {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
 }
 
-.schedule-presets button.selected {
-  border-color: var(--color-border-strong);
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-weight: 700;
-}
-
-.schedule-table {
-  min-width: 920px;
-}
-
-.schedule-date-row th {
-  padding: 12px;
-  background: var(--color-surface-subtle);
-}
-
-.schedule-date-row th > div {
+.schedule-calendar-nav {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.schedule-date-row span,
-.schedule-date-row em {
-  color: var(--color-muted);
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 500;
-}
-
-.schedule-date-row strong {
-  color: var(--color-heading);
-  font-size: 15px;
-}
-
-.schedule-date-row em {
-  margin-left: auto;
-}
-
-.schedule-time-cell strong {
-  color: var(--color-heading);
-  font-size: 15px;
-}
-
-.schedule-time-cell small,
-.schedule-course-cell small {
-  display: block;
-  margin-top: 4px;
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.schedule-course-cell strong {
-  color: var(--color-heading);
-}
-
-.schedule-course-cell .topic-empty,
-.schedule-mobile-card .topic-empty {
-  opacity: .72;
-}
-
-.schedule-status-tag {
-  display: inline-flex;
-  width: fit-content;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: var(--color-status-muted-bg);
-  color: var(--color-status-muted-text);
-  font-size: 11px;
-  font-style: normal;
-  white-space: nowrap;
-}
-
-.schedule-status-tag.is-done {
-  background: var(--color-status-working-bg);
-  color: var(--color-status-working-text);
-}
-
-.schedule-status-tag.is-processing {
-  background: var(--color-status-working-bg);
-  color: var(--color-status-working-text);
-}
-
-.schedule-status-tag.is-warning {
-  background: var(--color-status-warning-bg);
-  color: var(--color-status-warning-text);
-}
-
-.schedule-mobile-card {
+  align-items: center;
   gap: 6px;
 }
 
-.schedule-mobile-card em {
-  color: var(--color-primary);
-}
-
-.schedule-mobile-card span,
-.schedule-mobile-card small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.schedule-calendar-nav button {
+  min-width: 38px;
+  min-height: 32px;
+  padding: 0 9px;
 }
 
 @media (max-width: 680px) {
-  .schedule-presets {
+  .schedule-range-select {
     grid-column: 1 / -1;
   }
 
-  .schedule-date-row th > div {
-    gap: 7px;
+  .schedule-calendar-head-actions {
+    justify-items: stretch;
+  }
+
+  .schedule-calendar-nav {
+    justify-content: space-between;
+  }
+
+  .schedule-calendar-nav button {
+    flex: 1;
   }
 }
 </style>

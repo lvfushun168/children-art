@@ -278,6 +278,8 @@ export function useDeliveryWorkflow() {
         focus: '色彩',
         comment: '',
         confirmed: false,
+        artworks: [],
+        activeArtworkId: null,
         highlight: false,
         highlightNote: '',
         shareReady: false,
@@ -306,6 +308,7 @@ export function useDeliveryWorkflow() {
     selectedCommentTemplate: 0,
     activeShareMode: 'student',
     activeStudentId: null,
+    activeArtworkId: null,
     teacherEffect: null,
     cloudJobs: [],
     cloudBatch: null,
@@ -370,6 +373,10 @@ export function useDeliveryWorkflow() {
   const activeStudentId = computed({
     get: () => activeWorkspace.value.activeStudentId,
     set: (value) => { activeWorkspace.value.activeStudentId = value === '' || value === undefined ? null : value }
+  })
+  const activeArtworkId = computed({
+    get: () => activeWorkspace.value.activeArtworkId,
+    set: (value) => { activeWorkspace.value.activeArtworkId = value === '' || value === undefined ? null : value }
   })
   const currentStep = computed({
     get: () => activeWorkspace.value.currentStep,
@@ -538,6 +545,18 @@ export function useDeliveryWorkflow() {
   const activeCourse = computed(() => courses.find((item) => sameId(item.id, activeTask.value?.courseId)) || { id: activeTask.value?.courseId || null, title: activeTask.value?.courseTitle || '待配置', materials: '', defaultFocus: '' })
   const activeSessionStudent = computed(() => sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value)))
   const sessionStudentFor = (studentId = activeStudentId.value) => sessionStudents.value.find((item) => sameId(item.studentId, studentId))
+  const artworksForRow = (row) => Array.isArray(row?.artworks) ? row.artworks : []
+  const artworkForTarget = (target = activeArtworkId.value) => {
+    if (target && typeof target === 'object' && target.artworkId) return target
+    const targetId = target === null || target === undefined ? activeArtworkId.value : target
+    for (const row of sessionStudents.value) {
+      const found = artworksForRow(row).find((artwork) => sameId(artwork.artworkId || artwork.id, targetId))
+      if (found) return found
+    }
+    const row = sessionStudentFor(targetId)
+    return artworksForRow(row)[0] || (row?.artworkId ? row : null)
+  }
+  const activeArtwork = computed(() => artworkForTarget(activeArtworkId.value) || artworksForRow(activeSessionStudent.value)[0] || null)
   const activeStudent = computed(() => students.find((item) => sameId(item.id, activeStudentId.value)) || sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value)) && {
     id: activeStudentId.value,
     name: sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value))?.studentName || '未命名学生',
@@ -649,14 +668,49 @@ export function useDeliveryWorkflow() {
       const course = courses.find((item) => sameId(item.id, task.courseId))
       const trace = wheatTraces.find((item) => sameId(item.lessonId, task.id))
       const savedWorks = archiveRecords.filter((record) => sameId(record.lessonId, task.id))
-      const studentWorks = (savedWorks.length ? savedWorks : workspace.studentDeliveries.filter((row) => row.attendance === '到课').map((row) => {
+      const toStudentWork = (record) => {
+        const nested = Array.isArray(record.artworks) ? record.artworks : []
+        const artworks = nested.length ? nested : (record.fileId || record.artwork ? [{
+          artworkId: record.artworkId || record.sourceId || record.id,
+          fileId: record.fileId,
+          fileUrl: record.artwork || '',
+          title: record.title || '学生作品',
+          sortOrder: 0,
+          highlight: Boolean(record.highlight),
+          highlightNote: record.highlightNote || ''
+        }] : [])
+        const current = artworks[0] || {}
+        return {
+          ...record,
+          artworks,
+          artworkCount: artworks.length,
+          fileId: record.fileId || current.fileId || null,
+          artwork: record.artwork || current.fileUrl || current.artwork || '',
+          imageMatched: Boolean(artworks.length),
+          imageConfirmed: artworks.every((artwork) => artwork.fileId || artwork.fileUrl),
+          highlight: artworks.some((artwork) => artwork.highlight),
+          highlightNote: artworks.find((artwork) => artwork.highlight)?.highlightNote || record.highlightNote || '',
+          shareReady: record.shareReady ?? Boolean(record.shareUrl),
+          archived: record.archived ?? task.archived
+        }
+      }
+      const studentWorks = (savedWorks.length ? savedWorks.map(toStudentWork) : workspace.studentDeliveries.filter((row) => row.attendance === '到课').map((row) => {
         const student = students.find((item) => sameId(item.id, row.studentId))
         return {
           id: `${task.id}-${row.studentId}`,
           lessonId: task.id,
           studentId: row.studentId,
           studentName: student?.name || row.studentName || '学生',
-          fileId: row.displayFileId || row.fileId || (row.imageConfirmed ? row.processedFileId : null) || row.originalFileId || row.imageFileIds?.[0] || null,
+          artworks: artworksForRow(row).map((artwork) => ({
+            artworkId: artwork.artworkId,
+            fileId: artwork.displayFileId || artwork.fileId,
+            fileUrl: artwork.image || '',
+            title: artwork.artworkTitle || artwork.title || '学生作品',
+            sortOrder: artwork.sortOrder,
+            highlight: artwork.highlight,
+            highlightNote: artwork.highlightNote || ''
+          })),
+          fileId: row.displayFileId || row.fileId || null,
           artwork: row.image,
           feedback: row.comment,
           highlight: row.highlight,
@@ -664,15 +718,10 @@ export function useDeliveryWorkflow() {
           shareReady: row.shareReady,
           archived: row.archived,
           imageMatched: row.imageMatched,
-          imageConfirmed: row.imageConfirmed
+          imageConfirmed: row.imageConfirmed,
+          artworkCount: artworksForRow(row).length
         }
-      })).map((record) => ({
-        ...record,
-        imageMatched: record.imageMatched ?? Boolean(record.artwork),
-        imageConfirmed: record.imageConfirmed ?? Boolean(record.artwork),
-        shareReady: record.shareReady ?? Boolean(record.shareUrl),
-        archived: record.archived ?? task.archived
-      }))
+      }).map(toStudentWork))
       const materialItems = (workspace.materials || []).map((material) => ({
         ...material,
         archiveRole: material.type === '课件' ? '备课课件' : material.type === '步骤图' ? '课堂步骤' : '课堂参考'
@@ -700,10 +749,10 @@ export function useDeliveryWorkflow() {
         coursewares: materialItems.filter((item) => item.type === '课件'),
         classroomMedia: materialItems.filter((item) => ['课堂照片', '课堂视频'].includes(item.type)),
         studentWorks,
-        worksCount: studentWorks.filter((item) => item.imageMatched).length,
+        worksCount: studentWorks.reduce((total, item) => total + Number(item.artworkCount || 0), 0),
         shareReadyCount: studentWorks.filter((item) => item.shareReady).length,
         archivedCount: studentWorks.filter((item) => item.archived).length,
-        highlights: studentWorks.filter((item) => item.highlight).length,
+        highlights: studentWorks.reduce((total, item) => total + (item.artworks || []).filter((artwork) => artwork.highlight).length, 0),
         wheatStatus: trace?.status || task.wheatStatus || '未生成',
         cloudArchiveStatus: task.cloudArchiveStatus || '待推送',
         teacherEffect: workspace.archiveChecklist?.teacherEffectArchive || createArchiveChecklist().teacherEffectArchive,
@@ -742,17 +791,31 @@ export function useDeliveryWorkflow() {
           referenceMaterials: [],
           coursewares: [],
           classroomMedia: [],
-          studentWorks: relatedWorks.map((record) => ({
-            ...record,
-            imageMatched: Boolean(record.artwork),
-            imageConfirmed: Boolean(record.artwork),
-            shareReady: Boolean(record.shareUrl),
-            archived: true
-          })),
-          worksCount: archive.works || relatedWorks.length,
+          studentWorks: relatedWorks.map((record) => {
+            const artworks = Array.isArray(record.artworks) && record.artworks.length ? record.artworks : record.fileId || record.artwork ? [{
+              artworkId: record.artworkId || record.sourceId || record.id,
+              fileId: record.fileId,
+              fileUrl: record.artwork || '',
+              title: record.title || '学生作品',
+              sortOrder: 0,
+              highlight: Boolean(record.highlight),
+              highlightNote: record.highlightNote || ''
+            }] : []
+            return {
+              ...record,
+              artworks,
+              artworkCount: artworks.length,
+              imageMatched: artworks.length > 0,
+              imageConfirmed: artworks.length > 0,
+              shareReady: Boolean(record.shareUrl),
+              archived: true,
+              highlight: artworks.some((artwork) => artwork.highlight)
+            }
+          }),
+          worksCount: archive.works || relatedWorks.reduce((total, record) => total + Number(record.artworkCount || (record.artworks?.length || (record.artwork ? 1 : 0))), 0),
           shareReadyCount: relatedWorks.filter((record) => record.shareUrl).length,
           archivedCount: archive.works || relatedWorks.length,
-          highlights: archive.highlights || relatedWorks.filter((record) => record.highlight).length,
+          highlights: archive.highlights || relatedWorks.reduce((total, record) => total + (record.artworks || []).filter((artwork) => artwork.highlight).length, 0),
           wheatStatus: archive.wheatStatus || '已人工处理',
           cloudArchiveStatus: archive.cloudArchiveStatus || '历史归档',
           teacherEffect: {
@@ -1023,7 +1086,18 @@ export function useDeliveryWorkflow() {
   }
 
   const isAttendanceMarked = (row) => row?.attendance && row.attendance !== '未标记'
-  const isDeliveryConfirmed = (row) => row?.attendance === '到课' && row.imageConfirmed && row.confirmed
+  const artworkCountForRow = (row) => {
+    const artworks = artworksForRow(row)
+    if (artworks.length) return artworks.length
+    return row?.imageMatched ? (row.imageFileIds?.length || 1) : 0
+  }
+  const isDeliveryConfirmed = (row) => {
+    const artworks = artworksForRow(row)
+    const imagesReady = artworks.length
+      ? artworks.every((artwork) => artwork.imageMatched && artwork.imageConfirmed)
+      : Boolean(row?.imageConfirmed)
+    return row?.attendance === '到课' && imagesReady && row.confirmed
+  }
   const confirmedDeliveryCount = (rows = []) => rows.filter(isDeliveryConfirmed).length
 
   const counts = computed(() => ({
@@ -1039,6 +1113,10 @@ export function useDeliveryWorkflow() {
     deliveryConfirmed: confirmedDeliveryCount(sessionStudents.value),
     studentDeliveryCompleted: sessionStudents.value.filter((item) => item.attendance === '到课' && item.imageMatched && item.imageConfirmed && item.record?.trim() && item.comment?.trim() && item.confirmed).length,
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
+    artworkCount: sessionStudents.value.reduce((total, row) => total + artworkCountForRow(row), 0),
+    confirmedArtworkCount: sessionStudents.value.reduce((total, row) => total + artworksForRow(row).filter((artwork) => artwork.imageMatched && artwork.imageConfirmed).length, 0),
+    processedArtworkCount: sessionStudents.value.reduce((total, row) => total + artworksForRow(row).filter((artwork) => artwork.processed).length, 0),
+    highlightArtworkCount: sessionStudents.value.reduce((total, row) => total + artworksForRow(row).filter((artwork) => artwork.highlight).length, 0),
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
     homeworkReady: homeworkIsAssigned(homework.value) && !String(homework.value.content || '').trim() ? 0 : 1,
@@ -3138,6 +3216,111 @@ export function useDeliveryWorkflow() {
     DRAFT: '待配置', PENDING: '待配置', QUEUED: '创建中', CREATING: '创建中', RUNNING: '推送中', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SUCCEEDED: '已同步', SYNCED: '已同步', COMPLETED: '已归档', SKIPPED: '已跳过', FAILED: '生成失败', CANCELED: '已取消'
   }[value] || value || '待处理')
 
+  const artworkUploadFailures = new Map()
+
+  const artworkVersionsForUi = (artwork) => [...(artwork?.versions || [])].sort((left, right) =>
+    Number(right.versionNo || 0) - Number(left.versionNo || 0)
+    || String(right.id || '').localeCompare(String(left.id || ''), undefined, { numeric: true })
+  )
+
+  const decorateArtworkForRow = (artwork, studentName, fallbackAsset = null) => {
+    const versions = artworkVersionsForUi(artwork)
+    const availableVersions = versions.filter((version) => !version.status || version.status === 'AVAILABLE')
+    const selectedVersion = availableVersions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || null
+    const originalVersion = availableVersions.find((version) => version.versionKind === 'ORIGINAL') || null
+    const processedVersion = availableVersions.find((version) =>
+      version.versionKind === 'PROCESSED' &&
+      (!originalVersion?.id || !version.sourceVersionId || sameId(version.sourceVersionId, originalVersion.id))
+    ) || null
+    const fallbackVersion = fallbackAsset ? {
+      id: null,
+      fileId: fallbackAsset?.fileId || null,
+      file: fallbackAsset?.file || null,
+      versionKind: 'ORIGINAL'
+    } : null
+    const currentVersion = selectedVersion || originalVersion || fallbackVersion
+    let processedSnapshot = {}
+    if (processedVersion?.templateSnapshot && typeof processedVersion.templateSnapshot === 'object') {
+      processedSnapshot = processedVersion.templateSnapshot
+    } else if (typeof processedVersion?.templateSnapshot === 'string') {
+      try { processedSnapshot = JSON.parse(processedVersion.templateSnapshot) || {} } catch { /* 历史处理图快照可能不是 JSON */ }
+    }
+    const displayFileId = currentVersion?.fileId || null
+    const displayImage = currentVersion?.file?.downloadUrl || ''
+    const originalFileId = originalVersion?.fileId || fallbackAsset?.fileId || null
+    const originalImage = originalVersion?.file?.downloadUrl || fallbackAsset?.file?.downloadUrl || ''
+    return {
+      ...artwork,
+      artworkId: artwork?.id || artwork?.artworkId || null,
+      studentId: artwork?.studentId || fallbackAsset?.studentId || null,
+      studentName,
+      title: artwork?.title || originalVersion?.file?.originalFilename || fallbackAsset?.title || '',
+      artworkTitle: artwork?.title || originalVersion?.file?.originalFilename || fallbackAsset?.title || '',
+      sortOrder: Number(artwork?.sortOrder || 0),
+      versions,
+      selectedVersionId: artwork?.selectedVersionId || null,
+      effectiveVersionId: currentVersion?.id || null,
+      originalVersionId: originalVersion?.id || null,
+      processedVersionId: processedVersion?.id || null,
+      originalFileId,
+      processedFileId: processedVersion?.fileId || null,
+      displayFileId,
+      fileId: displayFileId,
+      image: displayImage,
+      images: displayImage ? [displayImage] : [],
+      originalImage,
+      processedImage: processedVersion?.file?.downloadUrl || '',
+      imageMatched: Boolean(displayFileId),
+      imageConfirmed: Boolean(currentVersion?.id || displayFileId),
+      processed: Boolean(processedVersion),
+      processedTemplateKey: processedSnapshot.templateKey || null,
+      processedTemplateVersion: Number(processedSnapshot.templateVersion || 0) || null,
+      processedRenderer: processedSnapshot.renderer || (processedSnapshot.operation ? 'AI_ASYNC' : null),
+      processedOperation: processedSnapshot.operation || null,
+      imageProcessStatus: artwork?.job?.statusLabel || artwork?.statusLabel || '未处理',
+      imageProcessError: artwork?.job?.failureReason || artwork?.failureReason || '',
+      highlight: Boolean(artwork?.highlight),
+      highlightNote: artwork?.highlightNote || '',
+      artworkVersion: Number(artwork?.version || 0)
+    }
+  }
+
+  const summarizeRowArtworks = (row, artworks, studentAssets = []) => {
+    const items = artworks.filter((artwork) => artwork?.imageMatched)
+    const first = items[0] || null
+    const displayFileIds = items.map((artwork) => artwork.displayFileId || artwork.fileId).filter(Boolean)
+    const fallbackFileIds = studentAssets.map((asset) => asset.fileId).filter(Boolean)
+    const currentFileIds = [...new Set([...displayFileIds, ...fallbackFileIds])]
+    const allArtworksReady = artworks.length > 0 && artworks.every((artwork) => artwork?.imageMatched)
+    const hasLegacyAssets = artworks.length === 0 && fallbackFileIds.length > 0
+    row.artworks = artworks
+    row.imageFileIds = currentFileIds
+    row.fileId = first?.displayFileId || first?.fileId || fallbackFileIds[0] || null
+    row.displayFileId = row.fileId
+    row.image = first?.image || ''
+    row.images = items.map((artwork) => artwork.image).filter(Boolean)
+    row.originalImage = first?.originalImage || ''
+    row.processedImage = first?.processedImage || ''
+    row.originalFileId = first?.originalFileId || null
+    row.processedFileId = first?.processedFileId || null
+    row.imageMatched = allArtworksReady || hasLegacyAssets
+    row.imageConfirmed = row.imageMatched && (artworks.length === 0 || artworks.every((artwork) => artwork.imageConfirmed))
+    row.processed = items.some((artwork) => artwork.processed)
+    row.imageProcessStatus = first?.imageProcessStatus || '未处理'
+    row.imageProcessError = first?.imageProcessError || ''
+    row.artworkId = first?.artworkId || null
+    row.artworkVersion = first?.artworkVersion || 0
+    row.selectedVersionId = first?.selectedVersionId || null
+    row.originalVersionId = first?.originalVersionId || null
+    row.processedVersionId = first?.processedVersionId || null
+    row.artworkTitle = first?.artworkTitle || ''
+    row.highlight = items.some((artwork) => artwork.highlight)
+    row.highlightNote = items.find((artwork) => artwork.highlight)?.highlightNote || ''
+    row.highlightCount = items.filter((artwork) => artwork.highlight).length
+    row.artworkCount = artworks.length || fallbackFileIds.length
+    return row
+  }
+
   const applyRemoteLesson = async (lessonId, value) => {
     const lesson = mapLesson(value?.lesson || lessonForInboxId(lessonId) || {})
     if (lesson.id) {
@@ -3195,7 +3378,13 @@ export function useDeliveryWorkflow() {
     ;(Array.isArray(currentDraft.studentDeliveries) ? currentDraft.studentDeliveries : []).forEach((student) => {
       if (student?.studentId !== undefined && student?.studentId !== null) draftStudentById.set(String(student.studentId), student)
     })
-    const artworkByStudent = new Map(artworks.map((artwork) => [String(artwork.studentId), artwork]))
+    const artworksByStudent = new Map()
+    artworks.forEach((artwork) => {
+      const key = String(artwork.studentId)
+      if (!artworksByStudent.has(key)) artworksByStudent.set(key, [])
+      artworksByStudent.get(key).push(artwork)
+    })
+    artworksByStudent.forEach((items) => items.sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0) || String(left.id || '').localeCompare(String(right.id || ''), undefined, { numeric: true })))
     const feedbackByStudent = new Map(feedbacks.map((feedback) => [String(feedback.studentId), feedback]))
     const assetsByStudent = new Map()
     assets.filter((asset) => asset.studentId).forEach((asset) => {
@@ -3204,90 +3393,42 @@ export function useDeliveryWorkflow() {
       assetsByStudent.get(key).push(asset)
     })
     const rows = attendance.map((attendanceRow) => {
-      const artwork = artworkByStudent.get(String(attendanceRow.studentId))
       const feedback = feedbackByStudent.get(String(attendanceRow.studentId))
       const studentAssets = assetsByStudent.get(String(attendanceRow.studentId)) || []
-      // The API currently returns versions newest-first, but the workbench
-      // must not depend on transport ordering. In particular, an AI result
-      // can be inserted while an older processed version is still present.
-      const versions = [...(artwork?.versions || [])].sort((left, right) =>
-        Number(right.versionNo || 0) - Number(left.versionNo || 0)
-        || String(right.id || '').localeCompare(String(left.id || ''), undefined, { numeric: true })
-      )
-      const latestVersionJob = versions.find((version) => version.jobId)
-      const selectedVersion = versions.find((version) => sameId(version.id, artwork?.selectedVersionId)) || null
-      const originalVersion = versions.find((version) => version.versionKind === 'ORIGINAL') || selectedVersion || versions[0]
-      // A processed candidate is only current when it was generated from the
-      // latest original. Older processed candidates remain historical records
-      // after an original replacement and must not reappear in the drawer.
-      const processedVersion = versions.find((version) =>
-        version.versionKind === 'PROCESSED' &&
-        (!originalVersion?.id || !version.sourceVersionId || sameId(version.sourceVersionId, originalVersion.id))
-      )
-      let processedSnapshot = {}
-      if (processedVersion?.templateSnapshot && typeof processedVersion.templateSnapshot === 'object') {
-        processedSnapshot = processedVersion.templateSnapshot
-      } else if (typeof processedVersion?.templateSnapshot === 'string') {
-        try { processedSnapshot = JSON.parse(processedVersion.templateSnapshot) || {} } catch { /* legacy snapshot */ }
-      }
-      // selectedVersionId is the only source of truth for the image currently
-      // adopted by the teacher. A newly generated processed version is only a
-      // candidate until confirmArtwork succeeds and must not replace the
-      // original image in the workbench or the parent preview.
-      const displayVersion = selectedVersion || originalVersion
-      const displayFileId = displayVersion?.fileId || studentAssets[0]?.fileId || null
+      const studentName = attendanceRow.studentName || ''
+      const rowArtworks = (artworksByStudent.get(String(attendanceRow.studentId)) || [])
+        .map((artwork) => decorateArtworkForRow(artwork, studentName))
       const draftStudent = draftStudentById.get(String(attendanceRow.studentId))
-      return {
+      if (draftStudent?.highlight && rowArtworks.length && !rowArtworks.some((artwork) => artwork.highlight)) {
+        rowArtworks[0].highlight = true
+        rowArtworks[0].highlightNote = draftStudent.highlightNote || ''
+      }
+      const row = {
         id: attendanceRow.studentId,
         lessonId: lesson.id,
         studentId: attendanceRow.studentId,
         studentName: attendanceRow.studentName || '',
-        artworkTitle: artwork?.title || originalVersion?.file?.originalFilename || '',
+        artworkTitle: rowArtworks[0]?.artworkTitle || '',
         studentArchived: Boolean(attendanceRow.studentArchived),
         attendance: attendanceRow.attendance,
         attendanceVersion: attendanceRow.version,
         note: attendanceRow.note || '',
-        imageFileIds: [...studentAssets.map((asset) => asset.fileId), displayVersion?.fileId].filter(Boolean),
-        // Archive detail cards consume a single display file id. Keep the
-        // richer original/processed fields for the workbench, but expose the
-        // resolved id here so current lesson records are immediately visible.
-        fileId: displayFileId,
-        displayFileId,
-        images: [],
-        image: '',
-        originalImage: '',
-        processedImage: '',
-        originalFileId: originalVersion?.fileId || null,
-        processedFileId: processedVersion?.fileId || null,
-        imageMatched: Boolean(artwork || studentAssets.length),
-        imageConfirmed: artwork?.confirmationStatus === 'CONFIRMED' || artwork?.status === 'CONFIRMED',
-        artworkId: artwork?.id || null,
-        artworkVersion: artwork?.version || 0,
-        // Keep the server's adopted version separate from the latest processed
-        // candidate. A newly generated processed version is intentionally not
-        // adopted yet, so selected_version_id remains unchanged until the
-        // teacher confirms it.
-        selectedVersionId: artwork?.selectedVersionId || null,
-        originalVersionId: originalVersion?.id || null,
-        processedVersionId: processedVersion?.id || null,
-        processedTemplateKey: processedSnapshot.templateKey || null,
-        processedTemplateVersion: Number(processedSnapshot.templateVersion || 0) || null,
-        processedRenderer: processedSnapshot.renderer || (processedSnapshot.operation ? 'AI_ASYNC' : null),
-        processedOperation: processedSnapshot.operation || null,
-        processed: Boolean(processedVersion && processedVersion.versionKind === 'PROCESSED'),
-        imageProcessStatus: artwork?.job?.statusLabel || latestVersionJob?.job?.statusLabel || artwork?.statusLabel || '未处理',
-        imageProcessError: artwork?.job?.failureReason || latestVersionJob?.job?.failureReason || artwork?.failureReason || '',
         record: feedback?.classroomRecord || '',
         comment: feedback?.content || '',
         feedbackId: feedback?.id || null,
         feedbackVersion: feedback?.version || 0,
         feedbackVersionId: feedback?.currentVersionId || null,
         confirmed: feedback?.status === 'CONFIRMED' || Boolean(feedback?.confirmedVersionId),
-        highlight: Boolean(draftStudent?.highlight),
-        highlightNote: draftStudent?.highlightNote || '',
+        highlight: rowArtworks.some((artwork) => artwork.highlight) || Boolean(draftStudent?.highlight),
+        highlightNote: rowArtworks.find((artwork) => artwork.highlight)?.highlightNote || draftStudent?.highlightNote || '',
+        artworks: rowArtworks,
+        activeArtworkId: rowArtworks[0]?.artworkId || null,
+        uploadFailures: artworkUploadFailures.get(String(attendanceRow.studentId)) || [],
         shareReady: Boolean(draft.accessLinks?.some((link) => sameId(link.studentId, attendanceRow.studentId))),
         archived: lesson.status === '已完成'
       }
+      summarizeRowArtworks(row, rowArtworks, studentAssets)
+      return row
     })
     const materialItems = assets.filter((asset) => !asset.studentId).map((asset) => ({
       ...asset,
@@ -3314,6 +3455,10 @@ export function useDeliveryWorkflow() {
       completion: value?.completion || value?.completionCheck || null,
       availableCommands: value?.availableCommands || []
     })
+    const activeRow = rows.find((row) => sameId(row.studentId, workspace.activeStudentId)) || rows.find((row) => row.attendance === '到课')
+    if (!activeRow?.artworks?.some((artwork) => sameId(artwork.artworkId, workspace.activeArtworkId))) {
+      workspace.activeArtworkId = activeRow?.artworks?.[0]?.artworkId || null
+    }
     const touchStatus = touchTasks.length && touchTasks.every((task) => ['已发送', '人工触达'].includes(task.status)) ? '已发送' : touchTasks.some((task) => task.status === '发送失败') ? '发送失败' : touchTasks.length ? '待老师确认发送' : '待创建'
     Object.assign(workspace.archiveChecklist, {
       parentTouch: { ...workspace.archiveChecklist.parentTouch, status: touchStatus, sentCount: touchTasks.filter((task) => ['已发送', '人工触达'].includes(task.status)).length, detail: touchTasks.length ? `已创建 ${touchTasks.length} 个触达任务` : '' },
@@ -4665,20 +4810,66 @@ export function useDeliveryWorkflow() {
     return true
   }
 
+  const rememberArtworkUploadFailures = (row, failures) => {
+    const key = String(row?.studentId || '')
+    if (!key) return
+    if (failures.length) artworkUploadFailures.set(key, failures)
+    else artworkUploadFailures.delete(key)
+    const fresh = sessionStudentFor(row.studentId)
+    if (fresh) fresh.uploadFailures = failures
+  }
+
+  const uploadArtworkFiles = async (files, row) => {
+    const safeFiles = (files || []).filter(Boolean)
+    if (!safeFiles.length || !row?.studentId || !activeTask.value?.id) return { uploaded: 0, failed: [] }
+    const items = []
+    const failed = []
+    const baseSortOrder = artworksForRow(row).reduce((max, artwork) =>
+      Math.max(max, Number(artwork?.sortOrder ?? -1)), -1) + 1
+    for (const file of safeFiles) {
+      try {
+        const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-artwork-${row.studentId}`)
+        items.push({
+          file,
+          payload: {
+            studentId: String(row.studentId),
+            fileId: String(uploaded.id),
+            sortOrder: baseSortOrder + items.length
+          }
+        })
+      } catch (error) {
+        failed.push({ kind: 'ADD', file, name: file.name || '未命名文件', message: error?.message || '上传失败' })
+      }
+    }
+    const boundItems = []
+    if (items.length) {
+      try {
+        await api.assets.createArtworksBatch(activeTask.value.id, items.map((item) => item.payload))
+        boundItems.push(...items)
+      } catch (batchError) {
+        // 批量绑定失败时逐文件重试，确保部分文件失败不会掩盖已经成功的文件。
+        for (const item of items) {
+          try {
+            await api.assets.createArtwork(activeTask.value.id, item.payload)
+            boundItems.push(item)
+          } catch (error) {
+            failed.push({ kind: 'ADD', file: item.file, name: item.file.name || '未命名文件', message: error?.message || batchError?.message || '绑定作品失败' })
+          }
+        }
+      }
+    }
+    await refreshRemoteLesson(activeTask.value.id)
+    rememberArtworkUploadFailures(row, failed)
+    return { uploaded: boundItems.length, failed }
+  }
+
   const remoteUpdateImage = async (event, row, replaceIndex = null) => {
     const files = [...(event.target.files || [])]
     event.target.value = ''
     if (!files.length || !row?.studentId || !activeTask.value?.id) return
-    await runRemote('正在上传学生作品...', async () => {
-      const items = []
-      const baseSortOrder = Number(row.imageFileIds?.length || row.images?.length || 0)
-      for (const file of files) {
-        const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-artwork-${row.studentId}`)
-        items.push({ studentId: String(row.studentId), fileId: String(uploaded.id), sortOrder: replaceIndex === null ? baseSortOrder + items.length : replaceIndex })
-      }
-      await api.assets.createArtworksBatch(activeTask.value.id, items)
-      await refreshRemoteLesson(activeTask.value.id)
-    }, `已为${students.find((item) => sameId(item.id, row.studentId))?.name || '学生'}上传作品`)
+    const result = await runRemote('正在上传学生作品...', () => uploadArtworkFiles(files, row), `已为${students.find((item) => sameId(item.id, row.studentId))?.name || '学生'}上传作品`)
+    if (result?.failed?.length) notify(`${result.failed.length} 个作品上传失败，可点击失败文件重试：${result.failed.map((item) => item.name).join('、')}`)
+    return Boolean(result?.uploaded)
   }
 
   const remoteReplaceStudentImage = async (event, row) => {
@@ -4688,24 +4879,81 @@ export function useDeliveryWorkflow() {
     if (!file || !row?.studentId || !activeTask.value?.id) return false
 
     const result = await runRemote('正在替换学生作品...', async () => {
-      const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-artwork-${row.studentId}`)
-      if (row.artworkId) {
-        await api.assets.updateArtwork(row.artworkId, {
-          fileId: String(uploaded.id),
-          sortOrder: 0,
-          version: row.artworkVersion
-        })
-      } else {
-        await api.assets.createArtworksBatch(activeTask.value.id, [{
-          studentId: String(row.studentId),
-          fileId: String(uploaded.id),
-          sortOrder: 0
+      try {
+        const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-artwork-${row.studentId}`)
+        if (row.artworkId) {
+          await api.assets.updateArtwork(row.artworkId, {
+            fileId: String(uploaded.id),
+            sortOrder: Number(row.sortOrder || 0),
+            version: row.artworkVersion
+          })
+        } else {
+          await api.assets.createArtworksBatch(activeTask.value.id, [{
+            studentId: String(row.studentId),
+            fileId: String(uploaded.id),
+            sortOrder: Number(row.sortOrder || 0)
+          }])
+        }
+        await refreshRemoteLesson(activeTask.value.id)
+        rememberArtworkUploadFailures(row, [])
+        return true
+      } catch (error) {
+        rememberArtworkUploadFailures(row, [{
+          kind: row.artworkId ? 'REPLACE' : 'ADD',
+          artworkId: row.artworkId || null,
+          artworkVersion: row.artworkVersion || 0,
+          sortOrder: Number(row.sortOrder || 0),
+          file,
+          name: file.name || '未命名文件',
+          message: error?.message || '上传失败'
         }])
+        throw error
       }
-      await refreshRemoteLesson(activeTask.value.id)
-      return true
     }, '学生作品已替换')
     return result === true
+  }
+
+  const remoteRetryArtworkUploads = async (row) => {
+    const failures = artworkUploadFailures.get(String(row?.studentId || '')) || row?.uploadFailures || []
+    if (!failures.length) return false
+    const replacementFailures = failures.filter((item) => item.kind === 'REPLACE' && item.artworkId)
+    const addFailures = failures.filter((item) => !(item.kind === 'REPLACE' && item.artworkId))
+    let uploaded = 0
+    let remaining = []
+    if (replacementFailures.length) {
+      const replacementResult = await runRemote('正在重试失败作品替换...', async () => {
+        const failed = []
+        for (const item of replacementFailures) {
+          const artwork = artworkForTarget(item.artworkId) || {
+            artworkId: item.artworkId,
+            artworkVersion: item.artworkVersion,
+            sortOrder: item.sortOrder
+          }
+          try {
+            const uploadedFile = await uploadFile(item.file, `lesson-${activeTask.value.id}-artwork-${row.studentId}`)
+            await api.assets.updateArtwork(artwork.artworkId, {
+              fileId: String(uploadedFile.id),
+              sortOrder: Number(artwork.sortOrder || item.sortOrder || 0),
+              version: artwork.artworkVersion ?? item.artworkVersion
+            })
+            uploaded += 1
+          } catch (error) {
+            failed.push({ ...item, message: error?.message || '替换失败' })
+          }
+        }
+        await refreshRemoteLesson(activeTask.value.id)
+        return { uploaded, failed }
+      }, '失败作品替换已重试')
+      if (replacementResult?.failed?.length) remaining.push(...replacementResult.failed)
+    }
+    if (addFailures.length) {
+      const addResult = await runRemote('正在重试失败作品上传...', () => uploadArtworkFiles(addFailures.map((item) => item.file), row), '失败作品已重试')
+      uploaded += Number(addResult?.uploaded || 0)
+      if (addResult?.failed?.length) remaining.push(...addResult.failed)
+    }
+    rememberArtworkUploadFailures(row, remaining)
+    if (remaining.length) notify(`${remaining.length} 个作品仍上传失败：${remaining.map((item) => item.name).join('、')}`)
+    return Boolean(uploaded)
   }
 
   const remoteRenameArtwork = async (row, title) => {
@@ -4722,7 +4970,7 @@ export function useDeliveryWorkflow() {
       notify('作品名称不能超过 255 个字符')
       return false
     }
-    if (nextTitle === String(row.artworkTitle || '').trim()) return true
+    if (nextTitle === String(row.artworkTitle || row.title || '').trim()) return true
     const result = await runRemote('正在保存作品名称...', () => api.assets.updateArtwork(row.artworkId, {
       title: nextTitle,
       version: row.artworkVersion
@@ -4779,7 +5027,7 @@ export function useDeliveryWorkflow() {
     return committed
   }
 
-  const remoteRenderCurrentImage = async (row = activeSessionStudent.value) => {
+  const remoteRenderCurrentImage = async (row = activeArtwork.value || activeSessionStudent.value) => {
     const template = activeImageTemplate.value
     if (!row?.artworkId) return false
     if (!template || !isClientCanvasTemplate(template)) return false
@@ -4791,9 +5039,8 @@ export function useDeliveryWorkflow() {
     return result === true
   }
 
-  const remoteAdoptCurrentImage = async (studentId = activeStudentId.value) => {
-    const targetStudentId = studentId ?? activeStudentId.value
-    const row = sessionStudentFor(targetStudentId)
+  const remoteAdoptCurrentImage = async (target = activeArtworkId.value || activeStudentId.value) => {
+    const row = artworkForTarget(target)
     if (!row?.artworkId) return false
     const template = activeImageTemplate.value
     const hasPersistedProcessedCandidate = Boolean(row.processedVersionId && row.processedFileId)
@@ -4804,8 +5051,8 @@ export function useDeliveryWorkflow() {
     // An AI result is already an immutable server-side version. Confirm that
     // version directly; the selected client template must not cause the AI
     // result to be replaced by a second browser-rendered candidate.
-    if (isPersistedAiCandidate) return remoteConfirmCurrentImage('processed', targetStudentId)
-    if (!hasPersistedProcessedCandidate && isOriginalTemplate) return remoteConfirmCurrentImage('original', targetStudentId)
+    if (isPersistedAiCandidate) return remoteConfirmCurrentImage('processed', row)
+    if (!hasPersistedProcessedCandidate && isOriginalTemplate) return remoteConfirmCurrentImage('original', row)
 
     const selectedTemplateKey = String(template?.templateKey || '').trim().toLowerCase()
     const processedTemplateKey = String(row.processedTemplateKey || '').trim().toLowerCase()
@@ -4822,10 +5069,10 @@ export function useDeliveryWorkflow() {
     // Reuse a persisted browser-rendered candidate only when it represents
     // the template currently selected by the teacher. Otherwise continue with
     // the normal render-and-confirm flow below.
-    if (persistedClientCandidateMatchesTemplate) return remoteConfirmCurrentImage('processed', targetStudentId)
+    if (persistedClientCandidateMatchesTemplate) return remoteConfirmCurrentImage('processed', row)
 
     if (!template || !isClientCanvasTemplate(template)) {
-      return remoteConfirmCurrentImage(hasPersistedProcessedCandidate ? 'processed' : 'original', targetStudentId)
+      return remoteConfirmCurrentImage(hasPersistedProcessedCandidate ? 'processed' : 'original', row)
     }
 
     const result = await runRemote('正在保存并采用处理图...', async () => {
@@ -4833,7 +5080,7 @@ export function useDeliveryWorkflow() {
         await renderClientArtwork(row, template)
         await refreshRemoteLesson(activeTask.value.id, { force: true })
       }
-      const current = sessionStudentFor(targetStudentId)
+      const current = artworkForTarget(row.artworkId)
       const versionId = current?.processedVersionId
       if (!current?.artworkId || !versionId) throw new Error('当前预览尚未生成处理图，请稍后重试')
       await api.assets.confirmArtwork(current.artworkId, {
@@ -4846,13 +5093,12 @@ export function useDeliveryWorkflow() {
     return result === true
   }
 
-  const remoteConfirmCurrentImage = async (mode = 'processed', studentId = activeStudentId.value) => {
-    const targetStudentId = studentId ?? activeStudentId.value
-    const row = sessionStudentFor(targetStudentId)
+  const remoteConfirmCurrentImage = async (mode = 'processed', target = activeArtworkId.value || activeStudentId.value) => {
+    const row = artworkForTarget(target)
     if (!row?.artworkId) return false
     const versionId = mode === 'processed' ? row.processedVersionId : (row.originalVersionId || row.selectedVersionId)
     if (!versionId) {
-      notify(mode === 'processed' ? '当前学生没有可确认的处理图，请选择原图' : '当前学生没有可确认的图片版本')
+      notify(mode === 'processed' ? '当前作品没有可确认的处理图，请选择原图' : '当前作品没有可确认的图片版本')
       return false
     }
     const result = await runRemote('正在确认作品图片...', () => api.assets.confirmArtwork(row.artworkId, { versionId: String(versionId), version: row.artworkVersion }))
@@ -4862,8 +5108,8 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteProcessImages = async () => {
-    const rows = attendingRows.value.filter((row) => row.artworkId)
-    if (!rows.length) {
+    const artworks = attendingRows.value.flatMap((row) => artworksForRow(row).filter((artwork) => artwork.artworkId && artwork.imageMatched))
+    if (!artworks.length) {
       notify('请先上传学生作品')
       return false
     }
@@ -4874,14 +5120,14 @@ export function useDeliveryWorkflow() {
         return true
       }
       const result = await runRemote('正在生成并保存批量处理图...', async () => {
-        for (const row of rows) await renderClientArtwork(row, template)
+        for (const artwork of artworks) await renderClientArtwork(artwork, template)
         await refreshRemoteLesson(activeTask.value.id, { force: true })
         return true
-      }, `已按“${template.name}”生成 ${rows.length} 张处理图`)
+      }, `已按“${template.name}”生成 ${artworks.length} 张处理图`)
       return result === true
     }
     const result = await runRemote('正在提交图片处理任务...', async () => {
-      const jobs = await api.assets.processArtworksBatch(activeTask.value.id, rows.map((row) => row.artworkId), {
+      const jobs = await api.assets.processArtworksBatch(activeTask.value.id, artworks.map((artwork) => artwork.artworkId), {
         templateKey: template?.templateKey || template?.name || undefined,
         parameters: JSON.stringify({})
       })
@@ -4898,11 +5144,11 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteRetryCurrentImageProcess = async () => {
-    const row = activeSessionStudent.value
+    const row = activeArtwork.value || activeSessionStudent.value
     if (!row?.artworkId) return false
     if (activeImageTemplate.value && isClientCanvasTemplate(activeImageTemplate.value)) {
       if (String(activeImageTemplate.value.templateKey).toLowerCase() === 'original') {
-        return remoteConfirmCurrentImage('original', row.studentId)
+        return remoteConfirmCurrentImage('original', row)
       }
       return remoteRenderCurrentImage(row)
     }
@@ -4922,14 +5168,13 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const remoteProcessCurrentImageWithPrompt = async (prompt, studentId = activeStudentId.value) => {
+  const remoteProcessCurrentImageWithPrompt = async (prompt, target = activeArtworkId.value || activeStudentId.value) => {
     const safePrompt = String(prompt || '').trim()
     if (!safePrompt) {
       notify('请输入 AI 处理提示词')
       return false
     }
-    const targetStudentId = studentId ?? activeStudentId.value
-    const row = sessionStudentFor(targetStudentId)
+    const row = artworkForTarget(target)
     if (!row?.artworkId) {
       notify('请先上传当前学生的作品')
       return false
@@ -5115,7 +5360,12 @@ export function useDeliveryWorkflow() {
       confirmed: Boolean(row.confirmed),
       imageConfirmed: Boolean(row.imageConfirmed),
       highlight: Boolean(row.highlight),
-      highlightNote: row.highlightNote || ''
+      highlightNote: row.highlightNote || '',
+      artworks: artworksForRow(row).map((artwork) => ({
+        artworkId: String(artwork.artworkId),
+        highlight: Boolean(artwork.highlight),
+        highlightNote: artwork.highlightNote || ''
+      }))
     })),
     students: students.map((student) => ({
       ...clone(student),
@@ -5186,14 +5436,34 @@ export function useDeliveryWorkflow() {
     }
   }
 
-  const remoteToggleHighlight = async (row) => {
-    if (!row || !activeTask.value?.id) return false
-    const previous = { highlight: Boolean(row.highlight), highlightNote: row.highlightNote || '' }
-    row.highlight = !previous.highlight
-    if (row.highlight && !row.highlightNote) row.highlightNote = '作品表现突出，可作为本节课高光展示。'
-    const saved = await remoteSaveShareDraft('更新作品高光')
-    if (!saved) Object.assign(row, previous)
-    return saved
+  const remoteToggleHighlight = async (target) => {
+    const artwork = artworkForTarget(target)
+    if (!artwork?.artworkId || !activeTask.value?.id) return false
+    const nextHighlight = !Boolean(artwork.highlight)
+    const nextNote = nextHighlight
+      ? (artwork.highlightNote || '作品表现突出，可作为本节课高光展示。')
+      : ''
+    const saved = await runRemote('正在保存作品高光...', () => api.assets.updateArtwork(artwork.artworkId, {
+      highlight: nextHighlight,
+      highlightNote: nextNote,
+      version: artwork.artworkVersion
+    }), nextHighlight ? '已标记高光作品' : '已取消高光标记')
+    if (!saved) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteSaveArtworkHighlight = async (target) => {
+    const artwork = artworkForTarget(target)
+    if (!artwork?.artworkId || !activeTask.value?.id) return false
+    const saved = await runRemote('正在保存高光说明...', () => api.assets.updateArtwork(artwork.artworkId, {
+      highlight: Boolean(artwork.highlight),
+      highlightNote: artwork.highlight ? String(artwork.highlightNote || '').trim() : '',
+      version: artwork.artworkVersion
+    }), '高光说明已保存')
+    if (!saved) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
   }
 
   const remoteGenerateSharePages = async () => {
@@ -6656,6 +6926,8 @@ export function useDeliveryWorkflow() {
     activeClass,
     activeCourse,
     activeSessionStudent,
+    activeArtworkId,
+    activeArtwork,
     activeStudent,
     classStudents,
     attendingRows,
@@ -6745,6 +7017,7 @@ export function useDeliveryWorkflow() {
     confirmCurrentComment: remoteConfirmCurrentComment,
     saveSessionRecord: remoteSaveRecord,
     toggleHighlight: remoteToggleHighlight,
+    saveArtworkHighlight: remoteSaveArtworkHighlight,
     toggleHomeworkLink,
     setHomeworkMode,
     applyHomeworkExample,
@@ -6765,6 +7038,7 @@ export function useDeliveryWorkflow() {
     copyStudentLink: remoteCopyStudentLink,
     updateImage: remoteUpdateImage,
     replaceStudentImage: remoteReplaceStudentImage,
+    retryArtworkUploads: remoteRetryArtworkUploads,
     renameArtwork: remoteRenameArtwork,
     removeArtwork: remoteRemoveStudentImage,
     removeArtworkVersion: remoteRemoveArtworkVersion,

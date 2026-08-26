@@ -50,17 +50,24 @@ const commentTemplateOptions = computed(() =>
 const artworkRow = computed(() =>
   props.state.attendingRows.find((row) => sameId(row.studentId, artworkStudentId.value)) || null
 )
+const artworkItems = computed(() => Array.isArray(artworkRow.value?.artworks) ? artworkRow.value.artworks : [])
+const artworkItem = computed(() => {
+  const activeId = props.state.activeArtworkId
+  return artworkItems.value.find((artwork) => sameId(artwork.artworkId || artwork.id, activeId))
+    || artworkItems.value[0]
+    || (artworkRow.value?.artworkId ? artworkRow.value : null)
+})
 
 const artworkNameDraft = ref('')
 const artworkNameSaving = ref(false)
 
-const syncArtworkNameDraft = (row = artworkRow.value) => {
+const syncArtworkNameDraft = (row = artworkItem.value) => {
   if (artworkNameSaving.value) return
   artworkNameDraft.value = String(row?.artworkTitle || '').trim()
 }
 
 watch(
-  () => `${artworkRow.value?.artworkId || ''}:${artworkRow.value?.artworkTitle || ''}`,
+  () => `${artworkItem.value?.artworkId || ''}:${artworkItem.value?.artworkTitle || artworkItem.value?.title || ''}`,
   () => syncArtworkNameDraft(),
   { immediate: true }
 )
@@ -68,7 +75,7 @@ watch(
 const cancelArtworkNameEdit = () => syncArtworkNameDraft()
 
 const saveArtworkName = async () => {
-  const row = artworkRow.value
+  const row = artworkItem.value
   if (!row?.artworkId || artworkNameSaving.value) return false
   const originalTitle = String(row.artworkTitle || '').trim()
   const nextTitle = artworkNameDraft.value.trim()
@@ -120,10 +127,20 @@ const mobileSectionTitle = computed(() => ({
 }[mobileSection.value] || '学生事项'))
 
 const workImages = (row) => {
+  const artworks = Array.isArray(row?.artworks) ? row.artworks.filter((artwork) => artwork?.imageMatched !== false) : []
+  if (artworks.length) return artworks.map((artwork, index) => ({
+    artworkId: artwork.artworkId || artwork.id,
+    fileId: artwork.displayFileId || artwork.fileId || null,
+    src: artwork.image || artwork.originalImage || '',
+    highlight: Boolean(artwork.highlight),
+    title: artwork.artworkTitle || artwork.title || `作品${index + 1}`
+  }))
   const fileIds = Array.isArray(row?.imageFileIds) ? row.imageFileIds.filter(Boolean) : []
   if (fileIds.length) return fileIds.map((fileId, index) => ({ fileId, src: row.images?.[index] || '' }))
   return (row?.images || (row?.image ? [row.image] : [])).map((src) => ({ fileId: null, src }))
 }
+
+const artworkForImage = (row, image) => (row?.artworks || []).find((artwork) => sameId(artwork.artworkId || artwork.id, image?.artworkId)) || null
 
 const imageAsset = (row, mode) => {
   if (!row) return { fileId: null, src: '' }
@@ -151,7 +168,7 @@ let artworkPreviewRequest = 0
 
 const hasProcessedCandidate = (row) => Boolean(
   hasProcessedImage(row) ||
-  (sameId(artworkRow.value?.studentId, row?.studentId) && artworkPreviewUrl.value)
+  (sameId(artworkItem.value?.artworkId, row?.artworkId) && artworkPreviewUrl.value)
 )
 
 const showPersistedProcessedImage = (row) => {
@@ -180,7 +197,7 @@ const refreshArtworkPreview = async () => {
   const requestId = ++artworkPreviewRequest
   clearArtworkPreview()
   artworkPreviewLoading.value = false
-  const row = artworkRow.value
+  const row = artworkItem.value
   const template = selectedImageTemplate.value
   const original = imageAsset(row, 'original')
   if (!row || !template || !hasImage(original)) return
@@ -204,11 +221,11 @@ const refreshArtworkPreview = async () => {
 
 const clientTemplateSelected = computed(() => Boolean(selectedImageTemplate.value && isClientCanvasTemplate(selectedImageTemplate.value)))
 const processActionLabel = computed(() => {
-  return hasProcessedImage(artworkRow.value) ? '重新处理' : '处理当前作品'
+  return hasProcessedImage(artworkItem.value) ? '重新处理' : '处理当前作品'
 })
 
 watch(
-  () => `${artworkRow.value?.originalFileId || artworkRow.value?.originalImage || ''}:${selectedImageTemplate.value?.id || selectedImageTemplate.value?.name || ''}:${selectedImageTemplate.value?.templateVersion || ''}:${selectedImageTemplate.value?.version || ''}`,
+  () => `${artworkItem.value?.originalFileId || artworkItem.value?.originalImage || ''}:${artworkItem.value?.artworkId || ''}:${selectedImageTemplate.value?.id || selectedImageTemplate.value?.name || ''}:${selectedImageTemplate.value?.templateVersion || ''}:${selectedImageTemplate.value?.version || ''}`,
   () => { void refreshArtworkPreview() },
   { immediate: true }
 )
@@ -240,7 +257,32 @@ const artworkVersionStatus = (row) => {
 const artworkVersionStatusClass = (row) => row?.imageConfirmed ? 'ok-text' : 'missing-text'
 
 const feedbackProgress = (row) => props.state.jobProgressFor?.(row, 'FEEDBACK') || null
-const artworkProgress = (row) => props.state.jobProgressFor?.(row, 'ARTWORK') || null
+const artworkTargetsFor = (row) => {
+  const artworks = Array.isArray(row?.artworks) ? row.artworks.filter((artwork) => artwork?.artworkId) : []
+  return artworks.length ? artworks : row?.artworkId ? [row] : []
+}
+const artworkProgress = (row) => {
+  const targets = artworkTargetsFor(row)
+  if (targets.length <= 1) return props.state.jobProgressFor?.(targets[0] || row, 'ARTWORK') || null
+  const values = targets.map((target) => props.state.jobProgressFor?.(target, 'ARTWORK')).filter(Boolean)
+  if (!values.length) return null
+  const terminalStatuses = ['SUCCEEDED', 'FAILED', 'CANCELED']
+  const done = values.filter((value) => terminalStatuses.includes(value.status)).length
+  const status = values.some((value) => !terminalStatuses.includes(value.status))
+    ? 'RUNNING'
+    : values.some((value) => value.status === 'FAILED')
+      ? 'FAILED'
+      : values.some((value) => value.status === 'CANCELED')
+        ? 'CANCELED'
+        : 'SUCCEEDED'
+  const percentages = values.map((value) => Number(value.progressPercent)).filter(Number.isFinite)
+  return {
+    ...values[0],
+    status,
+    progressPercent: percentages.length ? Math.round(percentages.reduce((sum, value) => sum + value, 0) / percentages.length) : undefined,
+    message: `${done}/${targets.length} 张作品已完成`
+  }
+}
 const jobIsActive = (progress) => Boolean(progress && !['SUCCEEDED', 'FAILED', 'CANCELED'].includes(progress.status))
 const jobProgressLabel = (progress) => {
   if (!progress) return ''
@@ -251,10 +293,14 @@ const feedbackJobActive = (row) => jobIsActive(feedbackProgress(row))
 const artworkJobActive = (row) => jobIsActive(artworkProgress(row))
 const batchJobProgressText = (type) => {
   const rows = props.state.attendingRows || []
-  const targets = rows.filter((row) => type === 'ARTWORK' ? row.artworkId : row.record?.trim())
+  const targets = type === 'ARTWORK'
+    ? rows.flatMap((row) => artworkTargetsFor(row))
+    : rows.filter((row) => row.record?.trim())
   const values = targets.map((row) => type === 'ARTWORK' ? artworkProgress(row) : feedbackProgress(row)).filter(Boolean)
   if (!values.length) return ''
-  const done = values.filter((value) => ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(value.status)).length
+  const done = type === 'ARTWORK'
+    ? values.reduce((total, value) => total + (value.message?.match(/^(\d+)\//)?.[1] ? Number(value.message.match(/^(\d+)\//)[1]) : ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(value.status) ? 1 : 0), 0)
+    : values.filter((value) => ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(value.status)).length
   return `${done}/${targets.length} 已完成`
 }
 
@@ -277,23 +323,34 @@ const setActive = (row) => {
 
 const setDrawerState = (open) => emit('drawer-state', open)
 
-const openArtwork = (row) => {
+const openArtwork = (row, artwork = null) => {
   setActive(row)
   artworkStudentId.value = row?.studentId ?? null
-  syncArtworkNameDraft(row)
+  props.state.activeArtworkId = artwork?.artworkId || artwork?.id || row?.artworks?.[0]?.artworkId || row?.artworkId || null
+  syncArtworkNameDraft(artwork || row?.artworks?.[0] || row)
   setDrawerState(true)
+}
+
+const switchArtwork = (step) => {
+  const items = artworkItems.value
+  if (items.length < 2) return
+  const currentIndex = Math.max(0, items.findIndex((item) => sameId(item.artworkId, artworkItem.value?.artworkId)))
+  const nextIndex = (currentIndex + step + items.length) % items.length
+  props.state.activeArtworkId = items[nextIndex].artworkId
+  syncArtworkNameDraft(items[nextIndex])
 }
 
 const closeArtwork = () => {
   aiPromptOpen.value = false
   artworkNameDraft.value = ''
   artworkStudentId.value = null
+  props.state.activeArtworkId = null
   setDrawerState(false)
 }
 
 const openAiPrompt = () => {
-  if (!artworkRow.value) return
-  if (!hasImage(imageAsset(artworkRow.value, 'original'))) {
+  if (!artworkItem.value) return
+  if (!hasImage(imageAsset(artworkItem.value, 'original'))) {
     props.state.notify('请先上传当前学生的原图')
     return
   }
@@ -314,14 +371,14 @@ const submitAiPrompt = async () => {
     aiPromptError.value = '请输入 AI 处理提示词'
     return
   }
-  if (!artworkRow.value) return
-  setActive(artworkRow.value)
+  if (!artworkItem.value) return
+  setActive(artworkItem.value || artworkRow.value)
   const process = props.state.processImageWithPrompt
   if (typeof process !== 'function') {
     aiPromptError.value = 'AI 图片处理服务暂不可用，请稍后重试'
     return
   }
-  const submitted = await process(prompt, artworkRow.value.studentId)
+  const submitted = await process(prompt, artworkItem.value)
   if (submitted) {
     aiPromptOpen.value = false
     aiPromptError.value = ''
@@ -402,7 +459,7 @@ const processCurrentImage = async (row) => {
   setActive(row)
   if (selectedImageTemplate.value && isClientCanvasTemplate(selectedImageTemplate.value)) {
     if (String(selectedImageTemplate.value.templateKey || '').toLowerCase() === 'original') {
-      await props.state.confirmCurrentImage('original', row.studentId)
+      await props.state.confirmCurrentImage('original', row)
     } else {
       await props.state.renderCurrentImage?.(row)
     }
@@ -417,11 +474,11 @@ const replaceOriginalImage = async (event, row) => {
   if (!row) return
   setActive(row)
   const replace = props.state.replaceStudentImage || props.state.updateImage
-  await replace?.(event, row, 0)
+  await replace?.(event, row)
 }
 
 const removeOriginalArtwork = async (row) => {
-  if (!row || !confirmDestructiveAction('移除后将清空该学生本次作品及其处理结果，确定继续吗？')) return
+  if (!row || !confirmDestructiveAction('移除后将删除这张作品及其处理结果，确定继续吗？')) return
   setActive(row)
   const remove = props.state.removeArtwork || props.state.removeStudentImage
   const removed = await remove?.(row)
@@ -489,7 +546,7 @@ const selectImage = async (row, mode) => {
   setActive(row)
   if (mode === 'processed') {
     if (props.state.adoptCurrentImage) {
-      await props.state.adoptCurrentImage(row.studentId)
+      await props.state.adoptCurrentImage(row)
       return
     }
     if (!hasImage(imageAsset(row, 'processed'))) {
@@ -497,7 +554,7 @@ const selectImage = async (row, mode) => {
       return
     }
   }
-  await props.state.confirmCurrentImage(mode, row.studentId)
+  await props.state.confirmCurrentImage(mode, row)
 }
 
 const nextStudent = (row) => {
@@ -519,8 +576,17 @@ const saveAndConfirm = async (row) => {
   }
   setActive(row)
   if (!row.imageConfirmed) {
-    const mode = hasProcessedImage(row) ? 'processed' : 'original'
-    if (!(await props.state.confirmCurrentImage(mode, row.studentId))) return false
+    const artworks = Array.isArray(row.artworks) ? row.artworks.filter((artwork) => artwork.imageMatched) : []
+    if (artworks.length) {
+      for (const artwork of artworks) {
+        if (artwork.imageConfirmed) continue
+        const mode = artwork.processedVersionId ? 'processed' : 'original'
+        if (!(await props.state.confirmCurrentImage(mode, artwork))) return false
+      }
+    } else {
+      const mode = hasProcessedImage(row) ? 'processed' : 'original'
+      if (!(await props.state.confirmCurrentImage(mode, row))) return false
+    }
   }
   if (!(await props.state.confirmCurrentComment(row.studentId))) return false
   if (sameId(commentStudentId.value, row.studentId)) closeComment()
@@ -576,7 +642,8 @@ onMounted(() => {
 
     <div class="student-delivery-summary">
       <span>到课 {{ state.counts.attend }} 人</span>
-      <span>作品 {{ state.counts.matched }}/{{ state.counts.attend }}</span>
+      <span>学生作品 {{ state.counts.matched }}/{{ state.counts.attend }} 人</span>
+      <span>作品 {{ state.counts.artworkCount }} 张</span>
       <span>课堂记录 {{ state.counts.records }}/{{ state.counts.attend }}</span>
       <span>课评确认 {{ state.counts.confirmed }}/{{ state.counts.attend }}</span>
     </div>
@@ -601,15 +668,25 @@ onMounted(() => {
               </td>
               <td class="delivery-artwork-cell">
                 <div v-if="workImages(row).length" class="delivery-thumb-strip">
-                  <button v-for="(image, index) in workImages(row).slice(0, 3)" :key="`${image.fileId || image.src}-${index}`" type="button" class="delivery-thumb" @click="openArtwork(row)">
+                  <button v-for="(image, index) in workImages(row)" :key="`${image.artworkId || image.fileId || image.src}-${index}`" type="button" class="delivery-thumb" :class="{ 'delivery-thumb-highlight': image.highlight }" @click="openArtwork(row, artworkForImage(row, image))">
                     <ProtectedMedia :file-id="image.fileId" :src="image.src" :alt="`${studentFor(row.studentId).name}作品${index + 1}`" />
+                    <span v-if="image.highlight" class="delivery-highlight-badge">高光</span>
                   </button>
                 </div>
                 <button v-else type="button" class="delivery-empty delivery-empty-action" @click="openArtwork(row)">尚未上传作品，点击上传</button>
+                <label class="delivery-add-artwork">
+                  ＋添加作品
+                  <input type="file" accept="image/*" multiple @change="state.updateImage($event, row)" />
+                </label>
                 <div class="delivery-artwork-meta">
-                  <span :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${workImages(row).length || 1} 张` : '待上传' }}</span>
+                  <span :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${row.artworkCount || workImages(row).length || 1} 张` : '待上传' }}</span>
+                  <span v-if="row.highlightCount" class="ok-text">{{ row.highlightCount }} 个高光</span>
                   <span v-if="row.imageMatched" class="delivery-artwork-version-status" :class="artworkVersionStatusClass(row)">{{ artworkVersionStatus(row) }}</span>
                   <span v-if="artworkProgress(row)" class="delivery-job-progress" :class="{ 'delivery-job-failed': artworkProgress(row).status === 'FAILED' }">{{ jobProgressLabel(artworkProgress(row)) }}</span>
+                </div>
+                <div v-if="row.uploadFailures?.length" class="delivery-upload-failures">
+                  <small>上传失败：{{ row.uploadFailures.map((item) => item.name).join('、') }}</small>
+                  <button type="button" class="ghost" @click="state.retryArtworkUploads?.(row)">重试</button>
                 </div>
               </td>
               <td class="delivery-record-cell">
@@ -744,10 +821,20 @@ onMounted(() => {
           <div>
             <span>作品处理</span>
             <strong>{{ studentFor(artworkRow.studentId).name }}</strong>
-            <small>{{ jobProgressLabel(artworkProgress(artworkRow)) || artworkRow.imageProcessStatus || '尚未处理' }} · 当前采用：{{ selectedImageMode(artworkRow) === 'processed' ? '处理图' : '原图' }}</small>
+            <small>{{ artworkItem ? (jobProgressLabel(artworkProgress(artworkItem)) || artworkItem.imageProcessStatus || '尚未处理') : '尚未上传作品' }} · {{ artworkItem ? `当前采用：${selectedImageMode(artworkItem) === 'processed' ? '处理图' : '原图'}` : '可一次添加多张作品' }}</small>
           </div>
           <button type="button" class="ghost" @click="closeArtwork">关闭</button>
         </header>
+
+        <div v-if="artworkItems.length > 1" class="artwork-drawer-switcher">
+          <button type="button" class="ghost" @click="switchArtwork(-1)">‹ 上一张</button>
+          <span>第 {{ artworkItems.findIndex((item) => sameId(item.artworkId, artworkItem?.artworkId)) + 1 }}/{{ artworkItems.length }} 张</span>
+          <button type="button" class="ghost" @click="switchArtwork(1)">下一张 ›</button>
+        </div>
+        <label class="drawer-add-artwork">
+          ＋ 添加作品（可多选）
+          <input type="file" accept="image/*" multiple @change="state.updateImage($event, artworkRow)" />
+        </label>
 
         <label class="drawer-field artwork-name-field">
           <span>作品名称</span>
@@ -755,16 +842,16 @@ onMounted(() => {
             v-model="artworkNameDraft"
             class="artwork-name-input"
             maxlength="255"
-            :disabled="!artworkRow.artworkId || artworkNameSaving"
-            :placeholder="artworkRow.artworkId ? '请输入作品名称' : '请先上传作品后命名'"
+            :disabled="!artworkItem?.artworkId || artworkNameSaving"
+            :placeholder="artworkItem?.artworkId ? '请输入作品名称' : '请先上传作品后命名'"
             @keydown.enter.prevent="saveArtworkName"
             @keydown.esc.prevent="cancelArtworkNameEdit"
             @blur="saveArtworkName"
           />
-          <small>{{ artworkNameSaving ? '正在保存作品名称…' : artworkRow.artworkId ? '失焦或回车保存，Esc 取消；名称会用于新建网盘归档。' : '上传作品后可编辑业务名称。' }}</small>
+          <small>{{ artworkNameSaving ? '正在保存作品名称…' : artworkItem?.artworkId ? '失焦或回车保存，Esc 取消；名称会用于新建网盘归档。' : '上传作品后可编辑业务名称。' }}</small>
         </label>
 
-        <label class="drawer-field">
+        <label v-if="artworkItem" class="drawer-field">
           <span>作品处理模板</span>
           <AdaptiveSelect
             :model-value="state.selectedImageTemplate"
@@ -774,58 +861,61 @@ onMounted(() => {
           />
         </label>
 
+        <template v-if="artworkItem">
         <section class="artwork-version-list">
-          <article class="artwork-version-card" :class="{ selected: selectedImageMode(artworkRow) === 'original' && hasImage(imageAsset(artworkRow, 'original')) }">
+          <article class="artwork-version-card" :class="{ selected: selectedImageMode(artworkItem) === 'original' && hasImage(imageAsset(artworkItem, 'original')) }">
             <div class="artwork-version-media">
-              <label class="artwork-media-upload" :class="{ empty: !hasImage(imageAsset(artworkRow, 'original')) }" title="点击替换原图">
-                <ProtectedMedia v-if="hasImage(imageAsset(artworkRow, 'original'))" :file-id="imageAsset(artworkRow, 'original').fileId" :src="imageAsset(artworkRow, 'original').src" alt="作品原图" />
+              <label class="artwork-media-upload" :class="{ empty: !hasImage(imageAsset(artworkItem, 'original')) }" title="点击替换原图">
+                <ProtectedMedia v-if="hasImage(imageAsset(artworkItem, 'original'))" :file-id="imageAsset(artworkItem, 'original').fileId" :src="imageAsset(artworkItem, 'original').src" alt="作品原图" />
                 <span v-else class="delivery-empty">尚未上传原图，点击上传</span>
-                <span v-if="hasImage(imageAsset(artworkRow, 'original'))" class="artwork-media-hover-hint">点击替换原图</span>
-                <input type="file" accept="image/*" @change="replaceOriginalImage($event, artworkRow)" />
+                <span v-if="hasImage(imageAsset(artworkItem, 'original'))" class="artwork-media-hover-hint">点击替换原图</span>
+                <input type="file" accept="image/*" @change="replaceOriginalImage($event, artworkItem)" />
               </label>
-              <button v-if="hasImage(imageAsset(artworkRow, 'original'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="移除原图" aria-label="移除原图" @click.stop="removeOriginalArtwork(artworkRow)">×</button>
+              <button v-if="hasImage(imageAsset(artworkItem, 'original'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="移除作品" aria-label="移除作品" @click.stop="removeOriginalArtwork(artworkItem)">×</button>
             </div>
             <div class="artwork-version-copy"><strong>原图</strong></div>
-            <button type="button" class="secondary" :disabled="state.isProcessing || !hasImage(imageAsset(artworkRow, 'original'))" @click="selectImage(artworkRow, 'original')">采用原图</button>
+            <button type="button" class="secondary" :disabled="state.isProcessing || !hasImage(imageAsset(artworkItem, 'original'))" @click="selectImage(artworkItem, 'original')">采用原图</button>
           </article>
-          <article class="artwork-version-card" :class="{ selected: selectedImageMode(artworkRow) === 'processed' && hasProcessedCandidate(artworkRow) }">
+          <article class="artwork-version-card" :class="{ selected: selectedImageMode(artworkItem) === 'processed' && hasProcessedCandidate(artworkItem) }">
             <div class="artwork-version-media">
               <button
                 type="button"
                 class="artwork-ai-entry"
-                :disabled="state.isProcessing || artworkJobActive(artworkRow) || !hasImage(imageAsset(artworkRow, 'original'))"
+                :disabled="state.isProcessing || artworkJobActive(artworkItem) || !hasImage(imageAsset(artworkItem, 'original'))"
                 title="输入提示词，生成 AI 处理图"
                 @click.stop="openAiPrompt"
               >AI处理✨</button>
-              <ProtectedMedia v-if="showPersistedProcessedImage(artworkRow)" :file-id="imageAsset(artworkRow, 'processed').fileId" :src="imageAsset(artworkRow, 'processed').src" alt="作品处理图" />
+              <ProtectedMedia v-if="showPersistedProcessedImage(artworkItem)" :file-id="imageAsset(artworkItem, 'processed').fileId" :src="imageAsset(artworkItem, 'processed').src" alt="作品处理图" />
               <img v-else-if="artworkPreviewUrl" :src="artworkPreviewUrl" alt="作品处理预览" class="artwork-live-preview" />
               <span v-else-if="artworkPreviewLoading" class="delivery-empty">正在生成实时预览…</span>
               <span v-else class="delivery-empty">尚未生成处理图</span>
-              <button v-if="hasImage(imageAsset(artworkRow, 'processed'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="删除处理图" aria-label="删除处理图" @click.stop="removeProcessedArtwork(artworkRow)">×</button>
+              <button v-if="hasImage(imageAsset(artworkItem, 'processed'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="删除处理图" aria-label="删除处理图" @click.stop="removeProcessedArtwork(artworkItem)">×</button>
             </div>
             <div class="artwork-version-copy">
               <strong>处理图</strong>
             </div>
-            <button type="button" class="primary" :disabled="state.isProcessing || artworkPreviewLoading || !hasProcessedCandidate(artworkRow)" @click="selectImage(artworkRow, 'processed')">采用处理图</button>
+            <button type="button" class="primary" :disabled="state.isProcessing || artworkPreviewLoading || !hasProcessedCandidate(artworkItem)" @click="selectImage(artworkItem, 'processed')">采用处理图</button>
           </article>
         </section>
 
         <footer v-if="!clientTemplateSelected" class="artwork-process-actions">
-          <small v-if="artworkProgress(artworkRow)" class="delivery-job-progress" :class="{ 'delivery-job-failed': artworkProgress(artworkRow).status === 'FAILED' }">{{ jobProgressLabel(artworkProgress(artworkRow)) }}</small>
-          <button type="button" class="secondary" :disabled="state.isProcessing || artworkJobActive(artworkRow) || !artworkRow.imageMatched" @click="processCurrentImage(artworkRow)">{{ artworkJobActive(artworkRow) ? '处理中…' : processActionLabel }}</button>
+          <small v-if="artworkProgress(artworkItem)" class="delivery-job-progress" :class="{ 'delivery-job-failed': artworkProgress(artworkItem).status === 'FAILED' }">{{ jobProgressLabel(artworkProgress(artworkItem)) }}</small>
+          <button type="button" class="secondary" :disabled="state.isProcessing || artworkJobActive(artworkItem) || !artworkItem.imageMatched" @click="processCurrentImage(artworkItem)">{{ artworkJobActive(artworkItem) ? '处理中…' : processActionLabel }}</button>
         </footer>
 
-        <label class="inline-check artwork-highlight-setting"><input type="checkbox" :checked="artworkRow.highlight" @change="state.toggleHighlight(artworkRow)" /><span>标记为本节高光作品</span></label>
-        <textarea v-if="artworkRow.highlight" v-model="artworkRow.highlightNote" rows="3" placeholder="补充高光说明" @blur="state.saveShareDraft?.('更新高光说明')" />
+        <label class="inline-check artwork-highlight-setting"><input type="checkbox" :checked="artworkItem.highlight" @change="state.toggleHighlight(artworkItem)" /><span>标记为本节高光作品</span></label>
+        <textarea v-if="artworkItem.highlight" v-model="artworkItem.highlightNote" rows="3" maxlength="2000" placeholder="补充高光说明" @blur="state.saveArtworkHighlight?.(artworkItem)" />
+        </template>
+        <div v-else class="drawer-empty-artwork">还没有作品，请使用上方“添加作品”一次选择一张或多张图片。</div>
       </aside>
     </div>
 
-    <div v-if="aiPromptOpen && artworkRow" class="modal-backdrop ai-image-prompt-backdrop" @click.self="closeAiPrompt">
+    <div v-if="aiPromptOpen && artworkItem" class="modal-backdrop ai-image-prompt-backdrop" @click.self="closeAiPrompt">
       <section class="ai-image-prompt-modal" role="dialog" aria-modal="true" aria-labelledby="ai-image-prompt-title">
         <header class="modal-head">
           <div>
             <strong id="ai-image-prompt-title">AI处理✨</strong>
-            <small>{{ studentFor(artworkRow.studentId).name }} · 输入提示词生成处理图</small>
+            <small>{{ studentFor(artworkItem.studentId).name }} · {{ artworkItem.artworkTitle || '当前作品' }} · 输入提示词生成处理图</small>
           </div>
           <button type="button" class="ghost" :disabled="state.isProcessing" @click="closeAiPrompt">关闭</button>
         </header>
@@ -849,7 +939,7 @@ onMounted(() => {
 
         <footer class="modal-actions">
           <button type="button" class="ghost" :disabled="state.isProcessing" @click="closeAiPrompt">取消</button>
-          <button type="button" class="primary" :disabled="state.isProcessing || artworkJobActive(artworkRow)" @click="submitAiPrompt">{{ artworkJobActive(artworkRow) ? '处理中…' : '开始 AI 处理' }}</button>
+          <button type="button" class="primary" :disabled="state.isProcessing || artworkJobActive(artworkItem)" @click="submitAiPrompt">{{ artworkJobActive(artworkItem) ? '处理中…' : '开始 AI 处理' }}</button>
         </footer>
       </section>
     </div>
@@ -909,7 +999,7 @@ onMounted(() => {
           <section class="batch-operation-card">
             <div>
               <strong>批量处理作品</strong>
-              <small>已上传 {{ state.counts.matched }} 人，可统一使用同一作品处理模板。</small>
+              <small>已上传 {{ state.counts.artworkCount }} 张作品（{{ state.counts.matched }} 位学生），可统一使用同一作品处理模板。</small>
             </div>
             <label class="drawer-field">
               <span>作品处理模板</span>

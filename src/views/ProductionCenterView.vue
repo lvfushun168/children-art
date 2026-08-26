@@ -79,14 +79,15 @@ const visibleProjectRecords = computed(() => {
 })
 const selectedStudentRecords = computed(() => {
   if (!createDraft.studentId) return []
-  return props.state.archiveRecords
+  return (props.state.portfolioRecordPool || [])
     .filter((record) => sameId(record.studentId, createDraft.studentId))
-    .filter((record) => props.state.canEditArchiveRecord(record))
     .filter((record) => !createDraft.dateStart || (record.dateValue || '') >= createDraft.dateStart)
     .filter((record) => !createDraft.dateEnd || (record.dateValue || '') <= createDraft.dateEnd)
     .filter((record) => !createDraft.highlightOnly || record.highlight)
     .slice()
-    .sort((a, b) => String(a.dateValue).localeCompare(String(b.dateValue)))
+    .sort((a, b) => String(a.dateValue).localeCompare(String(b.dateValue))
+      || Number(a.sortOrder || 0) - Number(b.sortOrder || 0)
+      || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }))
 })
 const estimatedSlides = computed(() => {
   const workCount = selectedStudentRecords.value.length

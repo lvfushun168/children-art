@@ -232,17 +232,17 @@ test('returns provider test message for visible connection feedback', async () =
   assert.equal(result.message, '百度授权已过期')
 })
 
-test('updates an artwork business title with its current version', async () => {
+test('updates artwork title and artwork-level highlight with its current version', async () => {
   let received
   globalThis.fetch = async (url, options) => {
     received = { url, options }
     return response(200, { data: { id: '20', title: '小狗', version: 4 }, meta: {}, error: null })
   }
 
-  await api.assets.updateArtwork('20', { title: '小狗', version: 3 })
+  await api.assets.updateArtwork('20', { title: '小狗', highlight: true, highlightNote: '构图突出', version: 3 })
 
   assert.match(received.url, /\/artworks\/20$/)
-  assert.deepEqual(JSON.parse(received.options.body), { title: '小狗', version: 3 })
+  assert.deepEqual(JSON.parse(received.options.body), { title: '小狗', highlight: true, highlightNote: '构图突出', version: 3 })
 })
 
 test('creates a temporary lesson with an explicit date and time range', async () => {
@@ -404,13 +404,17 @@ test('maps archive, todo and teacher archive DTOs without losing string IDs', ()
   const archive = mapArchiveRecord({
     id: '1',
     studentId: '2',
+    fileId: '9007199254740993',
     snapshot: {
       students: [{
         studentId: 2,
         name: '小明',
         highlight: true,
         highlightNote: '构图突出',
-        artworks: [{ fileId: '9007199254740993' }]
+        artworks: [
+          { artworkId: '3', fileId: '9007199254740993', sortOrder: 1, title: '第二张' },
+          { artworkId: '2', fileId: '4', sortOrder: 0, title: '第一张', highlight: true, highlightNote: '构图突出' }
+        ]
       }]
     }
   })
@@ -418,6 +422,9 @@ test('maps archive, todo and teacher archive DTOs without losing string IDs', ()
   assert.equal(archive.studentName, '小明')
   assert.equal(archive.highlight, true)
   assert.equal(archive.highlightNote, '构图突出')
+  assert.equal(archive.artworkCount, 2)
+  assert.deepEqual(archive.artworks.map((artwork) => artwork.title), ['第一张', '第二张'])
+  assert.equal(archive.artworks[0].highlight, true)
 
   const archiveVersion = mapArchiveVersion({ id: '9007199254740993', lessonId: '12', versionNo: 2, createdAt: '2026-08-12T10:00:00Z' })
   assert.equal(archiveVersion.id, '9007199254740993')
@@ -472,6 +479,8 @@ test('maps artwork, feedback, job and share DTOs while preserving protocol codes
     lessonId: '12',
     studentId: '13',
     title: '小狗',
+    highlight: true,
+    highlightNote: '线条有表现力',
     status: 'ACTIVE',
     confirmationStatus: 'CONFIRMED',
     selectedVersionId: '14',
@@ -480,6 +489,8 @@ test('maps artwork, feedback, job and share DTOs while preserving protocol codes
   })
   assert.equal(artwork.id, '9007199254740993')
   assert.equal(artwork.title, '小狗')
+  assert.equal(artwork.highlight, true)
+  assert.equal(artwork.highlightNote, '线条有表现力')
   assert.equal(artwork.confirmationStatus, 'CONFIRMED')
   assert.equal(artwork.confirmationStatusLabel, '已确认')
   assert.equal(artwork.versions[0].versionKindLabel, '处理版')

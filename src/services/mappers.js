@@ -326,6 +326,8 @@ export const mapArtwork = (value = {}) => ({
   lessonId: safeUiId(value.lessonId),
   studentId: safeUiId(value.studentId),
   title: value.title || '',
+  highlight: Boolean(value.highlight),
+  highlightNote: value.highlightNote || '',
   selectedVersionId: safeUiId(value.selectedVersionId),
   confirmedBy: safeUiId(value.confirmedBy),
   status: value.status || 'ACTIVE',
@@ -435,10 +437,32 @@ export const mapArchiveRecord = (value = {}) => {
   const artworkSnapshot = Array.isArray(studentSnapshot.artworks)
     ? studentSnapshot.artworks[0] || {}
     : Array.isArray(snapshot.artworks) ? snapshot.artworks[0] || {} : {}
+  const artworks = (Array.isArray(studentSnapshot.artworks)
+    ? studentSnapshot.artworks
+    : Array.isArray(snapshot.artworks) ? snapshot.artworks : [])
+    .map((artwork, index) => ({
+      ...artwork,
+      artworkId: safeUiId(artwork.artworkId || artwork.id),
+      fileId: safeUiId(artwork.fileId || artwork.artworkFileId || artwork.file?.id),
+      title: artwork.title || '学生作品',
+      sortOrder: Number(artwork.sortOrder ?? index),
+      highlight: Boolean(artwork.highlight),
+      highlightNote: artwork.highlightNote || '',
+      fileUrl: artwork.fileUrl || artwork.artwork || artwork.downloadUrl || artwork.file?.downloadUrl || ''
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder || String(left.artworkId || '').localeCompare(String(right.artworkId || ''), undefined, { numeric: true }))
+  const coverArtwork = artworks[0] || artworkSnapshot
+  if (Boolean(studentSnapshot.highlight) && artworks.length && !artworks.some((artwork) => artwork.highlight)) {
+    artworks[0] = {
+      ...artworks[0],
+      highlight: true,
+      highlightNote: artworks[0].highlightNote || studentSnapshot.highlightNote || ''
+    }
+  }
   const sourceType = String(value.sourceType || snapshot.sourceType || 'LESSON').toLowerCase()
   const archiveStatus = value.archiveStatus || snapshot.archiveStatus
     || (sourceType === 'lesson' && !value.archiveVersionId && snapshot.current ? 'CURRENT' : 'FORMAL')
-  const fileId = safeUiId(value.fileId || snapshot.fileId || snapshot.artworkFileId || snapshot.file?.id || artworkSnapshot.fileId)
+  const fileId = safeUiId(value.fileId || snapshot.fileId || snapshot.artworkFileId || snapshot.file?.id || coverArtwork.fileId)
   return {
     ...value,
     id: safeUiId(value.id),
@@ -462,12 +486,14 @@ export const mapArchiveRecord = (value = {}) => {
     extraTaskId: safeUiId(value.extraTaskId),
     archivePath: value.archivePath || '',
     fileId,
-    artwork: value.artwork || snapshot.artwork || artworkSnapshot.downloadUrl || snapshot.file?.downloadUrl || '',
+    artwork: value.artwork || snapshot.artwork || coverArtwork.fileUrl || coverArtwork.downloadUrl || snapshot.file?.downloadUrl || '',
+    artworks,
+    artworkCount: artworks.length,
     feedback: value.feedback || studentSnapshot.feedback?.content || snapshot.feedback?.content || snapshot.feedback || '',
     tags: Array.isArray(value.tags) ? value.tags : typeof value.tags === 'string' ? value.tags.split(',').filter(Boolean) : [],
     version: Number(value.version || 0),
-    highlight: value.highlight !== undefined ? Boolean(value.highlight) : Boolean(studentSnapshot.highlight),
-    highlightNote: value.highlightNote || studentSnapshot.highlightNote || '',
+    highlight: value.highlight !== undefined ? Boolean(value.highlight) : artworks.some((artwork) => artwork.highlight) || Boolean(studentSnapshot.highlight),
+    highlightNote: value.highlightNote || artworks.find((artwork) => artwork.highlight)?.highlightNote || studentSnapshot.highlightNote || '',
     framed: ['MOUNTED', '已装裱'].includes(value.mountingStatus),
     framedAt: value.mountedOn || '',
     frameFee: Number(value.mountingFeeMinor || 0) / 100,

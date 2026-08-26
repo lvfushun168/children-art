@@ -89,6 +89,46 @@ const imageTemplate = computed(() => {
   }
 })
 
+const artworkFileId = (artwork) => artwork?.displayFileId
+  || artwork?.fileId
+  || (artwork?.imageConfirmed ? artwork?.processedFileId : null)
+  || artwork?.originalFileId
+  || artwork?.imageFileIds?.[0]
+  || null
+
+const artworkImage = (artwork) => artwork?.image || artwork?.artwork || artwork?.fileUrl || ''
+const artworkHasMedia = (artwork) => Boolean(artworkFileId(artwork) || artworkImage(artwork))
+
+const previewArtworks = computed(() => {
+  const row = props.activeSessionStudent
+  const nested = Array.isArray(row?.artworks)
+    ? row.artworks
+      .filter((artwork) => artwork?.imageMatched !== false && artworkHasMedia(artwork))
+      .slice()
+      .sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0))
+    : []
+  if (nested.length) return nested
+  if (!row) return []
+
+  const legacyFileIds = Array.isArray(row.imageFileIds) ? row.imageFileIds.filter(Boolean) : []
+  if (legacyFileIds.length > 1) {
+    return legacyFileIds.map((fileId, index) => ({
+      ...row,
+      artworkId: `${row.studentId || 'student'}-${fileId}-${index}`,
+      fileId,
+      displayFileId: fileId,
+      image: index === 0 ? row.image || '' : '',
+      artworkTitle: row.artworkTitle || `学生作品${index + 1}`,
+      title: row.title || `学生作品${index + 1}`
+    }))
+  }
+  return artworkHasMedia(row) ? [{ ...row, artworkTitle: row.artworkTitle || row.title || '学生作品' }] : []
+})
+
+const artworkTitle = (artwork, index) => artwork?.artworkTitle || artwork?.title || `学生作品${index + 1}`
+const artworkStatus = (artwork) => artwork?.imageProcessStatus || '未处理'
+const artworkConfirmation = (artwork) => artwork?.imageConfirmed ? '老师已确认' : '待老师确认'
+
 const homeworkIsAssigned = (value) => value?.taskMode
   ? value.taskMode === 'ASSIGNED'
   : Boolean(String(value?.content || '').trim())
@@ -109,28 +149,40 @@ const formatHomeworkDate = (value) => {
       <button v-if="!reviewOnly" class="ghost" @click="$emit('copy-export')">{{ copied ? '已复制' : '复制链接' }}</button>
     </div>
     <article class="delivery-card" v-if="activeSessionStudent && activeStudent">
-      <div
-        class="image-frame"
-        :class="{
-          square: imageTemplate.ratio === '1:1',
-          raw: imageTemplate.ratio === '原比例'
-        }"
-      >
-        <ProtectedMedia :file-id="activeSessionStudent.displayFileId || activeSessionStudent.fileId || (activeSessionStudent.imageConfirmed ? activeSessionStudent.processedFileId : null) || activeSessionStudent.originalFileId || activeSessionStudent.imageFileIds?.[0]" :src="activeSessionStudent.image" :alt="activeStudent.name" />
+      <div v-if="previewArtworks.length" class="preview-artwork-list">
+        <article
+          v-for="(artwork, index) in previewArtworks"
+          :key="`${artwork.artworkId || artwork.displayFileId || artwork.fileId || index}`"
+          class="preview-artwork"
+          :class="{ highlight: displayConfig.showHighlight && artwork.highlight }"
+        >
+          <div
+            class="image-frame"
+            :class="{
+              square: imageTemplate.ratio === '1:1',
+              raw: imageTemplate.ratio === '原比例'
+            }"
+          >
+            <ProtectedMedia
+              :file-id="artworkFileId(artwork)"
+              :src="artworkImage(artwork)"
+              :alt="`${activeStudent.name}${artworkTitle(artwork, index)}`"
+            />
+            <span v-if="displayConfig.showHighlight && artwork.highlight" class="preview-artwork-badge">高光作品</span>
+          </div>
+          <div class="preview-artwork-meta">
+            <strong>{{ artworkTitle(artwork, index) }}</strong>
+            <small>第 {{ index + 1 }} 张 · 图片状态：{{ artworkStatus(artwork) }} · {{ artworkConfirmation(artwork) }}</small>
+            <small v-if="displayConfig.showHighlight && artwork.highlight && artwork.highlightNote" class="preview-artwork-note">{{ artwork.highlightNote }}</small>
+          </div>
+        </article>
       </div>
+      <div v-else class="preview-artwork-empty">暂无可展示作品</div>
       <strong>{{ activeStudent.name }} · {{ activeCourse.title }}</strong>
-      <small>
-        图片状态：{{ activeSessionStudent.imageProcessStatus || '未处理' }} ·
-        {{ activeSessionStudent.imageConfirmed ? '老师已确认' : '待老师确认' }}
-      </small>
       <small v-if="displayConfig.showLessonType">
         {{ activeTask.lessonType }}
       </small>
       <p>{{ activeSessionStudent.comment || '暂无课评' }}</p>
-      <div v-if="displayConfig.showHighlight && activeSessionStudent.highlight" class="highlight-note">
-        <strong>高光作品</strong>
-        <small>{{ activeSessionStudent.highlightNote }}</small>
-      </div>
       <div v-if="displayConfig.showMaterials" class="preview-materials">
         <template v-for="material in materials.filter((item) => item.visible && item.type !== '课件')" :key="material.id">
           <ProtectedMedia

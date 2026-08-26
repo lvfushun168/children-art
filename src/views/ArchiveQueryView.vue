@@ -93,10 +93,40 @@ const filteredLessonArchives = computed(() => lessonRecords.value)
 const selectedLesson = computed(() => lessonDetail.value || filteredLessonArchives.value.find((lesson) => sameId(lesson.id, selectedLessonId.value)) || null)
 const selectedLessonAssets = computed(() => selectedLesson.value?.materials || [])
 const workFileId = (work) => work?.fileId || work?.processedFileId || work?.originalFileId || work?.imageFileIds?.[0] || null
-const selectedLessonWorks = computed(() => (selectedLesson.value?.studentWorks || []).map((work) => ({
-  ...work,
-  fileId: workFileId(work)
-})))
+const workImage = (work) => work?.fileUrl || work?.artwork || work?.image || work?.file?.downloadUrl || ''
+const artworkItemsForWork = (work) => {
+  const nested = Array.isArray(work?.artworks) ? work.artworks : []
+  const source = nested.length ? nested : (workFileId(work) || workImage(work) ? [work] : [])
+  return source
+    .map((artwork, index) => ({
+      ...artwork,
+      artworkId: artwork.artworkId || artwork.id || work?.artworkId || work?.id || `${work?.studentId || 'student'}-${index}`,
+      fileId: workFileId(artwork),
+      image: workImage(artwork),
+      title: artwork.title || work?.title || '学生作品',
+      sortOrder: Number(artwork.sortOrder ?? index),
+      highlight: artwork.highlight !== undefined ? Boolean(artwork.highlight) : Boolean(work?.highlight),
+      highlightNote: artwork.highlightNote || (artwork.highlight === undefined ? work?.highlightNote || '' : '')
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder || String(left.artworkId).localeCompare(String(right.artworkId), undefined, { numeric: true }))
+}
+const normalizeStudentWork = (work = {}) => {
+  const artworks = artworkItemsForWork(work)
+  const first = artworks[0] || {}
+  return {
+    ...work,
+    artworks,
+    artworkCount: artworks.length,
+    fileId: workFileId(first) || workFileId(work),
+    artwork: workImage(first) || workImage(work),
+    imageMatched: artworks.length > 0,
+    imageConfirmed: artworks.length > 0 && artworks.every((artwork) => Boolean(artwork.fileId || artwork.image)),
+    highlight: artworks.some((artwork) => artwork.highlight),
+    highlightNote: artworks.find((artwork) => artwork.highlight)?.highlightNote || work.highlightNote || ''
+  }
+}
+const selectedLessonWorks = computed(() => (selectedLesson.value?.studentWorks || []).map(normalizeStudentWork))
+const selectedWorkArtworks = computed(() => artworkItemsForWork(selected.value))
 
 const filteredTeacherEffects = computed(() => effectRecords.value)
 const selectedEffect = computed(() => effectDetail.value || filteredTeacherEffects.value.find((effect) => sameId(effect.id, selectedEffectId.value)) || null)
@@ -336,13 +366,14 @@ const openLessonDrawer = async (lesson) => {
   try {
     const detail = await props.state.loadDirectoryDetail?.('classroomArchives', lesson)
     if (sameId(selectedLessonId.value, lesson.id)) {
+      const studentWorks = (detail?.studentDeliveries || []).map(normalizeStudentWork)
       lessonDetail.value = {
         ...lesson,
         ...(detail || {}),
         materials: detail?.materials || [],
-        studentWorks: detail?.studentDeliveries || [],
-        worksCount: (detail?.studentDeliveries || []).filter((item) => item.imageMatched).length,
-        highlights: (detail?.studentDeliveries || []).filter((item) => item.highlight).length
+        studentWorks,
+        worksCount: studentWorks.reduce((total, item) => total + Number(item.artworkCount || 0), 0),
+        highlights: studentWorks.reduce((total, item) => total + item.artworks.filter((artwork) => artwork.highlight).length, 0)
       }
     }
   } catch {
@@ -372,12 +403,12 @@ const closeImagePreview = () => {
   imagePreview.open = false
 }
 
-const previewSelectedWork = () => openImagePreview({
-  fileId: selected.value?.fileId,
-  src: selected.value?.artwork,
+const previewSelectedArtwork = (artwork, index = 0) => openImagePreview({
+  fileId: artwork?.fileId,
+  src: artwork?.image,
   alt: selected.value?.studentName,
-  title: selected.value?.title || `${selected.value?.studentName || '学生'} · 作品原图`,
-  caption: '归档原图 · 只读'
+  title: artwork?.title || `${selected.value?.studentName || '学生'} · 作品${index + 1}`,
+  caption: artwork?.highlight ? `高光作品${artwork.highlightNote ? ` · ${artwork.highlightNote}` : ''}` : '归档作品 · 只读'
 })
 
 const previewLessonAsset = (asset) => openImagePreview({
@@ -411,13 +442,35 @@ const downloadLessonAsset = async (asset) => {
   }
 }
 
-const previewLessonWork = (work) => openImagePreview({
-  fileId: work.fileId,
-  src: work.artwork,
+const artworkDownloadName = (artwork, fallbackTitle = '学生作品', index = 0) => {
+  const file = artwork?.file || {}
+  const name = file.originalFilename || artwork?.fileName || artwork?.title || `${fallbackTitle}${index + 1}`
+  return String(name).replace(/[\\/:*?"<>|]/g, '_')
+}
+
+const downloadArtwork = async (artwork, fallbackTitle, index = 0) => {
+  const fileId = artwork?.fileId
+  if (!fileId || downloadingFileId.value) return
+  downloadingFileId.value = String(fileId)
+  fileDownloadError.value = ''
+  try {
+    await downloadProtectedFile(fileId, artworkDownloadName(artwork, fallbackTitle, index))
+  } catch {
+    fileDownloadError.value = '文件下载失败，请稍后重试。'
+  } finally {
+    downloadingFileId.value = ''
+  }
+}
+
+const previewLessonWork = (work, artwork, index = 0) => openImagePreview({
+  fileId: artwork?.fileId,
+  src: artwork?.image,
   alt: work.studentName,
-  title: `${work.studentName || '学生'} · 作品原图`,
-  caption: work.course || selectedLesson.value?.course || '课堂作品'
+  title: artwork?.title || `${work.studentName || '学生'} · 作品${index + 1}`,
+  caption: artwork?.highlight ? `高光作品${artwork.highlightNote ? ` · ${artwork.highlightNote}` : ''}` : (work.course || selectedLesson.value?.course || '课堂作品')
 })
+
+const downloadLessonWork = (work, artwork, index = 0) => downloadArtwork(artwork, `${work.studentName || '学生'}作品`, index)
 
 const previewTeacherEffect = () => openImagePreview({
   fileId: selectedEffect.value?.outputFileId || selectedEffect.value?.fileId,
@@ -566,6 +619,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>
           <strong>{{ record.title || `${record.studentName} · ${record.course}` }}</strong>
           <small>{{ record.date }} {{ record.time }} · {{ record.className }} · {{ record.teacher }}</small>
+          <small>{{ record.artworkCount || 0 }} 张作品<span v-if="record.highlight"> · {{ record.artworks?.filter((artwork) => artwork.highlight).length || 1 }} 个高光</span></small>
           <em v-if="record.sourceType === 'extraTask'">课外作品</em>
           <em v-if="record.archiveStatus === 'CURRENT'" class="current-tag">进行中</em>
           <em v-else class="formal-tag">正式档案</em>
@@ -718,20 +772,33 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <button v-if="!isEditingWork" class="ghost" @click="closeWorkDrawer">关闭</button>
         </div>
       </header>
-      <figure class="archive-image-readonly">
-        <button
-          v-if="selected.fileId || selected.artwork"
-          class="archive-image-trigger"
-          type="button"
-          aria-label="查看作品原图"
-          @click="previewSelectedWork"
-        >
-          <ProtectedMedia class="archive-main-image" :file-id="selected.fileId" :src="selected.artwork" :alt="selected.studentName" />
-          <span class="archive-image-hint">点击查看原图</span>
-        </button>
+      <section class="archive-image-readonly">
+        <div v-if="selectedWorkArtworks.length" class="archive-work-gallery archive-work-gallery--detail">
+          <figure v-for="(artwork, index) in selectedWorkArtworks" :key="`${artwork.artworkId}-${index}`" class="archive-work-artwork">
+            <button
+              v-if="artwork.fileId || artwork.image"
+              class="archive-image-trigger"
+              type="button"
+              :aria-label="`查看${artwork.title || selected.studentName + '作品' + (index + 1)}`"
+              @click="previewSelectedArtwork(artwork, index)"
+            >
+              <ProtectedMedia class="archive-main-image" :file-id="artwork.fileId" :src="artwork.image" :alt="artwork.title || selected.studentName" />
+              <span class="archive-image-hint">点击查看原图</span>
+            </button>
+            <div v-else class="file-tile archive-main-image-empty">暂无原图</div>
+            <figcaption>
+              <strong>{{ artwork.title || `作品${index + 1}` }}</strong>
+              <span v-if="artwork.highlight" class="archive-highlight-label">高光</span>
+              <button v-if="artwork.fileId" class="archive-download-link" type="button" :disabled="Boolean(downloadingFileId)" @click.stop="downloadArtwork(artwork, `${selected.studentName || '学生'}作品`, index)">
+                {{ downloadingFileId === String(artwork.fileId) ? '下载中…' : '下载' }}
+              </button>
+            </figcaption>
+            <small v-if="artwork.highlight && artwork.highlightNote" class="archive-highlight-note">{{ artwork.highlightNote }}</small>
+          </figure>
+        </div>
         <div v-else class="file-tile archive-main-image-empty">暂无原图</div>
-        <figcaption>{{ selected.archiveStatus === 'CURRENT' ? '当前课次作品 · 实时数据' : '正式归档原图 · 只读' }}</figcaption>
-      </figure>
+        <small class="archive-image-readonly-caption">{{ selected.archiveStatus === 'CURRENT' ? '当前课次作品 · 实时数据' : '正式归档作品 · 只读' }} · 共 {{ selectedWorkArtworks.length }} 张</small>
+      </section>
       <section class="archive-detail-group">
         <span>课次信息</span>
         <div class="archive-meta">
@@ -829,9 +896,15 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       </section>
       <section v-if="!isEditingWork" class="archive-detail-group">
         <span>高光与复用</span>
-        <article v-if="selected.highlight" class="archive-block highlight">
+        <div v-if="selectedWorkArtworks.some((artwork) => artwork.highlight)" class="archive-highlight-list">
+          <article v-for="(artwork, index) in selectedWorkArtworks.filter((item) => item.highlight)" :key="`${artwork.artworkId}-${index}`" class="archive-block highlight">
+            <strong>{{ artwork.title || `作品${index + 1}` }}</strong>
+            <p>{{ artwork.highlightNote || '已标记为高光作品。' }}</p>
+          </article>
+        </div>
+        <article v-else-if="selected.highlight" class="archive-block highlight">
           <strong>高光说明</strong>
-          <p>{{ selected.highlightNote }}</p>
+          <p>{{ selected.highlightNote || '已标记为高光作品。' }}</p>
         </article>
         <article v-else class="archive-block">
           <strong>高光状态</strong>
@@ -878,7 +951,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       </header>
 
       <section class="archive-overview-grid">
-        <article><span>学生作品</span><strong>{{ selectedLesson.worksCount }}/{{ selectedLesson.studentWorks.length }}</strong></article>
+        <article><span>学生作品 / 学生数</span><strong>{{ selectedLesson.worksCount }} / {{ selectedLesson.studentWorks.length }}</strong></article>
         <article><span>资料文件</span><strong>{{ selectedLessonAssets.length }}</strong></article>
         <article><span>高光作品</span><strong>{{ selectedLesson.highlights }}</strong></article>
         <article><span>班级类型</span><strong>{{ selectedLesson.classType }}</strong></article>
@@ -956,20 +1029,32 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>学生作品概览</span>
         <div class="lesson-work-grid">
           <article v-for="work in selectedLessonWorks" :key="work.id || work.studentId" :class="{ missing: !work.imageMatched }">
-            <button
-              v-if="work.artwork || work.fileId"
-              class="archive-image-trigger archive-image-trigger--card"
-              type="button"
-              :aria-label="`查看${work.studentName || '学生'}作品原图`"
-              @click="previewLessonWork(work)"
-            >
-              <ProtectedMedia :file-id="work.fileId" :src="work.artwork" :alt="work.studentName" />
-              <span class="archive-image-hint">查看原图</span>
-            </button>
+            <div v-if="work.artworks.length" class="archive-work-gallery">
+              <figure v-for="(artwork, index) in work.artworks" :key="`${artwork.artworkId}-${index}`" class="archive-work-artwork">
+                <button
+                  v-if="artwork.fileId || artwork.image"
+                  class="archive-image-trigger archive-image-trigger--card"
+                  type="button"
+                  :aria-label="`查看${work.studentName || '学生'}第${index + 1}张作品`"
+                  @click="previewLessonWork(work, artwork, index)"
+                >
+                  <ProtectedMedia :file-id="artwork.fileId" :src="artwork.image" :alt="artwork.title || work.studentName" />
+                  <span class="archive-image-hint">查看原图</span>
+                </button>
+                <div v-else class="file-tile">缺图</div>
+                <figcaption>
+                  <span>{{ artwork.title || `作品${index + 1}` }}</span>
+                  <em v-if="artwork.highlight">高光</em>
+                  <button v-if="artwork.fileId" class="archive-download-link" type="button" :disabled="Boolean(downloadingFileId)" @click.stop="downloadLessonWork(work, artwork, index)">
+                    {{ downloadingFileId === String(artwork.fileId) ? '下载中…' : '下载' }}
+                  </button>
+                </figcaption>
+              </figure>
+            </div>
             <div v-else class="file-tile">缺图</div>
             <strong>{{ work.studentName }}</strong>
             <small>{{ work.course || selectedLesson.course }}</small>
-            <em v-if="work.highlight">高光</em>
+            <em v-if="work.highlight">{{ work.artworkCount }} 张作品 · {{ work.artworks.filter((artwork) => artwork.highlight).length }} 个高光</em>
           </article>
         </div>
       </section>

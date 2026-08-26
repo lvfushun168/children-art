@@ -23,7 +23,7 @@ defineEmits(['show-archives', 'show-students', 'show-wheat'])
     <div class="report-grid">
       <article>
         <span>作品已上传</span>
-        <strong>{{ counts.matched }}/{{ counts.attend }}</strong>
+        <strong>{{ counts.artworkCount }} 张 / {{ counts.matched }} 位学生</strong>
       </article>
       <article>
         <span>课评确认</span>

@@ -120,6 +120,57 @@ export function usePortfolioStudio(context) {
   const studentById = (studentId) => students.find((student) => sameId(student.id, studentId))
   const classById = (classId) => classes.find((klass) => sameId(klass.id, classId))
 
+  const artworkItemsForRecord = (record = {}) => {
+    const artworks = Array.isArray(record.artworks) && record.artworks.length
+      ? record.artworks
+      : record.fileId || record.artwork ? [{
+          artworkId: record.artworkId || record.sourceId || record.id,
+          fileId: record.fileId,
+          fileUrl: record.artwork || '',
+          title: record.title || '学生作品',
+          sortOrder: 0,
+          highlight: Boolean(record.highlight),
+          highlightNote: record.highlightNote || ''
+        }]
+      : []
+    return artworks
+      .map((artwork, index) => {
+        const artworkId = artwork.artworkId || artwork.id || `${record.id || 'record'}-${index}`
+        const itemId = index === 0 ? record.id : `${record.id}:artwork:${artworkId}`
+        const image = artwork.fileUrl || artwork.artwork || artwork.image || ''
+        return {
+          ...record,
+          id: itemId,
+          sourceRecordId: record.id,
+          sourceArtworkId: artworkId,
+          artworkId,
+          fileId: artwork.fileId || artwork.artworkFileId || record.fileId || null,
+          artwork: image || record.artwork || '',
+          title: artwork.title || record.title || `${record.studentName || '学生'}的${record.course || '课堂作品'}`,
+          highlight: artwork.highlight !== undefined ? Boolean(artwork.highlight) : Boolean(record.highlight),
+          highlightNote: artwork.highlightNote || (artwork.highlight === undefined ? record.highlightNote || '' : ''),
+          sortOrder: Number(artwork.sortOrder ?? index),
+          artworkCount: 1
+        }
+      })
+      .sort((left, right) => left.sortOrder - right.sortOrder
+        || String(left.sourceArtworkId || left.id).localeCompare(String(right.sourceArtworkId || right.id), undefined, { numeric: true }))
+  }
+
+  const portfolioWorkItems = (records = []) => records.flatMap(artworkItemsForRecord)
+  const portfolioWorkItemById = (workId) => {
+    const exact = portfolioWorkItems(archiveRecords).find((item) => sameId(item.id, workId))
+    if (exact) return exact
+    const record = recordById(workId)
+    return record ? artworkItemsForRecord(record)[0] || null : null
+  }
+  const expandPortfolioWorkIds = (workIds = []) => [...new Set((workIds || []).flatMap((workId) => {
+    const record = recordById(workId)
+    if (record) return artworkItemsForRecord(record).map((item) => item.id)
+    const exact = portfolioWorkItemById(workId)
+    return exact ? [exact.id] : []
+  }).map(String))]
+
   const visiblePortfolioProjects = computed(() => service.listVisibleProjects())
   const activePortfolioProject = computed(() =>
     visiblePortfolioProjects.value.find((project) => sameId(project.id, activePortfolioProjectId.value)) || null
@@ -150,7 +201,7 @@ export function usePortfolioStudio(context) {
   }
 
   const portfolioRecordPool = computed(() =>
-    service.listAccessibleRecords()
+    portfolioWorkItems(service.listAccessibleRecords())
       .filter((record) => {
         const studentOk = portfolioFilter.studentId === 'all' || sameId(record.studentId, portfolioFilter.studentId)
         const classOk = portfolioFilter.classId === 'all' || sameId(record.classId, portfolioFilter.classId)
@@ -164,7 +215,7 @@ export function usePortfolioStudio(context) {
   )
 
   const projectRecords = (project) =>
-    (project?.recordIds || []).map((id) => recordById(id)).filter(Boolean)
+    (project?.recordIds || []).map((id) => portfolioWorkItemById(id)).filter(Boolean)
 
   const orderedProjectRecords = (project) =>
     projectRecords(project).sort((a, b) => String(a.dateValue).localeCompare(String(b.dateValue)))
@@ -247,6 +298,7 @@ export function usePortfolioStudio(context) {
     const studentId = payload.studentId || null
     const student = studentById(studentId)
     const klass = classById(payload.classId || student?.classId)
+    const recordIds = expandPortfolioWorkIds(payload.recordIds || [])
     const project = service.createProject({
       projectType: template.projectType,
       templateId: template.id,
@@ -257,7 +309,7 @@ export function usePortfolioStudio(context) {
       dateStart: payload.dateStart || '',
       dateEnd: payload.dateEnd || '',
       target: student ? `${student.name}家长` : '',
-      recordIds: [...(payload.recordIds || [])],
+      recordIds,
       book: { ...template.book, termLabel: payload.termLabel || template.book.termLabel },
       deck: payload.deck ? clone(payload.deck) : null
     })
@@ -692,7 +744,9 @@ export function usePortfolioStudio(context) {
         dateStart: project.dateStart || undefined,
         dateEnd: project.dateEnd || undefined,
         templateId: project.templateId ? String(project.templateId) : undefined,
-        sourceRecordIds: orderedProjectRecords(project).map((record) => String(record.id)),
+        sourceRecordIds: [...new Set(orderedProjectRecords(project)
+          .map((record) => record.sourceRecordId || record.id)
+          .map((recordId) => String(recordId)))],
         expectedSize: blob.size,
         expectedSha256: digest,
         requestedPageCount: result.pageCount

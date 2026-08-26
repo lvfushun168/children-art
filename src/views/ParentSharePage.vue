@@ -13,11 +13,24 @@ const content = ref(null)
 const tokenValid = computed(() => Boolean(content.value))
 const lesson = computed(() => content.value?.lesson || {})
 const student = computed(() => content.value?.student || {})
+const studentArtworks = computed(() => (Array.isArray(student.value.artworks) ? student.value.artworks : [])
+  .filter((artwork) => artwork?.fileUrl || artwork?.artwork || artwork?.downloadUrl)
+  .map((artwork, index) => ({
+    ...artwork,
+    fileUrl: artwork.fileUrl || artwork.artwork || artwork.downloadUrl || '',
+    title: artwork.title || `学生作品${index + 1}`,
+    sortOrder: Number(artwork.sortOrder ?? index),
+    highlight: Boolean(artwork.highlight),
+    highlightNote: artwork.highlightNote || ''
+  }))
+  .sort((left, right) => left.sortOrder - right.sortOrder))
 const studentRow = computed(() => ({
   ...student.value,
-  image: student.value.artworks?.[0]?.fileUrl || '',
+  artworks: studentArtworks.value,
+  image: studentArtworks.value[0]?.fileUrl || '',
   comment: student.value.feedback?.content || ''
 }))
+const highlightedArtworks = computed(() => studentArtworks.value.filter((artwork) => artwork.highlight))
 const materials = computed(() => content.value?.materials || [])
 const homework = computed(() => content.value?.homework || {})
 const externalLinks = computed(() => content.value?.externalLinks || [])
@@ -84,14 +97,24 @@ onMounted(async () => {
       </section>
 
       <section v-if="route.type === 'student'" class="parent-content">
-        <img v-if="studentRow.image" class="parent-artwork" :src="studentRow.image" :alt="student.name" />
+        <div v-if="studentRow.artworks.length" class="parent-artwork-gallery">
+          <figure v-for="(artwork, index) in studentRow.artworks" :key="`${artwork.artworkId || artwork.fileUrl}-${index}`" class="parent-artwork-figure" :class="{ highlight: artwork.highlight }">
+            <img class="parent-artwork" :src="artwork.fileUrl" :alt="artwork.title || `${student.name}作品${index + 1}`" />
+            <figcaption>{{ artwork.title }}<small v-if="artwork.highlight"> · 高光作品</small></figcaption>
+          </figure>
+        </div>
         <article class="parent-section">
           <span>老师课评</span>
           <p>{{ studentRow?.comment }}</p>
         </article>
-        <article v-if="displayConfig.showHighlight && studentRow?.highlight" class="parent-section highlight">
+        <article v-if="displayConfig.showHighlight && highlightedArtworks.length" class="parent-section highlight">
           <span>高光作品</span>
-          <p>{{ studentRow.highlightNote }}</p>
+          <div class="parent-highlight-list">
+            <div v-for="(artwork, index) in highlightedArtworks" :key="`${artwork.artworkId || artwork.fileUrl}-highlight-${index}`">
+              <strong>{{ artwork.title }}</strong>
+              <p v-if="artwork.highlightNote">{{ artwork.highlightNote }}</p>
+            </div>
+          </div>
         </article>
         <article v-if="displayConfig.showMaterials && materials.length" class="parent-section">
           <span>范画、步骤与课堂记录</span>
@@ -119,9 +142,11 @@ onMounted(async () => {
 
       <section v-else class="parent-class-grid">
         <article>
-          <img v-if="studentRow.image" :src="studentRow.image" :alt="student.name" />
+          <div v-if="studentRow.artworks.length" class="parent-class-artworks">
+            <img v-for="(artwork, index) in studentRow.artworks" :key="`${artwork.artworkId || artwork.fileUrl}-${index}`" :src="artwork.fileUrl" :alt="artwork.title || student.name" />
+          </div>
           <strong>{{ student.name }}</strong>
-          <small>{{ studentRow.highlight ? '高光作品' : '课堂作品' }}</small>
+          <small>{{ highlightedArtworks.length ? `${highlightedArtworks.length} 个高光作品` : `${studentRow.artworks.length} 张课堂作品` }}</small>
         </article>
       </section>
 

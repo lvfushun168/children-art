@@ -311,16 +311,19 @@ const teacherEffectSourceOptions = computed(() => {
       title: material.title || material.file?.originalFilename || '课堂图片',
       meta: `${material.type || '课堂素材'} · 课堂资料`
     }))
-  ;(props.state.sessionStudents || [])
-    .filter((row) => row?.artworkId && row.imageConfirmed && (row.displayFileId || row.fileId || row.processedFileId || row.originalFileId || row.imageFileIds?.[0]))
-    .forEach((row) => sourceOptions.push({
-      sourceAssetId: String(row.artworkId),
-      sourceType: 'ARTWORK',
-      fileId: row.displayFileId || row.fileId || (row.imageConfirmed ? row.processedFileId : null) || row.originalFileId || row.imageFileIds?.[0],
-      image: row.image || row.originalImage || row.processedImage || '',
-      title: `${studentFor(row.studentId).name}的作品`,
-      meta: '学生作品 · 已确认'
-    }))
+  ;(props.state.sessionStudents || []).forEach((row) => {
+    const artworks = Array.isArray(row.artworks) && row.artworks.length ? row.artworks : row.artworkId ? [row] : []
+    artworks
+      .filter((artwork) => artwork?.artworkId && artwork.imageConfirmed && (artwork.displayFileId || artwork.fileId || artwork.processedFileId || artwork.originalFileId))
+      .forEach((artwork, index) => sourceOptions.push({
+        sourceAssetId: String(artwork.artworkId),
+        sourceType: 'ARTWORK',
+        fileId: artwork.displayFileId || artwork.fileId || artwork.processedFileId || artwork.originalFileId,
+        image: artwork.image || artwork.originalImage || artwork.processedImage || '',
+        title: `${studentFor(row.studentId).name}的作品${artworks.length > 1 ? ` · ${index + 1}` : ''}${artwork.artworkTitle ? ` · ${artwork.artworkTitle}` : ''}`,
+        meta: '学生作品 · 已确认'
+      }))
+  })
   ;(props.state.activeWorkspace?.teacherEffect?.sources || []).forEach((source) => {
     if (!source?.sourceAssetId || sourceOptions.some((item) => sameId(item.sourceAssetId, source.sourceAssetId))) return
     sourceOptions.push({

@@ -236,6 +236,16 @@ const setDraft = (value, { clean = true } = {}) => {
 const markDraftClean = () => {
   draftBaseline.value = draftSnapshot(draft.value)
 }
+const isTemporaryClassDraft = () => {
+  if (props.entity !== 'classes') return false
+  const classTypeName = draft.value.classTypeName
+    || props.state.classTypes?.find((item) => sameId(item.id, draft.value.classTypeId))?.name
+  return classTypeName === '临时班'
+}
+const classRosterRequired = computed(() => props.entity === 'classes'
+  && draft.value.status === '开班中'
+  && !isTemporaryClassDraft())
+const classRosterMissing = computed(() => classRosterRequired.value && !(draft.value.studentIds || []).length)
 const blankCommunicationDraft = () => ({
   studentId: selected.value?.id || null,
   contactPerson: selected.value?.parent || '',
@@ -502,6 +512,10 @@ const save = async () => {
   if (mode.value === 'detail' || !canEditMasterData.value || detailLoading.value || saving.value) return
   if (mode.value === 'edit' && !isDirty.value) {
     props.state.notify?.('当前没有需要保存的修改')
+    return
+  }
+  if (classRosterMissing.value) {
+    props.state.notify?.('开班中的普通班级至少需要选择一名学生')
     return
   }
   const wasNew = mode.value === 'new'
@@ -1002,12 +1016,13 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <div v-if="draft.legacySchedulePending" class="notice-box error-box">
           <small>历史“上课时间”暂时无法识别，请重新配置固定时段后再生成课次。</small>
         </div>
-        <div class="member-picker">
-          <strong>学生名单</strong>
+        <div class="member-picker" :class="{ 'member-picker-invalid': classRosterMissing }">
+          <strong>学生名单<span v-if="classRosterRequired" class="required-mark">（至少选择 1 名）</span></strong>
           <label v-for="student in activeItems(state.students)" :key="student.id" class="inline-check">
             <input type="checkbox" :checked="draft.studentIds?.some((id) => sameId(id, student.id))" :disabled="formReadonly" @change="toggleStudentInClass(student.id)" />
             <span>{{ student.name }} · {{ student.status }} · {{ className(student.classId) }}</span>
           </label>
+          <small v-if="classRosterMissing" class="field-hint field-hint-error">开班中的普通班级至少需要选择一名学生。</small>
         </div>
       </template>
 

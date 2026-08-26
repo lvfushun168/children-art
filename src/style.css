@@ -9847,6 +9847,15 @@ textarea:focus,
   background: var(--color-surface);
 }
 
+.member-picker-invalid {
+  border-color: var(--color-danger);
+}
+
+.required-mark,
+.field-hint-error {
+  color: var(--color-danger);
+}
+
 .import-panel {
   display: grid;
   gap: 10px;

@@ -79,9 +79,9 @@ const removeRow = (index) => {
   gap: 12px;
   grid-column: 1 / -1;
   padding: 14px;
-  border: 1px solid var(--line, #d9e0e8);
+  border: 1px solid var(--color-border-soft);
   border-radius: 14px;
-  background: var(--surface-soft, #f8fafc);
+  background: var(--color-surface-muted);
 }
 .schedule-slot-head,
 .schedule-slot-row {
@@ -103,7 +103,7 @@ const removeRow = (index) => {
 .schedule-slot-row span,
 .schedule-slot-empty,
 .legacy-slot-note {
-  color: var(--muted, #6b7280);
+  color: var(--color-muted);
   font-size: 12px;
 }
 .schedule-slot-row label {
@@ -117,9 +117,9 @@ const removeRow = (index) => {
 }
 .legacy-slot-note {
   flex-basis: 100%;
-  color: #a16207;
+  color: var(--color-status-warning-text);
 }
 .form-error {
-  color: #b42318;
+  color: var(--color-danger);
 }
 </style>

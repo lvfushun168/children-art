@@ -362,7 +362,7 @@ const confirmImport = async () => {
 
 <style scoped>
 .import-topic-empty {
-  color: var(--muted);
+  color: var(--color-muted);
   opacity: 0.72;
 }
 

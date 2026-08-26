@@ -144,7 +144,7 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(15, 23, 42, .42);
+  background: color-mix(in srgb, var(--color-heading) 42%, transparent);
 }
 .generation-dialog {
   width: min(680px, 100%);
@@ -152,8 +152,8 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
   gap: 20px;
   padding: 24px;
   border-radius: 20px;
-  background: var(--surface, #fff);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-modal);
 }
 .dialog-head,
 .dialog-actions {
@@ -170,7 +170,7 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
 .generation-form label span,
 .generation-preview span,
 .generation-preview small {
-  color: var(--muted, #6b7280);
+  color: var(--color-muted);
   font-size: 13px;
 }
 .generation-form {
@@ -186,15 +186,15 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
 .generation-class-summary {
   padding: 10px 12px;
   border-radius: 10px;
-  background: var(--surface-soft, #f8fafc);
+  background: var(--color-surface-muted);
 }
 .generation-preview {
   display: grid;
   gap: 5px;
   padding: 14px;
   border-radius: 12px;
-  background: #eef7f2;
-  color: #175c3d;
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success-text);
 }
 .generation-preview strong {
   font-size: 20px;

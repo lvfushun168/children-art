@@ -8015,7 +8015,7 @@ textarea:focus,
   display: grid;
   gap: 14px;
   width: 100%;
-  max-width: 1180px;
+  max-width: none;
 }
 
 .identity-toolbar,
@@ -8046,6 +8046,22 @@ textarea:focus,
 
 .identity-list-panel > .section-head {
   align-items: flex-start;
+}
+
+.identity-list-panel > .section-head.identity-list-head {
+  align-items: center;
+}
+
+.identity-list-head-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.identity-list-head-actions small {
+  color: var(--color-muted);
+  white-space: nowrap;
 }
 
 .identity-list-panel > .section-head > div,
@@ -13321,6 +13337,19 @@ textarea:focus,
 
   .identity-filter-form button {
     width: 100%;
+  }
+
+  .identity-list-panel > .section-head.identity-list-head {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .identity-list-head > div:first-child {
+    min-width: 0;
+  }
+
+  .identity-list-head-actions {
+    align-self: center;
   }
 
   .identity-user-summary,

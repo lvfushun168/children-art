@@ -131,16 +131,18 @@ onMounted(loadData)
     ← 返回{{ groupLabel }}
   </button>
 
-  <PageHead eyebrow="权限中心" title="角色管理">
-    <button class="primary" type="button" @click="openRoleEditor()">新增角色</button>
-  </PageHead>
+  <PageHead eyebrow="权限中心" title="角色管理" />
 
   <section class="identity-page">
     <section class="panel identity-list-panel">
-      <div class="section-head">
+      <div class="section-head identity-list-head">
         <div>
           <span>角色列表</span>
           <strong>{{ state.identityRoles.length }} 个角色</strong>
+        </div>
+        <div class="identity-list-head-actions">
+          <small v-if="state.identityLoading.roles">正在加载…</small>
+          <button class="primary" type="button" @click="openRoleEditor()">新增角色</button>
         </div>
       </div>
 

@@ -188,9 +188,7 @@ onMounted(loadPage)
     ← 返回{{ groupLabel }}
   </button>
 
-  <PageHead eyebrow="权限中心" title="账号管理">
-    <button class="primary" type="button" @click="openUserForm()">新增账号</button>
-  </PageHead>
+  <PageHead eyebrow="权限中心" title="账号管理" />
 
   <section class="identity-page">
     <section class="panel identity-toolbar">
@@ -202,10 +200,14 @@ onMounted(loadPage)
     </section>
 
     <section class="panel identity-list-panel">
-      <div class="section-head">
+      <div class="section-head identity-list-head">
         <div>
           <span>账号列表</span>
           <strong>{{ state.identityUserPage.total || 0 }} 个账号</strong>
+        </div>
+        <div class="identity-list-head-actions">
+          <small v-if="state.identityLoading.users">正在加载…</small>
+          <button class="primary" type="button" @click="openUserForm()">新增账号</button>
         </div>
       </div>
 

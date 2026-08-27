@@ -89,6 +89,8 @@ const selectedStudentRecords = computed(() => {
       || Number(a.sortOrder || 0) - Number(b.sortOrder || 0)
       || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }))
 })
+const portfolioRecordsLoading = computed(() => Boolean(props.state.portfolioRecordsLoading))
+const portfolioRecordsError = computed(() => props.state.portfolioRecordsError || '')
 const estimatedSlides = computed(() => {
   const workCount = selectedStudentRecords.value.length
   if (!workCount) return 0
@@ -114,9 +116,18 @@ watch(() => props.state.portfolioTemplates.length, () => {
   }
 }, { immediate: true })
 
+watch(() => createDraft.studentId, (studentId) => {
+  if (!studentId) return
+  void props.state.loadPortfolioRecordsForStudent?.(studentId)
+})
+
 const goTemplateStep = () => {
   if (!createDraft.studentId) {
     props.state.notify('请先选择学生')
+    return
+  }
+  if (portfolioRecordsLoading.value) {
+    props.state.notify('正在加载该学生的全部作品，请稍候')
     return
   }
   if (!selectedStudentRecords.value.length) {
@@ -140,6 +151,10 @@ const openProjectInEditor = async (item) => {
 const confirmCreate = async () => {
   if (!createDraft.studentId) {
     props.state.notify('请先选择学生')
+    return
+  }
+  if (portfolioRecordsLoading.value) {
+    props.state.notify('正在加载该学生的全部作品，请稍候')
     return
   }
   if (!selectedStudentRecords.value.length) {
@@ -298,17 +313,21 @@ watch(
   () => props.handoff,
   (payload) => {
     if (!payload?.recordIds?.length) return
-    setupStep.value = 'template'
-    createDraft.studentId = payload.studentId ? String(payload.studentId) : ''
-    const created = props.state.createPortfolioProject({
-      templateId: createDraft.templateId,
-      studentId: payload.studentId || null,
-      recordIds: payload.recordIds,
-      termLabel: createDraft.termLabel
-    })
-    if (!created) return
-    void openProjectInEditor(created)
-    emit('handoffConsumed')
+    const openHandoffProject = async () => {
+      setupStep.value = 'template'
+      createDraft.studentId = payload.studentId ? String(payload.studentId) : ''
+      await props.state.loadPortfolioRecordsForStudent?.(createDraft.studentId)
+      const created = props.state.createPortfolioProject({
+        templateId: createDraft.templateId,
+        studentId: payload.studentId || null,
+        recordIds: payload.recordIds,
+        termLabel: createDraft.termLabel
+      })
+      if (!created) return
+      await openProjectInEditor(created)
+      emit('handoffConsumed')
+    }
+    void openHandoffProject()
   },
   { immediate: true }
 )
@@ -354,9 +373,9 @@ watch(
               <div>
                 <span>生成预估</span>
                 <strong>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</strong>
-                <small>{{ createDraft.studentId ? '下一步选择模板' : '请选择学生' }}</small>
+                <small>{{ portfolioRecordsLoading ? '正在加载该学生的全部作品…' : createDraft.studentId ? '下一步选择模板' : '请选择学生' }}</small>
               </div>
-              <button class="primary" :disabled="!selectedStudentRecords.length" @click="goTemplateStep">下一步：选择模板</button>
+              <button class="primary" :disabled="portfolioRecordsLoading || !selectedStudentRecords.length" @click="goTemplateStep">下一步：选择模板</button>
             </section>
           </section>
 
@@ -377,7 +396,10 @@ watch(
                 <em v-if="record.highlight">高光</em>
               </article>
               <div v-if="!selectedStudentRecords.length" class="notice-box">
-                <small>暂无可用作品。</small>
+                <small v-if="portfolioRecordsLoading">正在加载该学生的全部作品…</small>
+                <small v-else-if="portfolioRecordsError">{{ portfolioRecordsError }}</small>
+                <small v-else-if="createDraft.studentId">该学生暂无可用作品。</small>
+                <small v-else>请选择学生后查看作品。</small>
               </div>
             </div>
           </section>
@@ -428,7 +450,7 @@ watch(
                 <strong>{{ selectedTemplate?.name || '系统默认模板' }}</strong>
                 <small>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</small>
               </div>
-              <button class="primary" :disabled="!selectedStudentRecords.length" @click="confirmCreate">进入 PPT 工作台</button>
+              <button class="primary" :disabled="portfolioRecordsLoading || !selectedStudentRecords.length" @click="confirmCreate">进入 PPT 工作台</button>
             </section>
           </section>
         </template>

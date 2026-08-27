@@ -4452,15 +4452,15 @@ export function useDeliveryWorkflow() {
           case 'extraTasks': await loadDirectoryPage('extraTasks', { page: 1, pageSize: 20 }); break
           case 'templates': await loadTemplates({ force }); break
           case 'production': {
-            const [archivePage, , studentPage, classPage] = await Promise.all([
+            const [archivePage, , studentData, classData] = await Promise.all([
               api.archive.records({ page: 1, pageSize: 20 }),
               portfolioStudioRef?.loadPortfolioData?.(),
-              api.master.students({ page: 1, pageSize: 20 }),
-              api.master.classes({ page: 1, pageSize: 20 })
+              loadAllPageItems(api.master.students, mapStudent, { archiveState: masterArchiveState.students }),
+              loadAllPageItems(api.master.classes, mapClass, { archiveState: masterArchiveState.classes })
             ])
             const mappedArchives = mapPage(archivePage, mapArchiveRecord)
-            const mappedStudents = mapPage(studentPage, mapStudent)
-            const mappedClasses = mapPage(classPage, mapClass)
+            const mappedStudents = { items: studentData.items, page: 1, pageSize: 200, total: studentData.total }
+            const mappedClasses = { items: classData.items, page: 1, pageSize: 200, total: classData.total }
             replaceReactive(archiveRecords, mappedArchives.items)
             pageLoaded.archives = true
             replaceReactive(students, mappedStudents.items)

@@ -14,6 +14,7 @@ import { api } from '../services/api'
 import { createIdempotencyKey } from '../services/apiClient'
 import { fromApiId, mapArchiveRecord, mapFile, sameId } from '../services/mappers'
 import { putUploadSessionContent, sha256ForFile, uploadFile } from '../services/fileService'
+import { loadAllPageItems } from '../utils/pagination'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
 
@@ -107,6 +108,11 @@ export function usePortfolioStudio(context) {
   const portfolioProjects = reactive([])
   const portfolioTemplates = reactive(builtInTemplateRecords.map(clone))
   const exportJobs = reactive([])
+  const portfolioSourceRecords = reactive([])
+  const portfolioRecordsLoadedStudentId = ref(null)
+  const portfolioRecordsLoadingStudentId = ref(null)
+  const portfolioRecordsLoading = ref(false)
+  const portfolioRecordsError = ref('')
   const activePortfolioProjectId = ref(null)
   const portfolioFilter = reactive({
     studentId: 'all',
@@ -127,12 +133,17 @@ export function usePortfolioStudio(context) {
   })
 
   let seq = Date.now()
+  let portfolioRecordsRequestId = 0
+  let portfolioRecordsPromise = null
   const nextSeq = () => ++seq
   const defaultTemplate = builtInTemplateRecords[0] || null
 
   const templateFor = (project) => portfolioTemplates.find((item) => sameId(item.id, project?.templateId)) || defaultTemplate
   const pageSizeFor = (project) => pageSizes[templateFor(project)?.pageSize] || pageSizes.A4_LANDSCAPE
-  const recordById = (recordId) => archiveRecords.find((record) => sameId(record.id, recordId))
+  const portfolioRecordSource = () => portfolioRecordsLoadedStudentId.value
+    ? portfolioSourceRecords
+    : archiveRecords
+  const recordById = (recordId) => portfolioRecordSource().find((record) => sameId(record.id, recordId))
   const studentById = (studentId) => students.find((student) => sameId(student.id, studentId))
   const classById = (classId) => classes.find((klass) => sameId(klass.id, classId))
 
@@ -175,7 +186,7 @@ export function usePortfolioStudio(context) {
 
   const portfolioWorkItems = (records = []) => records.flatMap(artworkItemsForRecord)
   const portfolioWorkItemById = (workId) => {
-    const exact = portfolioWorkItems(archiveRecords).find((item) => sameId(item.id, workId))
+    const exact = portfolioWorkItems(portfolioRecordSource()).find((item) => sameId(item.id, workId))
     if (exact) return exact
     const record = recordById(workId)
     return record ? artworkItemsForRecord(record)[0] || null : null
@@ -228,16 +239,58 @@ export function usePortfolioStudio(context) {
     await Promise.all([loadTemplates(), loadExports()])
   }
 
+  const loadPortfolioRecordsForStudent = async (studentId) => {
+    const key = studentId === null || studentId === undefined || studentId === '' ? '' : String(studentId)
+    if (!key) {
+      portfolioRecordsRequestId += 1
+      portfolioRecordsLoadedStudentId.value = null
+      portfolioRecordsLoadingStudentId.value = null
+      portfolioRecordsLoading.value = false
+      portfolioRecordsError.value = ''
+      portfolioSourceRecords.splice(0, portfolioSourceRecords.length)
+      return []
+    }
+    if (portfolioRecordsLoading.value
+      && portfolioRecordsLoadingStudentId.value === key
+      && portfolioRecordsPromise) return portfolioRecordsPromise
+    if (!portfolioRecordsLoading.value && portfolioRecordsLoadedStudentId.value === key) {
+      return [...portfolioSourceRecords]
+    }
+
+    const requestId = ++portfolioRecordsRequestId
+    portfolioRecordsLoadedStudentId.value = key
+    portfolioRecordsLoadingStudentId.value = key
+    portfolioRecordsLoading.value = true
+    portfolioRecordsError.value = ''
+    portfolioSourceRecords.splice(0, portfolioSourceRecords.length)
+
+    let request
+    request = loadAllPageItems(
+      api.archive.records,
+      mapArchiveRecord,
+      { studentId: key, sourceType: 'ALL', includeCurrent: true },
+      200
+    ).then((result) => {
+      if (requestId !== portfolioRecordsRequestId) return []
+      portfolioSourceRecords.splice(0, portfolioSourceRecords.length, ...result.items)
+      return result.items
+    }).catch((error) => {
+      if (requestId === portfolioRecordsRequestId) {
+        portfolioRecordsError.value = error?.message || '学生作品加载失败'
+      }
+      return []
+    }).finally(() => {
+      if (requestId !== portfolioRecordsRequestId) return
+      portfolioRecordsLoading.value = false
+      portfolioRecordsLoadingStudentId.value = null
+      portfolioRecordsPromise = null
+    })
+    portfolioRecordsPromise = request
+    return request
+  }
+
   const portfolioRecordPool = computed(() =>
-    portfolioWorkItems(service.listAccessibleRecords())
-      .filter((record) => {
-        const studentOk = portfolioFilter.studentId === 'all' || sameId(record.studentId, portfolioFilter.studentId)
-        const classOk = portfolioFilter.classId === 'all' || sameId(record.classId, portfolioFilter.classId)
-        const startOk = !portfolioFilter.dateStart || (record.dateValue || '') >= portfolioFilter.dateStart
-        const endOk = !portfolioFilter.dateEnd || (record.dateValue || '') <= portfolioFilter.dateEnd
-        const highlightOk = !portfolioFilter.highlightOnly || record.highlight
-        return studentOk && classOk && startOk && endOk && highlightOk
-      })
+    portfolioWorkItems(portfolioRecordSource())
       .slice()
       .sort((a, b) => String(a.dateValue).localeCompare(String(b.dateValue)))
   )
@@ -312,6 +365,13 @@ export function usePortfolioStudio(context) {
   }
 
   const clearPortfolioSession = () => {
+    portfolioRecordsRequestId += 1
+    portfolioRecordsPromise = null
+    portfolioRecordsLoadedStudentId.value = null
+    portfolioRecordsLoadingStudentId.value = null
+    portfolioRecordsLoading.value = false
+    portfolioRecordsError.value = ''
+    portfolioSourceRecords.splice(0, portfolioSourceRecords.length)
     portfolioProjects.splice(0, portfolioProjects.length)
     exportJobs.splice(0, exportJobs.length)
     activePortfolioProjectId.value = null
@@ -774,8 +834,20 @@ export function usePortfolioStudio(context) {
         dateEnd: project.dateEnd || undefined,
         templateId: isPersistedPortfolioTemplateId(project.templateId) ? String(project.templateId) : undefined,
         sourceRecordIds: [...new Set(orderedProjectRecords(project)
-          .map((record) => record.sourceRecordId || record.id)
+          .map((record) => record.sourceRecordId ?? record.id)
           .map((recordId) => String(recordId)))],
+        sourceRecordRefs: [...new Map(orderedProjectRecords(project)
+          .map((record) => {
+            const recordId = record.sourceRecordId ?? record.id
+            const sourceId = record.sourceId ?? recordId
+            const sourceType = String(record.sourceType || 'LESSON').toUpperCase()
+            return [`${sourceType}:${recordId}:${sourceId}`, {
+              sourceType,
+              recordId: String(recordId),
+              sourceId: String(sourceId)
+            }]
+          }))
+          .values()],
         expectedSize: blob.size,
         expectedSha256: digest,
         requestedPageCount: result.pageCount
@@ -805,6 +877,9 @@ export function usePortfolioStudio(context) {
     portfolioStats,
     portfolioFilter,
     portfolioRecordPool,
+    portfolioRecordsLoading,
+    portfolioRecordsError,
+    loadPortfolioRecordsForStudent,
     activePortfolioProjectId,
     activePortfolioProject,
     portfolioTemplateFor: templateFor,

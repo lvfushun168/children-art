@@ -71,6 +71,30 @@ const isMobileFlow = ref(false)
 const mobileStage = ref('list')
 let cleanupMobileMedia = () => {}
 const clone = (value) => JSON.parse(JSON.stringify(value))
+const BAIDU_EDITABLE_FIELDS = [
+  'name',
+  'appId',
+  'appKey',
+  'secretKey',
+  'backendBaseUrl',
+  'frontendBaseUrl',
+  'frontendReturnPath',
+  'directoryRule',
+  'filenameTemplate',
+  'authorizeUrl',
+  'tokenUrl',
+  'scope',
+  'callbackPath',
+  'apiBaseUrl',
+  'uploadBaseUrl',
+  'stateTtl',
+  'chunkSizeBytes',
+  'tokenRefreshSkew',
+  'enabled'
+]
+const baiduProviderSnapshot = (provider = {}) => JSON.stringify(Object.fromEntries(
+  BAIDU_EDITABLE_FIELDS.map((field) => [field, provider[field] ?? null])
+))
 
 const providerCategory = (provider = {}) => {
   const backendCategory = String(provider.category || '').trim().toLowerCase()
@@ -312,7 +336,7 @@ const baiduProviders = computed(() => (selected()?.value?.providers || []).filte
 const selectedBaiduProvider = computed(() => baiduProviders.value.find((provider) => sameId(provider.id, selectedBaiduProviderId.value)) || null)
 const baiduDrawerProvider = computed(() => baiduDrawerDraft.value || selectedBaiduProvider.value)
 const baiduDrawerDirty = computed(() => Boolean(
-  baiduDrawerDraft.value && baiduDrawerBaseline.value !== JSON.stringify(baiduDrawerDraft.value)
+  baiduDrawerDraft.value && baiduDrawerBaseline.value !== baiduProviderSnapshot(baiduDrawerDraft.value)
 ))
 const isNewBaiduProvider = (provider) => !provider?.id || String(provider.id).startsWith('provider-')
 const baiduAccountStatusLabel = (provider) => provider.enabled ? '已启用' : '已停用'
@@ -345,7 +369,7 @@ const openBaiduProviderDrawer = (provider, mode = 'edit') => {
   selectedBaiduProviderId.value = provider.id
   baiduDrawerMode.value = mode
   baiduDrawerDraft.value = clone(provider)
-  baiduDrawerBaseline.value = JSON.stringify(baiduDrawerDraft.value)
+  baiduDrawerBaseline.value = baiduProviderSnapshot(baiduDrawerDraft.value)
   isBaiduDrawerOpen.value = true
   if (isMobileFlow.value) mobileStage.value = 'detail'
 }
@@ -441,7 +465,7 @@ const addProvider = () => {
     closeArchiveRuleVariableMenu()
     baiduDrawerMode.value = 'new'
     baiduDrawerDraft.value = provider
-    baiduDrawerBaseline.value = JSON.stringify(provider)
+    baiduDrawerBaseline.value = baiduProviderSnapshot(provider)
     isBaiduDrawerOpen.value = true
     if (isMobileFlow.value) mobileStage.value = 'detail'
     return
@@ -473,7 +497,7 @@ const saveBaiduProvider = async () => {
     baiduDrawerDraft.value = clone(saved)
   }
   baiduDrawerMode.value = 'edit'
-  baiduDrawerBaseline.value = JSON.stringify(baiduDrawerDraft.value)
+  baiduDrawerBaseline.value = baiduProviderSnapshot(baiduDrawerDraft.value)
   await refreshBaiduStatuses()
 }
 

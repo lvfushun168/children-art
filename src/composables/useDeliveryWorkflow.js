@@ -513,7 +513,6 @@ export function useDeliveryWorkflow() {
     const requiredPermissions = {
       tasks: ['lesson.read'],
       supervision: ['quality.read', 'quality.review'],
-      production: ['portfolio.template.read', 'portfolio.export'],
       students: ['masterdata.read'],
       classes: ['masterdata.read'],
       teachers: ['masterdata.read'],

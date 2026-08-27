@@ -3,10 +3,13 @@ import {
   bodySources,
   bookThemes,
   pageSizes,
-  portfolioLayouts
+  portfolioLayouts,
+  portfolioTemplates as builtInPortfolioTemplates
 } from '../data/portfolioData'
 import { createPortfolioPptistDocument } from '../services/portfolioPptistAdapter'
 import { createPortfolioDraftService } from '../services/portfolioService'
+import { hydratePortfolioRecords } from '../services/portfolioImageService.js'
+import { isPersistedPortfolioTemplateId } from '../services/portfolioTemplateSupport.js'
 import { api } from '../services/api'
 import { createIdempotencyKey } from '../services/apiClient'
 import { fromApiId, mapArchiveRecord, mapFile, sameId } from '../services/mappers'
@@ -60,7 +63,7 @@ const mapPortfolioTemplate = (value = {}) => ({
   desc: value.description || value.desc || '',
   projectType: value.projectType || 'TERM_BOOK',
   pageSize: value.pageSize || 'A4_LANDSCAPE',
-  slideCount: value.deck?.slides?.length || 0,
+  slideCount: value.slideCount || value.deck?.slides?.length || 0,
   book: {
     termLabel: '',
     showDate: true,
@@ -74,6 +77,19 @@ const mapPortfolioTemplate = (value = {}) => ({
   layouts: value.layouts || null,
   version: Number(value.version || 0)
 })
+
+const builtInTemplateRecords = builtInPortfolioTemplates.map((template) =>
+  mapPortfolioTemplate({ ...template, builtIn: true }))
+
+const mergePortfolioTemplates = (remoteTemplates = []) => {
+  const mappedRemoteTemplates = (Array.isArray(remoteTemplates) ? remoteTemplates : [])
+    .map(mapPortfolioTemplate)
+  const remoteIds = new Set(mappedRemoteTemplates.map((template) => String(template.id)))
+  return [
+    ...mappedRemoteTemplates,
+    ...builtInTemplateRecords.filter((template) => !remoteIds.has(String(template.id)))
+  ]
+}
 
 export function usePortfolioStudio(context) {
   const {
@@ -89,7 +105,7 @@ export function usePortfolioStudio(context) {
   } = context
 
   const portfolioProjects = reactive([])
-  const portfolioTemplates = reactive([])
+  const portfolioTemplates = reactive(builtInTemplateRecords.map(clone))
   const exportJobs = reactive([])
   const activePortfolioProjectId = ref(null)
   const portfolioFilter = reactive({
@@ -112,7 +128,7 @@ export function usePortfolioStudio(context) {
 
   let seq = Date.now()
   const nextSeq = () => ++seq
-  const defaultTemplate = null
+  const defaultTemplate = builtInTemplateRecords[0] || null
 
   const templateFor = (project) => portfolioTemplates.find((item) => sameId(item.id, project?.templateId)) || defaultTemplate
   const pageSizeFor = (project) => pageSizes[templateFor(project)?.pageSize] || pageSizes.A4_LANDSCAPE
@@ -183,21 +199,33 @@ export function usePortfolioStudio(context) {
   }))
 
   const loadPortfolioData = async () => {
-    try {
-      const [templates, exports] = await Promise.all([api.portfolio.templates(), api.portfolio.exports({})])
-      portfolioTemplates.splice(0, portfolioTemplates.length, ...(templates || []).map(mapPortfolioTemplate))
-      exportJobs.splice(0, exportJobs.length, ...((exports?.items || []).map((value) => ({
-        ...value,
-        id: fromApiId(value.id),
-        fileName: value.fileName,
-        fileUrl: value.downloadUrl || '',
-        pageCount: value.pageCount,
-        exportedAt: value.exportedAt || '',
-        status: value.status || '已导出'
-      }))))
-    } catch (error) {
-      notify(error?.message || '制作中心数据加载失败')
+    const loadTemplates = async () => {
+      try {
+        const templates = await api.portfolio.templates()
+        portfolioTemplates.splice(0, portfolioTemplates.length, ...mergePortfolioTemplates(templates))
+      } catch {
+        // 远程模板是可选配置，内置模板必须保证制作中心仍可使用。
+        portfolioTemplates.splice(0, portfolioTemplates.length, ...builtInTemplateRecords.map(clone))
+      }
     }
+    const loadExports = async () => {
+      try {
+        const exports = await api.portfolio.exports({})
+        exportJobs.splice(0, exportJobs.length, ...((exports?.items || []).map((value) => ({
+          ...value,
+          id: fromApiId(value.id),
+          fileName: value.fileName,
+          fileUrl: value.downloadUrl || '',
+          pageCount: value.pageCount,
+          exportedAt: value.exportedAt || '',
+          status: value.status || '已导出'
+        }))))
+      } catch {
+        // 导出历史只影响辅助展示，不能阻断新建作品册。
+        exportJobs.splice(0, exportJobs.length)
+      }
+    }
+    await Promise.all([loadTemplates(), loadExports()])
   }
 
   const portfolioRecordPool = computed(() =>
@@ -423,25 +451,26 @@ export function usePortfolioStudio(context) {
     notify(`已生成 ${pages.length} 页横向 A4 作品册`)
   }
 
-  const buildPortfolioDeck = (project) => {
+  const buildPortfolioDeck = (project, records = null) => {
     if (!project) return null
     ensureProjectCopy(project)
     const template = templateFor(project)
     if (!template) return null
-    if (template.deck?.slides?.length) return clone(template.deck)
-    const records = orderedProjectRecords(project)
+    const sourceRecords = records || orderedProjectRecords(project)
     const student = studentById(project.studentId)
     const klass = classById(project.classId || student?.classId)
-    return createPortfolioPptistDocument({ project, template, records, student, klass, school })
+    return createPortfolioPptistDocument({ project, template, records: sourceRecords, student, klass, school })
   }
 
-  const generatePortfolioDeck = (project) => {
+  const generatePortfolioDeck = async (project) => {
     if (!project) return null
-    if (!orderedProjectRecords(project).length) {
+    const records = orderedProjectRecords(project)
+    if (!records.length) {
       notify('请先选择要进入作品册的作品')
       return null
     }
-    project.deck = buildPortfolioDeck(project)
+    const hydratedRecords = await hydratePortfolioRecords(records)
+    project.deck = buildPortfolioDeck(project, hydratedRecords)
     if (!project.deck) {
       notify('当前模板没有可生成的页面结构')
       return null
@@ -743,7 +772,7 @@ export function usePortfolioStudio(context) {
         termId: project.termId ? String(project.termId) : undefined,
         dateStart: project.dateStart || undefined,
         dateEnd: project.dateEnd || undefined,
-        templateId: project.templateId ? String(project.templateId) : undefined,
+        templateId: isPersistedPortfolioTemplateId(project.templateId) ? String(project.templateId) : undefined,
         sourceRecordIds: [...new Set(orderedProjectRecords(project)
           .map((record) => record.sourceRecordId || record.id)
           .map((recordId) => String(recordId)))],

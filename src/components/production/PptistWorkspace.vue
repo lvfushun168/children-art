@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import '@lofcz/pptist/embed.css'
 import { installPptistChineseLocalization } from '../../services/pptistChineseLocale'
+import { resolvePortfolioImageSource } from '../../services/portfolioImageService.js'
 import { pptistViewport } from '../../services/portfolioPptistAdapter'
 import { exportPortfolioPdf } from '../../services/portfolioPdfExporter'
 
@@ -131,7 +132,7 @@ const upsertElement = async (element) => {
 }
 
 const insertImage = async (recordOrImage) => {
-  const src = recordOrImage?.artwork || recordOrImage?.src
+  const src = await resolvePortfolioImageSource(recordOrImage)
   if (!src) return false
   return upsertElement({
     type: 'image',

@@ -126,25 +126,24 @@ const goTemplateStep = () => {
   setupStep.value = 'template'
 }
 
-const openProjectInEditor = (item) => {
+const openProjectInEditor = async (item) => {
   props.state.openPortfolioProject(item)
-  if (!item.deck) props.state.generatePortfolioDeck(item)
+  editorDocument.value = null
+  latestDeck.value = null
+  if (!item.deck) await props.state.generatePortfolioDeck(item)
+  if (!item.deck) return
   editorDocument.value = clone(item.deck)
   latestDeck.value = clone(item.deck)
   editorKey.value += 1
 }
 
-const confirmCreate = () => {
+const confirmCreate = async () => {
   if (!createDraft.studentId) {
     props.state.notify('请先选择学生')
     return
   }
   if (!selectedStudentRecords.value.length) {
     props.state.notify('当前范围内没有可用作品')
-    return
-  }
-  if (!selectedTemplate.value) {
-    props.state.notify('当前没有可用的作品集模板')
     return
   }
   const created = props.state.createPortfolioProject({
@@ -157,8 +156,7 @@ const confirmCreate = () => {
     recordIds: selectedStudentRecords.value.map((record) => record.id)
   })
   if (!created) return
-  props.state.generatePortfolioDeck(created)
-  openProjectInEditor(created)
+  await openProjectInEditor(created)
 }
 
 const backToList = () => {
@@ -309,8 +307,7 @@ watch(
       termLabel: createDraft.termLabel
     })
     if (!created) return
-    props.state.generatePortfolioDeck(created)
-    openProjectInEditor(created)
+    void openProjectInEditor(created)
     emit('handoffConsumed')
   },
   { immediate: true }
@@ -330,7 +327,7 @@ watch(
         <div class="section-head">
           <div>
             <span>{{ setupStep === 'student' ? '新建作品册' : '选择模板' }}</span>
-            <strong>{{ setupStep === 'student' ? '先选择学生和作品范围' : '选择一个模板进入工作台' }}</strong>
+            <strong>{{ setupStep === 'student' ? '先选择学生和作品范围' : '可选择模板，也可以直接使用系统默认模板' }}</strong>
           </div>
         </div>
 
@@ -420,7 +417,7 @@ watch(
                   <em>{{ item.slideCount || item.deck?.slides?.length || '自动' }} 页 · A4</em>
                 </button>
                 <div v-if="!filteredTemplates.length" class="notice-box">
-                  <small>没有匹配的模板。</small>
+                  <small>暂无可用自定义模板，将使用系统默认模板。</small>
                 </div>
               </div>
             </div>
@@ -428,10 +425,10 @@ watch(
             <section class="pc-create-preview">
               <div>
                 <span>将使用模板</span>
-                <strong>{{ selectedTemplate?.name || '暂无作品集模板' }}</strong>
+                <strong>{{ selectedTemplate?.name || '系统默认模板' }}</strong>
                 <small>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</small>
               </div>
-              <button class="primary" :disabled="!selectedStudentRecords.length || !selectedTemplate" @click="confirmCreate">进入 PPT 工作台</button>
+              <button class="primary" :disabled="!selectedStudentRecords.length" @click="confirmCreate">进入 PPT 工作台</button>
             </section>
           </section>
         </template>

@@ -62,6 +62,11 @@ const archiveRuleVariableGroups = [
 ]
 
 const selectedId = ref(null)
+const selectedBaiduProviderId = ref(null)
+const isBaiduDrawerOpen = ref(false)
+const baiduDrawerMode = ref('edit')
+const baiduDrawerDraft = ref(null)
+const baiduDrawerBaseline = ref('')
 const isMobileFlow = ref(false)
 const mobileStage = ref('list')
 let cleanupMobileMedia = () => {}
@@ -93,8 +98,6 @@ const providerSettings = computed(() => {
         value: {
           ...(group.value || {}),
           providers,
-          directoryRule: group.value?.directoryRule || '',
-          filenameTemplate: group.value?.filenameTemplate || '',
           defaultArchiveTargets: group.value?.defaultArchiveTargets || []
         }
       }
@@ -113,9 +116,7 @@ const providerSettings = computed(() => {
       status: providers.length ? (providers.some((provider) => provider.enabled) ? '已启用' : '未启用') : '未配置',
       value: {
         ...(base.value || {}),
-        providers,
-        directoryRule: group.category === 'cloud' ? (base.value?.directoryRule || DEFAULT_ARCHIVE_RULE) : '',
-        filenameTemplate: group.category === 'cloud' ? (base.value?.filenameTemplate || '') : ''
+        providers
       }
     }
   })
@@ -129,8 +130,8 @@ const archiveRuleVariableMenu = ref(null)
 const archiveRuleVariableMenuOpen = ref(false)
 const archiveRuleVariableSelection = ref({ start: 0, end: 0 })
 const activeArchiveTemplate = ref('directory')
-const archiveRuleValue = computed(() => draft.value.value?.directoryRule || DEFAULT_ARCHIVE_RULE)
-const archiveFilenameValue = computed(() => draft.value.value?.filenameTemplate || DEFAULT_FILENAME_TEMPLATE)
+const archiveRuleValue = computed(() => baiduDrawerDraft.value?.directoryRule || DEFAULT_ARCHIVE_RULE)
+const archiveFilenameValue = computed(() => baiduDrawerDraft.value?.filenameTemplate ?? '')
 const archiveRulePreview = computed(() => {
   const values = {
     campus: '大学城校区',
@@ -155,7 +156,7 @@ const archiveRulePreview = computed(() => {
   return archiveRuleValue.value.replace(/\{([A-Za-z][A-Za-z0-9_]*)}/g, (match, key) => values[key] || match)
 })
 const archiveFilenamePreview = computed(() => {
-  const configured = String(draft.value.value?.filenameTemplate || '').trim()
+  const configured = String(baiduDrawerDraft.value?.filenameTemplate || '').trim()
   if (!configured) return '沿用系统默认命名（扩展名由系统自动追加）'
   const values = {
     dateShort: '2026.8.23',
@@ -189,6 +190,9 @@ watch(providerSettings, (settings) => {
 }, { deep: true, immediate: true })
 
 const selectSetting = (setting) => {
+  if (isBaiduDrawerOpen.value && !closeBaiduProviderDrawer()) return
+  isBaiduDrawerOpen.value = false
+  baiduDrawerDraft.value = null
   selectedId.value = setting.id
   draft.value = clone(setting)
   activeArchiveTemplate.value = 'directory'
@@ -204,8 +208,8 @@ const activeArchiveInput = () => activeArchiveTemplate.value === 'filename'
   : archiveRuleInput.value
 
 const activeArchiveValue = () => activeArchiveTemplate.value === 'filename'
-  ? archiveFilenameValue.value
-  : archiveRuleValue.value
+  ? baiduDrawerDraft.value?.filenameTemplate ?? ''
+  : baiduDrawerDraft.value?.directoryRule ?? ''
 
 const captureArchiveRuleVariableSelection = () => {
   const input = activeArchiveInput()
@@ -235,7 +239,7 @@ const closeArchiveRuleVariableMenuFromKeyboard = (event) => {
 }
 
 const insertArchiveVariable = (token) => {
-  if (!isCloudCategory.value) return
+  if (!isCloudCategory.value || !baiduDrawerDraft.value) return
   const current = activeArchiveValue()
   const input = activeArchiveInput()
   const start = archiveRuleVariableMenuOpen.value
@@ -245,8 +249,8 @@ const insertArchiveVariable = (token) => {
     ? archiveRuleVariableSelection.value.end
     : input && typeof input.selectionEnd === 'number' ? input.selectionEnd : start
   const nextValue = `${current.slice(0, start)}${token}${current.slice(end)}`
-  if (activeArchiveTemplate.value === 'filename') draft.value.value.filenameTemplate = nextValue
-  else draft.value.value.directoryRule = nextValue
+  if (activeArchiveTemplate.value === 'filename') baiduDrawerDraft.value.filenameTemplate = nextValue
+  else baiduDrawerDraft.value.directoryRule = nextValue
   closeArchiveRuleVariableMenu()
   nextTick(() => {
     const activeInput = activeArchiveInput()
@@ -258,6 +262,10 @@ const insertArchiveVariable = (token) => {
 }
 
 const save = () => {
+  if (isCloudCategory.value) {
+    props.state.notify('请在百度网盘账号详情抽屉中保存配置')
+    return
+  }
   if (!isProviderSetting.value) {
     props.state.notify('当前配置不可保存')
     return
@@ -275,9 +283,7 @@ const isCloudCategory = computed(() => selectedGroup.value?.category === 'cloud'
 const isAiCategory = computed(() => selectedGroup.value?.category === 'ai')
 const isProviderSetting = computed(() => Boolean(draft.value.category))
 const canSave = computed(() => Boolean(
-  isProviderSetting.value && (isCloudCategory.value
-    ? draft.value.value?.directoryRule !== undefined
-    : draft.value.value?.providers?.length)
+  isProviderSetting.value && !isCloudCategory.value && draft.value.value?.providers?.length
 ))
 const providerTypeCatalog = computed(() => props.state.providerTypeCatalog || {
   cloud: props.state.providerTypeOptions || [],
@@ -302,12 +308,59 @@ const aiCapabilityOptions = [
   { value: 'IMAGE_TO_IMAGE', label: '图生图' }
 ]
 const isBaiduProvider = (provider) => String(provider?.providerType || provider?.type || '').toUpperCase() === 'BAIDU_NETDISK'
-const baiduProviders = computed(() => (draft.value.value?.providers || []).filter(isBaiduProvider))
+const baiduProviders = computed(() => (selected()?.value?.providers || []).filter(isBaiduProvider))
+const selectedBaiduProvider = computed(() => baiduProviders.value.find((provider) => sameId(provider.id, selectedBaiduProviderId.value)) || null)
+const baiduDrawerProvider = computed(() => baiduDrawerDraft.value || selectedBaiduProvider.value)
+const baiduDrawerDirty = computed(() => Boolean(
+  baiduDrawerDraft.value && baiduDrawerBaseline.value !== JSON.stringify(baiduDrawerDraft.value)
+))
+const isNewBaiduProvider = (provider) => !provider?.id || String(provider.id).startsWith('provider-')
+const baiduAccountStatusLabel = (provider) => provider.enabled ? '已启用' : '已停用'
+const baiduTestStatusLabel = (provider) => provider.testSuccess === true || provider.lastTestSuccess === true
+  ? '测试成功'
+  : provider.testSuccess === false || provider.lastTestSuccess === false
+    ? '测试失败'
+    : '未测试'
 const canAddProvider = computed(() => {
   if (!providerTypes.value.length) return false
-  if (isCloudCategory.value) return !baiduProviders.value.length
+  if (isCloudCategory.value) return true
   return providerTypes.value.some((type) => String(type).toUpperCase() !== 'BAIDU_NETDISK' || !baiduProviders.value.length)
 })
+
+watch([selectedId, providerSettings], () => {
+  if (!isCloudCategory.value) {
+    selectedBaiduProviderId.value = null
+    isBaiduDrawerOpen.value = false
+    baiduDrawerDraft.value = null
+    return
+  }
+  if (!baiduProviders.value.some((provider) => sameId(provider.id, selectedBaiduProviderId.value))) {
+    selectedBaiduProviderId.value = baiduProviders.value[0]?.id || null
+  }
+}, { deep: true, immediate: true })
+
+const openBaiduProviderDrawer = (provider, mode = 'edit') => {
+  if (!provider) return
+  closeArchiveRuleVariableMenu()
+  selectedBaiduProviderId.value = provider.id
+  baiduDrawerMode.value = mode
+  baiduDrawerDraft.value = clone(provider)
+  baiduDrawerBaseline.value = JSON.stringify(baiduDrawerDraft.value)
+  isBaiduDrawerOpen.value = true
+  if (isMobileFlow.value) mobileStage.value = 'detail'
+}
+
+const selectBaiduProvider = (provider) => openBaiduProviderDrawer(provider)
+
+const closeBaiduProviderDrawer = () => {
+  if (baiduDrawerDirty.value && typeof window !== 'undefined' && !window.confirm('当前百度网盘账号有未保存修改，确定关闭吗？')) return false
+  closeArchiveRuleVariableMenu()
+  isBaiduDrawerOpen.value = false
+  baiduDrawerDraft.value = null
+  baiduDrawerBaseline.value = ''
+  baiduDrawerMode.value = 'edit'
+  return true
+}
 
 const formatDateTime = (value) => {
   if (!value) return '—'
@@ -318,7 +371,7 @@ const formatDateTime = (value) => {
 const baiduStatusLabel = (provider) => {
   if (provider.oauthConfigured === false) return '后端未配置'
   if (provider.oauthStatus === 'AUTH_REQUIRED') return '需要重新授权'
-  if (provider.oauthAuthorized) return provider.baiduDisplayName ? `已授权（${provider.baiduDisplayName}）` : '已授权'
+  if (provider.oauthAuthorized) return '已授权'
   return '待授权'
 }
 
@@ -328,12 +381,13 @@ const baiduStatusClass = (provider) => {
   return 'muted'
 }
 
+const baiduAccountIdentityLabel = (provider) => provider.baiduDisplayName
+  || (provider.oauthAuthorized ? '百度账号已授权' : '尚未绑定百度账号')
+
 const addProvider = () => {
   if (!draft.value.value?.providers) {
     draft.value.value = {
       providers: [],
-      directoryRule: DEFAULT_ARCHIVE_RULE,
-      filenameTemplate: '',
       defaultArchiveTargets: []
     }
   }
@@ -341,7 +395,7 @@ const addProvider = () => {
   const providerType = isCloudCategory.value
     ? 'BAIDU_NETDISK'
     : providerTypes.value.find((type) => String(type).toUpperCase() !== 'BAIDU_NETDISK' || !baiduProviders.value.length) || ''
-  draft.value.value.providers.push({
+  const provider = {
     id,
     name: `新的${currentProviderLabel.value}`,
     type: providerType,
@@ -379,8 +433,70 @@ const addProvider = () => {
     tokenRefreshSkew: 'PT5M',
     tokenStatus: '未授权',
     archiveDefault: false,
-    enabled: false
-  })
+    enabled: false,
+    directoryRule: baiduProviders.value[0]?.directoryRule || DEFAULT_ARCHIVE_RULE,
+    filenameTemplate: baiduProviders.value[0]?.filenameTemplate ?? DEFAULT_FILENAME_TEMPLATE
+  }
+  if (isCloudCategory.value) {
+    closeArchiveRuleVariableMenu()
+    baiduDrawerMode.value = 'new'
+    baiduDrawerDraft.value = provider
+    baiduDrawerBaseline.value = JSON.stringify(provider)
+    isBaiduDrawerOpen.value = true
+    if (isMobileFlow.value) mobileStage.value = 'detail'
+    return
+  }
+  draft.value.value.providers.push(provider)
+}
+
+const saveBaiduProvider = async () => {
+  const provider = baiduDrawerDraft.value
+  if (provider && !String(provider.name || '').trim()) {
+    props.state.notify('配置名称不能为空')
+    return
+  }
+  let saved = null
+  if (provider) {
+    saved = await (isNewBaiduProvider(provider)
+      ? props.state.createBaiduProvider?.(provider)
+      : props.state.updateBaiduProvider?.(provider))
+    if (!saved) return
+    selectedBaiduProviderId.value = saved.id
+  }
+  if (!provider) return
+  const current = selected()
+  if (current) {
+    draft.value = clone(current)
+    const savedProvider = current.value?.providers?.find((item) => sameId(item.id, selectedBaiduProviderId.value))
+    baiduDrawerDraft.value = clone(savedProvider || saved)
+  } else {
+    baiduDrawerDraft.value = clone(saved)
+  }
+  baiduDrawerMode.value = 'edit'
+  baiduDrawerBaseline.value = JSON.stringify(baiduDrawerDraft.value)
+  await refreshBaiduStatuses()
+}
+
+const disableBaiduProvider = async (provider) => {
+  const saved = await props.state.disableProvider?.(provider)
+  if (!saved) return
+  selectedBaiduProviderId.value = saved.id
+  isBaiduDrawerOpen.value = false
+  baiduDrawerDraft.value = null
+  const current = selected()
+  if (current) draft.value = clone(current)
+  await refreshBaiduStatuses()
+}
+
+const restoreBaiduProvider = async (provider) => {
+  const saved = await props.state.restoreProvider?.(provider)
+  if (!saved) return
+  selectedBaiduProviderId.value = saved.id
+  isBaiduDrawerOpen.value = false
+  baiduDrawerDraft.value = null
+  const current = selected()
+  if (current) draft.value = clone(current)
+  await refreshBaiduStatuses()
 }
 
 const setProviderType = (provider, value) => {
@@ -431,23 +547,32 @@ const authorizeBaidu = async (provider) => {
 }
 
 const refreshBaiduStatuses = async () => {
-  const providers = draft.value.value?.providers || []
-  await Promise.all(providers.filter(isBaiduProvider).map(async (provider) => {
+  const persistedProviders = (providerSettings.value || [])
+    .flatMap((group) => group.value?.providers || [])
+    .filter(isBaiduProvider)
+  const candidates = [...persistedProviders, baiduDrawerDraft.value]
+    .filter(isBaiduProvider)
+    .filter((provider, index, values) => values.findIndex((item) => sameId(item.id, provider.id)) === index)
+  await Promise.all(candidates.map(async (provider) => {
     const status = await props.state.baiduOAuthStatus?.(provider)
     if (!status) return
-    provider.oauthStatus = status.status || ''
-    provider.oauthAuthorized = Boolean(status.authorized)
-    provider.oauthConfigured = status.oauthConfigured !== false
-    provider.baiduUid = status.baiduUid || ''
-    provider.baiduDisplayName = status.displayName || ''
-    provider.authorizedAt = status.authorizedAt || ''
-    provider.expiresAt = status.expiresAt || ''
-    provider.oauthScope = status.scope || ''
-    provider.authErrorCode = status.errorCode || ''
-    provider.authErrorMessage = status.errorMessage || ''
-    provider.callbackUrl = status.callbackUrl || ''
-    provider.frontendReturnUrl = status.frontendReturnUrl || ''
-    provider.tokenStatus = baiduStatusLabel(provider)
+    ;[...persistedProviders, baiduDrawerDraft.value]
+      .filter((item) => isBaiduProvider(item) && sameId(item.id, provider.id))
+      .forEach((item) => {
+        item.oauthStatus = status.status || ''
+        item.oauthAuthorized = Boolean(status.authorized)
+        item.oauthConfigured = status.oauthConfigured !== false
+        item.baiduUid = status.baiduUid || ''
+        item.baiduDisplayName = status.displayName || ''
+        item.authorizedAt = status.authorizedAt || ''
+        item.expiresAt = status.expiresAt || ''
+        item.oauthScope = status.scope || ''
+        item.authErrorCode = status.errorCode || ''
+        item.authErrorMessage = status.errorMessage || ''
+        item.callbackUrl = status.callbackUrl || ''
+        item.frontendReturnUrl = status.frontendReturnUrl || ''
+        item.tokenStatus = baiduStatusLabel(item)
+      })
   }))
 }
 
@@ -457,6 +582,7 @@ watch(() => (providerSettings.value || []).flatMap((group) => group.value?.provi
 }, { immediate: true })
 
 const returnToList = () => {
+  if (isBaiduDrawerOpen.value && !closeBaiduProviderDrawer()) return
   draft.value = clone(selected() || {})
   mobileStage.value = 'list'
   refreshBaiduStatuses().catch(() => {})
@@ -517,7 +643,7 @@ onBeforeUnmount(() => {
   </button>
 
   <PageHead eyebrow="后台配置" title="系统配置">
-    <button v-if="!isMobileFlow || mobileStage === 'detail'" class="primary" :disabled="!canSave" @click="save">保存当前配置</button>
+    <button v-if="(!isMobileFlow || mobileStage === 'detail') && !isCloudCategory" class="primary" :disabled="!canSave" @click="save">保存当前配置</button>
   </PageHead>
 
   <section class="settings-layout" :class="`mobile-settings-stage-${mobileStage}`">
@@ -534,7 +660,7 @@ onBeforeUnmount(() => {
       </button>
     </aside>
 
-    <section v-show="!isMobileFlow || mobileStage === 'detail'" class="panel">
+    <section v-show="!isMobileFlow || mobileStage === 'detail'" class="panel settings-detail-panel">
       <div class="section-head">
         <div>
           <span>配置详情</span>
@@ -543,121 +669,80 @@ onBeforeUnmount(() => {
       </div>
       <div v-if="!isProviderSetting" class="notice-box">暂无可配置的第三方通道。</div>
       <div v-else class="cloud-setting-panel">
-        <div class="form-grid">
-          <div v-if="isCloudCategory" class="wide archive-rule-editor">
-            <label>默认归档目录规则
-              <input
-                ref="archiveRuleInput"
-                v-model="draft.value.directoryRule"
-                :placeholder="DEFAULT_ARCHIVE_RULE"
-                autocomplete="off"
-                @focus="setActiveArchiveTemplate('directory')"
-                @click="setActiveArchiveTemplate('directory')"
-              />
-            </label>
-            <label>默认归档文件名规则
-              <input
-                ref="archiveFilenameInput"
-                v-model="draft.value.filenameTemplate"
-                :placeholder="DEFAULT_FILENAME_TEMPLATE"
-                maxlength="500"
-                autocomplete="off"
-                @focus="setActiveArchiveTemplate('filename')"
-                @click="setActiveArchiveTemplate('filename')"
-              />
-            </label>
-            <div class="archive-rule-toolbar">
-              <span>插入变量：</span>
-              <div ref="archiveRuleVariableMenu" class="archive-rule-variable-menu">
-                <button
-                  class="ghost archive-rule-variable-trigger"
-                  type="button"
-                  :aria-expanded="archiveRuleVariableMenuOpen"
-                  aria-haspopup="menu"
-                  @click.stop="toggleArchiveRuleVariableMenu"
-                >
-                  <span>选择变量</span>
-                  <b aria-hidden="true">⌄</b>
-                </button>
-                <div v-if="archiveRuleVariableMenuOpen" class="archive-rule-variable-popover" role="menu" aria-label="归档规则变量">
-                  <section v-for="group in archiveRuleVariableGroups" :key="group.label" class="archive-rule-variable-group">
-                    <strong>{{ group.label }}</strong>
-                    <button
-                      v-for="variable in group.variables"
-                      :key="variable.token"
-                      class="archive-rule-variable-option"
-                      type="button"
-                      role="menuitem"
-                      @click="insertArchiveVariable(variable.token)"
-                    >
-                      <span>{{ variable.label }}</span>
-                      <code>{{ variable.token }}</code>
-                    </button>
-                  </section>
-                </div>
-              </div>
+        <section v-if="isCloudCategory" class="master-list panel directory-list-panel">
+          <div class="section-head settings-baidu-account-toolbar">
+            <div>
+              <span>百度网盘账号</span>
+              <strong>{{ baiduProviders.length }} 个账号</strong>
             </div>
-            <p class="settings-hint">使用花括号变量组成目录层级，保存后由后端归档任务按当前校区、课次和资料信息渲染。</p>
-            <p class="archive-rule-preview">预览：<code>{{ archiveRulePreview }}</code></p>
-            <p class="settings-hint">文件名模板不填写扩展名；文件扩展名由系统根据源文件自动追加。留空时新归档优先使用素材或作品名称，未填写时沿用源文件名。</p>
-            <p class="archive-rule-preview">文件名预览：<code>{{ archiveFilenamePreview }}</code></p>
+            <button class="primary settings-baidu-add-button" type="button" :disabled="!canAddProvider" @click="addProvider">新增账号</button>
           </div>
-        </div>
+          <div v-if="!baiduProviders.length" class="notice-box">还没有百度网盘账号，点击“新增账号”开始配置。</div>
+          <div v-else class="directory-table-wrap">
+            <table class="directory-table settings-baidu-account-table">
+              <thead>
+                <tr>
+                  <th>配置名称</th>
+                  <th>百度账号</th>
+                  <th>授权状态</th>
+                  <th>启用状态</th>
+                  <th>最近测试</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="provider in baiduProviders"
+                  :key="provider.id"
+                  class="directory-table-row"
+                  :class="{ active: sameId(provider.id, selectedBaiduProviderId) && isBaiduDrawerOpen }"
+                  @click="selectBaiduProvider(provider)"
+                >
+                  <td><strong>{{ provider.name || '未命名账号' }}</strong></td>
+                  <td>
+                    <span>{{ baiduAccountIdentityLabel(provider) }}</span>
+                    <small v-if="provider.baiduUid">UID {{ provider.baiduUid }}</small>
+                  </td>
+                  <td><span class="status-pill" :class="baiduStatusClass(provider)">{{ baiduStatusLabel(provider) }}</span></td>
+                  <td><span class="template-status-tag" :class="{ disabled: !provider.enabled }">{{ baiduAccountStatusLabel(provider) }}</span></td>
+                  <td>{{ baiduTestStatusLabel(provider) }}</td>
+                  <td>
+                    <div class="button-pair settings-baidu-account-actions">
+                      <button class="ghost" type="button" @click.stop="selectBaiduProvider(provider)">编辑</button>
+                      <button class="ghost" type="button" @click.stop="provider.enabled ? disableBaiduProvider(provider) : restoreBaiduProvider(provider)">
+                        {{ provider.enabled ? '停用' : '恢复' }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="directory-mobile-cards">
+              <button
+                v-for="provider in baiduProviders"
+                :key="`mobile-${provider.id}`"
+                type="button"
+                class="directory-card"
+                :class="{ active: sameId(provider.id, selectedBaiduProviderId) && isBaiduDrawerOpen }"
+                @click="selectBaiduProvider(provider)"
+              >
+                <strong>{{ provider.name || '未命名账号' }}</strong>
+                <span>{{ baiduAccountIdentityLabel(provider) }}<template v-if="provider.baiduUid"> · UID {{ provider.baiduUid }}</template></span>
+                <small>{{ baiduStatusLabel(provider) }} · {{ baiduTestStatusLabel(provider) }}</small>
+                <em>{{ baiduAccountStatusLabel(provider) }} · 点击查看详情</em>
+              </button>
+            </div>
+          </div>
+        </section>
 
-        <div v-if="!draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道。</div>
-        <article v-for="provider in draft.value.providers" :key="provider.id" class="cloud-provider-card">
-          <template v-if="isBaiduProvider(provider)">
-            <div class="baidu-provider-heading">
-              <div>
-                <span class="provider-card-eyebrow">百度网盘账号</span>
-                <strong>{{ provider.baiduDisplayName || '尚未绑定百度账号' }}</strong>
-                <small>{{ provider.baiduUid ? `账号标识：${provider.baiduUid}` : '每个校区绑定一个百度网盘账号' }}</small>
-              </div>
-              <span class="status-pill" :class="baiduStatusClass(provider)">{{ baiduStatusLabel(provider) }}</span>
-            </div>
-            <div class="form-grid baidu-meta-grid">
-              <label>配置名称<input v-model="provider.name" /></label>
-              <label>百度 AppID<input v-model="provider.appId" placeholder="百度开放平台 AppID" /></label>
-              <label>百度 AppKey<input v-model="provider.appKey" placeholder="百度开放平台 AppKey" /></label>
-              <label>百度 SecretKey<input v-model="provider.secretKey" type="password" :placeholder="provider.baiduSecretKeyConfigured ? '已配置，留空保持不变' : '百度开放平台 SecretKey'" autocomplete="new-password" /></label>
-              <label>后端公开地址<input v-model="provider.backendBaseUrl" placeholder="http://mengdi.ccwu.cc:10001" /></label>
-              <label>前端域名<input v-model="provider.frontendBaseUrl" placeholder="http://mengdi.ccwu.cc:10001" /></label>
-              <label>前端回跳路径<input v-model="provider.frontendReturnPath" :placeholder="DEFAULT_BAIDU_FRONTEND_RETURN_PATH" /></label>
-              <label>最近授权时间<input :value="formatDateTime(provider.authorizedAt)" disabled /></label>
-              <label>授权有效期<input :value="formatDateTime(provider.expiresAt)" disabled /></label>
-              <label>授权范围<input :value="provider.oauthScope || '—'" disabled /></label>
-              <label class="wide">OAuth 回调地址<input :value="provider.callbackUrl || '保存后读取后端配置'" disabled /></label>
-              <label class="wide">授权完成回跳<input :value="provider.frontendReturnUrl || '保存后读取前端配置'" disabled /></label>
-            </div>
-            <details class="baidu-advanced-settings">
-              <summary>高级百度接口配置</summary>
-              <div class="form-grid">
-                <label>授权地址<input v-model="provider.authorizeUrl" placeholder="https://openapi.baidu.com/oauth/2.0/authorize" /></label>
-                <label>Token 地址<input v-model="provider.tokenUrl" placeholder="https://openapi.baidu.com/oauth/2.0/token" /></label>
-                <label>授权范围<input v-model="provider.scope" placeholder="basic,netdisk" /></label>
-                <label>回调路径<input v-model="provider.callbackPath" placeholder="/api/v1/configuration/providers/%s/baidu/oauth/callback" /></label>
-                <label>百度 API 地址<input v-model="provider.apiBaseUrl" placeholder="https://pan.baidu.com" /></label>
-                <label>分片上传地址<input v-model="provider.uploadBaseUrl" placeholder="https://d.pcs.baidu.com" /></label>
-                <label>OAuth State 有效期<input v-model="provider.stateTtl" placeholder="PT10M" /></label>
-                <label>分片大小（字节）<input v-model="provider.chunkSizeBytes" type="number" min="262144" max="33554432" /></label>
-                <label>Token 刷新提前量<input v-model="provider.tokenRefreshSkew" placeholder="PT5M" /></label>
-              </div>
-            </details>
-            <p v-if="provider.authErrorMessage" class="settings-error">{{ provider.authErrorMessage }}</p>
-            <div class="cloud-provider-actions">
-              <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用百度网盘归档</span></label>
-              <button class="secondary" @click="authorizeBaidu(provider)">{{ provider.oauthAuthorized ? '重新授权百度网盘' : '授权百度网盘' }}</button>
-              <button class="ghost" @click="testProvider(provider)">测试连接</button>
-            </div>
-            <p
-              v-if="provider.testMessage"
-              class="provider-test-feedback"
-              :class="provider.testSuccess ? 'success' : 'error'"
-            >
-              {{ provider.testMessage }}
-            </p>
-          </template>
-          <template v-else-if="isAiCategory">
+        <div v-if="!isCloudCategory && !draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道。</div>
+        <template v-if="!isCloudCategory">
+          <article
+            v-for="provider in draft.value.providers"
+            :key="provider.id"
+            class="cloud-provider-card"
+          >
+          <template v-if="isAiCategory">
             <div class="cloud-provider-head">
               <label>{{ currentProviderLabel }}名称<input v-model="provider.name" /></label>
               <label>{{ currentProviderLabel }}类型<AdaptiveSelect :model-value="provider.providerType || provider.type" :options="providerTypes" @update:model-value="setProviderType(provider, $event)" /></label>
@@ -710,13 +795,147 @@ onBeforeUnmount(() => {
             </div>
             <div class="cloud-provider-actions">
               <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该{{ currentProviderLabel }}</span></label>
-              <button class="ghost" @click="testProvider(provider)">测试连接</button>
+              <button class="ghost" type="button" @click="testProvider(provider)">测试连接</button>
             </div>
           </template>
-        </article>
-
+          </article>
+        </template>
       </div>
     </section>
-
   </section>
+
+  <div v-if="isBaiduDrawerOpen" class="directory-drawer-backdrop" @click.self="closeBaiduProviderDrawer">
+    <section v-if="baiduDrawerProvider" class="panel directory-drawer template-config-drawer" role="dialog" aria-modal="true">
+      <div class="section-head">
+        <div>
+          <span>{{ baiduDrawerMode === 'new' ? '新增' : '编辑' }}</span>
+          <strong>{{ baiduDrawerMode === 'new' ? '新增百度网盘账号' : baiduDrawerProvider.name || '百度网盘账号' }}</strong>
+          <small class="template-drawer-meta">
+            {{ baiduAccountIdentityLabel(baiduDrawerProvider) }}<template v-if="baiduDrawerProvider.baiduUid"> · UID {{ baiduDrawerProvider.baiduUid }}</template>
+          </small>
+        </div>
+        <div class="button-pair">
+          <button class="ghost" type="button" @click="closeBaiduProviderDrawer">关闭</button>
+          <button class="primary" type="button" :disabled="!String(baiduDrawerProvider.name || '').trim()" @click="saveBaiduProvider">
+            {{ baiduDrawerMode === 'new' ? '保存账号' : '保存修改' }}
+          </button>
+        </div>
+      </div>
+
+      <form class="template-drawer-form" @submit.prevent="saveBaiduProvider">
+        <section class="master-form-section">
+          <strong>账号配置</strong>
+          <div class="form-grid baidu-meta-grid">
+            <label>配置名称<input v-model="baiduDrawerProvider.name" placeholder="例如：大学城校区百度网盘" /></label>
+            <label>百度 AppID<input v-model="baiduDrawerProvider.appId" placeholder="百度开放平台 AppID" /></label>
+            <label>百度 AppKey<input v-model="baiduDrawerProvider.appKey" placeholder="百度开放平台 AppKey" /></label>
+            <label>百度 SecretKey<input v-model="baiduDrawerProvider.secretKey" type="password" :placeholder="baiduDrawerProvider.baiduSecretKeyConfigured ? '已配置，留空保持不变' : '百度开放平台 SecretKey'" autocomplete="new-password" /></label>
+            <label>后端公开地址<input v-model="baiduDrawerProvider.backendBaseUrl" placeholder="http://mengdi.ccwu.cc:10001" /></label>
+            <label>前端域名<input v-model="baiduDrawerProvider.frontendBaseUrl" placeholder="http://mengdi.ccwu.cc:10001" /></label>
+            <label>前端回跳路径<input v-model="baiduDrawerProvider.frontendReturnPath" :placeholder="DEFAULT_BAIDU_FRONTEND_RETURN_PATH" /></label>
+            <label>最近授权时间<input :value="formatDateTime(baiduDrawerProvider.authorizedAt)" disabled /></label>
+            <label>授权有效期<input :value="formatDateTime(baiduDrawerProvider.expiresAt)" disabled /></label>
+            <label>授权范围<input :value="baiduDrawerProvider.oauthScope || '—'" disabled /></label>
+            <label class="wide">OAuth 回调地址<input :value="baiduDrawerProvider.callbackUrl || '保存后读取后端配置'" disabled /></label>
+            <label class="wide">授权完成回跳<input :value="baiduDrawerProvider.frontendReturnUrl || '保存后读取前端配置'" disabled /></label>
+          </div>
+        </section>
+
+        <section class="master-form-section settings-baidu-rules-section">
+          <strong>归档规则</strong>
+          <div class="form-grid">
+            <div class="wide archive-rule-editor">
+              <label>默认归档目录规则
+                <input
+                  ref="archiveRuleInput"
+                  v-model="baiduDrawerProvider.directoryRule"
+                  :placeholder="DEFAULT_ARCHIVE_RULE"
+                  autocomplete="off"
+                  @focus="setActiveArchiveTemplate('directory')"
+                  @click="setActiveArchiveTemplate('directory')"
+                />
+              </label>
+              <label>默认归档文件名规则
+                <input
+                  ref="archiveFilenameInput"
+                  v-model="baiduDrawerProvider.filenameTemplate"
+                  :placeholder="DEFAULT_FILENAME_TEMPLATE"
+                  maxlength="500"
+                  autocomplete="off"
+                  @focus="setActiveArchiveTemplate('filename')"
+                  @click="setActiveArchiveTemplate('filename')"
+                />
+              </label>
+              <div class="archive-rule-toolbar">
+                <span>插入变量：</span>
+                <div ref="archiveRuleVariableMenu" class="archive-rule-variable-menu">
+                  <button
+                    class="ghost archive-rule-variable-trigger"
+                    type="button"
+                    :aria-expanded="archiveRuleVariableMenuOpen"
+                    aria-haspopup="menu"
+                    @click.stop="toggleArchiveRuleVariableMenu"
+                  >
+                    <span>选择变量</span>
+                    <b aria-hidden="true">⌄</b>
+                  </button>
+                  <div v-if="archiveRuleVariableMenuOpen" class="archive-rule-variable-popover" role="menu" aria-label="归档规则变量">
+                    <section v-for="group in archiveRuleVariableGroups" :key="group.label" class="archive-rule-variable-group">
+                      <strong>{{ group.label }}</strong>
+                      <button
+                        v-for="variable in group.variables"
+                        :key="variable.token"
+                        class="archive-rule-variable-option"
+                        type="button"
+                        role="menuitem"
+                        @click="insertArchiveVariable(variable.token)"
+                      >
+                        <span>{{ variable.label }}</span>
+                        <code>{{ variable.token }}</code>
+                      </button>
+                    </section>
+                  </div>
+                </div>
+              </div>
+              <p class="settings-hint">使用花括号变量组成目录层级，保存后由该百度账号的归档任务按当前校区、课次和资料信息渲染。</p>
+              <p class="archive-rule-preview">目录预览：<code>{{ archiveRulePreview }}</code></p>
+              <p class="settings-hint">文件名模板不填写扩展名；文件扩展名由系统根据源文件自动追加。留空时新归档优先使用素材或作品名称，未填写时沿用源文件名。</p>
+              <p class="archive-rule-preview">文件名预览：<code>{{ archiveFilenamePreview }}</code></p>
+            </div>
+          </div>
+        </section>
+
+        <details class="template-form-details" open>
+          <summary>高级百度接口配置</summary>
+          <div class="form-grid">
+            <label>授权地址<input v-model="baiduDrawerProvider.authorizeUrl" placeholder="https://openapi.baidu.com/oauth/2.0/authorize" /></label>
+            <label>Token 地址<input v-model="baiduDrawerProvider.tokenUrl" placeholder="https://openapi.baidu.com/oauth/2.0/token" /></label>
+            <label>授权范围<input v-model="baiduDrawerProvider.scope" placeholder="basic,netdisk" /></label>
+            <label>回调路径<input v-model="baiduDrawerProvider.callbackPath" placeholder="/api/v1/configuration/providers/%s/baidu/oauth/callback" /></label>
+            <label>百度 API 地址<input v-model="baiduDrawerProvider.apiBaseUrl" placeholder="https://pan.baidu.com" /></label>
+            <label>分片上传地址<input v-model="baiduDrawerProvider.uploadBaseUrl" placeholder="https://d.pcs.baidu.com" /></label>
+            <label>OAuth State 有效期<input v-model="baiduDrawerProvider.stateTtl" placeholder="PT10M" /></label>
+            <label>分片大小（字节）<input v-model="baiduDrawerProvider.chunkSizeBytes" type="number" min="262144" max="33554432" /></label>
+            <label>Token 刷新提前量<input v-model="baiduDrawerProvider.tokenRefreshSkew" placeholder="PT5M" /></label>
+          </div>
+        </details>
+
+        <p v-if="baiduDrawerProvider.authErrorMessage" class="settings-error">{{ baiduDrawerProvider.authErrorMessage }}</p>
+        <div class="cloud-provider-actions">
+          <label class="inline-check"><input v-model="baiduDrawerProvider.enabled" type="checkbox" /> <span>启用百度网盘归档</span></label>
+          <button v-if="!isNewBaiduProvider(baiduDrawerProvider) && baiduDrawerProvider.enabled" class="danger-text" type="button" @click="disableBaiduProvider(baiduDrawerProvider)">停用账号</button>
+          <button v-if="!isNewBaiduProvider(baiduDrawerProvider) && !baiduDrawerProvider.enabled" class="secondary" type="button" @click="restoreBaiduProvider(baiduDrawerProvider)">恢复账号</button>
+          <button class="secondary" type="button" @click="authorizeBaidu(baiduDrawerProvider)">{{ baiduDrawerProvider.oauthAuthorized ? '重新授权百度网盘' : '授权百度网盘' }}</button>
+          <button class="ghost" type="button" @click="testProvider(baiduDrawerProvider)">测试连接</button>
+        </div>
+        <p
+          v-if="baiduDrawerProvider.testMessage"
+          class="provider-test-feedback"
+          :class="baiduDrawerProvider.testSuccess ? 'success' : 'error'"
+        >
+          {{ baiduDrawerProvider.testMessage }}
+        </p>
+      </form>
+    </section>
+  </div>
 </template>

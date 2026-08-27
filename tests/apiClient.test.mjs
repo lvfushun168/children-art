@@ -232,6 +232,22 @@ test('returns provider test message for visible connection feedback', async () =
   assert.equal(result.message, '百度授权已过期')
 })
 
+test('supports logical provider disable and restore endpoints', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return response(200, { data: { id: '12', status: options.method === 'DELETE' ? 'DISABLED' : 'ENABLED' }, meta: {}, error: null })
+  }
+
+  await api.m5.deleteProvider(12)
+  await api.m5.restoreProvider(12)
+
+  assert.equal(calls[0].url, '/api/v1/configuration/providers/12')
+  assert.equal(calls[0].options.method, 'DELETE')
+  assert.equal(calls[1].url, '/api/v1/configuration/providers/12/restore')
+  assert.equal(calls[1].options.method, 'POST')
+})
+
 test('updates artwork title and artwork-level highlight with its current version', async () => {
   let received
   globalThis.fetch = async (url, options) => {

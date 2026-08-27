@@ -463,6 +463,7 @@ const handleMaterialReplace = async (event) => {
   await props.state.replaceLessonMaterial(target.material, file, target.category)
 }
 watch(() => props.state.activeTask.id, () => {
+  props.state.cancelCloudProviderPicker?.()
   showResourceDrawer.value = false
   showContentSettings.value = false
   showArtworkLibrary.value = false
@@ -1191,6 +1192,51 @@ watch(homeworkEditorOpen, async (open) => {
             </div>
           </footer>
         </aside>
+      </div>
+
+      <div
+        v-if="state.cloudProviderPicker?.open"
+        class="drawer-backdrop cloud-provider-picker-backdrop"
+        @click.self="state.cancelCloudProviderPicker"
+      >
+        <section
+          class="cloud-provider-picker-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cloud-provider-picker-title"
+          @keydown.esc="state.cancelCloudProviderPicker"
+        >
+          <header class="drawer-head">
+            <div>
+              <span>百度网盘归档</span>
+              <strong id="cloud-provider-picker-title">选择同步账号</strong>
+              <small>本次同步只会使用一个账号，后续重试仍沿用本次选择。</small>
+            </div>
+            <button class="ghost" type="button" @click="state.cancelCloudProviderPicker">关闭</button>
+          </header>
+          <div class="cloud-provider-picker-list">
+            <label
+              v-for="provider in state.cloudProviderPicker.providers"
+              :key="provider.id"
+              class="cloud-provider-picker-option"
+              :class="{ selected: sameId(state.cloudProviderPicker.selectedProviderId, provider.id) }"
+            >
+              <input v-model="state.cloudProviderPicker.selectedProviderId" type="radio" :value="provider.id" />
+              <span class="cloud-provider-picker-copy">
+                <strong>{{ provider.name || '百度网盘账号' }}</strong>
+                <small>{{ provider.baiduDisplayName || '百度账号已授权' }}<template v-if="provider.baiduUid"> · UID {{ provider.baiduUid }}</template></small>
+              </span>
+              <span class="status-pill success">已启用 · 已授权</span>
+            </label>
+          </div>
+          <footer class="drawer-actions">
+            <span>未选择账号将取消本次同步</span>
+            <div>
+              <button class="ghost" type="button" @click="state.cancelCloudProviderPicker">取消</button>
+              <button class="primary" type="button" :disabled="!state.cloudProviderPicker.selectedProviderId" @click="state.resolveCloudProviderPicker(state.cloudProviderPicker.selectedProviderId)">确定同步</button>
+            </div>
+          </footer>
+        </section>
       </div>
 
       <footer v-if="state.currentStep !== 2 || (!studentDeliveryDrawerOpen && !studentDeliveryMobileDetailOpen)" class="wizard-actions">

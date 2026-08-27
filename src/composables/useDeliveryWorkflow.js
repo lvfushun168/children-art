@@ -162,6 +162,15 @@ export function useDeliveryWorkflow() {
   const importPreviewRows = reactive([])
   const settings = reactive([])
   const providerGroups = reactive([])
+  const cloudProviderPicker = reactive({
+    open: false,
+    lessonId: null,
+    providers: [],
+    selectedProviderId: null
+  })
+  let cloudProviderPickerResolver = null
+  let cloudProviderPickerPromise = null
+  let cloudProviderSelectionPromise = null
   const cloudArchiveRule = reactive({
     id: null,
     pathTemplate: DEFAULT_ARCHIVE_RULE,
@@ -611,9 +620,13 @@ export function useDeliveryWorkflow() {
       provider.enabled && ['WECOM', 'WE_COM', '企业微信'].includes(String(provider.providerType || provider.type).toUpperCase())
     )
   ))
-  const enabledCloudProviders = computed(() =>
-    (cloudDriveSetting.value?.value?.providers || []).filter((provider) => provider.enabled)
-  )
+  const enabledCloudProviders = computed(() => {
+    const cloudGroup = providerGroups.find((group) => String(group.category || '').toLowerCase() === 'cloud')
+    const providers = cloudGroup
+      ? (cloudGroup.value?.providers || [])
+      : (cloudDriveSetting.value?.value?.providers || [])
+    return providers.filter((provider) => provider.enabled)
+  })
   const archiveTargets = computed(() => [
     {
       id: 'system',
@@ -1248,6 +1261,14 @@ export function useDeliveryWorkflow() {
     if (selected.has(target.id)) selected.delete(target.id)
     else selected.add(target.id)
     selectedArchiveTargets.value = ['system', ...[...selected].filter((id) => id !== 'system' && id !== 'wheat'), 'wheat']
+  }
+
+  const selectCloudArchiveProvider = (providerConfigId) => {
+    if (!providerConfigId) return
+    const otherTargets = selectedArchiveTargets.value.filter((id) =>
+      id !== 'system' && id !== 'wheat' && !String(id).startsWith('cloud:')
+    )
+    selectedArchiveTargets.value = ['system', ...otherTargets, `cloud:${providerConfigId}`, 'wheat']
   }
 
   const createShareToken = () => {
@@ -1991,7 +2012,6 @@ export function useDeliveryWorkflow() {
     }
     setArchiveChecklistItem(key, { status: '推送中' })
     await runAction(`正在推送${labels[key]}到百度网盘...`, `${labels[key]}已同步到百度网盘`, async () => {
-      if (!selectedArchiveTargets.value.includes('cloud:baidu')) selectedArchiveTargets.value = [...selectedArchiveTargets.value, 'cloud:baidu']
       activeTask.value.cloudArchiveStatus = '已同步'
       setArchiveChecklistItem(key, { status: '已同步', detail: studentArchivePathPreview.value })
     })
@@ -2003,7 +2023,6 @@ export function useDeliveryWorkflow() {
     const title = `${activeTask.value.date}《${activeClass.value.name}--${activeCourse.value.title}》${activeTask.value.teacher} ${activeTask.value.time}`
     setArchiveChecklistItem('teacherEffectArchive', { status: '生成中' })
     await runAction('正在生成并归档老师课效长图...', '老师课效长图已生成并进入归档', async () => {
-      if (enabledCloudProviders.value.length && !selectedArchiveTargets.value.includes('cloud:baidu')) selectedArchiveTargets.value = [...selectedArchiveTargets.value, 'cloud:baidu']
       setArchiveChecklistItem('teacherEffectArchive', {
         status: enabledCloudProviders.value.length ? '已归档' : '已跳过',
         title,
@@ -3048,6 +3067,12 @@ export function useDeliveryWorkflow() {
     const isBaidu = String(providerType).toUpperCase() === 'BAIDU_NETDISK'
     const isAi = mapProviderCategory({ ...provider, providerType }) === 'AI'
     const config = provider.config && typeof provider.config === 'object' ? { ...provider.config } : {}
+    const directoryRule = provider.directoryRule || config.directoryRule || DEFAULT_ARCHIVE_RULE
+    const filenameTemplate = provider.filenameTemplate ?? (
+      Object.prototype.hasOwnProperty.call(config, 'filenameTemplate')
+        ? config.filenameTemplate
+        : ''
+    )
     if (isAi) {
       config.protocol = config.protocol || 'OPENAI_COMPATIBLE'
       config.textProtocol = config.textProtocol || config.protocol || 'OPENAI_COMPATIBLE'
@@ -3070,6 +3095,10 @@ export function useDeliveryWorkflow() {
       endpoint: provider.endpoint || config.endpoint || config.textEndpoint || '',
       appKey: provider.appKey || config.appKey || '',
       appId: provider.appId || provider.config?.appId || '',
+      directoryRule: isBaidu
+        ? String(directoryRule).startsWith('/') ? directoryRule : `/${directoryRule}`
+        : provider.directoryRule || config.directoryRule || '',
+      filenameTemplate: isBaidu ? filenameTemplate || '' : provider.filenameTemplate ?? config.filenameTemplate ?? '',
       backendBaseUrl: isBaidu
         ? normalizeBaiduBaseUrl(rawBackendBaseUrl, DEFAULT_BAIDU_BACKEND_BASE_URL)
         : rawBackendBaseUrl,
@@ -3132,8 +3161,6 @@ export function useDeliveryWorkflow() {
         status: providerGroupStatusLabel(groupProviders),
         value: {
           providers: groupProviders,
-          directoryRule: definition.category === 'CLOUD' ? cloudArchiveRule.pathTemplate : '',
-          filenameTemplate: definition.category === 'CLOUD' ? cloudArchiveRule.filenameTemplate : '',
           defaultArchiveTargets: []
         }
       }
@@ -3152,8 +3179,6 @@ export function useDeliveryWorkflow() {
         status: ['ENABLED', 'ACTIVE'].includes(group.status) ? '已启用' : group.status === 'UNCONFIGURED' ? '未配置' : ['DISABLED', '停用'].includes(group.status) ? '未启用' : group.status || providerGroupStatusLabel(providers),
         value: {
           providers,
-          directoryRule: category === 'cloud' ? cloudArchiveRule.pathTemplate : group.directoryRule || '',
-          filenameTemplate: category === 'cloud' ? cloudArchiveRule.filenameTemplate : group.filenameTemplate || '',
           defaultArchiveTargets: group.defaultArchiveTargets || []
         }
       }
@@ -3165,6 +3190,114 @@ export function useDeliveryWorkflow() {
     replaceReactive(settings, [{ id: 'providers', type: 'cloudDrive', name: '第三方通道配置', status: mapped.some((item) => item.enabled) ? '已启用' : '未启用', value: { providers: mapped }, version: 0 }])
     mapProviderGroupsFromProviders(mapped)
   }
+
+  const applyBaiduOAuthStatus = (provider, status = {}) => {
+    if (!provider || !status) return
+    provider.oauthStatus = status.status || ''
+    provider.oauthAuthorized = Boolean(status.authorized)
+    provider.oauthConfigured = status.oauthConfigured !== false
+    provider.baiduUid = status.baiduUid || ''
+    provider.baiduDisplayName = status.displayName || ''
+    provider.authorizedAt = status.authorizedAt || ''
+    provider.expiresAt = status.expiresAt || ''
+    provider.oauthScope = status.scope || ''
+    provider.authErrorCode = status.errorCode || ''
+    provider.authErrorMessage = status.errorMessage || ''
+    provider.callbackUrl = status.callbackUrl || ''
+    provider.frontendReturnUrl = status.frontendReturnUrl || ''
+    provider.tokenStatus = provider.oauthAuthorized ? '已授权' : provider.oauthStatus || '未授权'
+  }
+
+  const allMappedProviders = () => [
+    ...settings.flatMap((setting) => setting.value?.providers || []),
+    ...providerGroups.flatMap((group) => group.value?.providers || [])
+  ]
+
+  const updateMappedBaiduOAuthStatus = (providerId, status) => {
+    allMappedProviders()
+      .filter((provider) => sameId(provider.id, providerId))
+      .forEach((provider) => applyBaiduOAuthStatus(provider, status))
+  }
+
+  const refreshBaiduProviderStatuses = async (providers = []) => {
+    const candidates = providers.filter((provider) => provider?.id &&
+      String(provider.providerType || provider.type).toUpperCase() === 'BAIDU_NETDISK' &&
+      !String(provider.id).startsWith('provider-'))
+    await Promise.all(candidates.map(async (provider) => {
+      try {
+        const status = await api.m5.baiduOAuthStatus(provider.id)
+        updateMappedBaiduOAuthStatus(provider.id, status)
+      } catch {
+        // 授权状态读取失败时不把账号误判为可用，后续设置页仍可重试读取。
+      }
+    }))
+    return candidates
+  }
+
+  const loadCloudProvidersForSelection = async () => {
+    let cloudGroup = providerGroups.find((group) => String(group.category || '').toLowerCase() === 'cloud')
+    if (!cloudGroup) {
+      const [providers, groups] = await Promise.all([api.m5.providers(), api.m5.providerGroups()])
+      mapProviderSetting(providers?.items || providers || [])
+      if (groups) mapProviderGroups(groups)
+      cloudGroup = providerGroups.find((group) => String(group.category || '').toLowerCase() === 'cloud')
+    }
+    const providers = cloudGroup?.value?.providers || []
+    await refreshBaiduProviderStatuses(providers)
+    return providers.filter((provider) => provider.enabled &&
+      String(provider.providerType || provider.type).toUpperCase() === 'BAIDU_NETDISK' &&
+      provider.oauthAuthorized)
+  }
+
+  const requestCloudProvider = (lessonId) => {
+    if (cloudProviderSelectionPromise) return cloudProviderSelectionPromise
+    const request = (async () => {
+      let available = []
+      try {
+        available = await loadCloudProvidersForSelection()
+      } catch (error) {
+        notify(remoteErrorMessage(error, '百度网盘账号加载失败，请稍后重试'))
+        return null
+      }
+      if (!available.length) {
+        notify('请先在系统配置中启用并授权百度网盘账号')
+        return null
+      }
+      if (available.length === 1) return available[0].id
+      cloudProviderPicker.open = true
+      cloudProviderPicker.lessonId = lessonId
+      cloudProviderPicker.providers = available
+      cloudProviderPicker.selectedProviderId = available[0].id
+      const pickerPromise = new Promise((resolve) => {
+        cloudProviderPickerResolver = resolve
+      })
+      cloudProviderPickerPromise = pickerPromise
+      return pickerPromise.finally(() => {
+        if (cloudProviderPickerPromise !== pickerPromise) return
+        cloudProviderPickerPromise = null
+        cloudProviderPickerResolver = null
+        cloudProviderPicker.open = false
+        cloudProviderPicker.lessonId = null
+        cloudProviderPicker.providers = []
+        cloudProviderPicker.selectedProviderId = null
+      })
+    })()
+    const trackedRequest = request.finally(() => {
+      if (cloudProviderSelectionPromise === trackedRequest) cloudProviderSelectionPromise = null
+    })
+    cloudProviderSelectionPromise = trackedRequest
+    return trackedRequest
+  }
+
+  const resolveCloudProviderPicker = (providerConfigId) => {
+    if (!cloudProviderPickerResolver) return false
+    const selected = cloudProviderPicker.providers.find((provider) => sameId(provider.id, providerConfigId))
+    const resolver = cloudProviderPickerResolver
+    resolver(selected?.id || null)
+    return true
+  }
+
+  const cancelCloudProviderPicker = () => resolveCloudProviderPicker(null)
 
   const mergeSharePageForWorkspace = (workspace, page) => {
     const existingLinks = workspace.sharePage?.accessLinks || []
@@ -3655,10 +3788,7 @@ export function useDeliveryWorkflow() {
     })
     return watcher
   }
-  const archiveProvider = () => enabledCloudProviders.value.find((provider) =>
-    String(provider.providerType || provider.type).toUpperCase() === 'BAIDU_NETDISK'
-  ) || enabledCloudProviders.value[0]
-  const ensureCloudArchiveBatch = async (lessonId, { waitForCompletion = false } = {}) => {
+  const ensureCloudArchiveBatch = async (lessonId, { waitForCompletion = false, providerConfigId = null } = {}) => {
     const workspace = ensureLessonWorkspace(tasks.find((task) => sameId(task.id, lessonId)) || { id: lessonId })
     const current = workspace.cloudBatch
     if (current?.batchId && ['FAILED', 'PARTIAL_FAILED'].includes(String(current.status).toUpperCase())) {
@@ -3673,12 +3803,12 @@ export function useDeliveryWorkflow() {
       const watcher = watchCloudArchiveBatch(current.batchId, lessonId)
       return waitForCompletion && !cloudBatchTerminal(current.status) ? watcher.promise : current
     }
-    const provider = archiveProvider()
-    const providerConfigId = provider?.id && !String(provider.id).startsWith('provider-')
-      ? provider.id
-      : null
+    const selectedProviderConfigId = providerConfigId && !String(providerConfigId).startsWith('provider-')
+      ? providerConfigId
+      : await requestCloudProvider(lessonId)
+    if (!selectedProviderConfigId) return null
     const result = await runRemote('正在创建百度网盘归档批次...', () => api.m5.cloudArchiveBatch(lessonId, {
-      providerConfigId,
+      providerConfigId: selectedProviderConfigId,
       includeTeacherEffect: false,
       items: []
     }, createIdempotencyKey(`cloud-archive-batch:${lessonId}`)), '', () => refreshRemoteLesson(lessonId, { force: true }))
@@ -3900,7 +4030,10 @@ export function useDeliveryWorkflow() {
     jobWatchers.clear()
   }
 
-  onBeforeUnmount(cancelJobWatchers)
+  onBeforeUnmount(() => {
+    cancelJobWatchers()
+    if (cloudProviderPickerResolver) cloudProviderPickerResolver(null)
+  })
 
   let portfolioStudioRef = null
 
@@ -4471,13 +4604,11 @@ export function useDeliveryWorkflow() {
             break
           }
           case 'settings': {
-            const [providers, providerTypes, groups, archiveRule] = await Promise.all([
+            const [providers, providerTypes, groups] = await Promise.all([
               api.m5.providers({ page: 1, pageSize: 20 }),
               api.m5.providerTypes(),
-              api.m5.providerGroups(),
-              api.m5.archiveRule()
+              api.m5.providerGroups()
             ])
-            mapArchiveRule(archiveRule)
             mapProviderSetting(providers?.items || providers || [])
             Object.assign(providerCatalog, providerTypes || {})
             if (groups) mapProviderGroups(groups)
@@ -4550,6 +4681,7 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteLogout = async () => {
+    if (cloudProviderPickerResolver) cloudProviderPickerResolver(null)
     try {
       if (getAccessToken()) await api.auth.logout()
     } catch {
@@ -5729,6 +5861,7 @@ export function useDeliveryWorkflow() {
     }
     const result = await ensureCloudArchiveBatch(activeTask.value.id, { waitForCompletion: true })
     if (!result) return false
+    selectCloudArchiveProvider(result.providerConfigId)
     if (['FAILED', 'PARTIAL_FAILED'].includes(String(result.status).toUpperCase())) return false
     await Promise.all([
       refreshRemoteLesson(activeTask.value.id),
@@ -5881,6 +6014,8 @@ export function useDeliveryWorkflow() {
     if (!lessonWheat?.id && !(await remoteGenerateWheatTraceTask())) return false
 
     const cloudBatch = await ensureCloudArchiveBatch(task.id, { waitForCompletion: false })
+    if (!cloudBatch) return false
+    selectCloudArchiveProvider(cloudBatch.providerConfigId)
     if (cloudBatch?.required && !cloudBatchTerminal(cloudBatch.status)) {
       const watcher = watchCloudArchiveBatch(cloudBatch.batchId || cloudBatch.id, task.id)
       const completed = await watcher.promise
@@ -6370,6 +6505,108 @@ export function useDeliveryWorkflow() {
     return result
   }
 
+  const baiduProviderConfigFor = (provider = {}) => {
+    const rawFrontendBaseUrl = provider.frontendBaseUrl || provider.config?.frontendBaseUrl || ''
+    const rawFrontendReturnPath = provider.frontendReturnPath || provider.config?.frontendReturnPath || ''
+    const rawBackendBaseUrl = provider.backendBaseUrl || provider.config?.backendBaseUrl || ''
+    const frontendBaseUrl = normalizeBaiduBaseUrl(rawFrontendBaseUrl, DEFAULT_BAIDU_FRONTEND_BASE_URL)
+    const directoryRule = provider.directoryRule || provider.config?.directoryRule || DEFAULT_ARCHIVE_RULE
+    const filenameTemplate = provider.filenameTemplate ?? provider.config?.filenameTemplate ?? ''
+    return {
+      ...(provider.config || {}),
+      authType: 'OAuth2',
+      directoryRule,
+      filenameTemplate,
+      appId: provider.appId || provider.config?.appId || '',
+      appKey: provider.appKey || provider.config?.appKey || '',
+      secretKey: provider.secretKey || '',
+      backendBaseUrl: normalizeBaiduBaseUrl(rawBackendBaseUrl, DEFAULT_BAIDU_BACKEND_BASE_URL),
+      frontendBaseUrl,
+      frontendReturnPath: normalizeBaiduReturnPath(rawFrontendReturnPath),
+      // API 读取配置时会隐藏 SecretKey；空值表示沿用服务端已有值。
+      frontendReturnUrl: frontendBaseUrl ? '' : provider.config?.frontendReturnUrl || '',
+      authorizeUrl: provider.authorizeUrl || provider.config?.authorizeUrl || '',
+      tokenUrl: provider.tokenUrl || provider.config?.tokenUrl || '',
+      scope: provider.scope || provider.config?.scope || '',
+      callbackPath: provider.callbackPath || provider.config?.callbackPath || '',
+      apiBaseUrl: provider.apiBaseUrl || provider.config?.apiBaseUrl || '',
+      uploadBaseUrl: provider.uploadBaseUrl || provider.config?.uploadBaseUrl || '',
+      stateTtl: provider.stateTtl || provider.config?.stateTtl || 'PT10M',
+      chunkSizeBytes: provider.chunkSizeBytes || provider.config?.chunkSizeBytes || 4194304,
+      tokenRefreshSkew: provider.tokenRefreshSkew || provider.config?.tokenRefreshSkew || 'PT5M'
+    }
+  }
+
+  const baiduProviderBodyFor = (provider = {}) => ({
+    name: provider.name || '百度网盘账号',
+    capabilities: provider.capabilities || [],
+    config: baiduProviderConfigFor(provider),
+    secretRef: null,
+    status: provider.enabled ? 'ENABLED' : 'DISABLED'
+  })
+
+  const refreshProviderSettingsState = async () => {
+    const [providers, groups] = await Promise.all([api.m5.providers(), api.m5.providerGroups()])
+    mapProviderSetting(providers?.items || providers || [])
+    if (groups) mapProviderGroups(groups)
+    return providerGroups
+  }
+
+  const mappedProviderById = (providerId) => allMappedProviders().find((provider) => sameId(provider.id, providerId)) || null
+
+  const remoteCreateBaiduProvider = async (provider) => {
+    const saved = await runRemote('正在创建百度网盘账号配置...', () => api.m5.createProvider({
+      scopeType: 'CAMPUS',
+      providerType: 'BAIDU_NETDISK',
+      ...baiduProviderBodyFor(provider)
+    }), '', () => refreshProviderSettingsState())
+    if (!saved) return null
+    await refreshProviderSettingsState()
+    notify('百度网盘账号配置已创建')
+    return mappedProviderById(saved.id)
+  }
+
+  const remoteUpdateBaiduProvider = async (provider) => {
+    if (!provider?.id || String(provider.id).startsWith('provider-')) return remoteCreateBaiduProvider(provider)
+    const saved = await runRemote('正在保存百度网盘账号配置...', () => api.m5.updateProvider(provider.id,
+      baiduProviderBodyFor(provider)), '', () => refreshProviderSettingsState())
+    if (!saved) return null
+    await refreshProviderSettingsState()
+    notify('百度网盘账号配置已保存')
+    return mappedProviderById(saved.id)
+  }
+
+  const remoteDisableProvider = async (provider) => {
+    if (!provider?.id || String(provider.id).startsWith('provider-')) return null
+    const saved = await runRemote('正在停用百度网盘账号...', () => api.m5.deleteProvider(provider.id), '百度网盘账号已停用', () => refreshProviderSettingsState())
+    if (!saved) return null
+    await refreshProviderSettingsState()
+    return mappedProviderById(saved.id)
+  }
+
+  const remoteRestoreProvider = async (provider) => {
+    if (!provider?.id || String(provider.id).startsWith('provider-')) return null
+    const saved = await runRemote('正在恢复百度网盘账号...', () => api.m5.restoreProvider(provider.id), '百度网盘账号已恢复', () => refreshProviderSettingsState())
+    if (!saved) return null
+    await refreshProviderSettingsState()
+    return mappedProviderById(saved.id)
+  }
+
+  const remoteUpdateArchiveRule = async (pathTemplate, filenameTemplate) => {
+    const saved = await runRemote('正在保存归档规则...', () => api.m5.updateArchiveRule({
+      pathTemplate,
+      filenameTemplate: filenameTemplate || ''
+    }), '归档规则已保存', () => invalidateResource('settings'))
+    if (!saved) return null
+    mapArchiveRule(saved)
+    const group = providerGroups.find((item) => String(item.category || '').toLowerCase() === 'cloud')
+    if (group?.value) {
+      group.value.directoryRule = cloudArchiveRule.pathTemplate
+      group.value.filenameTemplate = cloudArchiveRule.filenameTemplate
+    }
+    return saved
+  }
+
   const remoteUpdateSetting = async (settingId, payload) => {
     const providers = payload.value?.providers || []
     const isCloudSetting = String(payload.category || '').toLowerCase() === 'cloud'
@@ -6398,31 +6635,7 @@ export function useDeliveryWorkflow() {
         ? normalizeBaiduBaseUrl(rawBackendBaseUrl, DEFAULT_BAIDU_BACKEND_BASE_URL)
         : rawBackendBaseUrl
       const config = isBaidu
-        ? {
-            ...(provider.config || {}),
-            authType: 'OAuth2',
-            appId: provider.appId || provider.config?.appId || '',
-            appKey: provider.appKey || provider.config?.appKey || '',
-            secretKey: provider.secretKey || '',
-            backendBaseUrl,
-            frontendBaseUrl,
-            frontendReturnPath,
-            // Keep every Baidu endpoint and upload tuning value in the Provider config.
-            // The API deliberately redacts secretKey on reads; an empty value means
-            // "preserve the existing SecretKey" on the backend.
-            // Preserve legacy direct return URLs only while the new base/path fields
-            // are still empty; once a domain is entered, base + path becomes canonical.
-            frontendReturnUrl: frontendBaseUrl ? '' : provider.config?.frontendReturnUrl || '',
-            authorizeUrl: provider.authorizeUrl || provider.config?.authorizeUrl || '',
-            tokenUrl: provider.tokenUrl || provider.config?.tokenUrl || '',
-            scope: provider.scope || provider.config?.scope || '',
-            callbackPath: provider.callbackPath || provider.config?.callbackPath || '',
-            apiBaseUrl: provider.apiBaseUrl || provider.config?.apiBaseUrl || '',
-            uploadBaseUrl: provider.uploadBaseUrl || provider.config?.uploadBaseUrl || '',
-            stateTtl: provider.stateTtl || provider.config?.stateTtl || 'PT10M',
-            chunkSizeBytes: provider.chunkSizeBytes || provider.config?.chunkSizeBytes || 4194304,
-            tokenRefreshSkew: provider.tokenRefreshSkew || provider.config?.tokenRefreshSkew || 'PT5M'
-          }
+        ? baiduProviderConfigFor(provider)
         : isAi
         ? {
             ...(provider.config || {}),
@@ -6451,18 +6664,10 @@ export function useDeliveryWorkflow() {
         if (!saved) return null
       }
     }
-    if (isCloudSetting && payload.value?.directoryRule !== undefined) {
-      const savedRule = await runRemote('正在保存归档规则...', () => api.m5.updateArchiveRule({
-        pathTemplate: payload.value.directoryRule,
-        filenameTemplate: payload.value.filenameTemplate || ''
-      }), '归档规则已保存')
-      if (!savedRule) return null
-      mapArchiveRule(savedRule)
-    }
     const latest = await runRemote('正在刷新通道配置...', () => api.m5.providers(), '', () => invalidateResource('settings'))
     if (!latest) return null
     mapProviderSetting(latest)
-    if (!isCloudSetting || payload.value?.directoryRule === undefined) notify('当前配置已保存')
+    notify('当前配置已保存')
     return settings[0]
   }
 
@@ -6475,6 +6680,9 @@ export function useDeliveryWorkflow() {
     if (result) {
       provider.tokenStatus = result.success ? '连接正常' : (result.message || '连接失败')
       notify(result.message || (result.success ? '连接成功' : '连接失败'))
+      if (String(provider.providerType || provider.type).toUpperCase() === 'BAIDU_NETDISK') {
+        await refreshProviderSettingsState()
+      }
     }
     return result
   }
@@ -6886,6 +7094,9 @@ export function useDeliveryWorkflow() {
     identityErrors,
     cloudDriveSetting,
     enabledCloudProviders,
+    cloudProviderPicker,
+    resolveCloudProviderPicker,
+    cancelCloudProviderPicker,
     activeTaskId,
     activeStudentId,
     currentStep,
@@ -7091,6 +7302,11 @@ export function useDeliveryWorkflow() {
     applyImportRows: remoteApplyImportRows,
     loadCommunicationRecords: remoteLoadCommunicationRecords,
     updateSetting: remoteUpdateSetting,
+    createBaiduProvider: remoteCreateBaiduProvider,
+    updateBaiduProvider: remoteUpdateBaiduProvider,
+    disableProvider: remoteDisableProvider,
+    restoreProvider: remoteRestoreProvider,
+    updateArchiveRule: remoteUpdateArchiveRule,
     testProvider: remoteTestProvider,
     toggleArchiveTarget,
     addTemplate: remoteAddTemplate,

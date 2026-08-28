@@ -188,6 +188,7 @@ export const api = {
   },
   wecom: {
     configuration: () => request('/wecom/configuration'),
+    status: () => request('/wecom/status'),
     saveConfiguration: (body) => request('/wecom/configuration', { method: 'PUT', body }),
     testConfiguration: () => request('/wecom/configuration/test', { method: 'POST' }),
     syncCustomerGroups: () => request('/wecom/customer-groups/sync', { method: 'POST' }),

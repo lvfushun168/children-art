@@ -7922,9 +7922,15 @@ textarea:focus,
   background: var(--color-primary-soft);
 }
 
-.wecom-group-option input {
-  flex: 0 0 auto;
-  margin-top: 3px;
+.wecom-group-option > input[type="radio"] {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 3px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
 }
 
 .wecom-group-option span {

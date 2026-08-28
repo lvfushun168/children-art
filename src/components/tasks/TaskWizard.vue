@@ -501,7 +501,20 @@ watch(() => props.state.currentStep, (step) => {
   }
   if (step !== 4) showTeacherEffectDrawer.value = false
   if (step !== 3) homeworkEditorOpen.value = false
-})
+  if (step === 4 && typeof props.state.ensureWecomConfiguration === 'function') {
+    void props.state.ensureWecomConfiguration({ force: true }).catch(() => {})
+  }
+}, { immediate: true })
+
+const parentTouchActionLabel = (item) => {
+  const status = item?.item?.status
+  if (status === '人工触达') return '已人工记录'
+  if (status === '待老师确认发送') return '待负责人确认'
+  if (status === '已发送') return '已发送'
+  if (props.state.isArchiveDone(item?.item)) return '已创建触达'
+  if (status === '待绑定家长群') return '绑定后重新提交'
+  return item?.action || '创建企微待推送'
+}
 
 watch(homeworkEditorOpen, async (open) => {
   if (!open) return
@@ -1082,7 +1095,7 @@ watch(homeworkEditorOpen, async (open) => {
                 </details>
               </div>
               <div class="archive-check-actions">
-                <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.pushParentTouch">{{ state.isArchiveDone(item.item) ? '已创建触达' : item.item.status === '待绑定家长群' ? '绑定后重新提交' : item.action }}</button>
+                <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.pushParentTouch">{{ parentTouchActionLabel(item) }}</button>
                 <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已同步' || item.item.status === '已跳过' || item.item.status === '推送中'" @click="state.pushArchiveItem(item.key)">{{ item.item.status === '已同步' ? '已同步' : item.item.status === '推送中' ? '上传中…' : item.item.status === '同步失败' ? '重试' : item.action }}</button>
                 <template v-if="item.key === 'teacherEffectArchive'">
                   <button v-if="['PENDING', 'FAILED', 'SKIPPED'].includes(teacherEffectStatus) || !teacherEffect.id" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">{{ teacherEffectStatus === 'FAILED' ? '重新配置并生成' : '配置并生成课效图' }}</button>

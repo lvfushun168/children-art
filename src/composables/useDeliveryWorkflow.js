@@ -175,6 +175,10 @@ export function useDeliveryWorkflow() {
     lastTestedAt: null,
     version: 0
   })
+  const wecomConfigurationLoaded = ref(false)
+  const wecomConfigurationLoading = ref(false)
+  const wecomConfigurationLoadError = ref('')
+  let wecomConfigurationLoadPromise = null
   const wecomGroups = reactive([])
   const cloudProviderPicker = reactive({
     open: false,
@@ -1221,9 +1225,13 @@ export function useDeliveryWorkflow() {
     {
       key: 'parentTouch',
       title: '家长展示发布与企业微信推送',
-      meta: wecomEnabled.value
-        ? '发布展示页快照并创建企业微信推送任务'
-        : '企业微信未启用',
+      meta: wecomConfigurationLoading.value
+        ? '正在读取企业微信配置…'
+        : !wecomConfigurationLoaded.value
+          ? (wecomConfigurationLoadError.value ? '企业微信配置读取失败' : '正在读取企业微信配置…')
+          : wecomEnabled.value
+            ? '发布展示页快照并创建企业微信推送任务'
+            : '企业微信未启用，请先完成配置',
       action: '创建企微待推送',
       required: true,
       item: archiveChecklist.value.parentTouch
@@ -2073,7 +2081,9 @@ export function useDeliveryWorkflow() {
     const failed = lessonTasks.filter((task) => task.status === '发送失败').length
     const pendingBinding = lessonTasks.filter((task) => task.status === '待绑定家长群').length
     const pending = lessonTasks.filter((task) => task.status === '待老师确认发送').length
-    const status = pendingBinding ? '待绑定家长群' : pending ? '待老师确认发送' : failed ? '发送失败' : sent >= manual ? '已发送' : '人工触达'
+    const allSent = lessonTasks.every((task) => task.status === '已发送')
+    const allManual = lessonTasks.every((task) => task.status === '人工触达')
+    const status = pendingBinding ? '待绑定家长群' : pending ? '待老师确认发送' : failed ? '发送失败' : allSent ? '已发送' : allManual ? '人工触达' : '待老师确认发送'
     Object.assign(workspace.archiveChecklist.parentTouch, {
       status,
       sentCount: sent + manual,
@@ -2084,6 +2094,10 @@ export function useDeliveryWorkflow() {
 
   const pushParentTouch = async () => {
     if (archiveActionBlocked()) return false
+    if (!wecomEnabled.value) {
+      notify('企业微信客户群未启用，请先完成企业微信配置')
+      return false
+    }
     const item = archiveChecklist.value.parentTouch
     if (isArchiveDone(item)) {
       notify('重复提交已拦截：本节家长触达任务已创建并留痕')
@@ -2098,9 +2112,9 @@ export function useDeliveryWorkflow() {
     if (sharePage.value.status !== '已发布') return false
     const before = item.status
     setArchiveChecklistItem('parentTouch', { status: '创建中' })
-    const nextStatus = wecomEnabled.value ? '待老师确认发送' : '人工触达'
+    const nextStatus = '待老师确认发送'
     await runAction(
-      wecomEnabled.value ? '正在创建企业微信家长触达任务...' : '正在记录人工触达留痕...',
+      '正在创建企业微信家长触达任务...',
       '',
       async () => {
         attendingRows.value.forEach((row) => {
@@ -2114,7 +2128,7 @@ export function useDeliveryWorkflow() {
             shareUrl: studentShareUrlFor(row),
             shareVersion: sharePage.value.publishedVersion,
             status: nextStatus,
-            fallbackMethod: wecomEnabled.value ? '' : '待复制链接发送',
+            fallbackMethod: '',
             failureReason: '',
             createdAt: nowText(),
             sentAt: ''
@@ -2125,26 +2139,20 @@ export function useDeliveryWorkflow() {
         })
         setArchiveChecklistItem('parentTouch', {
           status: nextStatus,
-          method: wecomEnabled.value ? '企业微信客户触达' : '人工触达',
+          method: '企业微信客户触达',
           sentCount: 0,
-          detail: wecomEnabled.value
-            ? `已创建 ${attendingRows.value.length} 个企微触达任务`
-            : `企业微信未启用，已生成 ${attendingRows.value.length} 个学生链接`
+          detail: `已创建 ${attendingRows.value.length} 个企微触达任务，等待负责人在企业微信客户端确认发送`
         })
         addStatusLog(
           '家长触达',
           activeTask.value.id,
           before,
           nextStatus,
-          wecomEnabled.value ? `发布展示页 V${sharePage.value.publishedVersion} 并创建 ${attendingRows.value.length} 个企微触达任务` : '企微未启用，发布展示页并记录人工触达'
+          `发布展示页 V${sharePage.value.publishedVersion} 并创建 ${attendingRows.value.length} 个企微触达任务`
         )
       }
     )
-    notify(
-      wecomEnabled.value
-        ? `已创建 ${attendingRows.value.length} 个企微触达任务，等待老师在企业微信中确认发送`
-        : '企业微信未启用：请复制学生链接人工发送给家长'
-    )
+    notify(`已创建 ${attendingRows.value.length} 个企微触达任务，等待负责人在企业微信客户端确认发送`)
     return true
   }
 
@@ -3212,6 +3220,8 @@ export function useDeliveryWorkflow() {
       lastTestedAt: null,
       version: 0
     })
+    wecomConfigurationLoaded.value = true
+    wecomConfigurationLoadError.value = ''
     const group = {
       id: 'wecom',
       key: 'wecom',
@@ -3223,6 +3233,42 @@ export function useDeliveryWorkflow() {
     const withoutWecom = providerGroups.filter((item) => String(item.category || '').toLowerCase() !== 'wecom')
     replaceReactive(providerGroups, [...withoutWecom, group])
     return wecomConfiguration
+  }
+
+  const mapWecomStatus = (value = null) => {
+    Object.assign(wecomConfiguration, {
+      id: value?.id ?? null,
+      status: value?.status || (value?.enabled ? 'ENABLED' : 'DISABLED'),
+      lastTestSuccess: value?.lastTestSuccess ?? null,
+      lastTestCode: value?.lastTestCode || '',
+      lastTestedAt: value?.lastTestedAt || null
+    })
+    wecomConfigurationLoaded.value = true
+    wecomConfigurationLoadError.value = ''
+    return wecomConfiguration
+  }
+
+  const ensureWecomConfiguration = async ({ force = false } = {}) => {
+    if (!isLoggedIn.value || !remoteReady.value) return wecomConfiguration
+    if (!force && wecomConfigurationLoaded.value) return wecomConfiguration
+    if (wecomConfigurationLoadPromise) return wecomConfigurationLoadPromise
+    wecomConfigurationLoadPromise = (async () => {
+      wecomConfigurationLoading.value = true
+      wecomConfigurationLoadError.value = ''
+      try {
+        return mapWecomStatus(await api.wecom.status())
+      } catch (error) {
+        wecomConfigurationLoadError.value = error?.message || '企业微信配置读取失败'
+        throw error
+      } finally {
+        wecomConfigurationLoading.value = false
+      }
+    })()
+    try {
+      return await wecomConfigurationLoadPromise
+    } finally {
+      wecomConfigurationLoadPromise = null
+    }
   }
 
   const mapProviderSetting = (providers = []) => {
@@ -3635,7 +3681,9 @@ export function useDeliveryWorkflow() {
     }
     const pendingBinding = touchTasks.filter((task) => task.status === '待绑定家长群').length
     const pendingConfirm = touchTasks.filter((task) => task.status === '待老师确认发送').length
-    const touchStatus = pendingBinding ? '待绑定家长群' : touchTasks.length && touchTasks.every((task) => ['已发送', '人工触达'].includes(task.status)) ? '已发送' : touchTasks.some((task) => task.status === '发送失败') ? '发送失败' : pendingConfirm ? '待老师确认发送' : touchTasks.length ? '待老师确认发送' : '待创建'
+    const allSent = touchTasks.length > 0 && touchTasks.every((task) => task.status === '已发送')
+    const allManual = touchTasks.length > 0 && touchTasks.every((task) => task.status === '人工触达')
+    const touchStatus = pendingBinding ? '待绑定家长群' : pendingConfirm ? '待老师确认发送' : touchTasks.some((task) => task.status === '发送失败') ? '发送失败' : allSent ? '已发送' : allManual ? '人工触达' : touchTasks.length ? '待老师确认发送' : '待创建'
     Object.assign(workspace.archiveChecklist, {
       parentTouch: { ...workspace.archiveChecklist.parentTouch, status: touchStatus, sentCount: touchTasks.filter((task) => ['已发送', '人工触达'].includes(task.status)).length, detail: touchTasks.length ? `已创建 ${touchTasks.length} 个触达任务${pendingBinding ? `，${pendingBinding} 个待绑定家长群` : ''}` : '' },
       studentCloudArchive: { ...workspace.archiveChecklist.studentCloudArchive, status: statusForArchiveItem(cloudJobs.find((job) => job.required || ['LESSON_ASSET', 'ARCHIVE_RECORD', 'TEACHER_EFFECT'].includes(job.sourceType))?.status) },
@@ -5756,9 +5804,19 @@ export function useDeliveryWorkflow() {
     if (sharePage.value?.status !== '已发布') {
       if (!(await remoteGenerateSharePages())) return false
     }
-    const pendingBindings = wecomEnabled.value
-      ? wecomSendTasks.filter((task) => sameId(task.lessonId, activeTask.value.id) && task.status === '待绑定家长群')
-      : []
+    let configuration
+    try {
+      configuration = await ensureWecomConfiguration({ force: true })
+    } catch (error) {
+      notify(remoteErrorMessage(error, '企业微信配置读取失败，请联系管理员'))
+      return false
+    }
+    if (!configuration?.id || configuration.status !== 'ENABLED') {
+      notify('企业微信客户群未启用，请先完成企业微信配置')
+      return false
+    }
+    const pendingBindings = wecomSendTasks.filter((task) =>
+      sameId(task.lessonId, activeTask.value.id) && task.status === '待绑定家长群')
     if (pendingBindings.length) {
       let unresolved = 0
       for (const task of pendingBindings) {
@@ -5778,9 +5836,8 @@ export function useDeliveryWorkflow() {
       notify(`已根据新的家长群绑定重新提交 ${pendingBindings.length} 个触达任务`)
       return true
     }
-    const channel = wecomEnabled.value ? 'WECOM' : 'MANUAL'
     const result = await runRemote('正在创建家长触达任务...', () => api.parent.touchTasks(activeTask.value.id, {
-      channel,
+      channel: 'WECOM',
       message: `${activeTask.value.date || ''} ${activeCourse.value.title || '本次课程'}课后展示已发布，请查看学生作品和课评`.trim(),
       sharePageVersion: sharePage.value.publishedVersion,
       studentIds: attendingRows.value.map((row) => String(row.studentId)),
@@ -7484,6 +7541,7 @@ export function useDeliveryWorkflow() {
     updateSetting: remoteUpdateSetting,
     saveWecomConfiguration: remoteSaveWecomConfiguration,
     testWecomConfiguration: remoteTestWecomConfiguration,
+    ensureWecomConfiguration,
     syncWecomGroups: remoteSyncWecomGroups,
     loadWecomGroups: remoteLoadWecomGroups,
     loadStudentWecomGroup: remoteLoadStudentWecomGroup,

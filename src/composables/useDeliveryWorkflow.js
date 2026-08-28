@@ -3215,7 +3215,7 @@ export function useDeliveryWorkflow() {
     const group = {
       id: 'wecom',
       key: 'wecom',
-      name: '企业微信家长群配置',
+      name: '企业微信',
       category: 'wecom',
       status: wecomConfiguration.id ? (wecomConfiguration.status === 'ENABLED' ? '已启用' : '未启用') : '未配置',
       value: { providers: [], configuration: wecomConfiguration }

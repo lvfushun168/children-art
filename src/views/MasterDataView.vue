@@ -980,7 +980,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <p v-if="currentStudentWecomGroup" class="settings-hint">
               {{ currentStudentWecomGroup.name || '未命名客户群' }} · 群主 {{ currentStudentWecomGroup.ownerName || currentStudentWecomGroup.ownerUserid || '不可用' }} · {{ currentStudentWecomGroup.memberCount || 0 }} 人
             </p>
-            <p v-else class="settings-hint">未绑定。课后企业微信触达不会自动选择其他学生的群。</p>
+            <p v-else class="settings-hint">未绑定。课后企业微信发送不会自动选择其他学生的群。</p>
           </section>
 
           <template v-if="availableStudentProfileSections.length">

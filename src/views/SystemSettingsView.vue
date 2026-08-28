@@ -808,7 +808,7 @@ onBeforeUnmount(() => {
             <label>CorpID<input v-model="wecomDraft.corpId" autocomplete="off" /></label>
             <label class="wide">客户联系应用 Secret<input v-model="wecomDraft.corpSecret" type="password" autocomplete="new-password" /></label>
             <label class="wide">API Base URL<input v-model="wecomDraft.apiBaseUrl" placeholder="https://qyapi.weixin.qq.com/cgi-bin" /></label>
-            <label class="inline-check wide"><input v-model="wecomDraft.status" true-value="ENABLED" false-value="DISABLED" type="checkbox" /> <span>启用企业微信客户群触达</span></label>
+            <label class="inline-check wide"><input v-model="wecomDraft.status" true-value="ENABLED" false-value="DISABLED" type="checkbox" /> <span>启用企业微信群发送</span></label>
           </div>
           <div class="cloud-provider-actions">
             <button class="ghost" type="button" @click="testWecom">测试客户群查询</button>

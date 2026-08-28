@@ -1089,7 +1089,6 @@ watch(homeworkEditorOpen, async (open) => {
                       <small>{{ studentFor(row.studentId).parent }} · 展示页 V{{ state.sharePage.publishedVersion }}</small>
                     </div>
                     <span class="credential-status">链接已生成</span>
-                    <span class="qr-code mini">QR</span>
                     <button class="ghost" @click="state.manualCopyStudentLink(row)">{{ state.copiedStudentId === row.studentId ? '已复制' : '复制并记录人工发送' }}</button>
                   </div>
                 </details>

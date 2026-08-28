@@ -140,13 +140,13 @@ const openSupervision = () => {
                 <small v-if="task.failureReason">失败原因：{{ task.failureReason }}</small>
               </div>
               <em>{{ task.status }}</em>
-              <input v-model="reasons[`wecom-${task.id}`]" placeholder="取消触达原因（必填）" />
+              <input v-model="reasons[`wecom-${task.id}`]" placeholder="取消发送原因（必填）" />
               <div class="button-pair">
                 <button v-if="task.status === '待老师确认发送'" type="button" class="secondary" @click="updateWecomTask(task, '已发送')">人工确认已发送</button>
                 <button type="button" class="ghost" @click="state.manualCopyWecomTask(task)">复制链接人工发送</button>
                 <button v-if="task.status === '发送失败'" type="button" class="ghost" @click="state.retryWecomSendTask(task)">重试发送</button>
                 <button v-if="task.status === '待绑定家长群'" type="button" class="ghost" @click="goTask(task)">打开课次</button>
-                <button v-if="task.status !== '发送失败'" type="button" class="ghost" @click="updateWecomTask(task, '已取消')">取消触达</button>
+                <button v-if="task.status !== '发送失败'" type="button" class="ghost" @click="updateWecomTask(task, '已取消')">取消发送</button>
               </div>
             </article>
             <small v-if="!wecomTodos.length" class="empty-note">暂无待确认的企微触达任务。</small>

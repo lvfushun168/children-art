@@ -247,7 +247,6 @@ export const classes = [
     time: '每周二 17:40',
     teacherId: 1,
     teacher: '林老师',
-    group: '家长微信群：周二创想班',
     status: '开班中',
     studentIds: [1, 2, 3, 4],
     courseId: 1
@@ -258,7 +257,6 @@ export const classes = [
     time: '每周三 19:20',
     teacherId: 1,
     teacher: '林老师',
-    group: '家长微信群：线描提高班',
     status: '开班中',
     studentIds: [5],
     courseId: 3
@@ -269,7 +267,6 @@ export const classes = [
     time: '每周四 18:30',
     teacherId: 2,
     teacher: '周老师',
-    group: '家长微信群：幼儿启蒙班',
     status: '开班中',
     studentIds: [4],
     courseId: 2
@@ -1254,13 +1251,6 @@ export const settings = [
       defaultArchiveTargets: ['baidu']
     }
   },
-  {
-    id: 6,
-    name: '企业微信触达',
-    type: 'wecom',
-    status: '已启用',
-    value: '客户联系触达已配置 · 内部通知群机器人已配置 · 家长群绑定：周二创想班家长群'
-  }
 ]
 
 export const importPreviewRows = [

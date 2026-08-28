@@ -43,6 +43,11 @@ const detailLoading = ref(false)
 const saving = ref(false)
 const detailRequestId = ref(0)
 const draftBaseline = ref('')
+const studentWecomGroup = ref(null)
+const wecomGroupDialogOpen = ref(false)
+const wecomGroupLoading = ref(false)
+const wecomGroupQuery = ref('')
+const selectedWecomGroupId = ref(null)
 const generationClass = ref(null)
 const showGenerationDialog = ref(false)
 let cleanupMobileMedia = () => {}
@@ -198,7 +203,6 @@ const blankDraft = () => {
       scheduleSlots: [],
       teacherId: activeItems(props.state.teachers)[0]?.id,
       courseId: activeItems(props.state.courses)[0]?.id,
-      group: '',
       status: '筹备中',
       studentIds: []
     }
@@ -280,6 +284,28 @@ const communicationSummary = computed(() => ({
   pending: selectedCommunicationRecords.value.filter((record) => record.followUpAction).length
 }))
 
+const currentStudentWecomGroup = computed(() => studentWecomGroup.value?.group || selected.value?.wecomGroup || null)
+const availableWecomGroups = computed(() => {
+  const query = wecomGroupQuery.value.trim().toLowerCase()
+  return (props.state.wecomGroups || []).filter((group) => group.status === 'ACTIVE' && group.ownerUserid).filter((group) => {
+    if (!query) return true
+    return [group.name, group.ownerName, group.ownerUserid, group.chatId].some((value) => String(value || '').toLowerCase().includes(query))
+  })
+})
+const wecomGroupStatusLabel = (group) => {
+  if (!group) return '未绑定'
+  if (group.status === 'DISMISSED') return '群已解散'
+  if (group.status === 'STALE') return '群信息过期'
+  if (!group.ownerUserid) return '群主不可用'
+  return `已绑定：${group.name || '未命名客户群'}`
+}
+const wecomGroupSummary = (group) => {
+  if (!group) return '未绑定'
+  const name = group.name || '未命名客户群'
+  const status = wecomGroupStatusLabel(group)
+  return status === `已绑定：${name}` ? status : `${status} · ${name}`
+}
+
 const resetDraft = () => {
   const base = mode.value === 'new' ? blankDraft() : cloneRecord(selected.value)
   const profile = props.entity === 'students' && mode.value !== 'new' ? props.state.studentProfileFor?.(selected.value?.id) : null
@@ -348,6 +374,8 @@ const clearSelection = () => {
   setDraft(blankDraft())
   mobileShowingDetail.value = false
   resetCommunicationDraft()
+  studentWecomGroup.value = null
+  wecomGroupDialogOpen.value = false
 }
 
 const ensureDetailLookups = async () => {
@@ -389,6 +417,7 @@ const loadRecordDetail = async (record, { skipGuard = false, preferredMode = nul
   studentDetailTab.value = 'profile'
   detailLoading.value = true
   setDraft(record)
+  studentWecomGroup.value = record.wecomGroup ? { studentId: record.id, status: 'ACTIVE', group: record.wecomGroup } : null
   resetCommunicationDraft()
   if (props.entity === 'students') void props.state.loadCommunicationRecords(record.id)
   if (isMobileFlow.value) mobileShowingDetail.value = true
@@ -403,6 +432,10 @@ const loadRecordDetail = async (record, { skipGuard = false, preferredMode = nul
       ? 'detail'
       : (canEditMasterData.value && !resolved.archived ? 'edit' : 'detail')
     setDraft(resolved)
+    if (props.entity === 'students') {
+      studentWecomGroup.value = await props.state.loadStudentWecomGroup?.(resolved.id)
+      if (!studentWecomGroup.value) detailRecord.value = { ...detailRecord.value, wecomGroup: null }
+    }
     await hydrateStudentProfile(resolved)
     return true
   } catch {
@@ -488,6 +521,7 @@ const startNew = async () => {
   mode.value = 'new'
   selectedId.value = null
   detailRecord.value = null
+  studentWecomGroup.value = null
   studentDetailTab.value = 'profile'
   detailLoading.value = true
   setDraft(blankDraft())
@@ -633,6 +667,46 @@ const returnToCommunicationList = () => {
   communicationEditingId.value = null
   communicationDraft.value = blankCommunicationDraft()
   communicationView.value = 'list'
+}
+
+const openStudentWecomGroupDialog = async () => {
+  if (props.entity !== 'students' || mode.value === 'new' || !selected.value?.id || !canEditMasterData.value) return
+  wecomGroupDialogOpen.value = true
+  wecomGroupLoading.value = true
+  wecomGroupQuery.value = ''
+  selectedWecomGroupId.value = currentStudentWecomGroup.value?.id || null
+  try {
+    const synced = await props.state.syncWecomGroups?.()
+    if (!synced) await props.state.loadWecomGroups?.()
+  } finally {
+    wecomGroupLoading.value = false
+  }
+}
+
+const closeStudentWecomGroupDialog = () => {
+  if (wecomGroupLoading.value) return
+  wecomGroupDialogOpen.value = false
+}
+
+const bindSelectedWecomGroup = async () => {
+  if (!selected.value?.id || !selectedWecomGroupId.value) return
+  const saved = await props.state.bindStudentWecomGroup?.(selected.value.id, selectedWecomGroupId.value)
+  if (!saved) return
+  studentWecomGroup.value = saved
+  detailRecord.value = { ...detailRecord.value, wecomGroup: saved.group }
+  const index = records.value.findIndex((item) => sameId(item.id, selected.value.id))
+  if (index >= 0) records.value[index].wecomGroup = saved.group
+  wecomGroupDialogOpen.value = false
+}
+
+const unbindStudentWecomGroup = async () => {
+  if (!selected.value?.id || !currentStudentWecomGroup.value) return
+  const ok = await props.state.unbindStudentWecomGroup?.(selected.value.id)
+  if (!ok) return
+  studentWecomGroup.value = null
+  detailRecord.value = { ...detailRecord.value, wecomGroup: null }
+  const index = records.value.findIndex((item) => sameId(item.id, selected.value.id))
+  if (index >= 0) records.value[index].wecomGroup = null
 }
 
 const deleteCommunicationRecord = (record) => {
@@ -783,7 +857,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
               <td v-if="entity === 'externalLinks'">{{ record.courseTitle || courseTitle(record.courseId) }}</td>
               <td v-if="entity === 'externalLinks'" class="directory-url">{{ record.url }}</td>
               <td v-if="entity === 'teachers'">{{ record.userId ? '已绑定' : '未绑定' }} · {{ record.classCount || 0 }} 个班</td>
-              <td v-if="entity === 'students'">{{ record.classCount || 0 }} 个班 · {{ record.archiveWorkCount || 0 }} 件作品</td>
+              <td v-if="entity === 'students'">
+                {{ record.classCount || 0 }} 个班 · {{ record.archiveWorkCount || 0 }} 件作品
+                <small class="directory-subline">家长群：{{ wecomGroupSummary(record.wecomGroup) }}</small>
+              </td>
               <td v-if="entity === 'classes'">{{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.studentCount || record.studentIds?.length || 0 }} 人</td>
               <td v-if="entity === 'courses'">{{ record.activeClassCount || 0 }} 个班 · {{ record.externalLinkCount || 0 }} 条外链</td>
               <td><span class="status-tag">{{ record.archived ? '已归档' : record.status }}</span></td>
@@ -795,7 +872,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <button v-for="record in records" :key="record.id" type="button" class="directory-card" :class="{ active: sameId(selected?.id, record.id) }" @click="selectRecord(record)">
             <strong>{{ record.name || record.title }}</strong>
             <span v-if="entity === 'teachers'">{{ record.role || '老师' }} · {{ record.userId ? '已绑定账号' : '未绑定账号' }} · {{ record.classCount || 0 }} 个班</span>
-            <span v-if="entity === 'students'">{{ record.phone || '无家长电话' }} · {{ record.classCount || 0 }} 个班 · {{ record.archiveWorkCount || 0 }} 件作品</span>
+            <span v-if="entity === 'students'">{{ record.phone || '无家长电话' }} · {{ record.classCount || 0 }} 个班 · {{ record.archiveWorkCount || 0 }} 件作品 · 家长群：{{ wecomGroupSummary(record.wecomGroup) }}</span>
             <span v-if="entity === 'classes'">{{ record.teacherName || teacherName(record.teacherId) }} · {{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.studentCount || 0 }} 人</span>
             <span v-if="entity === 'courses'">{{ record.age || '未设置年龄段' }} · {{ record.activeClassCount || 0 }} 个使用班级</span>
             <span v-if="entity === 'externalLinks'">{{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.url }}</span>
@@ -887,6 +964,23 @@ onBeforeUnmount(() => cleanupMobileMedia())
               </label>
               <label class="wide">备注<textarea v-model="draft.note" rows="4" :disabled="formReadonly" /></label>
             </div>
+          </section>
+
+          <section v-if="mode !== 'new'" class="master-form-section student-wecom-group-section">
+            <div class="section-head">
+              <div>
+                <span>家长客户群</span>
+                <strong>{{ wecomGroupStatusLabel(currentStudentWecomGroup) }}</strong>
+              </div>
+              <div class="button-pair">
+                <button v-if="currentStudentWecomGroup" class="ghost" type="button" :disabled="!canEditMasterData" @click="unbindStudentWecomGroup">解绑</button>
+                <button class="secondary" type="button" :disabled="!canEditMasterData || detailLoading" @click="openStudentWecomGroupDialog">配置家长群</button>
+              </div>
+            </div>
+            <p v-if="currentStudentWecomGroup" class="settings-hint">
+              {{ currentStudentWecomGroup.name || '未命名客户群' }} · 群主 {{ currentStudentWecomGroup.ownerName || currentStudentWecomGroup.ownerUserid || '不可用' }} · {{ currentStudentWecomGroup.memberCount || 0 }} 人
+            </p>
+            <p v-else class="settings-hint">未绑定。课后企业微信触达不会自动选择其他学生的群。</p>
           </section>
 
           <template v-if="availableStudentProfileSections.length">
@@ -1007,10 +1101,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
             状态
             <AdaptiveSelect v-model="draft.status" :options="['筹备中', '开班中', '停课', '结课']" :disabled="formReadonly" />
           </label>
-          <label class="wide">
-            家长群
-            <input v-model="draft.group" disabled />
-          </label>
         </div>
         <ScheduleSlotEditor v-model="draft.scheduleSlots" :disabled="formReadonly" />
         <div v-if="draft.legacySchedulePending" class="notice-box error-box">
@@ -1075,4 +1165,32 @@ onBeforeUnmount(() => cleanupMobileMedia())
     @close="showGenerationDialog = false"
     @generated="closeGenerationDialog"
   />
+  <div v-if="wecomGroupDialogOpen" class="directory-drawer-backdrop" @click.self="closeStudentWecomGroupDialog">
+    <section class="master-detail panel directory-drawer wecom-group-dialog" role="dialog" aria-modal="true">
+      <div class="section-head">
+        <div>
+          <span>学生管理 · 家长客户群</span>
+          <strong>{{ selected?.name }} 的家长群</strong>
+        </div>
+        <button class="ghost" type="button" :disabled="wecomGroupLoading" @click="closeStudentWecomGroupDialog">关闭</button>
+      </div>
+      <p class="settings-hint">每次打开都会实时查询企业微信客户群。请选择已有客户群，系统不会按群名自动匹配学生。</p>
+      <label class="wide">搜索群名、群主或群 ID<input v-model="wecomGroupQuery" placeholder="输入关键字筛选" /></label>
+      <div v-if="wecomGroupLoading" class="notice-box">正在从企业微信同步客户群…</div>
+      <div v-else-if="!availableWecomGroups.length" class="notice-box">没有可绑定的正常客户群，请先确认企业微信权限和群状态。</div>
+      <div v-else class="wecom-group-picker">
+        <label v-for="group in availableWecomGroups" :key="group.id" class="wecom-group-option">
+          <input v-model="selectedWecomGroupId" type="radio" name="wecom-customer-group" :value="group.id" />
+          <span>
+            <strong>{{ group.name }}</strong>
+            <small>群主：{{ group.ownerName || group.ownerUserid || '不可用' }} · {{ group.memberCount }} 人 · 同步于 {{ group.syncedAt ? new Date(group.syncedAt).toLocaleString('zh-CN', { hour12: false }) : '—' }}</small>
+          </span>
+        </label>
+      </div>
+      <div class="button-pair">
+        <button class="ghost" type="button" @click="closeStudentWecomGroupDialog">取消</button>
+        <button class="primary" type="button" :disabled="!selectedWecomGroupId || !availableWecomGroups.some((group) => sameId(group.id, selectedWecomGroupId)) || wecomGroupLoading" @click="bindSelectedWecomGroup">绑定选中客户群</button>
+      </div>
+    </section>
+  </div>
 </template>

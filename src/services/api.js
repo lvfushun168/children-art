@@ -186,6 +186,17 @@ export const api = {
     publicShare: (token) => request(`/public/share/${encodeURIComponent(token)}`, { auth: false }),
     publicAsset: (token, accessKey) => request(`/public/share/${encodeURIComponent(token)}/assets/${encodeURIComponent(accessKey)}`, { auth: false, responseType: 'blob' })
   },
+  wecom: {
+    configuration: () => request('/wecom/configuration'),
+    saveConfiguration: (body) => request('/wecom/configuration', { method: 'PUT', body }),
+    testConfiguration: () => request('/wecom/configuration/test', { method: 'POST' }),
+    syncCustomerGroups: () => request('/wecom/customer-groups/sync', { method: 'POST' }),
+    customerGroups: (params = {}) => request(`/wecom/customer-groups${queryString(params)}`),
+    studentGroups: (studentIds = []) => request(`/wecom/student-group-bindings${queryString({ studentIds: studentIds.map(String) })}`),
+    studentGroup: (studentId) => request(`/students/${id(studentId)}/wecom-customer-group`),
+    bindStudentGroup: (studentId, body) => request(`/students/${id(studentId)}/wecom-customer-group`, { method: 'PUT', body }),
+    unbindStudentGroup: (studentId) => request(`/students/${id(studentId)}/wecom-customer-group`, { method: 'DELETE' })
+  },
   archive: {
     records: (params) => page('/archive-records', params),
     record: (recordId) => request(`/archive-records/${id(recordId)}`),
@@ -233,7 +244,7 @@ export const api = {
     testProvider: (providerId) => request(`/configuration/providers/${id(providerId)}/test`, { method: 'POST' }),
     startBaiduOAuth: (providerId) => request(`/configuration/providers/${id(providerId)}/baidu/oauth/start`, { method: 'POST' }),
     baiduOAuthStatus: (providerId) => request(`/configuration/providers/${id(providerId)}/baidu/oauth/status`),
-    wecomNotice: (body, key) => request('/wecom/internal-notices', { method: 'POST', body, idempotencyKey: key })
+    // 内部通知群已停用；家长客户群走 api.wecom 和 parent.touchTasks。
   },
   m6: {
     supervision: (params) => page('/supervision/lessons', params),

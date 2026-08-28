@@ -28,7 +28,7 @@ const listValue = (value) => {
 const stateList = (key) => listValue(state[key])
 const lessonList = computed(() => stateList('visibleInboxLessons'))
 const wheatTodos = computed(() => stateList('wheatTraces').filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)))
-const wecomTodos = computed(() => stateList('wecomSendTasks').filter((task) => ['待老师确认发送', '发送失败'].includes(task.status)))
+const wecomTodos = computed(() => stateList('wecomSendTasks').filter((task) => ['待绑定家长群', '待老师确认发送', '发送失败'].includes(task.status)))
 const cloudTodos = computed(() => stateList('cloudArchiveTodos').filter((job) => job.statusCode === 'FAILED' || job.status === '同步失败'))
 const reviewTodos = computed(() => state.canQualityReview
   ? stateList('pendingReviewQueue').filter((review) => ['待评分', '已退回'].includes(review.status))
@@ -135,14 +135,17 @@ const openSupervision = () => {
               <div>
                 <strong>{{ task.studentName }}（{{ task.targetName }}）</strong>
                 <small>{{ task.lesson }} · 展示页 V{{ task.shareVersion }}</small>
+                <small v-if="task.wecomGroupName">家长群：{{ task.wecomGroupName }}</small>
+                <small v-else-if="task.status === '待绑定家长群'">请先在学生管理中绑定家长客户群</small>
                 <small v-if="task.failureReason">失败原因：{{ task.failureReason }}</small>
               </div>
               <em>{{ task.status }}</em>
               <input v-model="reasons[`wecom-${task.id}`]" placeholder="取消触达原因（必填）" />
               <div class="button-pair">
-                <button type="button" class="secondary" @click="updateWecomTask(task, '已发送')">已确认发送</button>
+                <button v-if="task.status === '待老师确认发送'" type="button" class="secondary" @click="updateWecomTask(task, '已发送')">人工确认已发送</button>
                 <button type="button" class="ghost" @click="state.manualCopyWecomTask(task)">复制链接人工发送</button>
                 <button v-if="task.status === '发送失败'" type="button" class="ghost" @click="state.retryWecomSendTask(task)">重试发送</button>
+                <button v-if="task.status === '待绑定家长群'" type="button" class="ghost" @click="goTask(task)">打开课次</button>
                 <button v-if="task.status !== '发送失败'" type="button" class="ghost" @click="updateWecomTask(task, '已取消')">取消触达</button>
               </div>
             </article>

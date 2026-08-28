@@ -148,6 +148,7 @@ const providerSettings = computed(() => {
 
 const selected = () => providerSettings.value.find((item) => sameId(item.id, selectedId.value))
 const draft = ref({})
+const wecomDraft = ref({})
 const archiveRuleInput = ref(null)
 const archiveFilenameInput = ref(null)
 const archiveRuleVariableMenu = ref(null)
@@ -211,6 +212,10 @@ watch(providerSettings, (settings) => {
     selectedId.value = settings[0].id
     draft.value = clone(settings[0])
   }
+  const current = settings.find((setting) => sameId(setting.id, selectedId.value))
+  if (String(current?.category || '').toLowerCase() === 'wecom') {
+    wecomDraft.value = clone(props.state.wecomConfiguration || current.value?.configuration || {})
+  }
 }, { deep: true, immediate: true })
 
 const selectSetting = (setting) => {
@@ -219,6 +224,9 @@ const selectSetting = (setting) => {
   baiduDrawerDraft.value = null
   selectedId.value = setting.id
   draft.value = clone(setting)
+  if (String(setting.category || '').toLowerCase() === 'wecom') {
+    wecomDraft.value = clone(props.state.wecomConfiguration || setting.value?.configuration || {})
+  }
   activeArchiveTemplate.value = 'directory'
   if (isMobileFlow.value) mobileStage.value = 'detail'
 }
@@ -301,13 +309,35 @@ const save = () => {
   props.state.updateSetting(selectedId.value, draft.value)
 }
 
+const saveWecom = async () => {
+  const value = wecomDraft.value || {}
+  const required = ['corpId', 'corpSecret']
+  if (required.some((field) => !String(value[field] || '').trim())) {
+    props.state.notify('请完整填写 CorpID 和客户联系应用 Secret')
+    return
+  }
+  const saved = await props.state.saveWecomConfiguration?.(value)
+  if (saved) {
+    wecomDraft.value = clone(saved)
+    const group = selected()
+    if (group) group.status = saved.status === 'ENABLED' ? '已启用' : '未启用'
+  }
+}
+
+const saveCurrent = () => isWecomCategory.value ? saveWecom() : save()
+
+const testWecom = () => props.state.testWecomConfiguration?.()
+
 const selectedGroup = computed(() => providerSettings.value.find((group) => sameId(group.id, selectedId.value)) || providerGroupDefinitions.find((group) => group.id === selectedId.value) || providerGroupDefinitions[0])
 const currentProviderLabel = computed(() => selectedGroup.value?.providerLabel || '通道')
 const isCloudCategory = computed(() => selectedGroup.value?.category === 'cloud')
 const isAiCategory = computed(() => selectedGroup.value?.category === 'ai')
+const isWecomCategory = computed(() => selectedGroup.value?.category === 'wecom')
 const isProviderSetting = computed(() => Boolean(draft.value.category))
 const canSave = computed(() => Boolean(
-  isProviderSetting.value && !isCloudCategory.value && draft.value.value?.providers?.length
+  isWecomCategory.value
+    ? ['corpId', 'corpSecret'].every((field) => String(wecomDraft.value?.[field] || '').trim())
+    : isProviderSetting.value && !isCloudCategory.value && draft.value.value?.providers?.length
 ))
 const providerTypeCatalog = computed(() => props.state.providerTypeCatalog || {
   cloud: props.state.providerTypeOptions || [],
@@ -361,6 +391,10 @@ watch([selectedId, providerSettings], () => {
   if (!baiduProviders.value.some((provider) => sameId(provider.id, selectedBaiduProviderId.value))) {
     selectedBaiduProviderId.value = baiduProviders.value[0]?.id || null
   }
+}, { deep: true, immediate: true })
+
+watch(() => props.state.wecomConfiguration, (value) => {
+  if (value && isWecomCategory.value) wecomDraft.value = clone(value)
 }, { deep: true, immediate: true })
 
 const openBaiduProviderDrawer = (provider, mode = 'edit') => {
@@ -667,7 +701,7 @@ onBeforeUnmount(() => {
   </button>
 
   <PageHead eyebrow="后台配置" title="系统配置">
-    <button v-if="(!isMobileFlow || mobileStage === 'detail') && !isCloudCategory" class="primary" :disabled="!canSave" @click="save">保存当前配置</button>
+    <button v-if="(!isMobileFlow || mobileStage === 'detail') && !isCloudCategory" class="primary" :disabled="!canSave" @click="saveCurrent">保存当前配置</button>
   </PageHead>
 
   <section class="settings-layout" :class="`mobile-settings-stage-${mobileStage}`">
@@ -759,8 +793,33 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <div v-if="!isCloudCategory && !draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道。</div>
-        <template v-if="!isCloudCategory">
+        <section v-if="isWecomCategory" class="master-form-section wecom-settings-section">
+          <div class="section-head">
+            <div>
+              <span>企业微信客户群</span>
+              <strong>{{ wecomDraft.id ? '已配置' : '尚未配置' }}</strong>
+            </div>
+            <span class="status-pill" :class="{ success: wecomDraft.status === 'ENABLED', warning: wecomDraft.status !== 'ENABLED' }">
+              {{ wecomDraft.status === 'ENABLED' ? '已启用' : '未启用' }}
+            </span>
+          </div>
+          <div class="form-grid">
+            <label>配置名称<input v-model="wecomDraft.name" placeholder="企业微信客户群" /></label>
+            <label>CorpID<input v-model="wecomDraft.corpId" autocomplete="off" /></label>
+            <label class="wide">客户联系应用 Secret<input v-model="wecomDraft.corpSecret" type="password" autocomplete="new-password" /></label>
+            <label class="wide">API Base URL<input v-model="wecomDraft.apiBaseUrl" placeholder="https://qyapi.weixin.qq.com/cgi-bin" /></label>
+            <label class="inline-check wide"><input v-model="wecomDraft.status" true-value="ENABLED" false-value="DISABLED" type="checkbox" /> <span>启用企业微信客户群触达</span></label>
+          </div>
+          <div class="cloud-provider-actions">
+            <button class="ghost" type="button" @click="testWecom">测试客户群查询</button>
+            <span v-if="wecomDraft.lastTestMessage" class="provider-test-feedback" :class="{ success: wecomDraft.lastTestSuccess }">
+              {{ wecomDraft.lastTestMessage }}<template v-if="wecomDraft.lastTestedAt"> · {{ formatDateTime(wecomDraft.lastTestedAt) }}</template>
+            </span>
+          </div>
+        </section>
+
+        <div v-else-if="!isCloudCategory && !draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道。</div>
+        <template v-else-if="!isCloudCategory">
           <article
             v-for="provider in draft.value.providers"
             :key="provider.id"

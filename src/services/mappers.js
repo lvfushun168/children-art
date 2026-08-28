@@ -35,7 +35,7 @@ const feedbackStatus = { DRAFT: '草稿', GENERATED: '已生成', CONFIRMED: '�
 const jobStatus = { PENDING: '待处理', QUEUED: '排队中', RUNNING: '处理中', SUCCEEDED: '成功', FAILED: '失败', CANCELED: '已取消', STALE: '已过期' }
 const versionKind = { ORIGINAL: '原图', PROCESSED: '处理版', GENERATED: '生成版', CONFIRMED: '已确认' }
 const shareStatus = { UNPUBLISHED: '草稿', DRAFT: '草稿', PUBLISHED: '已发布', REVOKED: '已失效', SKIPPED: '已跳过' }
-const touchStatus = { PENDING: '待老师确认发送', PENDING_CREATE: '待老师确认发送', PENDING_MEMBER_CONFIRM: '待老师确认发送', SENT: '已发送', FAILED: '发送失败', CANCELED: '已取消', CANCELLED: '已取消', MANUAL: '人工触达', MANUALLY_COMPLETED: '人工触达', SKIPPED: '已跳过' }
+const touchStatus = { PENDING: '待老师确认发送', PENDING_GROUP_BINDING: '待绑定家长群', PENDING_CREATE: '待老师确认发送', PENDING_MEMBER_CONFIRM: '待老师确认发送', SENT: '已发送', FAILED: '发送失败', CANCELED: '已取消', CANCELLED: '已取消', MANUAL: '人工触达', MANUALLY_COMPLETED: '人工触达', SKIPPED: '已跳过' }
 
 export const toApiLessonStatus = (value) => lessonStatusReverse[value] || value
 export const toApiLessonType = (value) => lessonTypeReverse[value] || value
@@ -421,6 +421,15 @@ export const mapTouchTask = (value = {}) => ({
   shareVersion: safeUiId(value.shareVersion || value.sharePageVersionId),
   statusCode: value.status || 'PENDING_MEMBER_CONFIRM',
   status: touchStatus[value.status] || value.status || '待老师确认发送',
+  wecomAccountId: safeUiId(value.wecomAccountId),
+  wecomCustomerGroupId: safeUiId(value.wecomCustomerGroupId),
+  wecomGroupName: value.wecomGroupName || '',
+  wecomChatId: value.wecomChatId || '',
+  wecomSenderUserid: value.wecomSenderUserid || '',
+  wecomMsgid: value.wecomMsgid || '',
+  wecomRemoteStatus: value.wecomRemoteStatus || '',
+  wecomResult: value.wecomResult || {},
+  wecomSubmittedAt: displayDateTime(value.wecomSubmittedAt),
   sentAt: displayDateTime(value.sentAt),
   createdAt: displayDateTime(value.createdAt),
   updatedAt: displayDateTime(value.updatedAt),

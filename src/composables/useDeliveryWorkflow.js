@@ -162,6 +162,20 @@ export function useDeliveryWorkflow() {
   const importPreviewRows = reactive([])
   const settings = reactive([])
   const providerGroups = reactive([])
+  const wecomConfiguration = reactive({
+    id: null,
+    name: '企业微信客户群',
+    corpId: '',
+    corpSecret: '',
+    apiBaseUrl: 'https://qyapi.weixin.qq.com/cgi-bin',
+    status: 'DISABLED',
+    lastTestSuccess: null,
+    lastTestCode: '',
+    lastTestMessage: '',
+    lastTestedAt: null,
+    version: 0
+  })
+  const wecomGroups = reactive([])
   const cloudProviderPicker = reactive({
     open: false,
     lessonId: null,
@@ -613,13 +627,7 @@ export function useDeliveryWorkflow() {
     warning: importPreviewRows.filter((row) => row.status !== '可导入').length
   }))
   const cloudDriveSetting = computed(() => settings.find((item) => item.type === 'cloudDrive' || item.name === '网盘配置'))
-  const wecomSetting = computed(() => settings.find((item) => item.type === 'wecom' || item.name === '企业微信触达'))
-  const wecomEnabled = computed(() => Boolean(
-    wecomSetting.value?.status === '已启用' ||
-    cloudDriveSetting.value?.value?.providers?.some((provider) =>
-      provider.enabled && ['WECOM', 'WE_COM', '企业微信'].includes(String(provider.providerType || provider.type).toUpperCase())
-    )
-  ))
+  const wecomEnabled = computed(() => wecomConfiguration.status === 'ENABLED')
   const enabledCloudProviders = computed(() => {
     const cloudGroup = providerGroups.find((group) => String(group.category || '').toLowerCase() === 'cloud')
     const providers = cloudGroup
@@ -1198,8 +1206,10 @@ export function useDeliveryWorkflow() {
   })
 
   const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工触达', '发送失败', '已人工处理', '无需处理']
+  const archiveRecordedStatuses = [...archiveDoneStatuses, '待绑定家长群']
   const archiveWorkingStatuses = ['推送中', '生成中', '创建中']
   const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
+  const isArchiveRecorded = (item) => archiveRecordedStatuses.includes(item.status)
   const isArchiveWorking = (item) => archiveWorkingStatuses.includes(item.status)
   const studentArchivePathPreview = computed(() =>
     activeWorkspace.value.cloudJobs?.find((job) => job.targetPath)?.targetPath || '待生成'
@@ -1245,14 +1255,14 @@ export function useDeliveryWorkflow() {
   ])
   const archiveChecklistProgress = computed(() => {
     const total = archiveChecklistItems.value.filter((item) => item.required).length || 1
-    const done = archiveChecklistItems.value.filter((item) => item.required && isArchiveDone(item.item)).length
+    const done = archiveChecklistItems.value.filter((item) => item.required && isArchiveRecorded(item.item)).length
     return { done, total, percent: Math.round((done / total) * 100) }
   })
   const archiveChecklistReady = computed(() =>
-    !currentWarnings.value.length && archiveChecklistItems.value.every((item) => !item.required || isArchiveDone(item.item))
+    !currentWarnings.value.length && archiveChecklistItems.value.every((item) => !item.required || isArchiveRecorded(item.item))
   )
   const archiveChecklistPending = computed(() =>
-    archiveChecklistItems.value.filter((item) => item.required && !isArchiveDone(item.item)).map((item) => item.title)
+    archiveChecklistItems.value.filter((item) => item.required && !isArchiveRecorded(item.item)).map((item) => item.title)
   )
 
   const toggleArchiveTarget = (target) => {
@@ -2061,12 +2071,13 @@ export function useDeliveryWorkflow() {
     const sent = lessonTasks.filter((task) => task.status === '已发送').length
     const manual = lessonTasks.filter((task) => task.status === '人工触达').length
     const failed = lessonTasks.filter((task) => task.status === '发送失败').length
+    const pendingBinding = lessonTasks.filter((task) => task.status === '待绑定家长群').length
     const pending = lessonTasks.filter((task) => task.status === '待老师确认发送').length
-    const status = pending ? '待老师确认发送' : failed ? '发送失败' : sent >= manual ? '已发送' : '人工触达'
+    const status = pendingBinding ? '待绑定家长群' : pending ? '待老师确认发送' : failed ? '发送失败' : sent >= manual ? '已发送' : '人工触达'
     Object.assign(workspace.archiveChecklist.parentTouch, {
       status,
       sentCount: sent + manual,
-      detail: `企微已发送 ${sent} · 人工触达 ${manual} · 待确认发送 ${pending}${failed ? ` · 发送失败 ${failed}（已进入待办中心，不阻断归档）` : ''}`,
+      detail: `企微已发送 ${sent} · 人工触达 ${manual} · 待绑定 ${pendingBinding} · 待确认发送 ${pending}${failed ? ` · 发送失败 ${failed}（已进入待办中心，不阻断归档）` : ''}`,
       updatedAt: nowText()
     })
   }
@@ -2433,7 +2444,6 @@ export function useDeliveryWorkflow() {
       scheduleSlots: payload.scheduleSlots || [],
       teacherId: Number(payload.teacherId) || teachers[0]?.id,
       teacher: teacher?.name || payload.teacher || '待配置',
-      group: payload.group || '待创建家长群',
       status: payload.status || '筹备中',
       studentIds: payload.studentIds || [],
       courseId: Number(payload.courseId) || courses[0]?.id
@@ -2447,13 +2457,15 @@ export function useDeliveryWorkflow() {
     const klass = classes.find((item) => item.id === id)
     if (!klass) return null
     const teacher = teachers.find((item) => item.id === Number(payload.teacherId))
+    const { group: _legacyGroup, ...classPayload } = payload || {}
     Object.assign(klass, {
-      ...payload,
+      ...classPayload,
       teacherId: Number(payload.teacherId) || klass.teacherId,
       teacher: teacher?.name || klass.teacher,
       courseId: Number(payload.courseId) || klass.courseId,
       studentIds: payload.studentIds || klass.studentIds
     })
+    delete klass.group
     students.forEach((student) => {
       if (klass.studentIds.includes(student.id)) student.classId = klass.id
     })
@@ -3168,7 +3180,7 @@ export function useDeliveryWorkflow() {
   }
 
   const mapProviderGroups = (groups = []) => {
-    replaceReactive(providerGroups, groups.map((group) => {
+    replaceReactive(providerGroups, groups.filter((group) => String(group.category || '').toLowerCase() !== 'wecom').map((group) => {
       const providers = (group.providers || []).map(mapProvider)
       const category = String(group.category || '').toLowerCase()
       return {
@@ -3185,8 +3197,38 @@ export function useDeliveryWorkflow() {
     }))
   }
 
+  const mapWecomConfiguration = (value = null) => {
+    if (value) Object.assign(wecomConfiguration, value)
+    else Object.assign(wecomConfiguration, {
+      id: null,
+      name: '企业微信客户群',
+      corpId: '',
+      corpSecret: '',
+      apiBaseUrl: 'https://qyapi.weixin.qq.com/cgi-bin',
+      status: 'DISABLED',
+      lastTestSuccess: null,
+      lastTestCode: '',
+      lastTestMessage: '',
+      lastTestedAt: null,
+      version: 0
+    })
+    const group = {
+      id: 'wecom',
+      key: 'wecom',
+      name: '企业微信家长群配置',
+      category: 'wecom',
+      status: wecomConfiguration.id ? (wecomConfiguration.status === 'ENABLED' ? '已启用' : '未启用') : '未配置',
+      value: { providers: [], configuration: wecomConfiguration }
+    }
+    const withoutWecom = providerGroups.filter((item) => String(item.category || '').toLowerCase() !== 'wecom')
+    replaceReactive(providerGroups, [...withoutWecom, group])
+    return wecomConfiguration
+  }
+
   const mapProviderSetting = (providers = []) => {
-    const mapped = providers.map(mapProvider)
+    const mapped = providers
+      .filter((provider) => !['WECOM', 'FAKE_WECOM'].includes(String(provider.providerType || provider.type || '').toUpperCase()))
+      .map(mapProvider)
     replaceReactive(settings, [{ id: 'providers', type: 'cloudDrive', name: '第三方通道配置', status: mapped.some((item) => item.enabled) ? '已启用' : '未启用', value: { providers: mapped }, version: 0 }])
     mapProviderGroupsFromProviders(mapped)
   }
@@ -3591,9 +3633,11 @@ export function useDeliveryWorkflow() {
     if (!activeRow?.artworks?.some((artwork) => sameId(artwork.artworkId, workspace.activeArtworkId))) {
       workspace.activeArtworkId = activeRow?.artworks?.[0]?.artworkId || null
     }
-    const touchStatus = touchTasks.length && touchTasks.every((task) => ['已发送', '人工触达'].includes(task.status)) ? '已发送' : touchTasks.some((task) => task.status === '发送失败') ? '发送失败' : touchTasks.length ? '待老师确认发送' : '待创建'
+    const pendingBinding = touchTasks.filter((task) => task.status === '待绑定家长群').length
+    const pendingConfirm = touchTasks.filter((task) => task.status === '待老师确认发送').length
+    const touchStatus = pendingBinding ? '待绑定家长群' : touchTasks.length && touchTasks.every((task) => ['已发送', '人工触达'].includes(task.status)) ? '已发送' : touchTasks.some((task) => task.status === '发送失败') ? '发送失败' : pendingConfirm ? '待老师确认发送' : touchTasks.length ? '待老师确认发送' : '待创建'
     Object.assign(workspace.archiveChecklist, {
-      parentTouch: { ...workspace.archiveChecklist.parentTouch, status: touchStatus, sentCount: touchTasks.filter((task) => ['已发送', '人工触达'].includes(task.status)).length, detail: touchTasks.length ? `已创建 ${touchTasks.length} 个触达任务` : '' },
+      parentTouch: { ...workspace.archiveChecklist.parentTouch, status: touchStatus, sentCount: touchTasks.filter((task) => ['已发送', '人工触达'].includes(task.status)).length, detail: touchTasks.length ? `已创建 ${touchTasks.length} 个触达任务${pendingBinding ? `，${pendingBinding} 个待绑定家长群` : ''}` : '' },
       studentCloudArchive: { ...workspace.archiveChecklist.studentCloudArchive, status: statusForArchiveItem(cloudJobs.find((job) => job.required || ['LESSON_ASSET', 'ARCHIVE_RECORD', 'TEACHER_EFFECT'].includes(job.sourceType))?.status) },
       teacherEffectArchive: { ...workspace.archiveChecklist.teacherEffectArchive, status: statusForArchiveItem(teacherEffect.status), title: teacherEffect.title || '', imageCount: teacherEffect.sources?.length || 0, detail: teacherEffect.failureReason || '' },
       wheatTrace: { ...workspace.archiveChecklist.wheatTrace, status: wheat.status === '已人工处理' || wheat.status === '无需处理' ? wheat.status : wheat.id ? '已生成' : '待生成', traceId: wheat.id || null, detail: wheat.note || '' }
@@ -4290,6 +4334,16 @@ export function useDeliveryWorkflow() {
       directoryErrors[key] = ''
       try {
         const mapped = mapPage(await loader({ ...filters, page, pageSize }), mapper)
+        if (key === 'students' && mapped.items.length) {
+          const bindings = await api.wecom.studentGroups(mapped.items.map((item) => item.id)).catch(() => [])
+          const byStudent = new Map((Array.isArray(bindings) ? bindings : []).map((binding) => [String(binding.studentId), {
+            ...binding,
+            id: fromApiId(binding.id),
+            studentId: fromApiId(binding.studentId),
+            group: binding.group ? mapWecomGroup(binding.group) : null
+          }]))
+          mapped.items = mapped.items.map((item) => ({ ...item, wecomGroup: byStudent.get(String(item.id))?.group || null }))
+        }
         replaceReactive(pageState.items, mapped.items)
         Object.assign(pageState, { page: mapped.page, pageSize: mapped.pageSize, total: mapped.total, filters })
         return mapped
@@ -4604,14 +4658,16 @@ export function useDeliveryWorkflow() {
             break
           }
           case 'settings': {
-            const [providers, providerTypes, groups] = await Promise.all([
+            const [providers, providerTypes, groups, wecom] = await Promise.all([
               api.m5.providers({ page: 1, pageSize: 20 }),
               api.m5.providerTypes(),
-              api.m5.providerGroups()
+              api.m5.providerGroups(),
+              api.wecom.configuration().catch(() => null)
             ])
             mapProviderSetting(providers?.items || providers || [])
             Object.assign(providerCatalog, providerTypes || {})
             if (groups) mapProviderGroups(groups)
+            mapWecomConfiguration(wecom)
             break
           }
           case 'permissions': {
@@ -5700,9 +5756,32 @@ export function useDeliveryWorkflow() {
     if (sharePage.value?.status !== '已发布') {
       if (!(await remoteGenerateSharePages())) return false
     }
+    const pendingBindings = wecomEnabled.value
+      ? wecomSendTasks.filter((task) => sameId(task.lessonId, activeTask.value.id) && task.status === '待绑定家长群')
+      : []
+    if (pendingBindings.length) {
+      let unresolved = 0
+      for (const task of pendingBindings) {
+        const retried = await runRemote('正在根据新的家长群绑定重新提交...', () => api.parent.retryTouch(task.id, { version: task.version }), '')
+        if (!retried) return false
+        if (retried.status === 'PENDING_GROUP_BINDING') unresolved += 1
+      }
+      await Promise.all([
+        refreshRemoteLesson(activeTask.value.id),
+        invalidateResource('touch-tasks'),
+        invalidateResource('workbench.summary')
+      ])
+      if (unresolved) {
+        notify(`仍有 ${unresolved} 个学生未绑定可用家长群，请先在学生管理中完成绑定`)
+        return false
+      }
+      notify(`已根据新的家长群绑定重新提交 ${pendingBindings.length} 个触达任务`)
+      return true
+    }
     const channel = wecomEnabled.value ? 'WECOM' : 'MANUAL'
     const result = await runRemote('正在创建家长触达任务...', () => api.parent.touchTasks(activeTask.value.id, {
       channel,
+      message: `${activeTask.value.date || ''} ${activeCourse.value.title || '本次课程'}课后展示已发布，请查看学生作品和课评`.trim(),
       sharePageVersion: sharePage.value.publishedVersion,
       studentIds: attendingRows.value.map((row) => String(row.studentId)),
       shareUrls: Object.fromEntries(attendingRows.value.map((row) => [String(row.studentId), remoteStudentShareUrlFor(row)]))
@@ -5747,9 +5826,10 @@ export function useDeliveryWorkflow() {
 
   const remoteMarkWecomSendTask = async (task, status, reason = '') => {
     if (!task?.id) return false
-    const action = status === '已发送' ? api.parent.markSent : status === '人工触达' ? api.parent.fallbackManual : status === '已取消' ? api.parent.cancelTouch : null
+    const manualConfirm = ['已发送', '人工确认已发送'].includes(status)
+    const action = manualConfirm ? api.parent.markSent : status === '人工触达' ? api.parent.fallbackManual : status === '已取消' ? api.parent.cancelTouch : null
     if (!action) return false
-    const body = status === '已发送' ? { version: task.version } : { reason: reason.trim() || '人工操作', version: task.version }
+    const body = manualConfirm ? { version: task.version } : { reason: reason.trim() || '人工操作', version: task.version }
     const result = await runRemote('正在更新触达任务...', () => action(task.id, body))
     if (!result) return false
     await Promise.all([
@@ -6007,7 +6087,7 @@ export function useDeliveryWorkflow() {
     if (!(await remoteSaveShareDraft('归档前保存展示草稿'))) return false
     const lessonTouchTasks = wecomSendTasks.filter((item) => sameId(item.lessonId, task.id))
     const touchReady = attendingRows.value.every((row) => lessonTouchTasks.some((item) =>
-      sameId(item.studentId, row.studentId) && ['待老师确认发送', '已发送', '人工触达', '发送失败', '已跳过'].includes(item.status)
+      sameId(item.studentId, row.studentId) && ['待绑定家长群', '待老师确认发送', '已发送', '人工触达', '发送失败', '已跳过'].includes(item.status)
     ))
     if (!touchReady && !(await remotePushParentTouch())) return false
     const lessonWheat = wheatTraces.find((item) => sameId(item.lessonId, task.id))
@@ -6546,9 +6626,12 @@ export function useDeliveryWorkflow() {
   })
 
   const refreshProviderSettingsState = async () => {
-    const [providers, groups] = await Promise.all([api.m5.providers(), api.m5.providerGroups()])
+    const [providers, groups, wecom] = await Promise.all([
+      api.m5.providers(), api.m5.providerGroups(), api.wecom.configuration().catch(() => null)
+    ])
     mapProviderSetting(providers?.items || providers || [])
     if (groups) mapProviderGroups(groups)
+    mapWecomConfiguration(wecom)
     return providerGroups
   }
 
@@ -6608,6 +6691,9 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteUpdateSetting = async (settingId, payload) => {
+    if (String(payload?.category || '').toLowerCase() === 'wecom') {
+      return remoteSaveWecomConfiguration(payload.value?.configuration || wecomConfiguration)
+    }
     const providers = payload.value?.providers || []
     const isCloudSetting = String(payload.category || '').toLowerCase() === 'cloud'
     if (!providers.length && !isCloudSetting) {
@@ -6669,6 +6755,97 @@ export function useDeliveryWorkflow() {
     mapProviderSetting(latest)
     notify('当前配置已保存')
     return settings[0]
+  }
+
+  const remoteSaveWecomConfiguration = async (payload = {}) => {
+    const body = {
+      name: payload.name || '企业微信客户群',
+      corpId: payload.corpId || '',
+      corpSecret: payload.corpSecret || '',
+      apiBaseUrl: payload.apiBaseUrl || 'https://qyapi.weixin.qq.com/cgi-bin',
+      status: payload.status === 'ENABLED' || payload.enabled === true ? 'ENABLED' : 'DISABLED'
+    }
+    const saved = await runRemote('正在保存企业微信客户群配置...', () => api.wecom.saveConfiguration(body), '企业微信客户群配置已保存', () => invalidateResource('settings'))
+    if (!saved) return null
+    mapWecomConfiguration(saved)
+    return wecomConfiguration
+  }
+
+  const remoteTestWecomConfiguration = async () => {
+    const result = await runRemote('正在测试企业微信客户群权限...', () => api.wecom.testConfiguration(), '', () => invalidateResource('settings'))
+    if (!result) return null
+    wecomConfiguration.lastTestSuccess = Boolean(result.success)
+    wecomConfiguration.lastTestCode = result.code || ''
+    wecomConfiguration.lastTestMessage = result.message || ''
+    notify(result.message || (result.success ? '企业微信客户群查询正常' : '企业微信测试失败'))
+    return result
+  }
+
+  const mapWecomGroup = (value = {}) => ({
+    ...value,
+    id: fromApiId(value.id),
+    chatId: value.chatId || '',
+    name: value.name || '未命名客户群',
+    ownerUserid: value.ownerUserid || '',
+    ownerName: value.ownerName || value.ownerUserid || '未识别',
+    memberCount: Number(value.memberCount || 0),
+    status: value.status || 'STALE',
+    syncedAt: value.syncedAt || null,
+    lastEventAt: value.lastEventAt || null,
+    lastError: value.lastError || '',
+    version: Number(value.version || 0)
+  })
+
+  const remoteSyncWecomGroups = async () => {
+    const result = await runRemote('正在同步企业微信客户群...', () => api.wecom.syncCustomerGroups(), '', null)
+    if (!result) return null
+    replaceReactive(wecomGroups, (result.groups || []).map(mapWecomGroup))
+    return wecomGroups
+  }
+
+  const remoteLoadWecomGroups = async (params = {}) => {
+    const result = await runRemote('正在读取企业微信客户群...', () => api.wecom.customerGroups(params), '', null)
+    if (!result) return []
+    const mapped = (Array.isArray(result) ? result : result.items || []).map(mapWecomGroup)
+    replaceReactive(wecomGroups, mapped)
+    return mapped
+  }
+
+  const remoteLoadStudentWecomGroup = async (studentId) => {
+    if (!studentId) return null
+    try {
+      const result = await api.wecom.studentGroup(studentId)
+      const mapped = result ? {
+        ...result,
+        id: fromApiId(result.id),
+        studentId: fromApiId(result.studentId),
+        group: result.group ? mapWecomGroup(result.group) : null
+      } : null
+      const student = students.find((item) => sameId(item.id, studentId))
+      if (student) student.wecomGroup = mapped?.group || null
+      return mapped
+    } catch (error) {
+      notify(remoteErrorMessage(error, '学生家长群信息加载失败'))
+      return null
+    }
+  }
+
+  const remoteBindStudentWecomGroup = async (studentId, groupId) => {
+    const result = await runRemote('正在绑定学生家长群...', () => api.wecom.bindStudentGroup(studentId, { groupId: String(groupId) }), '学生家长群已绑定', () => remoteLoadStudentWecomGroup(studentId))
+    if (!result) return null
+    const mapped = { ...result, id: fromApiId(result.id), studentId: fromApiId(result.studentId), group: result.group ? mapWecomGroup(result.group) : null }
+    const student = students.find((item) => sameId(item.id, studentId))
+    if (student) student.wecomGroup = mapped.group
+    return mapped
+  }
+
+  const remoteUnbindStudentWecomGroup = async (studentId) => {
+    const ok = await runRemoteVoid('正在解除学生家长群绑定...', () => api.wecom.unbindStudentGroup(studentId), '学生家长群绑定已解除', () => remoteLoadStudentWecomGroup(studentId))
+    if (ok) {
+      const student = students.find((item) => sameId(item.id, studentId))
+      if (student) student.wecomGroup = null
+    }
+    return ok
   }
 
   const remoteTestProvider = async (provider) => {
@@ -7077,6 +7254,8 @@ export function useDeliveryWorkflow() {
     importPreviewRows,
     settings,
     providerGroups,
+    wecomConfiguration,
+    wecomGroups,
     providerTypeOptions,
     providerTypeCatalog,
     permissionCatalog,
@@ -7170,6 +7349,7 @@ export function useDeliveryWorkflow() {
     archiveChecklistReady,
     archiveChecklistPending,
     isArchiveDone,
+    isArchiveRecorded,
     isArchiveWorking,
     wecomSendTasks,
     wecomEnabled,
@@ -7302,6 +7482,13 @@ export function useDeliveryWorkflow() {
     applyImportRows: remoteApplyImportRows,
     loadCommunicationRecords: remoteLoadCommunicationRecords,
     updateSetting: remoteUpdateSetting,
+    saveWecomConfiguration: remoteSaveWecomConfiguration,
+    testWecomConfiguration: remoteTestWecomConfiguration,
+    syncWecomGroups: remoteSyncWecomGroups,
+    loadWecomGroups: remoteLoadWecomGroups,
+    loadStudentWecomGroup: remoteLoadStudentWecomGroup,
+    bindStudentWecomGroup: remoteBindStudentWecomGroup,
+    unbindStudentWecomGroup: remoteUnbindStudentWecomGroup,
     createBaiduProvider: remoteCreateBaiduProvider,
     updateBaiduProvider: remoteUpdateBaiduProvider,
     disableProvider: remoteDisableProvider,

@@ -215,6 +215,11 @@ export function useDeliveryWorkflow() {
   const identityLoading = reactive({ users: false, roles: false, permissions: false, memberships: false })
   const identityLoaded = reactive({ users: false, roles: false, permissions: false })
   const identityErrors = reactive({ users: '', roles: '', permissions: '', memberships: '' })
+  const campusLoading = ref(false)
+  const campusLoaded = ref(false)
+  const campusError = ref('')
+  let campusLoadPromise = null
+  let campusRequestGeneration = 0
   const statusChangeLogs = reactive([])
   const archiveEditLogs = reactive([])
   const wecomSendTasks = reactive([])
@@ -550,13 +555,16 @@ export function useDeliveryWorkflow() {
       imports: ['import.create', 'import.preview', 'import.confirm'],
       schedule: ['lesson.read'],
       templates: ['lesson.read'],
+      campuses: ['masterdata.read'],
       accountManagement: ['identity.user.manage'],
       roleManagement: ['identity.role.manage'],
       permissionResources: ['identity.role.manage'],
       settings: ['identity.user.manage', 'configuration.provider.read', 'configuration.manage']
     }
     return Object.entries(requiredPermissions)
-      .filter(([, keys]) => !can(...keys))
+      .filter(([navId, keys]) => navId === 'campuses'
+        ? !permissions.has('masterdata.read')
+        : !can(...keys))
       .map(([navId]) => navId)
   })
   const activeTask = computed(() => {
@@ -2845,6 +2853,32 @@ export function useDeliveryWorkflow() {
     ? values.filter((value) => value !== null && value !== undefined && value !== '').map(String)
     : [])
 
+  const loadCampuses = async ({ force = false } = {}) => {
+    if (campusLoadPromise) return campusLoadPromise
+    if (campusLoaded.value && !force) return campuses
+    campusLoading.value = true
+    campusError.value = ''
+    const requestGeneration = campusRequestGeneration
+    campusLoadPromise = loadAllPageItems(api.master.campuses, mapCampus, {}, 200)
+      .then((result) => {
+        if (requestGeneration !== campusRequestGeneration) return campuses
+        replaceReactive(campuses, result.items)
+        campusLoaded.value = true
+        return campuses
+      })
+      .catch((error) => {
+        if (requestGeneration !== campusRequestGeneration) return null
+        campusError.value = remoteErrorMessage(error, '校区列表加载失败')
+        return null
+      })
+      .finally(() => {
+        if (requestGeneration !== campusRequestGeneration) return
+        campusLoading.value = false
+        campusLoadPromise = null
+      })
+    return campusLoadPromise
+  }
+
   const loadIdentityPermissions = async ({ force = false } = {}) => {
     if (identityLoading.permissions) return identityPermissions
     if (identityLoaded.permissions && !force) return identityPermissions
@@ -2989,6 +3023,40 @@ export function useDeliveryWorkflow() {
     if (!outcome.ok) return false
     await refreshIdentityUsers()
     return true
+  }
+
+  const remoteCreateCampus = async (payload = {}) => {
+    const refreshAfterConflict = async () => {
+      await loadCampuses({ force: true })
+      return null
+    }
+    const result = await runRemote('正在创建校区...', () => api.master.createCampus({
+      code: String(payload.code || '').trim(),
+      name: String(payload.name || '').trim(),
+      address: String(payload.address || '').trim() || undefined,
+      contactPhone: String(payload.contactPhone || '').trim() || undefined
+    }), '校区已创建', refreshAfterConflict)
+    if (!result) return null
+    await loadCampuses({ force: true })
+    return mapCampus(result)
+  }
+
+  const remoteUpdateCampus = async (campusId, payload = {}) => {
+    const current = campuses.find((campus) => sameId(campus.id, campusId))
+    const refreshAfterConflict = async () => {
+      await loadCampuses({ force: true })
+      return null
+    }
+    const result = await runRemote('正在保存校区...', () => api.master.updateCampus(campusId, {
+      name: String(payload.name ?? current?.name ?? '').trim(),
+      address: String(payload.address ?? current?.address ?? '').trim() || undefined,
+      contactPhone: String(payload.contactPhone ?? current?.contactPhone ?? '').trim() || undefined,
+      status: payload.status || current?.status || 'ENABLED',
+      version: Number(payload.version ?? current?.version ?? 0)
+    }), '校区已保存', refreshAfterConflict)
+    if (!result) return null
+    await loadCampuses({ force: true })
+    return mapCampus(result)
   }
 
   const remoteCreateIdentityRole = async (payload = {}) => {
@@ -4686,6 +4754,7 @@ export function useDeliveryWorkflow() {
           }
           case 'extraTasks': await loadDirectoryPage('extraTasks', { page: 1, pageSize: 20 }); break
           case 'templates': await loadTemplates({ force }); break
+          case 'campuses': await loadCampuses({ force }); break
           case 'production': {
             const [archivePage, , studentData, classData] = await Promise.all([
               api.archive.records({ page: 1, pageSize: 20 }),
@@ -4830,6 +4899,7 @@ export function useDeliveryWorkflow() {
     replaceReactive(terms)
     replaceReactive(supervisionDashboard)
     replaceReactive(permissionCatalog)
+    replaceReactive(campuses)
     replaceReactive(identityUsers)
     replaceReactive(identityRoles)
     replaceReactive(identityPermissions)
@@ -4841,6 +4911,11 @@ export function useDeliveryWorkflow() {
     identityUserStatus.value = ''
     Object.assign(identityLoaded, { users: false, roles: false, permissions: false })
     Object.assign(identityErrors, { users: '', roles: '', permissions: '', memberships: '' })
+    campusLoading.value = false
+    campusLoaded.value = false
+    campusError.value = ''
+    campusRequestGeneration += 1
+    campusLoadPromise = null
     replaceReactive(studentProfileFields)
     replaceReactive(wecomSendTasks)
     Object.keys(studentProfiles).forEach((key) => delete studentProfiles[key])
@@ -7256,6 +7331,9 @@ export function useDeliveryWorkflow() {
     ...portfolioStudio,
     school,
     campuses,
+    campusLoading,
+    campusLoaded,
+    campusError,
     artworkLibrary,
     teachers,
     students,
@@ -7526,6 +7604,9 @@ export function useDeliveryWorkflow() {
     loadIdentityRoles,
     loadIdentityPermissions,
     loadIdentityMemberships,
+    loadCampuses,
+    createCampus: remoteCreateCampus,
+    updateCampus: remoteUpdateCampus,
     createIdentityUser: remoteCreateIdentityUser,
     updateIdentityUser: remoteUpdateIdentityUser,
     resetIdentityPassword: remoteResetIdentityPassword,

@@ -7,6 +7,7 @@ import UserMenu from '../components/layout/UserMenu.vue'
 import { navGroups } from '../data/navigation'
 import ArchiveQueryView from './ArchiveQueryView.vue'
 import AccountManagementView from './AccountManagementView.vue'
+import CampusManagementView from './CampusManagementView.vue'
 import ImportCenterView from './ImportCenterView.vue'
 import ExtraTasksView from './ExtraTasksView.vue'
 import MasterDataView from './MasterDataView.vue'
@@ -77,7 +78,7 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['schedule', 'tasks', 'supervision', 'production', 'archives', 'teachers', 'students', 'classes', 'courses', 'externalLinks', 'extraTasks', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
+const navIdsWithLocalBack = new Set(['schedule', 'tasks', 'supervision', 'production', 'archives', 'teachers', 'students', 'classes', 'courses', 'externalLinks', 'extraTasks', 'campuses', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || routeMode.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
 const mobileGroupEntries = computed(() =>
@@ -296,6 +297,8 @@ watch([() => route.name, () => route.params.lessonId, () => state.isLoggedIn], (
       <MasterDataView v-if="showActivePage && activeNav === 'courses'" :state="state" entity="courses" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ImportCenterView v-if="showActivePage && activeNav === 'imports'" :state="state" :initial-type="activeImportType" @open-schedule="openNav('schedule')" />
+
+      <CampusManagementView v-if="showActivePage && activeNav === 'campuses'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <MasterDataView v-if="showActivePage && activeNav === 'externalLinks'" :state="state" entity="externalLinks" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 

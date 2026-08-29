@@ -41,6 +41,7 @@ export const navGroups = [
     mark: '配',
     items: [
       { id: 'imports', label: '数据导入', mark: '导' },
+      { id: 'campuses', label: '校区管理', mark: '区' },
       { id: 'templates', label: '模板配置', mark: '配' },
       { id: 'accountManagement', label: '账号管理', mark: '账' },
       { id: 'roleManagement', label: '角色管理', mark: '角' },

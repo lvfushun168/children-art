@@ -14,6 +14,7 @@ test('keeps every visible workspace navigation item on a stable route', () => {
   assert.equal(HOME_ROUTE_PATH, '/workspace/artist/library')
   assert.equal(groupPathFor('basic'), GROUP_ROUTE_PATHS.basic)
   assert.equal(navPathFor('students'), '/workspace/basic/students')
+  assert.equal(navPathFor('campuses'), '/workspace/operations/campuses')
   assert.equal(navPathFor('accountManagement'), '/workspace/operations/account-management')
   assert.equal(navPathFor('missing'), HOME_ROUTE_PATH)
 })

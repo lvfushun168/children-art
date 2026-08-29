@@ -548,6 +548,23 @@ test('defaults paged requests to twenty rows and repeats wheat status filters', 
   assert.deepEqual(jobsUrl.searchParams.getAll('ids'), ['job-1', 'job-2'])
 })
 
+test('exposes organization campus list and campus maintenance endpoints', async () => {
+  const received = []
+  globalThis.fetch = async (url, options) => {
+    received.push({ url, options })
+    return response(200, { data: { items: [], page: 1, pageSize: 200, total: 0 }, meta: {}, error: null })
+  }
+
+  await api.master.campuses({ page: 1, pageSize: 200 })
+  await api.master.createCampus({ code: 'branch', name: '分校区' })
+  await api.master.updateCampus('2', { name: '分校区', status: 'DISABLED', version: 0 })
+
+  assert.match(received[0].url, /\/campuses\?page=1&pageSize=200$/)
+  assert.deepEqual(JSON.parse(received[1].options.body), { code: 'branch', name: '分校区' })
+  assert.match(received[2].url, /\/campuses\/2$/)
+  assert.equal(received[2].options.method, 'PATCH')
+})
+
 test('observes duplicate GETs and sends batch workflow request bodies', async () => {
   resetApiRequestStats()
   const events = []

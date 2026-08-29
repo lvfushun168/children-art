@@ -8356,6 +8356,33 @@ textarea:focus,
   font-size: 13px;
 }
 
+.identity-readonly-field {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.identity-readonly-field > span {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.campus-management-table {
+  min-width: 780px;
+}
+
+.campus-management-table td:first-child {
+  min-width: 160px;
+}
+
+.campus-management-table td:last-child {
+  width: 90px;
+  text-align: right;
+}
+
 .identity-form textarea {
   resize: vertical;
 }

@@ -69,3 +69,27 @@ test('login request contains credentials but no client-selected role', async () 
   assert.equal(auth.me.roles.length, 2)
   assert.deepEqual(auth.me.permissions, ['identity.role.manage', 'lesson.read'])
 })
+
+test('keeps account campus relationships on the existing campusIds protocol', async () => {
+  const received = []
+  globalThis.fetch = async (url, options) => {
+    received.push({ url, options })
+    return response(200, { data: null, meta: {}, error: null })
+  }
+
+  await api.auth.createUser({
+    phone: '13800000000',
+    displayName: '新老师',
+    password: 'secret',
+    roleIds: ['5'],
+    campusIds: ['2']
+  })
+  await api.auth.replaceMemberships('11', {
+    version: 0,
+    campusIds: ['2']
+  })
+
+  assert.deepEqual(JSON.parse(received[0].options.body).campusIds, ['2'])
+  assert.deepEqual(JSON.parse(received[1].options.body), { version: 0, campusIds: ['2'] })
+  assert.match(received[1].url, /\/users\/11\/campus-memberships$/)
+})

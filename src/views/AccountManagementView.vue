@@ -27,7 +27,7 @@ const selectedUser = ref(null)
 const userForm = ref(null)
 const passwordForm = ref({ password: '' })
 const selectedRoleIds = ref([])
-const selectedCampusIds = ref([])
+const selectedCampusId = ref('')
 const membershipLoading = ref(false)
 
 const roleOptions = computed(() => (props.state.identityRoles || [])
@@ -35,13 +35,18 @@ const roleOptions = computed(() => (props.state.identityRoles || [])
   .map((role) => ({ value: role.id, label: role.name, description: role.description || role.roleKey })))
 
 const campusOptions = computed(() => (props.state.campuses || [])
-  .filter((campus) => campus.status !== 'DISABLED')
+  .filter((campus) => campus.status === 'ENABLED')
   .map((campus) => ({ value: campus.id, label: campus.name, description: campus.code })))
 
 const totalPages = computed(() => Math.max(1, Math.ceil(Number(props.state.identityUserPage?.total || 0) / pageSize)))
 const isEditing = computed(() => Boolean(userForm.value?.id))
 const canAssignRoles = computed(() => Boolean(props.state.canManageIdentityRoles))
 const canManageMemberships = computed(() => Boolean(props.state.canManageIdentityMemberships))
+const isCurrentUser = computed(() => sameId(selectedUser.value?.id, props.state.currentUser?.id))
+const selectedUserCampusName = computed(() => {
+  const campusId = userForm.value?.campusIds?.[0]
+  return props.state.campuses?.find((campus) => sameId(campus.id, campusId))?.name || '未配置校区'
+})
 
 const blankUser = () => ({
   id: null,
@@ -66,6 +71,7 @@ const loadUsers = async (page = 1) => {
 
 const loadPage = async () => {
   await Promise.all([
+    props.state.loadCampuses(),
     props.state.loadIdentityRoles(),
     loadUsers(1)
   ])
@@ -95,7 +101,7 @@ const openUserForm = (user = null) => {
     userForm.value = {
       ...blankUser(),
       roleIds: teacherRole ? [teacherRole.id] : [],
-      campusIds: props.state.campuses?.[0]?.id ? [props.state.campuses[0].id] : []
+      campusIds: []
     }
   }
   drawer.value = 'user'
@@ -109,11 +115,11 @@ const openRoleDrawer = (user) => {
 
 const openMembershipDrawer = async (user) => {
   selectedUser.value = user
-  selectedCampusIds.value = user.campuses?.map((campus) => campus.id) || []
+  selectedCampusId.value = user.campuses?.[0]?.id || ''
   drawer.value = 'memberships'
   membershipLoading.value = true
   const memberships = await props.state.loadIdentityMemberships(user.id)
-  if (memberships) selectedCampusIds.value = memberships.map((membership) => membership.campusId)
+  if (memberships) selectedCampusId.value = memberships[0]?.campusId || ''
   membershipLoading.value = false
 }
 
@@ -139,6 +145,10 @@ const saveUser = async () => {
     props.state.notify('请设置初始密码')
     return
   }
+  if (!isEditing.value && userForm.value.campusIds?.length !== 1) {
+    props.state.notify('请选择一个启用校区')
+    return
+  }
   const result = isEditing.value
     ? await props.state.updateIdentityUser(userForm.value.id, userForm.value)
     : await props.state.createIdentityUser(userForm.value)
@@ -159,14 +169,14 @@ const saveRoles = async () => {
 }
 
 const saveMemberships = async () => {
-  if (!selectedUser.value || !selectedCampusIds.value.length) {
-    props.state.notify('账号至少需要绑定一个启用校区')
+  if (!selectedUser.value || !selectedCampusId.value) {
+    props.state.notify('请选择一个启用校区')
     return
   }
   const success = await props.state.replaceIdentityUserMemberships(
     selectedUser.value.id,
     selectedUser.value.version,
-    selectedCampusIds.value
+    [selectedCampusId.value]
   )
   if (success) closeDrawer()
 }
@@ -237,7 +247,7 @@ onMounted(loadPage)
               <strong>{{ roleNamesFor(user) }}</strong>
             </div>
             <div>
-              <span>可访问校区</span>
+              <span>所属校区</span>
               <strong>{{ campusNamesFor(user) }}</strong>
             </div>
             <div>
@@ -282,7 +292,11 @@ onMounted(loadPage)
         <label v-if="!isEditing"><span>初始密码</span><input v-model="userForm.password" type="password" minlength="6" required /></label>
         <label v-if="isEditing"><span>账号状态</span><AdaptiveSelect v-model="userForm.status" :options="identityStatusOptions" /></label>
         <label><span>角色</span><AdaptiveMultiSelect v-model="userForm.roleIds" :options="roleOptions" placeholder="请选择角色" :disabled="!canAssignRoles" /></label>
-        <label><span>可访问校区</span><AdaptiveMultiSelect v-model="userForm.campusIds" :options="campusOptions" placeholder="请选择校区" /></label>
+        <label v-if="!isEditing"><span>所属校区</span><AdaptiveSelect :model-value="userForm.campusIds[0] || ''" :options="campusOptions" placeholder="请选择校区" @update:model-value="userForm.campusIds = $event ? [$event] : []" /></label>
+        <div v-else class="identity-readonly-field">
+          <span>所属校区</span>
+          <strong>{{ selectedUserCampusName }}</strong>
+        </div>
         <div class="drawer-actions">
           <button class="ghost" type="button" @click="closeDrawer">取消</button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">保存</button>
@@ -299,17 +313,14 @@ onMounted(loadPage)
       </form>
 
       <form v-else-if="drawer === 'memberships'" class="identity-form" @submit.prevent="saveMemberships">
-        <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>可访问校区</span></div>
+        <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>所属校区</span></div>
         <div v-if="membershipLoading" class="identity-empty">正在读取数据范围...</div>
         <div v-else class="identity-check-grid">
-          <label v-for="campus in campusOptions" :key="campus.value" class="identity-check">
-            <input v-model="selectedCampusIds" type="checkbox" :value="campus.value" />
-            <span>{{ campus.label }}</span>
-          </label>
+          <AdaptiveSelect v-model="selectedCampusId" :options="campusOptions" placeholder="请选择校区" :disabled="isCurrentUser" />
         </div>
         <div class="drawer-actions">
           <button class="ghost" type="button" @click="closeDrawer">取消</button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction) || membershipLoading">保存范围</button>
+          <button class="primary" type="submit" :disabled="Boolean(state.processingAction) || membershipLoading || isCurrentUser">保存范围</button>
         </div>
       </form>
 

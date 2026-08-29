@@ -38,7 +38,7 @@ const submitLogin = async () => {
           <span class="brand-mark">课</span>
           <div>
             <strong>课后交付系统</strong>
-            <small>梦地美术 · 大学城校区</small>
+            <small>梦地美术</small>
           </div>
         </div>
       </header>

@@ -322,6 +322,20 @@ test('creates a temporary lesson with an explicit date and time range', async ()
   assert.equal(received.headers['Idempotency-Key'], 'lesson-create-test')
 })
 
+test('deletes a lesson with its version as a query parameter', async () => {
+  let received
+  globalThis.fetch = async (url, options) => {
+    received = { url, options }
+    return response(200, { data: null, meta: {}, error: null })
+  }
+
+  const result = await api.lessons.remove(12, 7)
+
+  assert.equal(result, null)
+  assert.equal(received.url, '/api/v1/lessons/12?version=7')
+  assert.equal(received.options.method, 'DELETE')
+})
+
 test('serializes feedback generation template IDs as strings at the API boundary', async () => {
   const calls = []
   globalThis.fetch = async (url, options) => {

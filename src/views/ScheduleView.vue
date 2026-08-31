@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import ClassLessonGenerationDialog from '../components/masterdata/ClassLessonGenerationDialog.vue'
 import ScheduleCalendar from '../components/schedule/ScheduleCalendar.vue'
+import LessonActionDrawer from '../components/schedule/LessonActionDrawer.vue'
+import LessonEditorDrawer from '../components/schedule/LessonEditorDrawer.vue'
 import {
   endOfMonthValue,
   endOfWeekValue,
@@ -29,6 +31,9 @@ const teacherId = ref('all')
 const classId = ref('all')
 const ready = ref(false)
 const showGenerationDialog = ref(false)
+const selectedLesson = ref(null)
+const showLessonActions = ref(false)
+const showLessonEditor = ref(false)
 const rangeOptions = [
   { value: 'today', label: '今天' },
   { value: 'week', label: '本周' },
@@ -66,6 +71,10 @@ const classOptions = computed(() => (props.state.classes || [])
 const canGenerateLessons = computed(() => {
   const read = (value) => value?.value ?? value
   return read(props.state.canEditMasterData) !== false && read(props.state.canEditLessons) !== false
+})
+const canEditLessons = computed(() => {
+  const read = (value) => value?.value ?? value
+  return read(props.state.canEditLessons) !== false
 })
 const closeGenerationDialog = (result) => {
   showGenerationDialog.value = false
@@ -114,7 +123,63 @@ const navigateRange = (direction) => {
   dateTo.value = next.dateTo
 }
 
-const openLesson = (lesson) => emit('open-task', lesson)
+const selectLesson = (lesson) => {
+  if (!lesson?.id) return
+  selectedLesson.value = lesson
+  showLessonEditor.value = false
+  showLessonActions.value = true
+}
+
+const closeLessonActions = () => {
+  showLessonActions.value = false
+  if (!showLessonEditor.value) selectedLesson.value = null
+}
+
+const enterLesson = () => {
+  if (!selectedLesson.value) return
+  const lesson = selectedLesson.value
+  showLessonActions.value = false
+  selectedLesson.value = null
+  emit('open-task', lesson)
+}
+
+const editLesson = () => {
+  if (!selectedLesson.value || !canEditLessons.value) return
+  showLessonActions.value = false
+  showLessonEditor.value = true
+}
+
+const closeLessonEditor = () => {
+  showLessonEditor.value = false
+  selectedLesson.value = null
+}
+
+const saveLesson = async (payload) => {
+  const lesson = selectedLesson.value
+  if (!lesson || typeof props.state.updateLesson !== 'function') {
+    props.state.notify?.('当前页面暂不支持编辑课次')
+    return
+  }
+  const updated = await props.state.updateLesson(lesson.id, payload)
+  if (!updated) return
+  selectedLesson.value = { ...lesson, ...updated }
+  showLessonEditor.value = false
+  showLessonActions.value = true
+  await reload()
+}
+
+const deleteLesson = async () => {
+  const lesson = selectedLesson.value
+  if (!lesson || !canEditLessons.value || ['已完成', 'COMPLETED'].includes(lesson.status)) return
+  const confirmed = window.confirm('删除后该课次及出勤记录将永久移除，确定删除吗？')
+  if (!confirmed || typeof props.state.deleteLesson !== 'function') return
+  const deleted = await props.state.deleteLesson(lesson.id, lesson.version)
+  if (!deleted) return
+  showLessonActions.value = false
+  showLessonEditor.value = false
+  selectedLesson.value = null
+  await reload()
+}
 
 watch([dateFrom, dateTo, teacherId, classId], () => {
   if (!ready.value) return
@@ -187,11 +252,30 @@ onMounted(async () => {
           :date-to="dateTo"
           :mode="calendarMode"
           :today="todayValue"
-          @open-lesson="openLesson"
+          @select-lesson="selectLesson"
         />
       </div>
     </section>
   </div>
+  <LessonActionDrawer
+    v-if="showLessonActions"
+    :lesson="selectedLesson"
+    :can-edit="canEditLessons"
+    :busy="Boolean(state.processingAction)"
+    @close="closeLessonActions"
+    @enter="enterLesson"
+    @edit="editLesson"
+    @delete="deleteLesson"
+  />
+  <LessonEditorDrawer
+    v-if="showLessonEditor"
+    :lesson="selectedLesson"
+    :teachers="state.teachers || []"
+    :courses="state.courses || []"
+    :saving="Boolean(state.processingAction)"
+    @close="closeLessonEditor"
+    @save="saveLesson"
+  />
   <ClassLessonGenerationDialog
     v-if="showGenerationDialog"
     :state="state"

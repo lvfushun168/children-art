@@ -24,7 +24,7 @@ const props = defineProps({
   today: { type: String, default: '' }
 })
 
-const emit = defineEmits(['open-lesson', 'select-date'])
+const emit = defineEmits(['select-lesson', 'select-date'])
 
 const selectedDate = ref('')
 const expandedDate = ref('')
@@ -91,7 +91,7 @@ const chooseDate = (dateValue) => {
   emit('select-date', dateValue)
 }
 
-const openLesson = (lesson) => emit('open-lesson', lesson)
+const selectLesson = (lesson) => emit('select-lesson', lesson)
 
 const summaryFor = (dateValue, limit = 3) => summarizeLessons(lessonsByDate.value.get(dateValue) || [], limit)
 
@@ -142,7 +142,7 @@ const lessonTeacher = (lesson) => lesson?.teacher || '未配置老师'
 const lessonCourse = (lesson) => lesson?.courseTitle || lesson?.course || '未配置课程类别'
 const lessonStatus = (lesson) => lesson?.status || '待处理'
 const lessonSource = (lesson) => sourceLabels[lesson?.sourceType] || lesson?.sourceType || '未标记来源'
-const lessonAriaLabel = (lesson) => `${lessonTime(lesson)}，${lessonClassName(lesson)}，${lessonStatus(lesson)}，处理本节课`
+const lessonAriaLabel = (lesson) => `${lessonTime(lesson)}，${lessonClassName(lesson)}，${lessonStatus(lesson)}，查看本节课操作`
 
 const lessonDetails = (lesson) => [
   `老师：${lessonTeacher(lesson)}`,
@@ -174,7 +174,7 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
       <template v-if="mode === 'month'">
         <div class="schedule-month-title">
           <strong>{{ monthLabel }}</strong>
-          <small>点击课次进入处理，点击日期查看当天全部课次</small>
+          <small>点击课次查看详情，点击日期查看当天全部课次</small>
         </div>
         <div class="schedule-weekday-grid" aria-hidden="true">
           <span v-for="weekday in weekdayLabels" :key="weekday">周{{ weekday }}</span>
@@ -211,7 +211,8 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
                 type="button"
                 :aria-label="lessonAriaLabel(lesson)"
                 :title="lessonDetails(lesson)"
-                @click.stop="openLesson(lesson)"
+                @contextmenu.prevent.stop="selectLesson(lesson)"
+                @click.stop="selectLesson(lesson)"
               >
                 <span class="schedule-event-dot" :class="statusClass(lessonStatus(lesson))" aria-hidden="true"></span>
                 <span>{{ lesson.time || '待定' }}</span>
@@ -246,7 +247,8 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
               class="schedule-lesson-card"
               type="button"
               :aria-label="lessonAriaLabel(lesson)"
-              @click="openLesson(lesson)"
+              @contextmenu.prevent.stop="selectLesson(lesson)"
+              @click="selectLesson(lesson)"
             >
               <span class="schedule-lesson-card-time">{{ lessonTime(lesson) }}</span>
               <span class="schedule-lesson-card-main">
@@ -266,7 +268,7 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
       <template v-else>
         <div class="schedule-timeline-title">
           <strong>{{ mode === 'day' ? parseDateLabel(dateFrom) : `${parseDateLabel(dateFrom, false)} - ${parseDateLabel(dateTo, false)}` }}</strong>
-          <small>点击课次进入处理，悬停或聚焦查看详细信息</small>
+          <small>点击课次查看详情，悬停或聚焦查看详细信息</small>
         </div>
         <div class="schedule-timeline-scroll">
           <div class="schedule-timeline-head" :style="{ '--timeline-columns': timelineColumns.length }">
@@ -285,22 +287,27 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
             </div>
             <div v-for="day in timelineColumns" :key="day.dateValue" class="schedule-timeline-day" :class="{ 'is-today': isToday(day.dateValue), 'is-selected': isSelected(day.dateValue) }" @click="chooseDate(day.dateValue)">
               <span v-for="tick in timeTicks" :key="`${day.dateValue}-${tick.minutes}`" class="schedule-time-grid-line" :style="{ top: `${tick.topPercent}%` }" aria-hidden="true"></span>
-              <button
+              <div
                 v-for="event in day.layout.positioned"
                 :key="event.lesson.id"
-                class="schedule-timeline-event"
-                :class="{ 'has-missing-end': !event.hasValidEnd, 'has-invalid-end': event.hasInvalidEnd }"
+                class="schedule-timeline-event-shell"
                 :style="eventStyle(event)"
-                type="button"
+              >
+                <button
+                  class="schedule-timeline-event"
+                  :class="{ 'has-missing-end': !event.hasValidEnd, 'has-invalid-end': event.hasInvalidEnd }"
+                  type="button"
                   :aria-label="lessonAriaLabel(event.lesson)"
                   :title="lessonDetails(event.lesson)"
-                @click.stop="openLesson(event.lesson)"
-              >
-                <span class="schedule-event-dot" :class="statusClass(lessonStatus(event.lesson))" aria-hidden="true"></span>
-                <strong>{{ lessonClassName(event.lesson) }}</strong>
-                <small>{{ lessonTime(event.lesson) }}</small>
-                <span class="schedule-event-popover" role="tooltip">{{ lessonDetails(event.lesson) }}</span>
-              </button>
+                  @contextmenu.prevent.stop="selectLesson(event.lesson)"
+                  @click.stop="selectLesson(event.lesson)"
+                >
+                  <span class="schedule-event-dot" :class="statusClass(lessonStatus(event.lesson))" aria-hidden="true"></span>
+                  <strong>{{ lessonClassName(event.lesson) }}</strong>
+                  <small>{{ lessonTime(event.lesson) }}</small>
+                  <span class="schedule-event-popover" role="tooltip">{{ lessonDetails(event.lesson) }}</span>
+                </button>
+              </div>
               <div v-if="day.layout.invalid.length" class="schedule-timeline-invalid-list">
                 <button
                   v-for="item in day.layout.invalid"
@@ -308,7 +315,8 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
                   class="schedule-timeline-invalid"
                   type="button"
                   :aria-label="lessonAriaLabel(item.lesson)"
-                  @click.stop="openLesson(item.lesson)"
+                  @contextmenu.prevent.stop="selectLesson(item.lesson)"
+                  @click.stop="selectLesson(item.lesson)"
                 >
                   <strong>{{ lessonClassName(item.lesson) }}</strong>
                   <small>{{ lessonTime(item.lesson) }} · {{ lessonStatus(item.lesson) }}</small>
@@ -379,7 +387,8 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
             class="schedule-lesson-card"
             type="button"
             :aria-label="lessonAriaLabel(lesson)"
-            @click="openLesson(lesson)"
+            @contextmenu.prevent.stop="selectLesson(lesson)"
+            @click="selectLesson(lesson)"
           >
             <span class="schedule-lesson-card-time">{{ lessonTime(lesson) }}</span>
             <span class="schedule-lesson-card-main">
@@ -858,7 +867,9 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
 }
 
 .schedule-timeline-event {
-  position: absolute;
+  position: relative;
+  width: 100%;
+  height: 100%;
   z-index: 2;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -875,6 +886,14 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
   color: var(--color-heading);
   text-align: left;
   cursor: pointer;
+}
+
+.schedule-timeline-event-shell {
+  position: absolute;
+  z-index: 2;
+  min-width: 0;
+  min-height: 36px;
+  overflow: visible;
 }
 
 .schedule-timeline-event strong,

@@ -6494,6 +6494,84 @@ export function useDeliveryWorkflow() {
     return lesson
   }
 
+  const remoteUpdateLesson = async (lessonId, payload = {}) => {
+    const current = lessonForInboxId(lessonId)
+    if (!current?.id) {
+      notify('未找到要编辑的课次，请刷新课表后重试')
+      return null
+    }
+    const result = await runRemote('正在保存课次...', () => api.lessons.update(current.id, {
+      teacherId: payload.teacherId ? String(payload.teacherId) : String(current.teacherId),
+      courseId: payload.courseId ? String(payload.courseId) : String(current.courseId),
+      dateValue: payload.dateValue || current.dateValue,
+      startTime: String(payload.startTime || current.startTime || current.time || '').slice(0, 5),
+      endTime: payload.endTime ? String(payload.endTime).slice(0, 5) : undefined,
+      lessonType: toApiLessonType(payload.lessonType || current.lessonType || '其他'),
+      topic: typeof payload.topic === 'string' ? payload.topic.trim() || undefined : current.topic || undefined,
+      version: Number(payload.version ?? current.version ?? 0)
+    }), '课次已保存', () => Promise.all([
+      invalidateResource('lessons.today'),
+      invalidateResource('lessons.schedule'),
+      invalidateResource('inbox-lessons')
+    ]))
+    if (!result) return null
+    const lesson = mergeLessonRecord(result)
+    await Promise.all([
+      invalidateResource('lessons.today'),
+      invalidateResource('lessons.schedule'),
+      invalidateResource('inbox-lessons'),
+      invalidateResource('workbench.summary')
+    ])
+    return lesson
+  }
+
+  const remoteDeleteLesson = async (lessonId, version) => {
+    const current = lessonForInboxId(lessonId)
+    if (!current?.id) {
+      notify('未找到要删除的课次，请刷新课表后重试')
+      return false
+    }
+    const key = String(current.id)
+    const deleted = await runRemoteVoid('正在删除课次...',
+      () => api.lessons.remove(current.id, Number(version ?? current.version ?? 0)),
+      '课次已删除',
+      () => Promise.all([
+        invalidateResource('lessons.today'),
+        invalidateResource('lessons.schedule'),
+        invalidateResource('inbox-lessons')
+      ]))
+    if (!deleted) return false
+
+    ;[tasks, inboxLessons, scheduleLessons].forEach((collection) => {
+      for (let index = collection.length - 1; index >= 0; index -= 1) {
+        if (sameId(collection[index]?.id, current.id)) collection.splice(index, 1)
+      }
+    })
+    lessonWorkspaceControllers.get(key)?.abort()
+    lessonWorkspaceControllers.delete(key)
+    lessonWorkspacePromises.delete(key)
+    lessonWorkspaceEpochs.delete(key)
+    lessonWorkspaceLoaded.delete(key)
+    lessonStartPromises.delete(key)
+    shareDraftSaveChains.delete(key)
+    delete lessonWorkspaces[key]
+    if (sameId(activeTaskId.value, current.id)) {
+      activeTaskId.value = null
+      selectedTaskSnapshot.value = null
+    }
+    await Promise.all([
+      invalidateResource('lessons.today'),
+      invalidateResource('lessons.schedule'),
+      invalidateResource('inbox-lessons'),
+      invalidateResource('wheat-traces'),
+      invalidateResource('todos'),
+      invalidateResource('touch-tasks'),
+      invalidateResource('cloud-archive-todos'),
+      invalidateResource('workbench.summary')
+    ])
+    return true
+  }
+
   const syncStudentClassMembership = async (studentId, targetClassId) => {
     const affectedClasses = classes.filter((klass) =>
       klass.studentIds?.some((memberId) => sameId(memberId, studentId)) || sameId(klass.id, targetClassId)
@@ -7755,6 +7833,8 @@ export function useDeliveryWorkflow() {
     completeTodo: remoteCompleteTodo,
     cancelTodo: remoteCancelTodo,
     addLesson: remoteAddLesson,
+    updateLesson: remoteUpdateLesson,
+    deleteLesson: remoteDeleteLesson,
     addStudent: remoteAddStudent,
     updateStudent: remoteUpdateStudent,
     addCommunicationRecord: remoteAddCommunicationRecord,

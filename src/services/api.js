@@ -116,6 +116,7 @@ export const api = {
     get: (lessonId) => request(`/lessons/${id(lessonId)}`),
     create: (body, key) => request('/lessons', { method: 'POST', body, idempotencyKey: key }),
     update: (lessonId, body) => request(`/lessons/${id(lessonId)}`, { method: 'PATCH', body }),
+    remove: (lessonId, version) => request(`/lessons/${id(lessonId)}${queryString({ version })}`, { method: 'DELETE' }),
     attendance: (lessonId) => request(`/lessons/${id(lessonId)}/attendance`),
     updateAttendance: (lessonId, studentId, body) => request(`/lessons/${id(lessonId)}/attendance/${id(studentId)}`, { method: 'PATCH', body }),
     transition: (lessonId, body) => request(`/lessons/${id(lessonId)}/status-transitions`, { method: 'POST', body }),

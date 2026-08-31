@@ -1818,6 +1818,37 @@
     repeating-linear-gradient(90deg, rgba(112, 182, 166, 0.04) 0 1px, transparent 1px 28px);
 }
 
+:root[data-theme='rose'] {
+  --color-text: #f4eaf0;
+  --color-heading: #fff7fb;
+  --color-muted: #c3b1bb;
+  --color-subtle: #a8939f;
+  --color-primary: #e6397c;
+  --color-primary-strong: #ff6a9e;
+  --color-primary-soft: #4a1d35;
+  --color-primary-mist: #672746;
+  --color-primary-contrast: #0d0d0f;
+  --color-accent: #ffca68;
+  --color-accent-strong: #ffdb8f;
+  --color-accent-soft: #49391e;
+  --color-accent-muted: #604b27;
+  --color-danger: #ff7898;
+  --color-danger-soft: #4b222e;
+  --color-surface: #26262b;
+  --color-surface-rgb: 38, 38, 43;
+  --color-surface-warm: #111116;
+  --color-surface-muted: #303037;
+  --color-surface-subtle: #383840;
+  --color-page: #1a1a1d;
+  --color-border: rgba(244, 220, 231, 0.18);
+  --color-border-soft: rgba(244, 220, 231, 0.12);
+  --color-border-strong: rgba(230, 57, 124, 0.52);
+  --shadow-panel: 0 18px 44px rgba(0, 0, 0, 0.28);
+  --shadow-popover: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 30px 90px rgba(0, 0, 0, 0.65);
+  --body-background: #1a1a1d;
+}
+
 body {
   margin: 0;
   min-width: 320px;

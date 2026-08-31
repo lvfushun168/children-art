@@ -43,12 +43,15 @@ const productionHandoff = ref(null)
 const isMobileApp = ref(false)
 const routeTaskKey = ref('')
 const themeOptions = [
-  { id: 'studio', label: '深海奶白' },
-  { id: 'day', label: '清爽日间' },
-  { id: 'night', label: '翡翠夜间' }
+  { id: 'studio', label: '深海奶白', colorScheme: 'light' },
+  { id: 'day', label: '清爽日间', colorScheme: 'light' },
+  { id: 'night', label: '翡翠夜间', colorScheme: 'dark' },
+  { id: 'rose', label: '甜酷玫粉', colorScheme: 'dark' }
 ]
+const themeFor = (value) => themeOptions.find((theme) => theme.id === String(value || ''))
+const themeIdFor = (value) => themeFor(value)?.id || ''
 const savedTheme = typeof window !== 'undefined' ? window.localStorage.getItem('children-art-theme') : ''
-const activeTheme = ref(themeOptions.some((theme) => theme.id === savedTheme) ? savedTheme : 'studio')
+const activeTheme = ref(themeIdFor(state.uiTheme) || themeIdFor(savedTheme) || 'studio')
 let cleanupMobileMedia = () => {}
 
 const routeMode = computed(() => String(route.meta.viewMode || 'home'))
@@ -156,7 +159,7 @@ const exitTaskWorkspace = (source) => {
 const applyTheme = (theme) => {
   if (typeof document === 'undefined') return
   document.documentElement.dataset.theme = theme
-  document.documentElement.style.colorScheme = theme === 'night' ? 'dark' : 'light'
+  document.documentElement.style.colorScheme = themeFor(theme)?.colorScheme || 'light'
 }
 
 const ensureTaskFromRoute = async () => {
@@ -191,7 +194,12 @@ onBeforeUnmount(() => cleanupMobileMedia())
 watch(activeTheme, (theme) => {
   applyTheme(theme)
   if (typeof window !== 'undefined') window.localStorage.setItem('children-art-theme', theme)
-  if (state.isLoggedIn && state.remoteReady) void state.savePreferences?.(theme)
+  if (state.isLoggedIn && state.remoteReady && state.uiTheme !== theme) void state.savePreferences?.(theme)
+}, { immediate: true })
+
+watch(() => state.uiTheme, (theme) => {
+  const nextTheme = themeIdFor(theme)
+  if (nextTheme && activeTheme.value !== nextTheme) activeTheme.value = nextTheme
 }, { immediate: true })
 
 watch(visibleNavIds, (ids) => {

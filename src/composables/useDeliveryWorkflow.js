@@ -484,6 +484,7 @@ export function useDeliveryWorkflow() {
       role: teacher.role || '老师'
     }
   })
+  const uiTheme = computed(() => String(storedMe.value?.preferences?.uiTheme || ''))
   const isAdmin = computed(() => {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && permissions.some((permission) => String(permission).includes('identity.') || String(permission).includes('configuration.')))
@@ -7688,6 +7689,7 @@ export function useDeliveryWorkflow() {
     activeShareMode,
     activeTask,
     currentUser,
+    uiTheme,
     isAdmin,
     canManageIdentityUsers,
     canManageIdentityRoles,

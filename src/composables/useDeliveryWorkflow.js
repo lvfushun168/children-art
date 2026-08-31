@@ -323,8 +323,8 @@ export function useDeliveryWorkflow() {
   }
 
   const createArchiveChecklist = () => ({
-    parentTouch: { status: '待创建', detail: '', method: '', sentCount: 0, updatedAt: '' },
-    studentCloudArchive: { status: '待推送', detail: '', updatedAt: '' },
+    parentTouch: { status: '待创建', detail: '', method: '', sentCount: 0, dispatchStatus: '', updatedAt: '' },
+    studentCloudArchive: { status: '待推送', detail: '', syncAttemptStatus: '', updatedAt: '' },
     teacherEffectArchive: { status: '待生成', detail: '', title: '', imageCount: 0, updatedAt: '' },
     wheatTrace: { status: '待生成', detail: '', traceId: null, updatedAt: '' }
   })
@@ -1224,7 +1224,32 @@ export function useDeliveryWorkflow() {
   const archiveWorkingStatuses = ['推送中', '生成中', '创建中']
   const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
   const isArchiveRecorded = (item) => archiveRecordedStatuses.includes(item.status)
+  const touchDispatchStatus = (task) => String(task?.wecomDispatchStatusCode || task?.wecomDispatchStatus
+    || task?.dispatchStatus || task?.statusCode || '').toUpperCase()
+  const touchBusinessStatus = (task) => String(task?.statusCode || '').toUpperCase()
+  const isWecomDispatchWorking = (task) => touchDispatchStatus(task) === 'PENDING_CREATE'
+  const canResendWecomTask = (task) => Boolean(task?.id
+    && ['PENDING_MEMBER_CONFIRM', 'SENT', 'MANUALLY_COMPLETED'].includes(touchBusinessStatus(task))
+    && !isWecomDispatchWorking(task))
+  const isParentTouchResending = (item) => String(item?.dispatchStatus || '').toUpperCase() === 'PENDING_CREATE'
+  const cloudAttemptStatus = (value) => String(value?.syncAttemptStatus || '').toUpperCase()
+  const cloudBatchIsWorking = (value) => {
+    const attempt = cloudAttemptStatus(value)
+    const status = String(value?.status || '').toUpperCase()
+    return ['QUEUED', 'RUNNING'].includes(attempt) || (!attempt && ['QUEUED', 'RUNNING'].includes(status))
+  }
+  const cloudBatchIsFinished = (value) => {
+    if (cloudBatchIsWorking(value)) return false
+    return ['SUCCEEDED', 'FAILED', 'PARTIAL_FAILED', 'CANCELED'].includes(String(value?.status || '').toUpperCase())
+  }
+  const providerForId = (providerConfigId) => enabledCloudProviders.value.find((provider) => sameId(provider.id, providerConfigId))
+  const isBaiduProvider = (provider) => String(provider?.providerType || provider?.type || '').toUpperCase() === 'BAIDU_NETDISK'
+  const isBaiduCloudBatch = (value) => isBaiduProvider(providerForId(value?.providerConfigId))
+  const isCloudOverwriteFailed = (value) => String(value?.status || '').toUpperCase() === 'SUCCEEDED'
+    && cloudAttemptStatus(value) === 'FAILED'
   const isArchiveWorking = (item) => archiveWorkingStatuses.includes(item.status)
+    || isParentTouchResending(item)
+    || ['QUEUED', 'RUNNING'].includes(String(item?.syncAttemptStatus || '').toUpperCase())
   const studentArchivePathPreview = computed(() =>
     activeWorkspace.value.cloudJobs?.find((job) => job.targetPath)?.targetPath || '待生成'
   )
@@ -2084,20 +2109,24 @@ export function useDeliveryWorkflow() {
   const refreshParentTouchSummary = (lessonId = activeTask.value.id) => {
     const workspace = getLessonWorkspace(lessonId)
     if (!workspace?.archiveChecklist?.parentTouch) return
-    const lessonTasks = wecomSendTasks.filter((task) => task.lessonId === Number(lessonId))
+    const lessonTasks = wecomSendTasks.filter((task) => sameId(task.lessonId, lessonId))
     if (!lessonTasks.length) return
-    const sent = lessonTasks.filter((task) => task.status === '已发送').length
-    const manual = lessonTasks.filter((task) => task.status === '人工触达').length
-    const failed = lessonTasks.filter((task) => task.status === '发送失败').length
-    const pendingBinding = lessonTasks.filter((task) => task.status === '待绑定家长群').length
-    const pending = lessonTasks.filter((task) => task.status === '待老师确认发送').length
-    const allSent = lessonTasks.every((task) => task.status === '已发送')
-    const allManual = lessonTasks.every((task) => task.status === '人工触达')
+    const sent = lessonTasks.filter((task) => touchBusinessStatus(task) === 'SENT').length
+    const manual = lessonTasks.filter((task) => touchBusinessStatus(task) === 'MANUALLY_COMPLETED').length
+    const failed = lessonTasks.filter((task) => touchBusinessStatus(task) === 'FAILED').length
+    const pendingBinding = lessonTasks.filter((task) => touchBusinessStatus(task) === 'PENDING_GROUP_BINDING').length
+    const pending = lessonTasks.filter((task) => touchBusinessStatus(task) === 'PENDING_MEMBER_CONFIRM').length
+    const dispatchWorking = lessonTasks.filter((task) => isWecomDispatchWorking(task)).length
+    const dispatchFailed = lessonTasks.filter((task) => ['PENDING_MEMBER_CONFIRM', 'SENT', 'MANUALLY_COMPLETED'].includes(touchBusinessStatus(task))
+      && touchDispatchStatus(task) === 'FAILED').length
+    const allSent = lessonTasks.every((task) => touchBusinessStatus(task) === 'SENT')
+    const allManual = lessonTasks.every((task) => touchBusinessStatus(task) === 'MANUALLY_COMPLETED')
     const status = pendingBinding ? '待绑定家长群' : pending ? '待老师确认发送' : failed ? '发送失败' : allSent ? '已发送' : allManual ? '人工触达' : '待老师确认发送'
     Object.assign(workspace.archiveChecklist.parentTouch, {
       status,
+      dispatchStatus: dispatchWorking ? 'PENDING_CREATE' : dispatchFailed ? 'FAILED' : '',
       sentCount: sent + manual,
-      detail: `企微已发送 ${sent} · 人工触达 ${manual} · 待绑定 ${pendingBinding} · 待确认发送 ${pending}${failed ? ` · 发送失败 ${failed}（已进入待办中心，不阻断归档）` : ''}`,
+      detail: `企微已发送 ${sent} · 人工触达 ${manual} · 待绑定 ${pendingBinding} · 待确认发送 ${pending}${failed ? ` · 初次发送失败 ${failed}（已进入待办中心，不阻断归档）` : ''}${dispatchWorking ? ` · 重新发送中 ${dispatchWorking}` : ''}${dispatchFailed ? ` · 最近发送失败 ${dispatchFailed}（可重新发送）` : ''}`,
       updatedAt: nowText()
     })
   }
@@ -3505,6 +3534,19 @@ export function useDeliveryWorkflow() {
   const statusForArchiveItem = (value) => ({
     DRAFT: '待配置', PENDING: '待配置', QUEUED: '创建中', CREATING: '创建中', RUNNING: '推送中', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SUCCEEDED: '已同步', SYNCED: '已同步', COMPLETED: '已归档', SKIPPED: '已跳过', FAILED: '生成失败', CANCELED: '已取消'
   }[value] || value || '待处理')
+  const cloudBatchDetail = (batch) => {
+    if (!batch) return ''
+    const status = String(batch.status || '').toUpperCase()
+    const attempt = String(batch.syncAttemptStatus || '').toUpperCase()
+    if (status === 'SUCCEEDED' && attempt === 'FAILED') {
+      return `覆盖同步失败：${batch.failureSummary || `${batch.failedFiles || 0} 个文件失败`}（可再次覆盖）`
+    }
+    if (status === 'SUCCEEDED' && ['QUEUED', 'RUNNING'].includes(attempt)) {
+      return `覆盖同步中 · ${batch.percent || 0}% · ${batch.currentFilename || '准备中'}`
+    }
+    if (status === 'SUCCEEDED') return `${batch.completedFiles || 0} 个文件 · ${batch.percent || 0}%`
+    return batch.failureSummary || `${batch.failedFiles || 0} 个文件失败`
+  }
 
   const artworkUploadFailures = new Map()
 
@@ -3749,14 +3791,32 @@ export function useDeliveryWorkflow() {
     if (!activeRow?.artworks?.some((artwork) => sameId(artwork.artworkId, workspace.activeArtworkId))) {
       workspace.activeArtworkId = activeRow?.artworks?.[0]?.artworkId || null
     }
-    const pendingBinding = touchTasks.filter((task) => task.status === '待绑定家长群').length
-    const pendingConfirm = touchTasks.filter((task) => task.status === '待老师确认发送').length
-    const allSent = touchTasks.length > 0 && touchTasks.every((task) => task.status === '已发送')
-    const allManual = touchTasks.length > 0 && touchTasks.every((task) => task.status === '人工触达')
-    const touchStatus = pendingBinding ? '待绑定家长群' : pendingConfirm ? '待老师确认发送' : touchTasks.some((task) => task.status === '发送失败') ? '发送失败' : allSent ? '已发送' : allManual ? '人工触达' : touchTasks.length ? '待老师确认发送' : '待创建'
+    const pendingBinding = touchTasks.filter((task) => touchBusinessStatus(task) === 'PENDING_GROUP_BINDING').length
+    const pendingConfirm = touchTasks.filter((task) => touchBusinessStatus(task) === 'PENDING_MEMBER_CONFIRM').length
+    const failed = touchTasks.filter((task) => touchBusinessStatus(task) === 'FAILED').length
+    const dispatchWorking = touchTasks.filter((task) => isWecomDispatchWorking(task)).length
+    const dispatchFailed = touchTasks.filter((task) => ['PENDING_MEMBER_CONFIRM', 'SENT', 'MANUALLY_COMPLETED'].includes(touchBusinessStatus(task))
+      && touchDispatchStatus(task) === 'FAILED').length
+    const allSent = touchTasks.length > 0 && touchTasks.every((task) => touchBusinessStatus(task) === 'SENT')
+    const allManual = touchTasks.length > 0 && touchTasks.every((task) => touchBusinessStatus(task) === 'MANUALLY_COMPLETED')
+    const touchStatus = pendingBinding ? '待绑定家长群' : pendingConfirm ? '待老师确认发送' : failed ? '发送失败' : allSent ? '已发送' : allManual ? '人工触达' : touchTasks.length ? '待老师确认发送' : '待创建'
     Object.assign(workspace.archiveChecklist, {
-      parentTouch: { ...workspace.archiveChecklist.parentTouch, status: touchStatus, sentCount: touchTasks.filter((task) => ['已发送', '人工触达'].includes(task.status)).length, detail: touchTasks.length ? `已创建 ${touchTasks.length} 个触达任务${pendingBinding ? `，${pendingBinding} 个待绑定家长群` : ''}` : '' },
-      studentCloudArchive: { ...workspace.archiveChecklist.studentCloudArchive, status: statusForArchiveItem(cloudJobs.find((job) => job.required || ['LESSON_ASSET', 'ARCHIVE_RECORD', 'TEACHER_EFFECT'].includes(job.sourceType))?.status) },
+      parentTouch: {
+        ...workspace.archiveChecklist.parentTouch,
+        status: touchStatus,
+        dispatchStatus: dispatchWorking ? 'PENDING_CREATE' : dispatchFailed ? 'FAILED' : '',
+        sentCount: touchTasks.filter((task) => ['SENT', 'MANUALLY_COMPLETED'].includes(touchBusinessStatus(task))).length,
+        detail: touchTasks.length
+          ? `已创建 ${touchTasks.length} 个触达任务${pendingBinding ? `，${pendingBinding} 个待绑定家长群` : ''}${dispatchWorking ? `，${dispatchWorking} 个正在重新发送` : ''}${dispatchFailed ? `，最近 ${dispatchFailed} 个发送失败，可重新发送` : ''}`
+          : ''
+      },
+      studentCloudArchive: {
+        ...workspace.archiveChecklist.studentCloudArchive,
+        status: cloudBatch ? (cloudBatch.status === 'SUCCEEDED' ? '已同步' : statusForArchiveItem(cloudBatch.status))
+          : statusForArchiveItem(cloudJobs.find((job) => job.required || ['LESSON_ASSET', 'ARCHIVE_RECORD', 'TEACHER_EFFECT'].includes(job.sourceType))?.status),
+        syncAttemptStatus: cloudBatch?.syncAttemptStatus || '',
+        detail: cloudBatch ? cloudBatchDetail(cloudBatch) : workspace.archiveChecklist.studentCloudArchive.detail || ''
+      },
       teacherEffectArchive: { ...workspace.archiveChecklist.teacherEffectArchive, status: statusForArchiveItem(teacherEffect.status), title: teacherEffect.title || '', imageCount: teacherEffect.sources?.length || 0, detail: teacherEffect.failureReason || '' },
       wheatTrace: { ...workspace.archiveChecklist.wheatTrace, status: wheat.status === '已人工处理' || wheat.status === '无需处理' ? wheat.status : wheat.id ? '已生成' : '待生成', traceId: wheat.id || null, detail: wheat.note || '' }
     })
@@ -3858,7 +3918,11 @@ export function useDeliveryWorkflow() {
   }
 
   const cloudBatchWatchers = new Map()
-  const cloudBatchTerminal = (status) => ['SUCCEEDED', 'FAILED', 'PARTIAL_FAILED', 'CANCELED'].includes(String(status || '').toUpperCase())
+  const cloudBatchTerminal = (value) => {
+    const payload = value && typeof value === 'object' ? value : { status: value }
+    if (cloudBatchIsWorking(payload)) return false
+    return ['SUCCEEDED', 'FAILED', 'PARTIAL_FAILED', 'CANCELED'].includes(String(payload.status || '').toUpperCase())
+  }
   const cloudBatchPayload = (value) => {
     if (!value) return null
     if (typeof value === 'string') {
@@ -3875,22 +3939,31 @@ export function useDeliveryWorkflow() {
     workspace.cloudBatch = { ...(workspace.cloudBatch || {}), ...payload }
     workspace.cloudProgress = workspace.cloudBatch
     const status = String(payload.status || '').toUpperCase()
+    const attempt = String(payload.syncAttemptStatus || (status === 'SUCCEEDED' ? 'SUCCEEDED' : status)).toUpperCase()
+    workspace.cloudBatch.syncAttemptStatus = attempt
     if (status === 'SUCCEEDED') {
       workspace.archiveChecklist.studentCloudArchive = {
         ...workspace.archiveChecklist.studentCloudArchive,
         status: '已同步',
-        detail: `${payload.completedFiles || 0} 个文件 · ${payload.percent || 0}%`
+        syncAttemptStatus: attempt,
+        detail: attempt === 'FAILED'
+          ? `覆盖同步失败：${payload.failureSummary || `${payload.failedFiles || 0} 个文件失败`}（可再次覆盖）`
+          : ['QUEUED', 'RUNNING'].includes(attempt)
+            ? `覆盖同步中 · ${payload.percent || 0}% · ${payload.currentFilename || '准备中'}`
+            : `${payload.completedFiles || 0} 个文件 · ${payload.percent || 0}%`
       }
     } else if (['FAILED', 'PARTIAL_FAILED'].includes(status)) {
       workspace.archiveChecklist.studentCloudArchive = {
         ...workspace.archiveChecklist.studentCloudArchive,
         status: '同步失败',
+        syncAttemptStatus: attempt,
         detail: payload.failureSummary || `${payload.failedFiles || 0} 个文件失败`
       }
     } else if (['QUEUED', 'RUNNING'].includes(status)) {
       workspace.archiveChecklist.studentCloudArchive = {
         ...workspace.archiveChecklist.studentCloudArchive,
         status: '推送中',
+        syncAttemptStatus: attempt,
         detail: `${payload.percent || 0}% · ${payload.currentFilename || '准备中'}`
       }
     }
@@ -3921,13 +3994,13 @@ export function useDeliveryWorkflow() {
             signal: controller.signal,
             onEvent: (event) => {
               const payload = applyCloudBatchProgress(lessonId, event.data)
-              if (payload && cloudBatchTerminal(payload.status)) finish(payload)
+              if (payload && cloudBatchTerminal(payload)) finish(payload)
             }
           })
           if (settled || controller.signal.aborted) return
           const latest = await api.m5.cloudArchiveBatchGet(batchId)
           const payload = applyCloudBatchProgress(lessonId, latest)
-          if (payload && cloudBatchTerminal(payload.status)) {
+          if (payload && cloudBatchTerminal(payload)) {
             finish(payload)
             return
           }
@@ -3959,11 +4032,11 @@ export function useDeliveryWorkflow() {
       if (!retried) return null
       applyCloudBatchProgress(lessonId, retried)
       const watcher = watchCloudArchiveBatch(retried.id || retried.batchId || current.batchId, lessonId)
-      return waitForCompletion && !cloudBatchTerminal(retried.status) ? watcher.promise : retried
+      return waitForCompletion && !cloudBatchTerminal(retried) ? watcher.promise : retried
     }
     if (current?.batchId) {
       const watcher = watchCloudArchiveBatch(current.batchId, lessonId)
-      return waitForCompletion && !cloudBatchTerminal(current.status) ? watcher.promise : current
+      return waitForCompletion && !cloudBatchTerminal(current) ? watcher.promise : current
     }
     const selectedProviderConfigId = providerConfigId && !String(providerConfigId).startsWith('provider-')
       ? providerConfigId
@@ -3977,7 +4050,7 @@ export function useDeliveryWorkflow() {
     if (!result) return null
     applyCloudBatchProgress(lessonId, result)
     const watcher = watchCloudArchiveBatch(result.id || result.batchId, lessonId)
-    if (waitForCompletion && !cloudBatchTerminal(result.status)) return watcher.promise
+    if (waitForCompletion && !cloudBatchTerminal(result)) return watcher.promise
     return result
   }
 
@@ -5881,7 +5954,16 @@ export function useDeliveryWorkflow() {
   }
 
   const remotePushParentTouch = async () => {
-    if (sharePage.value?.status !== '已发布') {
+    const lessonId = activeTask.value?.id
+    if (!lessonId) return false
+    const lessonTasks = wecomSendTasks.filter((task) => sameId(task.lessonId, lessonId))
+    const resendable = lessonTasks.filter(canResendWecomTask)
+    const pendingCreates = lessonTasks.filter((task) => isWecomDispatchWorking(task))
+    if (pendingCreates.length && !resendable.length) {
+      notify(`已有 ${pendingCreates.length} 个企业微信消息正在处理中，请稍后查看结果`)
+      return false
+    }
+    if (!sharePage.value?.publishedVersion) {
       if (!(await remoteGenerateSharePages())) return false
     }
     let configuration
@@ -5895,8 +5977,7 @@ export function useDeliveryWorkflow() {
       notify('企业微信客户群未启用，请先完成企业微信配置')
       return false
     }
-    const pendingBindings = wecomSendTasks.filter((task) =>
-      sameId(task.lessonId, activeTask.value.id) && task.status === '待绑定家长群')
+    const pendingBindings = lessonTasks.filter((task) => touchBusinessStatus(task) === 'PENDING_GROUP_BINDING')
     if (pendingBindings.length) {
       let unresolved = 0
       for (const task of pendingBindings) {
@@ -5914,18 +5995,49 @@ export function useDeliveryWorkflow() {
         return false
       }
       notify(`已根据新的家长群绑定重新提交 ${pendingBindings.length} 个触达任务`)
+    }
+    const initialFailures = lessonTasks.filter((task) => ['FAILED', 'CANCELED'].includes(touchBusinessStatus(task)))
+    if (initialFailures.length) {
+      for (const task of initialFailures) {
+        const retried = await runRemote('正在重试触达任务...', () => api.parent.retryTouch(task.id, { version: task.version }), '')
+        if (!retried) return false
+      }
+    }
+    if (resendable.length) {
+      if (typeof window !== 'undefined' && !window.confirm('原消息不会撤回，将再次发送一条企业微信消息，是否继续？')) return false
+      const items = resendable.map((task) => ({
+        taskId: String(task.id),
+        version: task.version,
+        shareUrl: remoteStudentShareUrlFor({ studentId: task.studentId }) || task.shareUrl || ''
+      }))
+      const result = await runRemote('正在重新发送企业微信消息...', () => api.parent.resendTouchBatch(lessonId, { items },
+        createIdempotencyKey(`touch-resend:${lessonId}`)), '企业微信消息已重新提交')
+      if (!result) return false
+      await Promise.all([
+        refreshRemoteLesson(lessonId),
+        invalidateResource('touch-tasks'),
+        invalidateResource('workbench.summary')
+      ])
       return true
     }
-    const result = await runRemote('正在创建家长触达任务...', () => api.parent.touchTasks(activeTask.value.id, {
+    if (pendingBindings.length || initialFailures.length) {
+      await Promise.all([
+        refreshRemoteLesson(lessonId),
+        invalidateResource('touch-tasks'),
+        invalidateResource('workbench.summary')
+      ])
+      return true
+    }
+    const result = await runRemote('正在创建家长触达任务...', () => api.parent.touchTasks(lessonId, {
       channel: 'WECOM',
       message: `${activeTask.value.date || ''} ${activeCourse.value.title || '本次课程'}课后展示已发布，请查看学生作品和课评`.trim(),
       sharePageVersion: sharePage.value.publishedVersion,
       studentIds: attendingRows.value.map((row) => String(row.studentId)),
       shareUrls: Object.fromEntries(attendingRows.value.map((row) => [String(row.studentId), remoteStudentShareUrlFor(row)]))
-    }, createIdempotencyKey(`touch:${activeTask.value.id}:${sharePage.value.publishedVersion}`)), '家长触达任务已创建')
+    }, createIdempotencyKey(`touch:${lessonId}:${sharePage.value.publishedVersion}`)), '家长触达任务已创建')
     if (!result) return false
     await Promise.all([
-      refreshRemoteLesson(activeTask.value.id),
+      refreshRemoteLesson(lessonId),
       invalidateResource('touch-tasks'),
       invalidateResource('workbench.summary')
     ])
@@ -5979,6 +6091,20 @@ export function useDeliveryWorkflow() {
 
   const remoteRetryWecomSendTask = async (task) => {
     if (!task?.id) return false
+    if (canResendWecomTask(task)) {
+      if (typeof window !== 'undefined' && !window.confirm('原消息不会撤回，将再次发送一条企业微信消息，是否继续？')) return false
+      const result = await runRemote('正在重新发送企业微信消息...', () => api.parent.resendTouch(task.id, {
+        version: task.version,
+        shareUrl: remoteStudentShareUrlFor({ studentId: task.studentId }) || task.shareUrl || ''
+      }, createIdempotencyKey(`touch-resend:${task.id}`)), '企业微信消息已重新提交')
+      if (!result) return false
+      await Promise.all([
+        refreshRemoteLesson(task.lessonId),
+        invalidateResource('touch-tasks'),
+        invalidateResource('workbench.summary')
+      ])
+      return true
+    }
     const result = await runRemote('正在重试触达任务...', () => api.parent.retryTouch(task.id, { version: task.version }), '触达任务已重新提交')
     if (!result) return false
     await Promise.all([
@@ -5991,6 +6117,22 @@ export function useDeliveryWorkflow() {
 
   const remoteRetryCloudArchiveTodo = async (job) => {
     if (!job?.id) return false
+    if (['SYNCED', 'SKIPPED'].includes(String(job.statusCode || '').toUpperCase())
+      && String(job.syncAttemptStatus || '').toUpperCase() === 'FAILED') {
+      if (!isBaiduProvider(providerForId(job.providerConfigId))) {
+        notify('当前归档任务不是百度网盘，不能覆盖同步')
+        return false
+      }
+      const result = await runRemote('正在再次覆盖百度网盘文件...', () => api.m5.resyncCloud(job.id,
+        { version: job.version }, createIdempotencyKey(`cloud-archive-resync:${job.id}`)), '百度网盘覆盖同步已重新提交')
+      if (!result) return false
+      await Promise.all([
+        invalidateResource('cloud-archive-todos'),
+        invalidateResource('workbench.summary'),
+        job.lessonId ? invalidateResource('lesson.workspace', { lessonId: job.lessonId }) : Promise.resolve()
+      ])
+      return true
+    }
     const result = await runRemote('正在重试网盘同步...', () => api.m5.retryCloud(
       job.id,
       { version: job.version },
@@ -6069,7 +6211,32 @@ export function useDeliveryWorkflow() {
 
   const remotePushArchiveItem = async (key) => {
     if (key !== 'studentCloudArchive') return false
-    const current = activeWorkspace.value.cloudBatch
+    let current = activeWorkspace.value.cloudBatch
+    if (current?.batchId && isBaiduCloudBatch(current) && current.status === 'SUCCEEDED'
+      && !cloudBatchIsWorking(current)) {
+      const result = await runRemote(
+        isCloudOverwriteFailed(current) ? '正在再次覆盖百度网盘文件...' : '正在覆盖同步百度网盘文件...',
+        () => api.m5.resyncCloudBatch(current.batchId, { version: current.version },
+          createIdempotencyKey(`cloud-archive-batch-resync:${current.batchId}`)),
+        isCloudOverwriteFailed(current) ? '百度网盘覆盖同步已重新提交' : '百度网盘覆盖同步已提交'
+      )
+      if (!result) return false
+      applyCloudBatchProgress(activeTask.value.id, result)
+      current = activeWorkspace.value.cloudBatch
+      let completed = result
+      if (!cloudBatchIsFinished(result)) {
+        const watcher = watchCloudArchiveBatch(result.id || result.batchId || current.batchId, activeTask.value.id)
+        completed = await watcher.promise
+      }
+      if (isCloudOverwriteFailed(completed)) {
+        notify('百度网盘覆盖同步失败，但归档项仍保留为已完成，可再次覆盖')
+      }
+      await Promise.all([
+        refreshRemoteLesson(activeTask.value.id),
+        invalidateResource('workbench.summary')
+      ])
+      return true
+    }
     if (current?.batchId && ['FAILED', 'PARTIAL_FAILED'].includes(String(current.status).toUpperCase())) {
       const retried = await runRemote('正在重试百度网盘归档批次...', () => api.m5.retryCloudBatch(current.batchId,
         createIdempotencyKey(`cloud-archive-batch-retry:${current.batchId}`)), '百度网盘归档已重新提交')
@@ -6080,6 +6247,9 @@ export function useDeliveryWorkflow() {
     if (!result) return false
     selectCloudArchiveProvider(result.providerConfigId)
     if (['FAILED', 'PARTIAL_FAILED'].includes(String(result.status).toUpperCase())) return false
+    if (isCloudOverwriteFailed(result)) {
+      notify('百度网盘覆盖同步失败，但归档项仍保留为已完成，可再次覆盖')
+    }
     await Promise.all([
       refreshRemoteLesson(activeTask.value.id),
       invalidateResource('cloud-archive-todos'),
@@ -6233,10 +6403,11 @@ export function useDeliveryWorkflow() {
     const cloudBatch = await ensureCloudArchiveBatch(task.id, { waitForCompletion: false })
     if (!cloudBatch) return false
     selectCloudArchiveProvider(cloudBatch.providerConfigId)
-    if (cloudBatch?.required && !cloudBatchTerminal(cloudBatch.status)) {
+    if (cloudBatch?.required && !cloudBatchTerminal(cloudBatch)) {
       const watcher = watchCloudArchiveBatch(cloudBatch.batchId || cloudBatch.id, task.id)
       const completed = await watcher.promise
-      if (!completed || !['SUCCEEDED'].includes(String(completed.status).toUpperCase())) {
+      if (!completed || !['SUCCEEDED'].includes(String(completed.status).toUpperCase())
+        || cloudBatchIsWorking(completed)) {
         notify(completed?.failureSummary || '必需的百度网盘归档尚未完成')
         return false
       }
@@ -7491,6 +7662,13 @@ export function useDeliveryWorkflow() {
     isArchiveDone,
     isArchiveRecorded,
     isArchiveWorking,
+    touchDispatchStatus,
+    canResendWecomTask,
+    isParentTouchResending,
+    cloudBatchIsWorking,
+    cloudBatchIsFinished,
+    isBaiduCloudBatch,
+    isCloudOverwriteFailed,
     wecomSendTasks,
     wecomEnabled,
     wecomTaskFor,

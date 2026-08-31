@@ -512,12 +512,35 @@ watch(() => props.state.currentStep, (step) => {
 
 const parentTouchActionLabel = (item) => {
   const status = item?.item?.status
-  if (status === '人工触达') return '已人工记录'
-  if (status === '待老师确认发送') return '待负责人确认'
-  if (status === '已发送') return '已发送'
-  if (props.state.isArchiveDone(item?.item)) return '已创建触达'
+  if (typeof props.state.isParentTouchResending === 'function' && props.state.isParentTouchResending(item?.item)) return '重新发送中'
+  if (['人工触达', '已发送', '待老师确认发送'].includes(status)) return '重新发送'
+  if (status === '发送失败') return '重试发送'
   if (status === '待绑定家长群') return '绑定后重新提交'
   return item?.action || '创建企微待推送'
+}
+
+const cloudArchiveActionLabel = (item) => {
+  const batch = props.state.activeWorkspace?.cloudBatch
+  const attempt = String(batch?.syncAttemptStatus || '').toUpperCase()
+  const isBaidu = typeof props.state.isBaiduCloudBatch === 'function' && props.state.isBaiduCloudBatch(batch)
+  if (isBaidu && batch?.status === 'SUCCEEDED') {
+    if (['QUEUED', 'RUNNING'].includes(attempt)) return '覆盖同步中'
+    if (attempt === 'FAILED') return '再次覆盖'
+    return '覆盖同步'
+  }
+  if (batch?.status === 'SUCCEEDED') return '已同步'
+  if (batch?.status === 'FAILED' || batch?.status === 'PARTIAL_FAILED') return '重试同步'
+  if (item?.item?.status === '推送中') return '上传中…'
+  return item?.action || '推送'
+}
+
+const cloudArchiveActionDisabled = (item) => {
+  const batch = props.state.activeWorkspace?.cloudBatch
+  const isBaidu = typeof props.state.isBaiduCloudBatch === 'function' && props.state.isBaiduCloudBatch(batch)
+  return Boolean(props.state.isProcessing
+    || item?.item?.status === '已跳过'
+    || (typeof props.state.cloudBatchIsWorking === 'function' && props.state.cloudBatchIsWorking(batch))
+    || (batch?.status === 'SUCCEEDED' && !isBaidu))
 }
 
 watch(homeworkEditorOpen, async (open) => {
@@ -1081,7 +1104,7 @@ watch(homeworkEditorOpen, async (open) => {
                     · {{ state.activeWorkspace.cloudBatch.percent || 0 }}%
                     <span v-if="state.activeWorkspace.cloudBatch.currentFilename"> · {{ state.activeWorkspace.cloudBatch.currentFilename }}</span>
                   </small>
-                  <div v-if="['QUEUED', 'RUNNING'].includes(state.activeWorkspace.cloudBatch.status)" class="progress-track slim">
+                  <div v-if="typeof state.cloudBatchIsWorking === 'function' ? state.cloudBatchIsWorking(state.activeWorkspace.cloudBatch) : ['QUEUED', 'RUNNING'].includes(state.activeWorkspace.cloudBatch.status)" class="progress-track slim">
                     <i :style="{ width: `${state.activeWorkspace.cloudBatch.percent || 0}%` }"></i>
                   </div>
                 </template>
@@ -1098,8 +1121,8 @@ watch(homeworkEditorOpen, async (open) => {
                 </details>
               </div>
               <div class="archive-check-actions">
-                <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.pushParentTouch">{{ parentTouchActionLabel(item) }}</button>
-                <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="state.isProcessing || item.item.status === '已同步' || item.item.status === '已跳过' || item.item.status === '推送中'" @click="state.pushArchiveItem(item.key)">{{ item.item.status === '已同步' ? '已同步' : item.item.status === '推送中' ? '上传中…' : item.item.status === '同步失败' ? '重试' : item.action }}</button>
+                <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || (typeof state.isParentTouchResending === 'function' && state.isParentTouchResending(item.item))" @click="state.pushParentTouch">{{ parentTouchActionLabel(item) }}</button>
+                <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="cloudArchiveActionDisabled(item)" @click="state.pushArchiveItem(item.key)">{{ cloudArchiveActionLabel(item) }}</button>
                 <template v-if="item.key === 'teacherEffectArchive'">
                   <button v-if="['PENDING', 'FAILED', 'SKIPPED'].includes(teacherEffectStatus) || !teacherEffect.id" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">{{ teacherEffectStatus === 'FAILED' ? '重新配置并生成' : '配置并生成课效图' }}</button>
                   <button v-else-if="teacherEffectStatus === 'GENERATING'" class="secondary" disabled>生成中…</button>

@@ -28,7 +28,11 @@ const listValue = (value) => {
 const stateList = (key) => listValue(state[key])
 const lessonList = computed(() => stateList('visibleInboxLessons'))
 const wheatTodos = computed(() => stateList('wheatTraces').filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)))
-const wecomTodos = computed(() => stateList('wecomSendTasks').filter((task) => ['待绑定家长群', '待老师确认发送', '发送失败'].includes(task.status)))
+const wecomTodos = computed(() => stateList('wecomSendTasks').filter((task) => {
+  if (['待绑定家长群', '待老师确认发送', '发送失败'].includes(task.status)) return true
+  return ['已发送', '人工触达'].includes(task.status)
+    && String(task.wecomDispatchStatusCode || '').toUpperCase() === 'FAILED'
+}))
 const cloudTodos = computed(() => stateList('cloudArchiveTodos').filter((job) => job.statusCode === 'FAILED' || job.status === '同步失败'))
 const reviewTodos = computed(() => state.canQualityReview
   ? stateList('pendingReviewQueue').filter((review) => ['待评分', '已退回'].includes(review.status))
@@ -138,15 +142,17 @@ const openSupervision = () => {
                 <small v-if="task.wecomGroupName">家长群：{{ task.wecomGroupName }}</small>
                 <small v-else-if="task.status === '待绑定家长群'">请先在学生管理中绑定家长客户群</small>
                 <small v-if="task.failureReason">失败原因：{{ task.failureReason }}</small>
+                <small v-if="['已发送', '人工触达'].includes(task.status) && task.wecomDispatchStatusCode === 'FAILED'">最近一次发送失败，可重新发送</small>
               </div>
               <em>{{ task.status }}</em>
               <input v-model="reasons[`wecom-${task.id}`]" placeholder="取消发送原因（必填）" />
               <div class="button-pair">
                 <button v-if="task.status === '待老师确认发送'" type="button" class="secondary" @click="updateWecomTask(task, '已发送')">人工确认已发送</button>
+                <button v-if="typeof state.canResendWecomTask === 'function' && state.canResendWecomTask(task)" type="button" class="secondary" @click="state.retryWecomSendTask(task)">重新发送</button>
                 <button type="button" class="ghost" @click="state.manualCopyWecomTask(task)">复制链接人工发送</button>
                 <button v-if="task.status === '发送失败'" type="button" class="ghost" @click="state.retryWecomSendTask(task)">重试发送</button>
                 <button v-if="task.status === '待绑定家长群'" type="button" class="ghost" @click="goTask(task)">打开课次</button>
-                <button v-if="task.status !== '发送失败'" type="button" class="ghost" @click="updateWecomTask(task, '已取消')">取消发送</button>
+                <button v-if="!['发送失败', '已发送', '人工触达'].includes(task.status)" type="button" class="ghost" @click="updateWecomTask(task, '已取消')">取消发送</button>
               </div>
             </article>
             <small v-if="!wecomTodos.length" class="empty-note">暂无待确认的企微触达任务。</small>

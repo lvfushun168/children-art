@@ -14,7 +14,7 @@ const { clearSession, createIdempotencyKey, getAccessToken, getApiRequestStats, 
 const { api } = await import('../src/services/api.js')
 const { downloadProtectedFile } = await import('../src/services/fileService.js')
 const { clearProtectedMediaCache, protectedMediaUrl } = await import('../src/services/protectedMediaCache.js')
-const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
+const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCloudArchiveBatch, mapCloudArchiveJob, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
 
 const response = (status, payload, contentType = 'application/json') => ({
   status,
@@ -192,6 +192,34 @@ test('allows the backend to resolve the cloud provider when the client has no pr
     includeTeacherEffect: false,
     items: []
   })
+})
+
+test('sends resend and overwrite resync commands with versions and idempotency keys', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return response(200, { data: { id: '1' }, meta: {}, error: null })
+  }
+
+  await api.parent.resendTouch('12', { version: 7, shareUrl: '/share?token=abc' }, 'touch-resend-test')
+  await api.parent.resendTouchBatch('13', {
+    items: [{ taskId: '14', version: 8, shareUrl: '/share?token=def' }]
+  }, 'touch-resend-batch-test')
+  await api.m5.resyncCloudBatch('15', { version: 9 }, 'cloud-resync-test')
+  await api.m5.resyncCloud('16', { version: 10 }, 'cloud-resync-job-test')
+
+  assert.deepEqual(calls.map((call) => call.url), [
+    '/api/v1/touch-tasks/12/resend',
+    '/api/v1/lessons/13/touch-tasks/resend',
+    '/api/v1/cloud-archive-batches/15/resync',
+    '/api/v1/cloud-archive-jobs/16/resync'
+  ])
+  assert.equal(calls[0].options.headers['Idempotency-Key'], 'touch-resend-test')
+  assert.deepEqual(JSON.parse(calls[1].options.body), {
+    items: [{ taskId: '14', version: 8, shareUrl: '/share?token=def' }]
+  })
+  assert.deepEqual(JSON.parse(calls[2].options.body), { version: 9 })
+  assert.deepEqual(JSON.parse(calls[3].options.body), { version: 10 })
 })
 
 test('saves archive directory and filename templates together', async () => {
@@ -414,6 +442,23 @@ test('maps master data and touch-task DTOs to protocol-safe view models', () => 
   const touch = mapTouchTask({ id: '5', lessonId: '6', studentId: '7', sharePageVersionId: '8', status: 'PENDING_MEMBER_CONFIRM' })
   assert.equal(touch.shareVersion, 8)
   assert.equal(touch.status, '待老师确认发送')
+
+  const resentTouch = mapTouchTask({
+    id: '5', lessonId: '6', studentId: '7', sharePageVersionId: '8',
+    wecomDispatchVersionId: '9', wecomDispatchStatus: 'FAILED', status: 'SENT'
+  })
+  assert.equal(resentTouch.sharePageVersionId, 8)
+  assert.equal(resentTouch.shareVersion, 9)
+  assert.equal(resentTouch.wecomDispatchStatusCode, 'FAILED')
+})
+
+test('maps completed archive records with an independent failed latest attempt', () => {
+  const job = mapCloudArchiveJob({ id: '1', providerConfigId: '2', status: 'SYNCED', syncAttemptStatus: 'FAILED' })
+  const batch = mapCloudArchiveBatch({ id: '3', providerConfigId: '2', status: 'SUCCEEDED', syncAttemptStatus: 'RUNNING' })
+  assert.equal(job.status, '已同步')
+  assert.equal(job.syncAttemptStatus, 'FAILED')
+  assert.equal(batch.status, 'SUCCEEDED')
+  assert.equal(batch.syncAttemptStatus, 'RUNNING')
 })
 
 test('maps archive, todo and teacher archive DTOs without losing string IDs', () => {

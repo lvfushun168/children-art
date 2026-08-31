@@ -418,9 +418,13 @@ export const mapTouchTask = (value = {}) => ({
   id: safeUiId(value.id),
   lessonId: safeUiId(value.lessonId),
   studentId: safeUiId(value.studentId),
-  shareVersion: safeUiId(value.shareVersion || value.sharePageVersionId),
+  sharePageVersionId: safeUiId(value.sharePageVersionId || value.shareVersion),
+  wecomDispatchVersionId: safeUiId(value.wecomDispatchVersionId),
+  shareVersion: safeUiId(value.wecomDispatchVersionId || value.shareVersion || value.sharePageVersionId),
   statusCode: value.status || 'PENDING_MEMBER_CONFIRM',
   status: touchStatus[value.status] || value.status || '待老师确认发送',
+  wecomDispatchStatus: value.wecomDispatchStatus || value.status || '',
+  wecomDispatchStatusCode: value.wecomDispatchStatus || value.status || '',
   wecomAccountId: safeUiId(value.wecomAccountId),
   wecomCustomerGroupId: safeUiId(value.wecomCustomerGroupId),
   wecomGroupName: value.wecomGroupName || '',
@@ -701,6 +705,7 @@ export const mapCloudArchiveJob = (value = {}) => ({
     FAILED: '同步失败',
     CANCELED: '已取消'
   }[value.status] || value.status || '待处理'),
+  syncAttemptStatus: value.syncAttemptStatus || (['SYNCED', 'SKIPPED'].includes(value.status) ? 'SUCCEEDED' : value.status),
   version: Number(value.version || 0),
   attemptNo: Number(value.attemptNo || 0)
 })
@@ -713,6 +718,7 @@ export const mapCloudArchiveBatch = (value = {}) => ({
   providerConfigId: safeUiId(value.providerConfigId),
   statusCode: value.status || '',
   status: value.status || 'QUEUED',
+  syncAttemptStatus: value.syncAttemptStatus || (value.status === 'SUCCEEDED' ? 'SUCCEEDED' : value.status),
   required: Boolean(value.required),
   totalFiles: Number(value.totalFiles || 0),
   completedFiles: Number(value.completedFiles || 0),

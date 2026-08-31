@@ -46,7 +46,8 @@ const themeOptions = [
   { id: 'studio', label: '深海奶白', colorScheme: 'light' },
   { id: 'day', label: '清爽日间', colorScheme: 'light' },
   { id: 'night', label: '翡翠夜间', colorScheme: 'dark' },
-  { id: 'rose', label: '甜酷玫粉', colorScheme: 'dark' }
+  { id: 'rose', label: '甜酷玫粉', colorScheme: 'dark' },
+  { id: 'gold', label: '午夜鎏金', colorScheme: 'dark' }
 ]
 const themeFor = (value) => themeOptions.find((theme) => theme.id === String(value || ''))
 const themeIdFor = (value) => themeFor(value)?.id || ''

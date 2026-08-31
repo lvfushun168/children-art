@@ -1849,6 +1849,37 @@
   --body-background: #1a1a1d;
 }
 
+:root[data-theme='gold'] {
+  --color-text: #f7f2dd;
+  --color-heading: #fff9df;
+  --color-muted: #c9bd91;
+  --color-subtle: #aa9c6d;
+  --color-primary: #ffca28;
+  --color-primary-strong: #ffe16b;
+  --color-primary-soft: #4a3c12;
+  --color-primary-mist: #66551b;
+  --color-primary-contrast: #11110d;
+  --color-accent: #f59e0b;
+  --color-accent-strong: #ffc34d;
+  --color-accent-soft: #493018;
+  --color-accent-muted: #62431f;
+  --color-danger: #ff7f6e;
+  --color-danger-soft: #4c2422;
+  --color-surface: #24241f;
+  --color-surface-rgb: 36, 36, 31;
+  --color-surface-warm: #11110d;
+  --color-surface-muted: #2f2f28;
+  --color-surface-subtle: #38382f;
+  --color-page: #1a1a17;
+  --color-border: rgba(255, 226, 114, 0.18);
+  --color-border-soft: rgba(255, 226, 114, 0.12);
+  --color-border-strong: rgba(255, 202, 40, 0.55);
+  --shadow-panel: 0 18px 44px rgba(0, 0, 0, 0.3);
+  --shadow-popover: 0 24px 64px rgba(0, 0, 0, 0.52);
+  --shadow-modal: 0 30px 90px rgba(0, 0, 0, 0.66);
+  --body-background: #1a1a17;
+}
+
 body {
   margin: 0;
   min-width: 320px;

@@ -274,7 +274,11 @@ const filteredArtworkLibrary = computed(() => {
   const library = resolveStateValue(props.state.artworkLibrary) || []
   return library.filter((item) => item.type === artworkLibraryCategory.value)
 })
-const replaceAccept = computed(() => replaceTarget.value?.category === MATERIAL_CATEGORIES.CLASSROOM ? 'image/*,video/*' : 'image/*')
+const replaceAccept = computed(() => {
+  if (replaceTarget.value?.category === MATERIAL_CATEGORIES.CLASSROOM) return 'image/*,video/*'
+  if (replaceTarget.value?.category === MATERIAL_CATEGORIES.COURSEWARE) return undefined
+  return 'image/*'
+})
 const resourceFilterOptions = computed(() => [
   '全部',
   '同主题',

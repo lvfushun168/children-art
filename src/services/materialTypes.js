@@ -5,6 +5,10 @@ export const MATERIAL_CATEGORIES = Object.freeze({
   COURSEWARE: '课件'
 })
 
+export const FILE_VALIDATION_PROFILES = Object.freeze({
+  COURSEWARE: 'COURSEWARE'
+})
+
 const API_ASSET_TYPES = Object.freeze({
   [MATERIAL_CATEGORIES.DEMO]: 'DEMO_IMAGE',
   [MATERIAL_CATEGORIES.STEP]: 'STEP_IMAGE',

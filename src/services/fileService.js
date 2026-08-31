@@ -111,20 +111,22 @@ const sha256 = async (file) => {
 export const uploadFile = async (file, purpose = 'lesson-asset', options = {}) => {
   if (!file) throw new Error('未选择文件')
   const digest = options.sha256 || await sha256(file)
+  const mediaType = file.type || 'application/octet-stream'
   const session = await api.files.createUploadSession({
     originalFilename: file.name,
-    mediaType: file.type || 'application/octet-stream',
+    mediaType,
     expectedSize: file.size,
     expectedSha256: digest,
-    purpose
+    purpose,
+    validationProfile: options.validationProfile
   })
-  await putUploadSessionContent(session, file, file.type)
+  await putUploadSessionContent(session, file, mediaType)
   const fileId = session.fileId || session.id
   const completed = await api.files.completeUpload(session.fileUploadSessionId || session.sessionId, {
     sizeBytes: file.size,
     sha256: digest
   }, options.idempotencyKey || createIdempotencyKey(`file:${purpose}`))
-  return mapFile(completed || { ...session, id: fileId, sizeBytes: file.size, sha256: digest, originalFilename: file.name, mediaType: file.type })
+  return mapFile(completed || { ...session, id: fileId, sizeBytes: file.size, sha256: digest, originalFilename: file.name, mediaType })
 }
 
 export const putUploadSessionContent = async (session, body, contentType = 'application/octet-stream') => {

@@ -87,6 +87,8 @@ import {
   textField
 } from '../services/templateMappers'
 import {
+  FILE_VALIDATION_PROFILES,
+  MATERIAL_CATEGORIES,
   apiAssetTypeForUpload,
   defaultMaterialVisible,
   materialCategoryForType,
@@ -2772,7 +2774,7 @@ export function useDeliveryWorkflow() {
     if (error?.code === 'PERMISSION_DENIED' || error?.status === 403) return '当前账号没有执行此操作的权限'
     if (error?.status === 422 || error?.code === 'TRANSITION_PRECONDITION_FAILED' || error?.code === 'LESSON_COMPLETION_BLOCKED') return error.message || '当前前置条件未满足'
     if (error?.status === 413) return '文件超过系统允许的大小'
-    if (error?.status === 415) return '文件格式不受支持'
+    if (error?.status === 415) return error?.message || '文件格式不受支持'
     return error?.message || fallback
   }
 
@@ -5064,7 +5066,10 @@ export function useDeliveryWorkflow() {
       async () => {
         const items = []
         for (const file of files) {
-          const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-asset`)
+          const uploadOptions = category === MATERIAL_CATEGORIES.COURSEWARE
+            ? { validationProfile: FILE_VALIDATION_PROFILES.COURSEWARE }
+            : {}
+          const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-asset`, uploadOptions)
           items.push({
             fileId: String(uploaded.id),
             assetType: apiAssetTypeForUpload(category, file),

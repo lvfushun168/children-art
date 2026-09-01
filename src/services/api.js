@@ -128,6 +128,7 @@ export const api = {
     list: (lessonId) => request(`/lessons/${id(lessonId)}/assets`),
     create: (lessonId, body) => request(`/lessons/${id(lessonId)}/assets`, { method: 'POST', body }),
     createBatch: (lessonId, items) => request(`/lessons/${id(lessonId)}/assets/batch`, { method: 'POST', body: { items } }),
+    autoApplyPreparation: (lessonId, body = {}) => request(`/lessons/${id(lessonId)}/preparation/auto-apply`, { method: 'POST', body }),
     update: (assetId, body) => request(`/assets/${id(assetId)}`, { method: 'PATCH', body }),
     remove: (assetId, version) => request(`/assets/${id(assetId)}${queryString({ version })}`, { method: 'DELETE' }),
     emptyConfirmation: (lessonId, body) => request(`/lessons/${id(lessonId)}/assets/empty-confirmation`, { method: 'PUT', body }),

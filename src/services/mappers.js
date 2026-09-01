@@ -306,6 +306,19 @@ export const mapAsset = (value = {}) => ({
   file: value.file ? mapFile(value.file) : null,
   version: Number(value.version || 0)
 })
+export const mapPreparationMemory = (value = {}) => ({
+  ...value,
+  source: value.source || 'NONE',
+  memoryId: safeUiId(value.memoryId),
+  memoryVersion: value.memoryVersion === null || value.memoryVersion === undefined ? null : Number(value.memoryVersion || 0),
+  autoApplied: Boolean(value.autoApplied),
+  covered: Boolean(value.covered),
+  suppressed: Boolean(value.suppressed),
+  hasDefault: Boolean(value.hasDefault),
+  counts: value.counts && typeof value.counts === 'object' ? Object.fromEntries(
+    Object.entries(value.counts).map(([key, count]) => [key, Number(count || 0)])
+  ) : {}
+})
 export const mapArtworkVersion = (value = {}) => ({
   ...value,
   id: safeUiId(value.id),

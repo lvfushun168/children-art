@@ -24,10 +24,10 @@ export const navGroups = [
   {
     id: 'materials',
     label: '素材档案',
-    description: '备课、归档与课外事项',
+    description: '课次资料、归档与课外事项',
     mark: '档',
     items: [
-      { id: 'courses', label: '范画库', mark: '画' },
+      { id: 'courses', label: '课程资料', mark: '课' },
       { id: 'archives', label: '档案中心', mark: '档' },
       { id: 'extraTasks', label: '课外任务', mark: '外' }
     ]
@@ -594,24 +594,15 @@ export const lessonMaterials = [
     type: '范画',
     title: '向日葵完整范画',
     image: 'https://images.unsplash.com/photo-1597848212624-a19eb35e2651?auto=format&fit=crop&w=720&q=80',
-    visible: true,
-    libraryId: 1
+    visible: true
   },
   {
     id: 2,
     type: '步骤图',
     title: '花盘和花瓣分步示意',
     image: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=720&q=80',
-    visible: true,
-    libraryId: 2
+    visible: true
   }
-]
-
-export const artworkLibrary = [
-  { id: 1, type: '范画', title: '向日葵完整范画', theme: '花卉植物', age: '5-7岁', uploader: '林老师', usage: 8, image: 'https://images.unsplash.com/photo-1597848212624-a19eb35e2651?auto=format&fit=crop&w=720&q=80' },
-  { id: 2, type: '步骤图', title: '花盘和花瓣分步示意', theme: '花卉植物', age: '5-7岁', uploader: '周老师', usage: 5, image: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=720&q=80' },
-  { id: 3, type: '范画', title: '海底世界色彩范画', theme: '动物世界', age: '4-6岁', uploader: '周老师', usage: 11, image: 'https://images.unsplash.com/photo-1549490349-8643362247b5?auto=format&fit=crop&w=720&q=80' },
-  { id: 4, type: '范画', title: '城市建筑线描示例', theme: '建筑空间', age: '7-9岁', uploader: '林老师', usage: 6, image: 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&w=720&q=80' }
 ]
 
 export const homeworkSeed = {

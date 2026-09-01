@@ -19,8 +19,6 @@ defineEmits(['navigate', 'back'])
 
 const showResourceDrawer = ref(false)
 const showContentSettings = ref(false)
-const showArtworkLibrary = ref(false)
-const artworkLibraryCategory = ref(MATERIAL_CATEGORIES.DEMO)
 const materialReplaceInput = ref(null)
 const replaceTarget = ref(null)
 const showSharePreview = ref(false)
@@ -135,7 +133,6 @@ const materialSections = computed(() => {
       accept: 'image/*',
       empty: '尚未上传范画',
       kind: 'image',
-      library: true,
       materials: materials.filter((item) => item.type === '范画')
     },
     {
@@ -147,7 +144,6 @@ const materialSections = computed(() => {
       accept: 'image/*',
       empty: '尚未上传步骤图',
       kind: 'image',
-      library: true,
       materials: materials.filter((item) => item.type === '步骤图')
     },
     {
@@ -159,7 +155,6 @@ const materialSections = computed(() => {
       accept: 'image/*,video/*',
       empty: '尚未添加课堂记录',
       kind: 'media',
-      library: false,
       materials: materials.filter((item) => ['课堂照片', '课堂视频'].includes(item.type))
     },
     {
@@ -171,7 +166,6 @@ const materialSections = computed(() => {
       accept: '',
       empty: '尚未上传课件',
       kind: 'file',
-      library: false,
       materials: materials.filter((item) => item.type === '课件')
     }
   ]
@@ -180,6 +174,27 @@ const activeMaterialSectionKey = ref('demo')
 const activeMaterialSection = computed(() => materialSections.value.find((section) => section.key === activeMaterialSectionKey.value) || materialSections.value[0] || null)
 const classroomMaterialSection = computed(() => materialSections.value.find((section) => section.key === 'classroom'))
 const classroomMaterialCount = computed(() => classroomMaterialSection.value?.materials.length || 0)
+const preparationMemory = computed(() => resolveStateValue(props.state.activeWorkspace?.preparationMemory) || {})
+const preparationMemorySummary = computed(() => {
+  const counts = preparationMemory.value.counts || {}
+  const parts = [
+    ['DEMO_IMAGE', '范画'],
+    ['STEP_IMAGE', '步骤图'],
+    ['COURSEWARE', '课件']
+  ].map(([key, label]) => Number(counts[key] || 0) > 0 ? `${label} ${counts[key]} 个` : '').filter(Boolean)
+  return parts.join('、') || '范画、步骤图和课件'
+})
+const showPreparationMemoryNotice = computed(() => Boolean(
+  preparationMemory.value.autoApplied || preparationMemory.value.hasDefault
+))
+const canReapplyPreparation = computed(() => {
+  const materials = resolveStateValue(props.state.materials) || []
+  const hasPreparationMaterials = materials.some((item) => ['范画', '步骤图', '课件'].includes(item.type))
+  return Boolean(preparationMemory.value.autoApplied && !hasPreparationMaterials && !resolveStateValue(props.state.materialsConfirmedEmpty))
+})
+const reapplyPreparation = async () => {
+  await props.state.reapplyLessonPreparation?.()
+}
 const editingMaterialId = ref(null)
 const materialNameDraft = ref('')
 const materialNameSaving = ref(false)
@@ -270,10 +285,6 @@ const handleMaterialTabKeydown = (event, currentKey) => {
   activeMaterialSectionKey.value = nextKey
   if (typeof document !== 'undefined') document.getElementById(`material-tab-${nextKey}`)?.focus()
 }
-const filteredArtworkLibrary = computed(() => {
-  const library = resolveStateValue(props.state.artworkLibrary) || []
-  return library.filter((item) => item.type === artworkLibraryCategory.value)
-})
 const replaceAccept = computed(() => {
   if (replaceTarget.value?.category === MATERIAL_CATEGORIES.CLASSROOM) return 'image/*,video/*'
   if (replaceTarget.value?.category === MATERIAL_CATEGORIES.COURSEWARE) return undefined
@@ -448,10 +459,6 @@ const openResourceDrawer = async () => {
     resourceLoading.value = false
   }
 }
-const openArtworkLibrary = (category) => {
-  artworkLibraryCategory.value = category
-  showArtworkLibrary.value = true
-}
 const openMaterialReplace = (material, category) => {
   replaceTarget.value = { material, category }
   const trigger = () => materialReplaceInput.value?.click()
@@ -470,9 +477,7 @@ watch(() => props.state.activeTask.id, () => {
   props.state.cancelCloudProviderPicker?.()
   showResourceDrawer.value = false
   showContentSettings.value = false
-  showArtworkLibrary.value = false
   showTeacherEffectDrawer.value = false
-  artworkLibraryCategory.value = MATERIAL_CATEGORIES.DEMO
   activeMaterialSectionKey.value = 'demo'
   replaceTarget.value = null
   showSharePreview.value = false
@@ -636,6 +641,18 @@ watch(homeworkEditorOpen, async (open) => {
           </div>
         </div>
 
+        <div v-if="showPreparationMemoryNotice" class="preparation-memory-notice">
+          <div>
+            <strong>{{ preparationMemory.autoApplied
+              ? (preparationMemory.covered ? '本课已调整，并已更新本主题默认材料' : '已自动带入本主题上次使用的材料')
+              : '本主题材料已记住' }}</strong>
+            <span>{{ preparationMemorySummary }} · 下次打开同主题课次会自动带入</span>
+          </div>
+          <button v-if="canReapplyPreparation" class="secondary" type="button" @click="reapplyPreparation">
+            重新带入默认材料
+          </button>
+        </div>
+
         <section class="classroom-materials-board">
           <nav class="material-tabs" role="tablist" aria-label="课堂素材分类">
             <button
@@ -679,9 +696,6 @@ watch(homeworkEditorOpen, async (open) => {
                       <span aria-hidden="true">＋</span>{{ activeMaterialSection.uploadLabel }}
                       <input type="file" :accept="activeMaterialSection.accept || undefined" multiple @change="state.uploadLessonMaterial($event, activeMaterialSection.category)" />
                     </label>
-                    <button v-if="activeMaterialSection.library && state.artworkLibrary.length" class="secondary" type="button" @click="openArtworkLibrary(activeMaterialSection.category)">
-                      从备课素材库选择
-                    </button>
                   </div>
                 </div>
                 <small>{{ activeMaterialSection.materials.length }} 个文件 · {{ activeMaterialSection.description }}</small>
@@ -785,33 +799,6 @@ watch(homeworkEditorOpen, async (open) => {
         </section>
 
         <input ref="materialReplaceInput" class="visually-hidden" type="file" :accept="replaceAccept" @change="handleMaterialReplace" />
-
-        <div v-if="showArtworkLibrary" class="drawer-backdrop" @click.self="showArtworkLibrary = false">
-          <aside class="library-drawer">
-            <header class="drawer-head">
-              <div>
-                <span>备课素材库</span>
-                <strong>选择{{ artworkLibraryCategory }}</strong>
-                <small>{{ filteredArtworkLibrary.length }} 项素材</small>
-              </div>
-              <button class="ghost" type="button" @click="showArtworkLibrary = false">关闭</button>
-            </header>
-            <section class="library-drawer-list">
-            <article v-for="item in filteredArtworkLibrary" :key="item.id" :class="{ selected: state.materials.some((material) => sameId(material.libraryId, item.id)) }">
-                <img :src="item.image" :alt="item.title" />
-                <div>
-                  <span>{{ item.type }} · {{ item.theme }}</span>
-                  <strong>{{ item.title }}</strong>
-                  <small>{{ item.uploader }} · 已使用 {{ item.usage }} 次</small>
-                </div>
-                <button class="secondary" :disabled="state.materials.some((material) => sameId(material.libraryId, item.id))" @click="state.useArtworkFromLibrary(item)">
-                  {{ state.materials.some((material) => sameId(material.libraryId, item.id)) ? '已引用' : '引用' }}
-                </button>
-              </article>
-              <small v-if="!filteredArtworkLibrary.length" class="empty-note">当前板块暂无可引用的备课素材。</small>
-            </section>
-          </aside>
-        </div>
       </section>
 
       <section v-if="state.currentStep === 2" class="step-panel">

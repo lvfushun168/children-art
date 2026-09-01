@@ -6480,57 +6480,6 @@ textarea:focus,
   }
 }
 
-.library-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.library-toolbar > input {
-  max-width: 420px;
-}
-
-.artwork-library-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
-  gap: 14px;
-}
-
-.artwork-library-card {
-  display: grid;
-  gap: 12px;
-}
-
-.artwork-library-card > img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.artwork-library-card > div {
-  display: grid;
-  gap: 5px;
-}
-
-.artwork-library-card span,
-.artwork-library-card small {
-  color: var(--color-muted);
-}
-
-.library-upload {
-  display: grid;
-  gap: 12px;
-  max-width: 920px;
-  margin-bottom: 14px;
-}
-
-.library-file {
-  min-height: 52px;
-  padding: 0 14px;
-}
-
 .material-strip article,
 .add-tile,
 .notice-box,
@@ -12194,10 +12143,6 @@ textarea:focus,
     flex-direction: column;
   }
 
-  .artwork-library-grid {
-    grid-template-columns: 1fr;
-  }
-
   .drawer-backdrop {
     padding: 8px;
   }
@@ -13890,6 +13835,45 @@ textarea:focus,
   flex-direction: column;
   align-items: flex-start;
   gap: 16px;
+}
+
+.preparation-memory-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  max-width: 1180px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-border-soft));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-primary-soft) 62%, var(--color-surface));
+}
+
+.preparation-memory-notice > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.preparation-memory-notice strong {
+  color: var(--color-primary);
+}
+
+.preparation-memory-notice span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .preparation-memory-notice {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .preparation-memory-notice button {
+    width: 100%;
+  }
 }
 
 .material-section-card {

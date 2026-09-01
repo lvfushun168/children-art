@@ -14,7 +14,7 @@ const { clearSession, createIdempotencyKey, getAccessToken, getApiRequestStats, 
 const { api } = await import('../src/services/api.js')
 const { downloadProtectedFile } = await import('../src/services/fileService.js')
 const { clearProtectedMediaCache, protectedMediaUrl } = await import('../src/services/protectedMediaCache.js')
-const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCloudArchiveBatch, mapCloudArchiveJob, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
+const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCloudArchiveBatch, mapCloudArchiveJob, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapPreparationMemory, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
 
 const response = (status, payload, contentType = 'application/json') => ({
   status,
@@ -664,6 +664,21 @@ test('sends mixed classroom media asset types in one batch', async () => {
   assert.deepEqual(JSON.parse(received.body), { items })
 })
 
+test('requests topic preparation auto-apply with an explicit force flag', async () => {
+  let received
+  globalThis.fetch = async (url, options) => {
+    received = { url, options }
+    return response(200, { data: { applied: true, reason: 'APPLIED', assetIds: ['51', '52'] }, meta: {}, error: null })
+  }
+
+  const result = await api.assets.autoApplyPreparation('11', { force: true })
+
+  assert.equal(received.url, '/api/v1/lessons/11/preparation/auto-apply')
+  assert.equal(received.options.method, 'POST')
+  assert.deepEqual(JSON.parse(received.options.body), { force: true })
+  assert.deepEqual(result.assetIds, ['51', '52'])
+})
+
 test('deduplicates protected file content requests by file ID', async () => {
   let contentRequests = 0
   globalThis.fetch = async (url) => {
@@ -677,4 +692,24 @@ test('deduplicates protected file content requests by file ID', async () => {
   assert.equal(contentRequests, 1)
   assert.equal(getApiRequestStats().find((item) => item.key.endsWith('/api/v1/files/42/content'))?.cacheHits, 1)
   clearProtectedMediaCache()
+})
+
+test('maps preparation memory source, version and material counts', () => {
+  assert.deepEqual(mapPreparationMemory({
+    source: 'TOPIC_MEMORY',
+    memoryId: '7',
+    memoryVersion: '3',
+    autoApplied: true,
+    covered: true,
+    counts: { DEMO_IMAGE: '2', STEP_IMAGE: 1 }
+  }), {
+    source: 'TOPIC_MEMORY',
+    memoryId: 7,
+    memoryVersion: 3,
+    autoApplied: true,
+    covered: true,
+    suppressed: false,
+    hasDefault: false,
+    counts: { DEMO_IMAGE: 2, STEP_IMAGE: 1 }
+  })
 })

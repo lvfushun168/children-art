@@ -42,6 +42,7 @@ import {
   mapIdentityUser,
   mapLesson,
   mapPage,
+  mapPreparationMemory,
   mapProfileAudit,
   mapProfileField,
   mapProfileValue,
@@ -102,6 +103,7 @@ const homeworkIsAssigned = (value) => value?.taskMode
   ? value.taskMode === 'ASSIGNED'
   : Boolean(String(value?.content || '').trim())
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const PREPARATION_MATERIAL_LABELS = new Set(['范画', '步骤图', '课件'])
 const displayDateFromValue = (value) => {
   if (!value) return ''
   const [, month, day] = value.split('-').map(Number)
@@ -132,7 +134,6 @@ export function useDeliveryWorkflow() {
   const storedMe = ref(getSession())
   const school = reactive({ name: '课后交付系统', campus: '', address: '', aiProvider: '', objectStorage: '', watermark: '' })
   const campuses = reactive([])
-  const artworkLibrary = reactive([])
   const teachers = reactive([])
   const students = reactive([])
   const classes = reactive([])
@@ -335,6 +336,16 @@ export function useDeliveryWorkflow() {
     materials: [],
     materialsConfirmedEmpty: false,
     materialsVersion: null,
+    preparationMemory: {
+      source: 'NONE',
+      memoryId: null,
+      memoryVersion: null,
+      autoApplied: false,
+      covered: false,
+      suppressed: false,
+      hasDefault: false,
+      counts: {}
+    },
     homework: { lessonId: task.id, taskMode: 'NONE', content: '', requirement: '', dueDate: '', visible: false, externalLinkIds: [], version: 0 },
     displayConfig: { lessonId: task.id, expiresInDays: 30, showMaterials: true, showHomework: false, showHighlight: true, showLessonType: true },
     bulkRecord: '',
@@ -376,6 +387,9 @@ export function useDeliveryWorkflow() {
     if (!task?.id) return emptyLessonWorkspace
     if (!lessonWorkspaces[task.id]) lessonWorkspaces[task.id] = createLessonWorkspace(task)
     const workspace = lessonWorkspaces[task.id]
+    if (!workspace.preparationMemory) {
+      workspace.preparationMemory = mapPreparationMemory()
+    }
     if (!workspace.activeStudentId) {
       workspace.activeStudentId =
         workspace.studentDeliveries.find((row) => row.attendance === '到课')?.studentId ||
@@ -1498,8 +1512,7 @@ export function useDeliveryWorkflow() {
       type,
       title: `新上传${type} ${materials.value.length + 1}`,
       image: '',
-      visible: defaultMaterialVisible(type),
-      libraryId: null
+      visible: defaultMaterialVisible(type)
     })
     notify(`已上传一张${type}`)
   }
@@ -1520,8 +1533,7 @@ export function useDeliveryWorkflow() {
         fileName: file.name,
         fileExt: extension,
         fileSize: file.size,
-        visible: defaultMaterialVisible(category),
-        libraryId: null
+        visible: defaultMaterialVisible(category)
       })
     })
     materialsConfirmedEmpty.value = false
@@ -1555,8 +1567,7 @@ export function useDeliveryWorkflow() {
       fileName: file.name,
       fileExt: extension,
       fileSize: file.size,
-      visible: category === '课堂记录' ? Boolean(material.visible) : defaultMaterialVisible(category),
-      libraryId: null
+      visible: category === '课堂记录' ? Boolean(material.visible) : defaultMaterialVisible(category)
     })
     if (previousUrl && String(previousUrl).startsWith('blob:')) URL.revokeObjectURL(previousUrl)
     notify(`已替换${material.title}`)
@@ -1566,23 +1577,6 @@ export function useDeliveryWorkflow() {
   const confirmNoLessonMaterials = () => {
     materialsConfirmedEmpty.value = !materialsConfirmedEmpty.value
     notify(materialsConfirmedEmpty.value ? '已确认本节无课堂资料' : '已取消无资料确认')
-  }
-
-  const useArtworkFromLibrary = (item) => {
-    if (materials.value.some((material) => material.libraryId === item.id)) {
-      notify(`${item.title}已在本节课中`)
-      return
-    }
-    materials.value.push({ id: Date.now(), lessonId: activeTaskId.value, type: item.type, title: item.title, image: item.image, visible: defaultMaterialVisible(item.type), libraryId: item.id })
-    item.usage += 1
-    notify(`已从范画库选择：${item.title}`)
-  }
-
-  const addArtworkLibraryItem = (payload) => {
-    const item = { id: nextId(artworkLibrary), type: payload.type || '范画', title: payload.title || '新范画', theme: payload.theme || '未分类', age: payload.age || '不限', uploader: currentUser.value.name, usage: 0, image: payload.image || '' }
-    artworkLibrary.unshift(item)
-    notify(`已加入范画库：${item.title}`)
-    return item
   }
 
   const chooseImageTemplate = (index) => {
@@ -3669,6 +3663,7 @@ export function useDeliveryWorkflow() {
     const parentModule = value?.parentDelivery || value?.m3?.parentDelivery || {}
     const attendance = (value?.attendance || []).map(mapAttendance)
     const assets = (assetsModule.classroomMaterials || assetsModule.assets || []).map(mapAsset)
+    const preparationMemory = mapPreparationMemory(assetsModule.preparationMemory || {})
     const artworks = (assetsModule.artworks || []).map(mapArtwork)
     const feedbacks = (feedbackModule.feedbacks || []).map(mapFeedback)
     const draft = mapSharePage(parentModule.sharePage || {})
@@ -3775,7 +3770,10 @@ export function useDeliveryWorkflow() {
       studentDeliveries: rows,
       materials: materialItems,
       materialsConfirmedEmpty: Boolean(assetsModule.materialsConfirmedEmpty),
-      materialsVersion: workspace.materialsVersion ?? null,
+      materialsVersion: assetsModule.materialsVersion === null || assetsModule.materialsVersion === undefined
+        ? workspace.materialsVersion ?? null
+        : Number(assetsModule.materialsVersion || 0),
+      preparationMemory,
       homework: { ...workspace.homework, ...homeworkData, lessonId: lesson.id, externalLinkIds: fromApiIds(homeworkData.externalLinkIds || []) },
       displayConfig: draftDisplayConfig,
       sharePage: mergeSharePageForWorkspace(workspace, draft),
@@ -3831,6 +3829,7 @@ export function useDeliveryWorkflow() {
   const lessonWorkspaceControllers = new Map()
   const lessonWorkspaceEpochs = new Map()
   const lessonWorkspaceLoaded = new Set()
+  const preparationAutoApplyAttempts = new Set()
   const lessonStartPromises = new Map()
   // 展示草稿会同时被高光勾选、说明输入框失焦等事件触发；按课次串行保存，
   // 确保后一个请求使用前一个请求返回的 page/homework 版本。
@@ -3864,14 +3863,57 @@ export function useDeliveryWorkflow() {
     return promise
   }
 
+  const preparationApplyReasonMessage = (reason) => ({
+    NO_TOPIC: '请先填写课题，系统才能自动带入本主题材料',
+    HAS_PREPARATION_MATERIALS: '本课已有范画、步骤图或课件，系统不会合并材料',
+    MATERIALS_CONFIRMED_EMPTY: '本节已确认无资料，如需带入材料请先取消无资料确认',
+    SUPPRESSED: '本课已暂不自动带入材料，可在空状态下手动重新带入',
+    NOT_EDITABLE: '当前课次不可编辑，暂时不能带入材料',
+    MEMORY_FILE_UNAVAILABLE: '主题默认材料中的文件已不可用，请重新上传',
+    NO_MEMORY: '当前主题还没有已记住的材料'
+  }[reason] || '')
+
+  const maybeAutoApplyPreparation = async (lessonId, workspace, { retry = false } = {}) => {
+    if (!lessonId || !workspace) return workspace
+    const key = String(lessonId)
+    if (retry) preparationAutoApplyAttempts.delete(key)
+    if (preparationAutoApplyAttempts.has(key)) return workspace
+    preparationAutoApplyAttempts.add(key)
+    const lesson = lessonForInboxId(lessonId) || selectedTaskSnapshot.value
+    const topic = String(lesson?.topic || '').trim()
+    const materials = Array.isArray(workspace.materials) ? workspace.materials : []
+    if (!topic) {
+      notify('请先填写课题，系统才能自动带入本主题材料')
+      return workspace
+    }
+    if (materials.some((item) => PREPARATION_MATERIAL_LABELS.has(item.type)) || workspace.materialsConfirmedEmpty) {
+      return workspace
+    }
+    const memory = workspace.preparationMemory || {}
+    // 后端已明确没有默认材料时，不额外发起一次无结果请求；autoApplied 保留
+    // 是为了让“删除全部后重新带入”仍可通过显式 force 操作恢复上一组材料。
+    if (!memory.hasDefault && !memory.autoApplied) return workspace
+    try {
+      const result = await api.assets.autoApplyPreparation(lessonId, { force: false })
+      if (result?.applied) {
+        return (await refreshRemoteLesson(lessonId, { force: true })) || workspace
+      }
+      if (result?.reason === 'MEMORY_FILE_UNAVAILABLE') notify(preparationApplyReasonMessage(result.reason))
+    } catch (error) {
+      if (error?.name !== 'AbortError') notify(remoteErrorMessage(error, '主题材料自动带入失败'))
+    }
+    return workspace
+  }
+
   const loadLessonWorkspace = async (lessonId, { force = false } = {}) => {
     const key = String(lessonId || '')
     if (!key) return null
     if (!force && lessonWorkspaceLoaded.has(key) && lessonWorkspaces[key]) {
       recordApiCacheHit(`/api/v1/lessons/${encodeURIComponent(key)}/workspace`)
-      return lessonWorkspaces[key]
+      return maybeAutoApplyPreparation(lessonId, lessonWorkspaces[key])
     }
-    return refreshRemoteLesson(lessonId, { force })
+    const workspace = await refreshRemoteLesson(lessonId, { force })
+    return maybeAutoApplyPreparation(lessonId, workspace, { retry: force })
   }
 
   const mergeLessonRecord = (value) => {
@@ -4943,6 +4985,7 @@ export function useDeliveryWorkflow() {
     lessonWorkspacePromises.clear()
     lessonWorkspaceEpochs.clear()
     lessonWorkspaceLoaded.clear()
+    preparationAutoApplyAttempts.clear()
     lessonStartPromises.clear()
     clearProtectedMediaCache()
     portfolioStudioRef?.clearPortfolioSession?.()
@@ -4960,7 +5003,6 @@ export function useDeliveryWorkflow() {
     replaceReactive(tasks)
     replaceReactive(inboxLessons)
     replaceReactive(archiveRecords)
-    replaceReactive(artworkLibrary)
     replaceReactive(communicationRecords)
     replaceReactive(extraTaskArchives)
     replaceReactive(extraTaskWorks)
@@ -5195,7 +5237,29 @@ export function useDeliveryWorkflow() {
     }))
     if (!result) return false
     activeWorkspace.value.materialsVersion = Number(result.version || 0)
-    await refreshRemoteLesson(activeTask.value.id)
+    activeWorkspace.value.materialsConfirmedEmpty = Boolean(result.materialsConfirmedEmpty)
+    if (materialsConfirmedEmpty.value) {
+      await refreshRemoteLesson(activeTask.value.id)
+    } else {
+      await loadLessonWorkspace(activeTask.value.id, { force: true })
+    }
+    return true
+  }
+
+  const remoteReapplyLessonPreparation = async () => {
+    const lessonId = activeTask.value?.id
+    if (!lessonId) return false
+    const result = await runRemote('正在重新带入主题材料...', () => api.assets.autoApplyPreparation(lessonId, {
+      force: true
+    }))
+    if (!result) return false
+    if (!result.applied) {
+      const message = preparationApplyReasonMessage(result.reason)
+      if (message) notify(message)
+      return false
+    }
+    await refreshRemoteLesson(lessonId, { force: true })
+    notify('已重新带入默认材料')
     return true
   }
 
@@ -6491,7 +6555,7 @@ export function useDeliveryWorkflow() {
       tasks.unshift(lesson)
     }
     activeTaskId.value = lesson.id
-    await refreshRemoteLesson(lesson.id)
+    await loadLessonWorkspace(lesson.id)
     return lesson
   }
 
@@ -6523,6 +6587,9 @@ export function useDeliveryWorkflow() {
       invalidateResource('inbox-lessons'),
       invalidateResource('workbench.summary')
     ])
+    if (sameId(activeTaskId.value, lesson.id)) {
+      await loadLessonWorkspace(lesson.id, { force: true })
+    }
     return lesson
   }
 
@@ -7541,16 +7608,6 @@ export function useDeliveryWorkflow() {
 
   const remoteExtraTaskWorksForTask = (taskId) => extraTaskWorks.filter((record) => sameId(record.extraTaskId, taskId))
 
-  const remoteUseArtworkFromLibrary = () => {
-    notify('范画库暂不可用')
-    return false
-  }
-
-  const remoteAddArtworkLibraryItem = () => {
-    notify('范画库暂不可新增')
-    return null
-  }
-
   onSessionChanged((me) => {
     storedMe.value = me
     if (!me) isLoggedIn.value = false
@@ -7589,7 +7646,6 @@ export function useDeliveryWorkflow() {
     campusLoading,
     campusLoaded,
     campusError,
-    artworkLibrary,
     teachers,
     students,
     classes,
@@ -7783,8 +7839,7 @@ export function useDeliveryWorkflow() {
     replaceLessonMaterial: remoteReplaceLessonMaterial,
     removeLessonMaterial: remoteRemoveLessonMaterial,
     confirmNoLessonMaterials: remoteConfirmNoLessonMaterials,
-    useArtworkFromLibrary: remoteUseArtworkFromLibrary,
-    addArtworkLibraryItem: remoteAddArtworkLibraryItem,
+    reapplyLessonPreparation: remoteReapplyLessonPreparation,
     chooseImageTemplate,
     removeImageTemplate,
     chooseCommentTemplate,

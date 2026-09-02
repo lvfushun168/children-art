@@ -708,6 +708,7 @@ test('maps preparation memory source, version and material counts', () => {
     memoryVersion: 3,
     autoApplied: true,
     covered: true,
+    memorySource: 'TOPIC_MEMORY',
     suppressed: false,
     hasDefault: false,
     counts: { DEMO_IMAGE: 2, STEP_IMAGE: 1 }

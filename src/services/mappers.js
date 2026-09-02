@@ -309,6 +309,7 @@ export const mapAsset = (value = {}) => ({
 export const mapPreparationMemory = (value = {}) => ({
   ...value,
   source: value.source || 'NONE',
+  memorySource: value.memorySource || value.source || 'NONE',
   memoryId: safeUiId(value.memoryId),
   memoryVersion: value.memoryVersion === null || value.memoryVersion === undefined ? null : Number(value.memoryVersion || 0),
   autoApplied: Boolean(value.autoApplied),

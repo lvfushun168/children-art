@@ -175,6 +175,17 @@ const activeMaterialSection = computed(() => materialSections.value.find((sectio
 const classroomMaterialSection = computed(() => materialSections.value.find((section) => section.key === 'classroom'))
 const classroomMaterialCount = computed(() => classroomMaterialSection.value?.materials.length || 0)
 const preparationMemory = computed(() => resolveStateValue(props.state.activeWorkspace?.preparationMemory) || {})
+const preparationMemorySource = computed(() => preparationMemory.value.memorySource || preparationMemory.value.source || 'NONE')
+const preparationMemoryScopeLabel = computed(() => preparationMemorySource.value === 'CLASS_MEMORY' ? '本班同课程' : '本主题')
+const preparationMemoryNextLessonLabel = computed(() => preparationMemorySource.value === 'CLASS_MEMORY' ? '同班同课程课次' : '同主题课次')
+const preparationMemoryNoticeTitle = computed(() => {
+  if (preparationMemory.value.autoApplied) {
+    return preparationMemory.value.covered
+      ? '本课已调整，并已更新' + preparationMemoryScopeLabel.value + '默认材料'
+      : '已自动带入' + preparationMemoryScopeLabel.value + '上次使用的材料'
+  }
+  return preparationMemoryScopeLabel.value + '默认材料已记住'
+})
 const preparationMemorySummary = computed(() => {
   const counts = preparationMemory.value.counts || {}
   const parts = [
@@ -643,10 +654,8 @@ watch(homeworkEditorOpen, async (open) => {
 
         <div v-if="showPreparationMemoryNotice" class="preparation-memory-notice">
           <div>
-            <strong>{{ preparationMemory.autoApplied
-              ? (preparationMemory.covered ? '本课已调整，并已更新本主题默认材料' : '已自动带入本主题上次使用的材料')
-              : '本主题材料已记住' }}</strong>
-            <span>{{ preparationMemorySummary }} · 下次打开同主题课次会自动带入</span>
+            <strong>{{ preparationMemoryNoticeTitle }}</strong>
+            <span>{{ preparationMemorySummary }} · 下次打开{{ preparationMemoryNextLessonLabel }}会自动带入</span>
           </div>
           <button v-if="canReapplyPreparation" class="secondary" type="button" @click="reapplyPreparation">
             重新带入默认材料

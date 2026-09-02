@@ -338,6 +338,7 @@ export function useDeliveryWorkflow() {
     materialsVersion: null,
     preparationMemory: {
       source: 'NONE',
+      memorySource: 'NONE',
       memoryId: null,
       memoryVersion: null,
       autoApplied: false,
@@ -3864,13 +3865,14 @@ export function useDeliveryWorkflow() {
   }
 
   const preparationApplyReasonMessage = (reason) => ({
-    NO_TOPIC: '请先填写课题，系统才能自动带入本主题材料',
+    NO_TOPIC: '当前课次缺少主题或班级信息，无法自动带入材料',
+    NO_MATCH_SCOPE: '当前课次缺少主题或班级信息，无法自动带入材料',
     HAS_PREPARATION_MATERIALS: '本课已有范画、步骤图或课件，系统不会合并材料',
     MATERIALS_CONFIRMED_EMPTY: '本节已确认无资料，如需带入材料请先取消无资料确认',
     SUPPRESSED: '本课已暂不自动带入材料，可在空状态下手动重新带入',
     NOT_EDITABLE: '当前课次不可编辑，暂时不能带入材料',
-    MEMORY_FILE_UNAVAILABLE: '主题默认材料中的文件已不可用，请重新上传',
-    NO_MEMORY: '当前主题还没有已记住的材料'
+    MEMORY_FILE_UNAVAILABLE: '默认材料中的文件已不可用，请重新上传',
+    NO_MEMORY: '当前课次还没有已记住的默认材料'
   }[reason] || '')
 
   const maybeAutoApplyPreparation = async (lessonId, workspace, { retry = false } = {}) => {
@@ -3879,13 +3881,7 @@ export function useDeliveryWorkflow() {
     if (retry) preparationAutoApplyAttempts.delete(key)
     if (preparationAutoApplyAttempts.has(key)) return workspace
     preparationAutoApplyAttempts.add(key)
-    const lesson = lessonForInboxId(lessonId) || selectedTaskSnapshot.value
-    const topic = String(lesson?.topic || '').trim()
     const materials = Array.isArray(workspace.materials) ? workspace.materials : []
-    if (!topic) {
-      notify('请先填写课题，系统才能自动带入本主题材料')
-      return workspace
-    }
     if (materials.some((item) => PREPARATION_MATERIAL_LABELS.has(item.type)) || workspace.materialsConfirmedEmpty) {
       return workspace
     }
@@ -5249,7 +5245,7 @@ export function useDeliveryWorkflow() {
   const remoteReapplyLessonPreparation = async () => {
     const lessonId = activeTask.value?.id
     if (!lessonId) return false
-    const result = await runRemote('正在重新带入主题材料...', () => api.assets.autoApplyPreparation(lessonId, {
+    const result = await runRemote('正在重新带入默认材料...', () => api.assets.autoApplyPreparation(lessonId, {
       force: true
     }))
     if (!result) return false

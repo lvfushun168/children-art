@@ -17,7 +17,7 @@ export const identityModuleLabel = (module) => ({
   feedback: '课评与反馈',
   ai: 'AI 能力',
   share: '家长分享',
-  touch: '家长触达',
+  touch: '家长通知',
   archive: '档案管理',
   wheat: '小麦消课',
   todo: '待办中心',

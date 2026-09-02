@@ -1237,7 +1237,7 @@ export function useDeliveryWorkflow() {
     return warnings
   })
 
-  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工触达', '发送失败', '已人工处理', '无需处理']
+  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工发送', '发送失败', '已人工处理', '无需处理']
   const archiveRecordedStatuses = [...archiveDoneStatuses, '待绑定家长群']
   const archiveWorkingStatuses = ['推送中', '生成中', '创建中']
   const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
@@ -1277,15 +1277,15 @@ export function useDeliveryWorkflow() {
   const archiveChecklistItems = computed(() => [
     {
       key: 'parentTouch',
-      title: '家长展示发布与企业微信推送',
+      title: '家长展示页与企业微信通知',
       meta: wecomConfigurationLoading.value
         ? '正在读取企业微信配置…'
         : !wecomConfigurationLoaded.value
           ? (wecomConfigurationLoadError.value ? '企业微信配置读取失败' : '正在读取企业微信配置…')
           : wecomEnabled.value
-            ? '发布展示页快照并创建企业微信推送任务'
+            ? '发布展示页内容并创建企业微信通知任务'
             : '企业微信未启用，请先完成配置',
-      action: '创建企微待推送',
+      action: '创建企微通知',
       required: true,
       item: archiveChecklist.value.parentTouch
     },
@@ -2126,12 +2126,12 @@ export function useDeliveryWorkflow() {
       && touchDispatchStatus(task) === 'FAILED').length
     const allSent = lessonTasks.every((task) => touchBusinessStatus(task) === 'SENT')
     const allManual = lessonTasks.every((task) => touchBusinessStatus(task) === 'MANUALLY_COMPLETED')
-    const status = pendingBinding ? '待绑定家长群' : pending ? '待老师确认发送' : failed ? '发送失败' : allSent ? '已发送' : allManual ? '人工触达' : '待老师确认发送'
+    const status = pendingBinding ? '待绑定家长群' : pending ? '待老师确认发送' : failed ? '发送失败' : allSent ? '已发送' : allManual ? '人工发送' : '待老师确认发送'
     Object.assign(workspace.archiveChecklist.parentTouch, {
       status,
       dispatchStatus: dispatchWorking ? 'PENDING_CREATE' : dispatchFailed ? 'FAILED' : '',
       sentCount: sent + manual,
-      detail: `企微已发送 ${sent} · 人工触达 ${manual} · 待绑定 ${pendingBinding} · 待确认发送 ${pending}${failed ? ` · 初次发送失败 ${failed}（已进入待办中心，不阻断归档）` : ''}${dispatchWorking ? ` · 重新发送中 ${dispatchWorking}` : ''}${dispatchFailed ? ` · 最近发送失败 ${dispatchFailed}（可重新发送）` : ''}`,
+      detail: `企微已发送 ${sent} · 人工发送 ${manual} · 待绑定 ${pendingBinding} · 待确认发送 ${pending}${failed ? ` · 初次发送失败 ${failed}（已进入待办中心，不阻断归档）` : ''}${dispatchWorking ? ` · 重新发送中 ${dispatchWorking}` : ''}${dispatchFailed ? ` · 最近发送失败 ${dispatchFailed}（可重新发送）` : ''}`,
       updatedAt: nowText()
     })
   }
@@ -2144,7 +2144,7 @@ export function useDeliveryWorkflow() {
     }
     const item = archiveChecklist.value.parentTouch
     if (isArchiveDone(item)) {
-      notify('重复提交已拦截：本节家长触达任务已创建并留痕')
+      notify('重复提交已拦截：本节家长通知任务已创建并记录')
       return false
     }
     const missing = attendingRows.value.filter((row) => !isDeliveryConfirmed(row))
@@ -2158,7 +2158,7 @@ export function useDeliveryWorkflow() {
     setArchiveChecklistItem('parentTouch', { status: '创建中' })
     const nextStatus = '待老师确认发送'
     await runAction(
-      '正在创建企业微信家长触达任务...',
+      '正在创建企业微信家长通知任务...',
       '',
       async () => {
         attendingRows.value.forEach((row) => {
@@ -2183,27 +2183,27 @@ export function useDeliveryWorkflow() {
         })
         setArchiveChecklistItem('parentTouch', {
           status: nextStatus,
-          method: '企业微信客户触达',
+          method: '企业微信家长通知',
           sentCount: 0,
-          detail: `已创建 ${attendingRows.value.length} 个企微触达任务，等待负责人在企业微信客户端确认发送`
+          detail: `已创建 ${attendingRows.value.length} 个企微通知任务，等待负责人在企业微信客户端确认发送`
         })
         addStatusLog(
-          '家长触达',
+          '家长通知',
           activeTask.value.id,
           before,
           nextStatus,
-          `发布展示页 V${sharePage.value.publishedVersion} 并创建 ${attendingRows.value.length} 个企微触达任务`
+          `发布展示页 V${sharePage.value.publishedVersion} 并创建 ${attendingRows.value.length} 个企微通知任务`
         )
       }
     )
-    notify(`已创建 ${attendingRows.value.length} 个企微触达任务，等待负责人在企业微信客户端确认发送`)
+    notify(`已创建 ${attendingRows.value.length} 个企微通知任务，等待负责人在企业微信客户端确认发送`)
     return true
   }
 
   const markWecomSendTask = (task, status, reason = '') => {
     const before = task.status
     if (before === status) {
-      notify(`重复操作已拦截：该触达任务已经是“${status}”`)
+      notify(`重复操作已拦截：该家长通知任务已经是“${status}”`)
       return false
     }
     if (status === '发送失败' && !reason.trim()) {
@@ -2216,9 +2216,9 @@ export function useDeliveryWorkflow() {
       task.failureReason = ''
     }
     if (status === '发送失败') task.failureReason = reason.trim()
-    addStatusLog('企微触达', task.id, before, status, reason.trim() || (status === '已发送' ? '老师已在企业微信确认发送' : ''), '待办中心', task.lessonId)
+    addStatusLog('企微通知', task.id, before, status, reason.trim() || (status === '已发送' ? '老师已在企业微信确认发送' : ''), '待办中心', task.lessonId)
     refreshParentTouchSummary(task.lessonId)
-    notify(`${task.studentName}的触达任务已标记为：${status}`)
+    notify(`${task.studentName}的家长通知任务已标记为：${status}`)
     return true
   }
 
@@ -2231,14 +2231,14 @@ export function useDeliveryWorkflow() {
     }
     const before = task.status
     if (task.status !== '已发送') {
-      task.status = '人工触达'
+      task.status = '人工发送'
       task.sentAt = nowText()
     }
     task.fallbackMethod = '复制链接人工发送'
-    if (before !== task.status) addStatusLog('企微触达', task.id, before, task.status, '企微不可用或未绑定，复制链接人工发送', '家长触达', task.lessonId)
+    if (before !== task.status) addStatusLog('企微通知', task.id, before, task.status, '企微不可用或未绑定，复制链接人工发送', '家长通知', task.lessonId)
     refreshParentTouchSummary(task.lessonId)
     copiedStudentId.value = task.studentId
-    notify(clipboardOk ? `已复制${task.studentName}的家长链接，并记录人工触达` : `已记录${task.studentName}的人工触达，请手动复制链接发送`)
+    notify(clipboardOk ? `已复制${task.studentName}的家长链接，并记录人工发送` : `已记录${task.studentName}的人工发送，请手动复制链接发送`)
     setTimeout(() => {
       if (copiedStudentId.value === task.studentId) copiedStudentId.value = null
     }, 1600)
@@ -3822,7 +3822,7 @@ export function useDeliveryWorkflow() {
       && touchDispatchStatus(task) === 'FAILED').length
     const allSent = touchTasks.length > 0 && touchTasks.every((task) => touchBusinessStatus(task) === 'SENT')
     const allManual = touchTasks.length > 0 && touchTasks.every((task) => touchBusinessStatus(task) === 'MANUALLY_COMPLETED')
-    const touchStatus = pendingBinding ? '待绑定家长群' : pendingConfirm ? '待老师确认发送' : failed ? '发送失败' : allSent ? '已发送' : allManual ? '人工触达' : touchTasks.length ? '待老师确认发送' : '待创建'
+    const touchStatus = pendingBinding ? '待绑定家长群' : pendingConfirm ? '待老师确认发送' : failed ? '发送失败' : allSent ? '已发送' : allManual ? '人工发送' : touchTasks.length ? '待老师确认发送' : '待创建'
     Object.assign(workspace.archiveChecklist, {
       parentTouch: {
         ...workspace.archiveChecklist.parentTouch,
@@ -3830,7 +3830,7 @@ export function useDeliveryWorkflow() {
         dispatchStatus: dispatchWorking ? 'PENDING_CREATE' : dispatchFailed ? 'FAILED' : '',
         sentCount: touchTasks.filter((task) => ['SENT', 'MANUALLY_COMPLETED'].includes(touchBusinessStatus(task))).length,
         detail: touchTasks.length
-          ? `已创建 ${touchTasks.length} 个触达任务${pendingBinding ? `，${pendingBinding} 个待绑定家长群` : ''}${dispatchWorking ? `，${dispatchWorking} 个正在重新发送` : ''}${dispatchFailed ? `，最近 ${dispatchFailed} 个发送失败，可重新发送` : ''}`
+          ? `已创建 ${touchTasks.length} 个家长通知任务${pendingBinding ? `，${pendingBinding} 个待绑定家长群` : ''}${dispatchWorking ? `，${dispatchWorking} 个正在重新发送` : ''}${dispatchFailed ? `，最近 ${dispatchFailed} 个发送失败，可重新发送` : ''}`
           : ''
       },
       studentCloudArchive: {
@@ -6083,12 +6083,12 @@ export function useDeliveryWorkflow() {
         notify(`仍有 ${unresolved} 个学生未绑定可用家长群，请先在学生管理中完成绑定`)
         return false
       }
-      notify(`已根据新的家长群绑定重新提交 ${pendingBindings.length} 个触达任务`)
+      notify(`已根据新的家长群绑定重新提交 ${pendingBindings.length} 个家长通知任务`)
     }
     const initialFailures = lessonTasks.filter((task) => ['FAILED', 'CANCELED'].includes(touchBusinessStatus(task)))
     if (initialFailures.length) {
       for (const task of initialFailures) {
-        const retried = await runRemote('正在重试触达任务...', () => api.parent.retryTouch(task.id, { version: task.version }), '')
+        const retried = await runRemote('正在重试家长通知...', () => api.parent.retryTouch(task.id, { version: task.version }), '')
         if (!retried) return false
       }
     }
@@ -6117,13 +6117,13 @@ export function useDeliveryWorkflow() {
       ])
       return true
     }
-    const result = await runRemote('正在创建家长触达任务...', () => api.parent.touchTasks(lessonId, {
+    const result = await runRemote('正在创建家长通知任务...', () => api.parent.touchTasks(lessonId, {
       channel: 'WECOM',
       message: `${activeTask.value.date || ''} ${activeCourse.value.title || '本次课程'}课后展示已发布，请查看学生作品和课评`.trim(),
       sharePageVersion: sharePage.value.publishedVersion,
       studentIds: attendingRows.value.map((row) => String(row.studentId)),
       shareUrls: Object.fromEntries(attendingRows.value.map((row) => [String(row.studentId), remoteStudentShareUrlFor(row)]))
-    }, createIdempotencyKey(`touch:${lessonId}:${sharePage.value.publishedVersion}`)), '家长触达任务已创建')
+    }, createIdempotencyKey(`touch:${lessonId}:${sharePage.value.publishedVersion}`)), '家长通知任务已创建')
     if (!result) return false
     await Promise.all([
       refreshRemoteLesson(lessonId),
@@ -6152,14 +6152,14 @@ export function useDeliveryWorkflow() {
     if (!task) {
       if (copiedOk) {
         markStudentLinkCopied(studentId)
-        notify('家长展示链接已复制；当前尚未创建触达任务，未记录人工发送')
+        notify('家长展示链接已复制；当前尚未创建家长通知任务，未记录人工发送')
       } else {
         notify('链接已生成，但浏览器未允许自动复制，请手动复制')
       }
       return copiedOk
     }
 
-    const result = await runRemote('正在记录人工触达...', () => api.parent.fallbackManual(task.id, {
+    const result = await runRemote('正在记录人工发送...', () => api.parent.fallbackManual(task.id, {
       reason: '复制链接人工发送',
       version: task.version,
       shareUrl: link
@@ -6172,9 +6172,9 @@ export function useDeliveryWorkflow() {
     ])
     if (copiedOk) {
       markStudentLinkCopied(studentId)
-      notify(`${task.studentName || '学生'}的家长链接已复制，并记录人工触达`)
+      notify(`${task.studentName || '学生'}的家长链接已复制，并记录人工发送`)
     } else {
-      notify(`已记录${task.studentName || '学生'}的人工触达，但自动复制失败，请手动复制链接`)
+      notify(`已记录${task.studentName || '学生'}的人工发送，但自动复制失败，请手动复制链接`)
     }
     return true
   }
@@ -6187,7 +6187,7 @@ export function useDeliveryWorkflow() {
       return false
     }
     const copiedOk = await copyTextToClipboard(link)
-    const result = await runRemote('正在记录人工触达...', () => api.parent.fallbackManual(task.id, {
+    const result = await runRemote('正在记录人工发送...', () => api.parent.fallbackManual(task.id, {
       reason: '复制链接人工发送',
       version: task.version,
       shareUrl: link
@@ -6200,9 +6200,9 @@ export function useDeliveryWorkflow() {
     ])
     if (copiedOk) {
       markStudentLinkCopied(task.studentId)
-      notify(`${task.studentName || '学生'}的家长链接已复制，并记录人工触达`)
+      notify(`${task.studentName || '学生'}的家长链接已复制，并记录人工发送`)
     } else {
-      notify(`已记录${task.studentName || '学生'}的人工触达，但自动复制失败，请手动复制链接`)
+      notify(`已记录${task.studentName || '学生'}的人工发送，但自动复制失败，请手动复制链接`)
     }
     return true
   }
@@ -6210,10 +6210,10 @@ export function useDeliveryWorkflow() {
   const remoteMarkWecomSendTask = async (task, status, reason = '') => {
     if (!task?.id) return false
     const manualConfirm = ['已发送', '人工确认已发送'].includes(status)
-    const action = manualConfirm ? api.parent.markSent : status === '人工触达' ? api.parent.fallbackManual : status === '已取消' ? api.parent.cancelTouch : null
+    const action = manualConfirm ? api.parent.markSent : status === '人工发送' ? api.parent.fallbackManual : status === '已取消' ? api.parent.cancelTouch : null
     if (!action) return false
     const body = manualConfirm ? { version: task.version } : { reason: reason.trim() || '人工操作', version: task.version }
-    const result = await runRemote('正在更新触达任务...', () => action(task.id, body))
+    const result = await runRemote('正在更新家长通知...', () => action(task.id, body))
     if (!result) return false
     await Promise.all([
       refreshRemoteLesson(task.lessonId),
@@ -6239,7 +6239,7 @@ export function useDeliveryWorkflow() {
       ])
       return true
     }
-    const result = await runRemote('正在重试触达任务...', () => api.parent.retryTouch(task.id, { version: task.version }), '触达任务已重新提交')
+    const result = await runRemote('正在重试家长通知...', () => api.parent.retryTouch(task.id, { version: task.version }), '家长通知已重新提交')
     if (!result) return false
     await Promise.all([
       refreshRemoteLesson(task.lessonId),
@@ -6528,7 +6528,7 @@ export function useDeliveryWorkflow() {
     if (!(await remoteSaveShareDraft('归档前保存展示草稿'))) return false
     const lessonTouchTasks = wecomSendTasks.filter((item) => sameId(item.lessonId, task.id))
     const touchReady = attendingRows.value.every((row) => lessonTouchTasks.some((item) =>
-      sameId(item.studentId, row.studentId) && ['待绑定家长群', '待老师确认发送', '已发送', '人工触达', '发送失败', '已跳过'].includes(item.status)
+      sameId(item.studentId, row.studentId) && ['待绑定家长群', '待老师确认发送', '已发送', '人工发送', '发送失败', '已跳过'].includes(item.status)
     ))
     if (!touchReady && !(await remotePushParentTouch())) return false
     const lessonWheat = wheatTraces.find((item) => sameId(item.lessonId, task.id))

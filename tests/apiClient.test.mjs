@@ -457,6 +457,9 @@ test('maps master data and touch-task DTOs to protocol-safe view models', () => 
   assert.equal(touch.shareVersion, 8)
   assert.equal(touch.status, '待老师确认发送')
 
+  const manualTouch = mapTouchTask({ id: '9', lessonId: '6', studentId: '7', status: 'MANUALLY_COMPLETED' })
+  assert.equal(manualTouch.status, '人工发送')
+
   const resentTouch = mapTouchTask({
     id: '5', lessonId: '6', studentId: '7', sharePageVersionId: '8',
     wecomDispatchVersionId: '9', wecomDispatchStatus: 'FAILED', status: 'SENT'

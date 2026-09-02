@@ -529,10 +529,10 @@ watch(() => props.state.currentStep, (step) => {
 const parentTouchActionLabel = (item) => {
   const status = item?.item?.status
   if (typeof props.state.isParentTouchResending === 'function' && props.state.isParentTouchResending(item?.item)) return '重新发送中'
-  if (['人工触达', '已发送', '待老师确认发送'].includes(status)) return '重新发送'
+  if (['人工发送', '已发送', '待老师确认发送'].includes(status)) return '重新发送'
   if (status === '发送失败') return '重试发送'
   if (status === '待绑定家长群') return '绑定后重新提交'
-  return item?.action || '创建企微待推送'
+  return item?.action || '创建企微通知'
 }
 
 const cloudArchiveActionLabel = (item) => {

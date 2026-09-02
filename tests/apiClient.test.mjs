@@ -475,6 +475,14 @@ test('maps completed archive records with an independent failed latest attempt',
   assert.equal(batch.syncAttemptStatus, 'RUNNING')
 })
 
+test('derives archive batch progress when the API only returns file counts', () => {
+  const batch = mapCloudArchiveBatch({ id: '4', totalFiles: 4, completedFiles: 4 })
+  assert.equal(batch.percent, 100)
+
+  const byteBatch = mapCloudArchiveBatch({ id: '5', totalFiles: 4, completedFiles: 1, totalBytes: 200, uploadedBytes: 50 })
+  assert.equal(byteBatch.percent, 25)
+})
+
 test('maps archive, todo and teacher archive DTOs without losing string IDs', () => {
   const archive = mapArchiveRecord({
     id: '1',

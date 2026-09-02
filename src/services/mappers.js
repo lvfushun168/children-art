@@ -742,7 +742,13 @@ export const mapCloudArchiveBatch = (value = {}) => ({
   currentJobId: safeUiId(value.currentJobId),
   currentFileUploadedBytes: Number(value.currentFileUploadedBytes || 0),
   currentFileTotalBytes: Number(value.currentFileTotalBytes || 0),
-  percent: Number(value.percent || 0),
+  percent: Number.isFinite(Number(value.percent))
+    ? Number(value.percent)
+    : Number(value.totalBytes || 0) > 0
+      ? Math.round((Number(value.uploadedBytes || 0) / Number(value.totalBytes || 0)) * 100)
+      : Number(value.totalFiles || 0) > 0
+        ? Math.round((Number(value.completedFiles || 0) / Number(value.totalFiles || 0)) * 100)
+        : 0,
   version: Number(value.version || 0)
 })
 

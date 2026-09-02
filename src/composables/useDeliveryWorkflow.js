@@ -66,6 +66,7 @@ import {
 } from '../services/mappers'
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
+import { copyTextToClipboard } from '../services/clipboard'
 import { loadAllPageItems } from '../utils/pagination'
 import {
   DEFAULT_BAIDU_BACKEND_BASE_URL,
@@ -192,6 +193,7 @@ export function useDeliveryWorkflow() {
   let cloudProviderPickerResolver = null
   let cloudProviderPickerPromise = null
   let cloudProviderSelectionPromise = null
+  let cloudProviderCatalogPromise = null
   const cloudArchiveRule = reactive({
     id: null,
     pathTemplate: DEFAULT_ARCHIVE_RULE,
@@ -1380,6 +1382,13 @@ export function useDeliveryWorkflow() {
     setTimeout(() => {
       if (toast.value === message) toast.value = ''
     }, 2200)
+  }
+
+  const markStudentLinkCopied = (studentId) => {
+    copiedStudentId.value = studentId
+    setTimeout(() => {
+      if (copiedStudentId.value === studentId) copiedStudentId.value = null
+    }, 1600)
   }
 
   const nowText = () => new Date().toLocaleString('zh-CN', { hour12: false })
@@ -3417,14 +3426,28 @@ export function useDeliveryWorkflow() {
     return candidates
   }
 
-  const loadCloudProvidersForSelection = async () => {
-    let cloudGroup = providerGroups.find((group) => String(group.category || '').toLowerCase() === 'cloud')
-    if (!cloudGroup) {
+  const ensureCloudProviderCatalog = async () => {
+    const existing = providerGroups.find((group) => String(group.category || '').toLowerCase() === 'cloud')
+    if (existing) return providerGroups
+    if (cloudProviderCatalogPromise) return cloudProviderCatalogPromise
+
+    const load = (async () => {
       const [providers, groups] = await Promise.all([api.m5.providers(), api.m5.providerGroups()])
       mapProviderSetting(providers?.items || providers || [])
       if (groups) mapProviderGroups(groups)
-      cloudGroup = providerGroups.find((group) => String(group.category || '').toLowerCase() === 'cloud')
+      return providerGroups
+    })()
+    cloudProviderCatalogPromise = load
+    try {
+      return await load
+    } finally {
+      if (cloudProviderCatalogPromise === load) cloudProviderCatalogPromise = null
     }
+  }
+
+  const loadCloudProvidersForSelection = async () => {
+    await ensureCloudProviderCatalog()
+    const cloudGroup = providerGroups.find((group) => String(group.category || '').toLowerCase() === 'cloud')
     const providers = cloudGroup?.value?.providers || []
     await refreshBaiduProviderStatuses(providers)
     return providers.filter((provider) => provider.enabled &&
@@ -5078,7 +5101,8 @@ export function useDeliveryWorkflow() {
     return runRemote('正在加载课次工作区...', async () => {
       // 课次工作区只保存资源 ID；预览还需要资源详情和图片模板，因此在加载草稿前一并准备。
       // 资源目录失败不应阻断课次打开，预览组件本身还有安全兜底。
-      await Promise.allSettled([loadTemplates(), loadResourceExternalLinks()])
+      // 已有网盘批次的按钮需要通过 providerConfigId 识别 Provider 类型，不能等到新建批次时才加载配置。
+      await Promise.allSettled([loadTemplates(), loadResourceExternalLinks(), ensureCloudProviderCatalog()])
       return loadLessonWorkspace(task.id)
     })
   }
@@ -5991,16 +6015,15 @@ export function useDeliveryWorkflow() {
       notify('当前课次没有可复制的交付内容')
       return false
     }
-    try {
-      await navigator.clipboard.writeText(remoteExportText.value)
-      copied.value = true
-      notify('家长展示链接和文案已复制')
-      setTimeout(() => { copied.value = false }, 1600)
-      return true
-    } catch {
+    const copiedOk = await copyTextToClipboard(remoteExportText.value)
+    if (!copiedOk) {
       notify('复制失败，请手动选择内容复制')
       return false
     }
+    copied.value = true
+    notify('家长展示链接和文案已复制')
+    setTimeout(() => { copied.value = false }, 1600)
+    return true
   }
 
   const remoteCopyStudentLink = async (row) => {
@@ -6009,7 +6032,12 @@ export function useDeliveryWorkflow() {
       notify('当前学生还没有已发布的家长展示链接')
       return false
     }
-    try { await navigator.clipboard.writeText(link); copiedStudentId.value = row.studentId } catch { /* 仅记录提示 */ }
+    const copiedOk = await copyTextToClipboard(link)
+    if (!copiedOk) {
+      notify('复制失败，请手动复制家长展示链接')
+      return false
+    }
+    markStudentLinkCopied(row.studentId)
     notify('家长展示链接已复制')
     return true
   }
@@ -6106,24 +6134,63 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteManualCopyStudentLink = async (row) => {
-    const task = wecomTaskFor(activeTask.value.id, row.studentId)
-    if (!task) return remoteCopyStudentLink(row)
-    const result = await runRemote('正在记录人工触达...', () => api.parent.fallbackManual(task.id, { reason: '复制链接人工发送', version: task.version, shareUrl: task.shareUrl }))
+    const lessonId = activeTask.value?.id
+    const studentId = row?.studentId
+    if (!lessonId || !studentId) {
+      notify('当前学生信息不完整，无法复制家长链接')
+      return false
+    }
+    const task = wecomTaskFor(lessonId, studentId)
+    const link = remoteStudentShareUrlFor(row) || task?.shareUrl
+    if (!link) {
+      notify('当前学生还没有已发布的家长展示链接')
+      return false
+    }
+
+    // 先复制再请求后端，确保 HTTP 页面下仍处于浏览器的用户操作上下文。
+    const copiedOk = await copyTextToClipboard(link)
+    if (!task) {
+      if (copiedOk) {
+        markStudentLinkCopied(studentId)
+        notify('家长展示链接已复制；当前尚未创建触达任务，未记录人工发送')
+      } else {
+        notify('链接已生成，但浏览器未允许自动复制，请手动复制')
+      }
+      return copiedOk
+    }
+
+    const result = await runRemote('正在记录人工触达...', () => api.parent.fallbackManual(task.id, {
+      reason: '复制链接人工发送',
+      version: task.version,
+      shareUrl: link
+    }))
     if (!result) return false
     await Promise.all([
-      refreshRemoteLesson(activeTask.value.id),
+      refreshRemoteLesson(lessonId),
       invalidateResource('touch-tasks'),
       invalidateResource('workbench.summary')
     ])
-    return remoteCopyStudentLink(row)
+    if (copiedOk) {
+      markStudentLinkCopied(studentId)
+      notify(`${task.studentName || '学生'}的家长链接已复制，并记录人工触达`)
+    } else {
+      notify(`已记录${task.studentName || '学生'}的人工触达，但自动复制失败，请手动复制链接`)
+    }
+    return true
   }
 
   const remoteManualCopyWecomTask = async (task) => {
     if (!task?.id) return false
+    const link = String(task.shareUrl || '').trim() || remoteStudentShareUrlFor({ studentId: task.studentId })
+    if (!link) {
+      notify('当前学生还没有已发布的家长展示链接')
+      return false
+    }
+    const copiedOk = await copyTextToClipboard(link)
     const result = await runRemote('正在记录人工触达...', () => api.parent.fallbackManual(task.id, {
       reason: '复制链接人工发送',
       version: task.version,
-      shareUrl: task.shareUrl
+      shareUrl: link
     }))
     if (!result) return false
     await Promise.all([
@@ -6131,7 +6198,13 @@ export function useDeliveryWorkflow() {
       invalidateResource('touch-tasks'),
       invalidateResource('workbench.summary')
     ])
-    return remoteCopyStudentLink({ studentId: task.studentId })
+    if (copiedOk) {
+      markStudentLinkCopied(task.studentId)
+      notify(`${task.studentName || '学生'}的家长链接已复制，并记录人工触达`)
+    } else {
+      notify(`已记录${task.studentName || '学生'}的人工触达，但自动复制失败，请手动复制链接`)
+    }
+    return true
   }
 
   const remoteMarkWecomSendTask = async (task, status, reason = '') => {
@@ -7811,7 +7884,7 @@ export function useDeliveryWorkflow() {
     startBaiduOAuth: remoteStartBaiduOAuth,
     baiduOAuthStatus: remoteBaiduOAuthStatus,
     manualCopyWecomTask: remoteManualCopyWecomTask,
-    manualCopyStudentLink,
+    manualCopyStudentLink: remoteManualCopyStudentLink,
     parentShareUrl: remoteParentShareUrl,
     studentShareUrlFor: remoteStudentShareUrlFor,
     qrText,

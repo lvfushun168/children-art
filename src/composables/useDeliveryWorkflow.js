@@ -2804,6 +2804,7 @@ export function useDeliveryWorkflow() {
     if (error?.code === 'INVALID_STATE_TRANSITION' && String(error?.message || '').includes('命令仍在处理中')) {
       return '该操作已在处理中，页面已刷新，请稍候'
     }
+    if (error?.code === 'DUPLICATE_RESOURCE') return error.message || '资源已存在'
     if (error?.status === 409 || ['VERSION_CONFLICT', 'INVALID_STATE_TRANSITION', 'DUPLICATE_RESOURCE', 'IDEMPOTENCY_KEY_REUSED', 'STALE_JOB_ATTEMPT'].includes(error?.code)) return '数据已被其他人更新或操作重复，页面已刷新，请确认后重试'
     if (error?.code === 'PERMISSION_DENIED' || error?.status === 403) return '当前账号没有执行此操作的权限'
     if (error?.status === 422 || error?.code === 'TRANSITION_PRECONDITION_FAILED' || error?.code === 'LESSON_COMPLETION_BLOCKED') return error.message || '当前前置条件未满足'
@@ -4505,6 +4506,11 @@ export function useDeliveryWorkflow() {
   }
 
   const masterCollectionFor = (entity) => ({ teachers, students, classes, courses }[entity] || null)
+  const masterRecordFor = (entity, recordId) => {
+    const collectionRecord = masterCollectionFor(entity)?.find((item) => sameId(item.id, recordId))
+    if (collectionRecord) return collectionRecord
+    return directoryPages[entity]?.items?.find((item) => sameId(item.id, recordId)) || null
+  }
   const masterMapperFor = (entity) => ({ teachers: mapTeacher, students: mapStudent, classes: mapClass, courses: mapCourse }[entity] || null)
   const masterApiFor = (entity) => ({
     teachers: api.master.teachers,
@@ -7085,7 +7091,7 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteArchiveMasterData = async (entity, recordId, reason = '') => {
-    const record = masterCollectionFor(entity)?.find((item) => sameId(item.id, recordId))
+    const record = masterRecordFor(entity, recordId)
     const endpoint = masterArchiveApi[entity]?.archive
     if (!record || !endpoint) return null
     const result = await runRemote(`正在归档${entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程'}...`,
@@ -7097,7 +7103,7 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteRestoreMasterData = async (entity, recordId, version) => {
-    const record = masterCollectionFor(entity)?.find((item) => sameId(item.id, recordId))
+    const record = masterRecordFor(entity, recordId)
     const endpoint = masterArchiveApi[entity]?.restore
     if (!record || !endpoint) return null
     const result = await runRemote(`正在恢复${entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程'}...`,

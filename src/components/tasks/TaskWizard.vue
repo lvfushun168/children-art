@@ -522,7 +522,9 @@ watch(() => props.state.currentStep, (step) => {
   if (step !== 4) showTeacherEffectDrawer.value = false
   if (step !== 3) homeworkEditorOpen.value = false
   if (step === 4 && typeof props.state.ensureWecomConfiguration === 'function') {
-    void props.state.ensureWecomConfiguration({ force: true }).catch(() => {})
+    void props.state.ensureWecomConfiguration({ force: true }).catch((error) => {
+      props.state.notify?.(error?.message || '企业微信配置加载失败，请稍后重试')
+    })
   }
 }, { immediate: true })
 

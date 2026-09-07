@@ -83,8 +83,11 @@ const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
 const navIdsWithLocalBack = new Set(['schedule', 'tasks', 'supervision', 'production', 'archives', 'teachers', 'students', 'classes', 'courses', 'externalLinks', 'extraTasks', 'campuses', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
+const navIdsWithLocalToast = new Set(['tasks', 'supervision', 'production', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || routeMode.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
+const showShellToast = computed(() => Boolean(state.toast) && !navIdsWithLocalToast.has(activeNav.value))
+const activePageError = computed(() => state.pageErrors?.[activeNav.value] || '')
 const mobileGroupEntries = computed(() =>
   filteredNavGroups.value.map((group) => ({
     id: group.id,
@@ -115,6 +118,15 @@ const openNav = (target, { query = {}, preserveHandoff = false } = {}) => {
   if (!preserveHandoff) productionHandoff.value = null
   showTodoCenter.value = false
   void router.push({ path: navPathFor(target), query })
+}
+
+const retryActivePage = async () => {
+  if (!activeNav.value) return
+  try {
+    await state.ensurePageData?.(activeNav.value, { force: true })
+  } catch (error) {
+    state.notify?.(state.pageErrors?.[activeNav.value] || error?.message || '页面数据加载失败，请稍后重试')
+  }
 }
 
 const returnToGroup = () => {
@@ -173,7 +185,8 @@ const ensureTaskFromRoute = async () => {
     if (!selected && String(state.activeTaskId || '') !== lessonId) {
       await router.replace(NAV_ROUTE_PATHS.tasks)
     }
-  } catch {
+  } catch (error) {
+    state.notify?.(error?.message || '课次加载失败，请稍后重试')
     if (String(state.activeTaskId || '') !== lessonId) await router.replace(NAV_ROUTE_PATHS.tasks)
   }
 }
@@ -218,8 +231,9 @@ watch([activeNav, () => state.isLoggedIn], ([nav, loggedIn]) => {
   if (!loggedIn || !nav) return
   // 今日课次页只依赖 shell 中的今日课次。班级/学生/课程等主数据在真正打开课次时再取。
   if (nav === 'tasks') return
-  void state.ensurePageData?.(nav).catch(() => {
-    // 页面自己的空态和错误提示负责展示加载失败，不阻断其他模块。
+  void Promise.resolve(state.ensurePageData?.(nav)).catch((error) => {
+    // 页面自己的错误状态负责展示细节；没有专属错误区域时由 shell 统一提示。
+    state.notify?.(state.pageErrors?.[nav] || error?.message || '页面数据加载失败，请稍后重试')
   })
 }, { immediate: true })
 
@@ -252,6 +266,14 @@ watch([() => route.name, () => route.params.lessonId, () => state.isLoggedIn], (
     />
 
     <section class="content" :class="{ 'mobile-app-content': isMobileApp }">
+      <div v-if="showShellToast" class="toast" role="status" aria-live="polite">
+        {{ state.toast }}
+      </div>
+      <div v-if="activePageError" class="notice-box error-box workspace-page-error" role="alert">
+        <small>{{ activePageError }}</small>
+        <button class="ghost" type="button" @click="retryActivePage">重试</button>
+      </div>
+
       <UserMenu
         :current-user="state.currentUser"
         :permission-summary="state.permissionSummary"

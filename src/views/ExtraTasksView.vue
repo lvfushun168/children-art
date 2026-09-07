@@ -24,6 +24,7 @@ const activeTab = ref('task')
 const workMode = ref('list')
 const editingWorkId = ref(null)
 const workError = ref('')
+const detailError = ref('')
 const isMobileFlow = ref(false)
 const mobileShowingDetail = ref(false)
 const queryInput = ref('')
@@ -103,19 +104,25 @@ const resetWorkDraft = () => {
 
 const loadDirectory = async (page = 1) => {
   detailRecord.value = null
+  detailError.value = ''
   selectedId.value = null
   mode.value = 'detail'
-  await props.state.loadDirectoryPage?.('extraTasks', {
-    page,
-    pageSize: 20,
-    query: queryInput.value.trim() || undefined,
-    taskType: taskTypeInput.value === 'all' ? undefined : taskTypeInput.value,
-    ownerId: ownerInput.value === 'all' ? undefined : ownerInput.value,
-    relatedLessonId: lessonInput.value === 'all' ? undefined : lessonInput.value,
-    dueFrom: dueFromInput.value || undefined,
-    dueTo: dueToInput.value || undefined,
-    status: statusInput.value === 'all' ? undefined : statusInput.value
-  })
+  try {
+    return await props.state.loadDirectoryPage?.('extraTasks', {
+      page,
+      pageSize: 20,
+      query: queryInput.value.trim() || undefined,
+      taskType: taskTypeInput.value === 'all' ? undefined : taskTypeInput.value,
+      ownerId: ownerInput.value === 'all' ? undefined : ownerInput.value,
+      relatedLessonId: lessonInput.value === 'all' ? undefined : lessonInput.value,
+      dueFrom: dueFromInput.value || undefined,
+      dueTo: dueToInput.value || undefined,
+      status: statusInput.value === 'all' ? undefined : statusInput.value
+    })
+  } catch (error) {
+    props.state.notify?.(props.state.directoryErrors?.extraTasks || error?.message || '课外任务列表加载失败，请稍后重试')
+    return null
+  }
 }
 const resetFilters = () => {
   queryInput.value = ''
@@ -137,6 +144,7 @@ watch(selected, () => {
 const selectTask = async (task) => {
   selectedId.value = task.id
   detailRecord.value = null
+  detailError.value = ''
   mode.value = 'detail'
   activeTab.value = 'task'
   workMode.value = 'list'
@@ -148,7 +156,9 @@ const selectTask = async (task) => {
       detailRecord.value = detail || task
       draft.value = JSON.parse(JSON.stringify(detail || task))
     }
-  } catch {
+  } catch (error) {
+    detailError.value = props.state.directoryErrors?.extraTasks || error?.message || '课外任务详情加载失败，请重试'
+    props.state.notify?.(detailError.value)
     detailRecord.value = task
   }
 }
@@ -157,6 +167,7 @@ const startNew = () => {
   mode.value = 'new'
   selectedId.value = null
   detailRecord.value = null
+  detailError.value = ''
   activeTab.value = 'task'
   draft.value = blankDraft()
   if (isMobileFlow.value) mobileShowingDetail.value = true
@@ -171,9 +182,15 @@ const startEdit = () => {
 
 const save = async () => {
   const wasNew = mode.value === 'new'
-  const saved = wasNew
-    ? await props.state.addExtraTask(draft.value)
-    : await props.state.updateExtraTask(selected.value.id, draft.value)
+  let saved = null
+  try {
+    saved = wasNew
+      ? await props.state.addExtraTask(draft.value)
+      : await props.state.updateExtraTask(selected.value.id, draft.value)
+  } catch (error) {
+    props.state.notify?.(error?.message || '课外任务保存失败，请稍后重试')
+    return
+  }
   if (!saved) return
   if (wasNew) {
     mobileShowingDetail.value = false
@@ -186,7 +203,13 @@ const save = async () => {
   if (isMobileFlow.value) mobileShowingDetail.value = true
   await loadDirectory(wasNew ? 1 : pageState.value.page)
   selectedId.value = saved.id
-  detailRecord.value = await props.state.loadDirectoryDetail?.('extraTasks', saved).catch(() => saved)
+  try {
+    detailRecord.value = await props.state.loadDirectoryDetail?.('extraTasks', saved)
+  } catch (error) {
+    detailError.value = props.state.directoryErrors?.extraTasks || error?.message || '课外任务详情加载失败，请重试'
+    props.state.notify?.(detailError.value)
+    detailRecord.value = saved
+  }
   resetDraft()
 }
 
@@ -251,10 +274,10 @@ const saveWork = async () => {
   resetWorkDraft()
 }
 
-const deleteWork = (record) => {
+const deleteWork = async (record) => {
   if (!window.confirm(`确定删除「${record.title}」吗？删除后课外作品档案中也会同步移除。`)) return
-  props.state.deleteExtraTaskWork(record.id)
-  if (sameId(editingWorkId.value, record.id)) cancelWorkEdit()
+  const deleted = await props.state.deleteExtraTaskWork?.(record.id)
+  if (deleted && sameId(editingWorkId.value, record.id)) cancelWorkEdit()
 }
 
 const returnToList = () => {
@@ -365,6 +388,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <button v-if="mode !== 'detail'" class="primary" @click="save">保存</button>
           <button v-if="mode === 'detail' && activeTab === 'works'" class="primary" @click="startNewWork">上传交付作品</button>
         </div>
+      </div>
+      <div v-if="detailError" class="notice-box error-box" role="alert">
+        <small>{{ detailError }}</small>
+        <button v-if="selected" class="ghost" type="button" @click="selectTask(selected)">重试</button>
       </div>
 
       <div v-if="mode !== 'new'" class="student-tabs extra-task-tabs">

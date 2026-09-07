@@ -253,7 +253,8 @@ const openWorkDrawer = async (record) => {
   try {
     const detail = await props.state.loadDirectoryDetail?.('archiveRecords', record)
     if (sameId(selectedId.value, record.id)) detailRecord.value = { ...record, ...(detail || {}) }
-  } catch {
+  } catch (error) {
+    props.state.notify?.(props.state.directoryErrors?.archiveRecords || error?.message || '作品档案详情加载失败，请重试')
     detailRecord.value = record
   }
 }
@@ -326,29 +327,35 @@ const saveWorkEdit = async () => {
   const staffId = workDraft.framerKey.startsWith('staff:') ? workDraft.framerKey.slice('staff:'.length) : null
   const staff = props.state.teachers.find((item) => sameId(item.id, staffId))
   let saved = null
-  if (selected.value.sourceType === 'extraTask') {
-    await props.state.loadDirectoryExtraTaskWorks?.(selected.value.extraTaskId)
-    saved = await props.state.updateExtraTaskWork?.(selected.value.id, {
-      title: workDraft.title,
-      description: workDraft.description,
-      tags: workDraft.tagsText.split(/[，,、]/),
-      highlight: workDraft.highlight,
-      highlightNote: workDraft.highlightNote,
-      version: selected.value.version
-    })
-  } else {
-    saved = await props.state.updateArchiveRecord(selected.value.id, {
-      title: workDraft.title,
-      description: workDraft.description,
-      tags: workDraft.tagsText.split(/[，,、]/),
-      note: workDraft.note,
-      framed: workDraft.framed,
-      framedAt: workDraft.framedAt,
-      frameFee: workDraft.frameFee,
-      framerId: staffId,
-      framerName: staff?.name || workDraft.externalFramerName,
-      frameNote: workDraft.frameNote
-    })
+  try {
+    if (selected.value.sourceType === 'extraTask') {
+      await props.state.loadDirectoryExtraTaskWorks?.(selected.value.extraTaskId)
+      saved = await props.state.updateExtraTaskWork?.(selected.value.id, {
+        title: workDraft.title,
+        description: workDraft.description,
+        tags: workDraft.tagsText.split(/[，,、]/),
+        highlight: workDraft.highlight,
+        highlightNote: workDraft.highlightNote,
+        version: selected.value.version
+      })
+    } else {
+      saved = await props.state.updateArchiveRecord(selected.value.id, {
+        title: workDraft.title,
+        description: workDraft.description,
+        tags: workDraft.tagsText.split(/[，,、]/),
+        note: workDraft.note,
+        framed: workDraft.framed,
+        framedAt: workDraft.framedAt,
+        frameFee: workDraft.frameFee,
+        framerId: staffId,
+        framerName: staff?.name || workDraft.externalFramerName,
+        frameNote: workDraft.frameNote
+      })
+    }
+  } catch (error) {
+    workEditError.value = error?.message || '作品档案保存失败，请稍后重试'
+    props.state.notify?.(workEditError.value)
+    return
   }
   if (!saved) return
   isEditingWork.value = false
@@ -376,7 +383,8 @@ const openLessonDrawer = async (lesson) => {
         highlights: studentWorks.reduce((total, item) => total + item.artworks.filter((artwork) => artwork.highlight).length, 0)
       }
     }
-  } catch {
+  } catch (error) {
+    props.state.notify?.(props.state.directoryErrors?.classroomArchives || error?.message || '课堂档案详情加载失败，请重试')
     lessonDetail.value = lesson
   }
 }
@@ -389,7 +397,8 @@ const openEffectDrawer = async (effect) => {
   try {
     const detail = await props.state.loadDirectoryDetail?.('teacherArchives', effect)
     if (sameId(selectedEffectId.value, effect.id)) effectDetail.value = { ...effect, ...(detail || {}) }
-  } catch {
+  } catch (error) {
+    props.state.notify?.(props.state.directoryErrors?.teacherArchives || error?.message || '老师课效详情加载失败，请重试')
     effectDetail.value = effect
   }
 }
@@ -504,7 +513,8 @@ const loadArchiveReferences = async () => {
       props.state.loadMasterData?.('classes', { archiveState: 'ACTIVE', force: false }),
       props.state.loadClassTypes?.()
     ])
-  } catch {
+  } catch (error) {
+    props.state.notify?.(error?.message || '归档筛选条件加载失败，请重试')
     archiveReferencesLoaded.value = false
   }
 }

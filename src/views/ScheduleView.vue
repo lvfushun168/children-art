@@ -103,8 +103,9 @@ const reload = async () => {
       teacherId: teacherId.value === 'all' ? undefined : teacherId.value,
       classId: classId.value === 'all' ? undefined : classId.value
     }, { force: true, allPages: true })
-  } catch {
-    // The composable stores the user-facing error; keep the page mounted for retry.
+  } catch (error) {
+    // 课表区域会保留重试入口，同时通过 shell 的统一提示显示本次请求失败。
+    props.state.notify?.(props.state.scheduleError || error?.message || '课表加载失败，请稍后重试')
   }
 }
 

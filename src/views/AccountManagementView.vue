@@ -315,6 +315,10 @@ onMounted(loadPage)
       <form v-else-if="drawer === 'memberships'" class="identity-form" @submit.prevent="saveMemberships">
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>所属校区</span></div>
         <div v-if="membershipLoading" class="identity-empty">正在读取数据范围...</div>
+        <div v-else-if="state.identityErrors.memberships" class="identity-empty identity-error">
+          <strong>{{ state.identityErrors.memberships }}</strong>
+          <button class="ghost" type="button" @click="openMembershipDrawer(selectedUser)">重试</button>
+        </div>
         <div v-else class="identity-check-grid">
           <AdaptiveSelect v-model="selectedCampusId" :options="campusOptions" placeholder="请选择校区" :disabled="isCurrentUser" />
         </div>

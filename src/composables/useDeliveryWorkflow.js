@@ -3024,6 +3024,10 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateIdentityUser = async (userId, payload = {}) => {
     const current = identityUsers.find((user) => sameId(user.id, userId))
+    if (!current) {
+      notify('未找到要保存的账号，请刷新列表后重试')
+      return null
+    }
     const outcome = await runIdentity('正在保存账号资料...', () => api.auth.updateUser(userId, {
       phone: String(payload.phone ?? current?.phone ?? '').trim(),
       displayName: String(payload.displayName ?? current?.displayName ?? '').trim(),
@@ -3080,6 +3084,10 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateCampus = async (campusId, payload = {}) => {
     const current = campuses.find((campus) => sameId(campus.id, campusId))
+    if (!current) {
+      notify('未找到要保存的校区，请刷新列表后重试')
+      return null
+    }
     const refreshAfterConflict = async () => {
       await loadCampuses({ force: true })
       return null
@@ -3110,6 +3118,10 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateIdentityRole = async (roleId, payload = {}) => {
     const current = identityRoles.find((role) => sameId(role.id, roleId))
+    if (!current) {
+      notify('未找到要保存的角色，请刷新列表后重试')
+      return null
+    }
     const outcome = await runIdentity('正在保存角色...', () => api.auth.updateRole(roleId, {
       roleKey: String(payload.roleKey ?? current?.roleKey ?? '').trim(),
       name: String(payload.name ?? current?.name ?? '').trim(),
@@ -3123,6 +3135,10 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteReplaceIdentityRolePermissions = async (roleId, version, permissionIds) => {
+    if (!identityRoles.some((role) => sameId(role.id, roleId))) {
+      notify('未找到要保存权限的角色，请刷新列表后重试')
+      return null
+    }
     const outcome = await runIdentity('正在保存角色权限...', () => api.auth.replaceRolePermissions(roleId, {
       version: Number(version || 0),
       permissionIds: identityIdStrings(permissionIds)
@@ -3416,14 +3432,17 @@ export function useDeliveryWorkflow() {
     const candidates = providers.filter((provider) => provider?.id &&
       String(provider.providerType || provider.type).toUpperCase() === 'BAIDU_NETDISK' &&
       !String(provider.id).startsWith('provider-'))
+    let firstError = null
     await Promise.all(candidates.map(async (provider) => {
       try {
         const status = await api.m5.baiduOAuthStatus(provider.id)
         updateMappedBaiduOAuthStatus(provider.id, status)
-      } catch {
+      } catch (error) {
         // 授权状态读取失败时不把账号误判为可用，后续设置页仍可重试读取。
+        firstError ||= error
       }
     }))
+    if (firstError) notify(remoteErrorMessage(firstError, '百度网盘授权状态加载失败，请稍后重试'))
     return candidates
   }
 
@@ -4594,7 +4613,13 @@ export function useDeliveryWorkflow() {
       try {
         const mapped = mapPage(await loader({ ...filters, page, pageSize }), mapper)
         if (key === 'students' && mapped.items.length) {
-          const bindings = await api.wecom.studentGroups(mapped.items.map((item) => item.id)).catch(() => [])
+          let bindings = []
+          try {
+            bindings = await api.wecom.studentGroups(mapped.items.map((item) => item.id))
+          } catch (error) {
+            // 客户群补充信息失败不应阻断学生主列表，但必须让用户知道这部分信息没有加载成功。
+            notify(remoteErrorMessage(error, '学生家长群信息加载失败'))
+          }
           const byStudent = new Map((Array.isArray(bindings) ? bindings : []).map((binding) => [String(binding.studentId), {
             ...binding,
             id: fromApiId(binding.id),
@@ -4815,14 +4840,19 @@ export function useDeliveryWorkflow() {
 
   const loadTemplates = async ({ force = false } = {}) => {
     if (pageLoaded.templates && !force) return templates
-    const [feedbackValues, imageValues] = await Promise.all([
-      api.feedback.templates(),
-      api.feedback.imageTemplates()
-    ])
-    templates.comment = (feedbackValues || []).map(mapFeedbackTemplate)
-    templates.image = (imageValues || []).map(mapImageTemplate)
-    pageLoaded.templates = true
-    return templates
+    try {
+      const [feedbackValues, imageValues] = await Promise.all([
+        api.feedback.templates(),
+        api.feedback.imageTemplates()
+      ])
+      templates.comment = (feedbackValues || []).map(mapFeedbackTemplate)
+      templates.image = (imageValues || []).map(mapImageTemplate)
+      pageLoaded.templates = true
+      return templates
+    } catch (error) {
+      pageErrors.templates = remoteErrorMessage(error, '模板列表加载失败')
+      throw error
+    }
   }
 
   const pagePromises = new Map()
@@ -6769,8 +6799,11 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteUpdateStudent = async (studentId, payload) => {
-    const current = students.find((item) => sameId(item.id, studentId))
-    if (!current) return null
+    const current = masterRecordFor('students', studentId)
+    if (!current) {
+      notify('未找到要保存的学生，请刷新列表后重试')
+      return null
+    }
     const result = await runRemote('正在保存学生...', async () => {
       const saved = await api.master.updateStudent(studentId, {
         externalId: payload.externalId || undefined, name: payload.name, nickname: payload.nickname || undefined, age: Number(payload.age) || undefined,
@@ -6788,7 +6821,9 @@ export function useDeliveryWorkflow() {
     }, '学生信息已保存', () => Promise.all([invalidateResource('students'), invalidateResource('classes')]))
     if (!result) return null
     const index = students.findIndex((item) => sameId(item.id, studentId))
-    students.splice(index, 1, result)
+    if (index >= 0) students.splice(index, 1, result)
+    const directoryIndex = directoryPages.students.items.findIndex((item) => sameId(item.id, studentId))
+    if (directoryIndex >= 0) directoryPages.students.items.splice(directoryIndex, 1, result)
     return result
   }
 
@@ -6949,7 +6984,11 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteUpdateClass = async (classId, payload) => {
-    const current = classes.find((item) => sameId(item.id, classId))
+    const current = masterRecordFor('classes', classId)
+    if (!current) {
+      notify('未找到要保存的班级，请刷新列表后重试')
+      return null
+    }
     const result = await runRemote('正在保存班级...', () => api.master.updateClass(classId, {
       classTypeId: payload.classTypeId ? String(payload.classTypeId) : undefined, teacherId: payload.teacherId ? String(payload.teacherId) : undefined,
       courseId: payload.courseId ? String(payload.courseId) : undefined, name: payload.name,
@@ -6962,7 +7001,9 @@ export function useDeliveryWorkflow() {
     if (!result) return null
     const klass = mapClass(result)
     const index = classes.findIndex((item) => sameId(item.id, classId))
-    classes.splice(index, 1, klass)
+    if (index >= 0) classes.splice(index, 1, klass)
+    const directoryIndex = directoryPages.classes.items.findIndex((item) => sameId(item.id, classId))
+    if (directoryIndex >= 0) directoryPages.classes.items.splice(directoryIndex, 1, klass)
     return klass
   }
 
@@ -6996,14 +7037,20 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteUpdateCourse = async (courseId, payload) => {
-    const current = courses.find((item) => sameId(item.id, courseId))
+    const current = masterRecordFor('courses', courseId)
+    if (!current) {
+      notify('未找到要保存的课程，请刷新列表后重试')
+      return null
+    }
     const result = await runRemote('正在保存课程...', () => api.master.updateCourse(courseId, {
       title: payload.title, ageRange: payload.age || payload.ageRange || '', teachingGoal: payload.goal || payload.teachingGoal || '', materials: payload.materials || '', referenceText: payload.reference || payload.referenceText || '', status: apiEnabledStatus(payload.status), version: current?.version || 0
     }), '课程信息已保存', () => invalidateResource('courses'))
     if (!result) return null
     const course = mapCourse(result)
     const index = courses.findIndex((item) => sameId(item.id, courseId))
-    courses.splice(index, 1, course)
+    if (index >= 0) courses.splice(index, 1, course)
+    const directoryIndex = directoryPages.courses.items.findIndex((item) => sameId(item.id, courseId))
+    if (directoryIndex >= 0) directoryPages.courses.items.splice(directoryIndex, 1, course)
     return course
   }
 
@@ -7019,6 +7066,10 @@ export function useDeliveryWorkflow() {
   const remoteUpdateExternalLink = async (linkId, payload) => {
     const current = externalLinks.find((item) => sameId(item.id, linkId))
       || directoryPages.externalLinks.items.find((item) => sameId(item.id, linkId))
+    if (!current) {
+      notify('未找到要保存的外部课程链接，请刷新列表后重试')
+      return null
+    }
     const courseId = payload.courseId !== undefined ? payload.courseId : payload.courseIds?.[0]
     const result = await runRemote('正在保存外部课程链接...', () => api.master.updateExternalLink(linkId, {
       courseId: courseId ? String(courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined, status: apiEnabledStatus(payload.status), version: current?.version || 0
@@ -7043,17 +7094,27 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteUpdateTeacher = async (teacherId, payload) => {
-    const current = teachers.find((item) => sameId(item.id, teacherId))
+    const current = masterRecordFor('teachers', teacherId)
+    if (!current) {
+      notify('未找到要保存的老师，请刷新列表后重试')
+      return null
+    }
     const result = await runRemote('正在保存老师资料...', () => api.master.updateTeacher(teacherId, { name: payload.name, phone: payload.phone || undefined, title: payload.role || payload.title || '老师', note: payload.note || '', status: payload.status === '停用' ? 'DISABLED' : 'ENABLED', version: current?.version || 0 }), '老师资料已保存', () => invalidateResource('teachers'))
     if (!result) return null
     const teacher = mapTeacher(result)
     const index = teachers.findIndex((item) => sameId(item.id, teacherId))
-    teachers.splice(index, 1, teacher)
+    if (index >= 0) teachers.splice(index, 1, teacher)
+    const directoryIndex = directoryPages.teachers.items.findIndex((item) => sameId(item.id, teacherId))
+    if (directoryIndex >= 0) directoryPages.teachers.items.splice(directoryIndex, 1, teacher)
     return teacher
   }
 
   const remoteBindTeacherAccount = async (teacherId, userId, version) => {
-    const current = teachers.find((item) => sameId(item.id, teacherId))
+    const current = masterRecordFor('teachers', teacherId)
+    if (!current) {
+      notify('未找到要关联账号的老师，请刷新列表后重试')
+      return null
+    }
     const result = await runRemote('正在保存老师账号关联...', () => api.master.bindTeacherAccount(teacherId, {
       userId: userId === null || userId === undefined || userId === '' ? null : String(userId),
       version: Number(version ?? current?.version ?? 0)
@@ -7093,7 +7154,10 @@ export function useDeliveryWorkflow() {
   const remoteArchiveMasterData = async (entity, recordId, reason = '') => {
     const record = masterRecordFor(entity, recordId)
     const endpoint = masterArchiveApi[entity]?.archive
-    if (!record || !endpoint) return null
+    if (!record || !endpoint) {
+      notify('未找到要归档的数据，请刷新列表后重试')
+      return null
+    }
     const result = await runRemote(`正在归档${entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程'}...`,
       () => endpoint(recordId, { version: Number(record.version || 0), reason: String(reason || '').trim() || undefined }),
       '已完成归档')
@@ -7105,7 +7169,10 @@ export function useDeliveryWorkflow() {
   const remoteRestoreMasterData = async (entity, recordId, version) => {
     const record = masterRecordFor(entity, recordId)
     const endpoint = masterArchiveApi[entity]?.restore
-    if (!record || !endpoint) return null
+    if (!record || !endpoint) {
+      notify('未找到要恢复的数据，请刷新列表后重试')
+      return null
+    }
     const result = await runRemote(`正在恢复${entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : '课程'}...`,
       () => endpoint(recordId, { version: Number(version ?? record.version ?? 0) }),
       '已恢复到有效数据')
@@ -7436,7 +7503,12 @@ export function useDeliveryWorkflow() {
     if (!createByType) return null
     const result = await runRemote(`正在创建${createByType.label}...`, () => createByType.action(createByType.body), `${createByType.label}已创建`, () => invalidateResource('templates'))
     if (!result) return null
-    await loadTemplates({ force: true })
+    try {
+      await loadTemplates({ force: true })
+    } catch (error) {
+      notify(pageErrors.templates || remoteErrorMessage(error, '模板列表刷新失败'))
+      return type === 'comment' ? mapFeedbackTemplate(result) : mapImageTemplate(result)
+    }
     const createdId = result.id
     return templates[type].find((item) => sameId(item.id, createdId)) || templates[type][0] || null
   }
@@ -7467,7 +7539,12 @@ export function useDeliveryWorkflow() {
     if (!updateByType) return null
     const result = await runRemote(`正在保存${updateByType.label}...`, () => updateByType.action(updateByType.body), `${updateByType.label}已保存`, () => invalidateResource('templates'))
     if (!result) return null
-    await loadTemplates({ force: true })
+    try {
+      await loadTemplates({ force: true })
+    } catch (error) {
+      notify(pageErrors.templates || remoteErrorMessage(error, '模板列表刷新失败'))
+      return type === 'comment' ? mapFeedbackTemplate({ ...current, ...result }) : mapImageTemplate({ ...current, ...result })
+    }
     const updatedId = result.id || current.id
     return templates[type].find((item) => sameId(item.id, updatedId)) || null
   }
@@ -7622,6 +7699,10 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateExtraTask = async (taskId, payload) => {
     const current = extraTaskArchives.find((item) => sameId(item.id, taskId)) || directoryPages.extraTasks.items.find((item) => sameId(item.id, taskId))
+    if (!current) {
+      notify('未找到要保存的课外任务，请刷新列表后重试')
+      return null
+    }
     const ownerId = payload.ownerId || teachers.find((teacher) => teacher.name === payload.owner)?.id
     const result = await runRemote('正在保存课外任务...', () => api.m6.updateExtraTask(taskId, { relatedLessonId: payload.relatedLessonId ? String(payload.relatedLessonId) : undefined, title: payload.title, taskType: payload.taskType, content: payload.content || '', dueDate: payload.dueDate || undefined, status: apiExtraTaskStatus(payload.status), ownerId: ownerId ? String(ownerId) : undefined, note: payload.note || '', version: current?.version || 0 }), '课外任务已保存', () => invalidateResource('extraTasks'))
     if (!result) return null
@@ -7636,11 +7717,17 @@ export function useDeliveryWorkflow() {
 
   const remoteDeleteExtraTask = async (taskId) => {
     const current = extraTaskArchives.find((item) => sameId(item.id, taskId))
-    if (!current) return false
+      || directoryPages.extraTasks.items.find((item) => sameId(item.id, taskId))
+    if (!current) {
+      notify('未找到要取消的课外任务，请刷新列表后重试')
+      return false
+    }
     const success = await runRemoteVoid('正在取消课外任务...', () => api.m6.deleteExtraTask(taskId, current.version), '课外任务已取消', () => invalidateResource('extraTasks'))
     if (!success) return false
     const index = extraTaskArchives.findIndex((item) => sameId(item.id, taskId))
     if (index >= 0) extraTaskArchives.splice(index, 1)
+    const directoryIndex = directoryPages.extraTasks.items.findIndex((item) => sameId(item.id, taskId))
+    if (directoryIndex >= 0) directoryPages.extraTasks.items.splice(directoryIndex, 1)
     return true
   }
 
@@ -7663,6 +7750,10 @@ export function useDeliveryWorkflow() {
 
   const remoteUpdateExtraTaskWork = async (recordId, payload) => {
     const current = extraTaskWorks.find((work) => sameId(work.id, recordId))
+    if (!current) {
+      notify('未找到要保存的课外作品，请刷新后重试')
+      return null
+    }
     const tags = Array.isArray(payload.tags) ? payload.tags : String(payload.tags || '').split(/[，,、]/).map((tag) => tag.trim()).filter(Boolean)
     const result = await runRemote('正在保存课外作品...', () => api.m6.updateExtraArtwork(recordId, { title: payload.title || '课外作品', description: payload.description || '', tags: JSON.stringify(tags), highlight: Boolean(payload.highlight), highlightNote: payload.highlightNote || '', version: payload.version ?? current?.version ?? 0 }), '课外作品已保存', () => invalidateResource('extraTasks'))
     if (result) {

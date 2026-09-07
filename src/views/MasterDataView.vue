@@ -40,6 +40,7 @@ const classTypeInput = ref('all')
 const classInput = ref('all')
 const detailRecord = ref(null)
 const detailLoading = ref(false)
+const detailError = ref('')
 const saving = ref(false)
 const detailRequestId = ref(0)
 const draftBaseline = ref('')
@@ -368,6 +369,7 @@ const buildDirectoryFilters = () => {
 const clearSelection = () => {
   detailRequestId.value += 1
   detailLoading.value = false
+  detailError.value = ''
   detailRecord.value = null
   selectedId.value = null
   mode.value = 'detail'
@@ -413,6 +415,7 @@ const loadRecordDetail = async (record, { skipGuard = false, preferredMode = nul
   const requestId = ++detailRequestId.value
   selectedId.value = record.id
   detailRecord.value = null
+  detailError.value = ''
   mode.value = preferredMode || (canEditMasterData.value && !record.archived ? 'edit' : 'detail')
   studentDetailTab.value = 'profile'
   detailLoading.value = true
@@ -438,8 +441,13 @@ const loadRecordDetail = async (record, { skipGuard = false, preferredMode = nul
     }
     await hydrateStudentProfile(resolved)
     return true
-  } catch {
+  } catch (error) {
     if (requestId !== detailRequestId.value || !sameId(selectedId.value, record.id)) return false
+    detailError.value = props.state.directoryErrors?.[props.entity]
+      || props.state.pageErrors?.[props.entity]
+      || error?.message
+      || '详情加载失败，请重试'
+    props.state.notify?.(detailError.value)
     detailRecord.value = record
     mode.value = preferredMode === 'detail'
       ? 'detail'
@@ -475,6 +483,9 @@ const loadDirectory = async (page = 1, { skipGuard = false, preserveSelection = 
       }
     }
     return result
+  } catch (error) {
+    props.state.notify?.(props.state.directoryErrors?.[props.entity] || error?.message || '列表加载失败，请稍后重试')
+    return null
   } finally {
     if (preservedId && requestId === detailRequestId.value) detailLoading.value = false
   }
@@ -521,6 +532,7 @@ const startNew = async () => {
   mode.value = 'new'
   selectedId.value = null
   detailRecord.value = null
+  detailError.value = ''
   studentWecomGroup.value = null
   studentDetailTab.value = 'profile'
   detailLoading.value = true
@@ -531,6 +543,9 @@ const startNew = async () => {
     await ensureDetailLookups()
     setDraft(blankDraft())
     return true
+  } catch (error) {
+    props.state.notify?.(error?.message || '关联数据加载失败，请稍后重试')
+    return false
   } finally {
     detailLoading.value = false
   }
@@ -709,9 +724,9 @@ const unbindStudentWecomGroup = async () => {
   if (index >= 0) records.value[index].wecomGroup = null
 }
 
-const deleteCommunicationRecord = (record) => {
-  props.state.deleteCommunicationRecord(record.id)
-  if (sameId(communicationEditingId.value, record.id)) resetCommunicationDraft()
+const deleteCommunicationRecord = async (record) => {
+  const deleted = await props.state.deleteCommunicationRecord?.(record.id)
+  if (deleted && sameId(communicationEditingId.value, record.id)) resetCommunicationDraft()
 }
 
 const selectStudentTab = (tab) => {
@@ -902,6 +917,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <section v-if="detailLoading" class="notice-box">
         <small>正在加载完整资料，请稍候…</small>
+      </section>
+      <section v-if="detailError" class="notice-box error-box" role="alert">
+        <small>{{ detailError }}</small>
+        <button v-if="selected" class="ghost" type="button" @click="loadRecordDetail(selected, { skipGuard: true })">重试</button>
       </section>
       <section v-else-if="mode === 'detail' && selected && !selected.archived && !canEditMasterData" class="notice-box">
         <strong>当前为只读模式</strong>

@@ -78,9 +78,13 @@ function createLessonDraft(mode = 'temporary') {
 }
 
 const openLessonDialog = async () => {
-  try { await props.loadReferences?.() } catch { /* dialog can still show its empty state */ }
-  lessonDraft.value = createLessonDraft('temporary')
   formError.value = ''
+  try {
+    await props.loadReferences?.()
+  } catch (error) {
+    formError.value = error?.message || '课次所需的基础数据加载失败，请重试'
+  }
+  lessonDraft.value = createLessonDraft('temporary')
   isSubmitting.value = false
   showLessonDialog.value = true
 }

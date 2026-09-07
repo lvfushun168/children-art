@@ -14,6 +14,7 @@ const dataSource = '小麦 Excel 导出'
 const fileName = ref('')
 const selectedFile = ref(null)
 const importError = ref('')
+const mappingError = ref('')
 const operation = ref('preview')
 const showMapping = ref(false)
 const teacherSelections = ref({})
@@ -42,7 +43,9 @@ watch(dataType, () => {
 })
 
 onMounted(() => {
-  void props.state.loadMasterData?.('teachers', { archiveState: 'ACTIVE', force: false })
+  void Promise.resolve(props.state.loadMasterData?.('teachers', { archiveState: 'ACTIVE', force: true })).catch((error) => {
+    props.state.notify?.(props.state.pageErrors?.teachers || error?.message || '老师列表加载失败，请稍后重试')
+  })
   void props.state.loadTeacherSourceMappings?.({ sourceType: 'WHEAT_EXCEL' })
 })
 
@@ -128,23 +131,39 @@ const teacherOptions = (row) => {
 }
 const selectedTeacherId = (row) => teacherSelections.value[row.id] || (row.teacherMatchStatus === 'MATCHED' ? row.teacherId : null)
 const saveTeacherMapping = async (row) => {
+  mappingError.value = ''
   const teacherId = selectedTeacherId(row)
   if (!row.teacher || !teacherId) {
     props.state.notify('请先选择要关联的系统老师')
     return
   }
-  await props.state.loadTeacherSourceMappings?.()
-  const normalized = String(row.teacher).replace(/\s+/g, '').toLowerCase()
-  const current = (props.state.teacherSourceMappings || []).find((mapping) =>
-    String(mapping.sourceType || 'WHEAT_EXCEL') === 'WHEAT_EXCEL' &&
-    String(mapping.sourceName || '').replace(/\s+/g, '').toLowerCase() === normalized
-  )
-  const saved = await props.state.saveTeacherSourceMapping?.({
-    sourceType: 'WHEAT_EXCEL',
-    sourceName: row.teacher,
-    teacherId,
-    version: current?.version || 0
-  })
+  let saved = null
+  try {
+    const mappings = await props.state.loadTeacherSourceMappings?.()
+    if (mappings === null) {
+      mappingError.value = props.state.toast || '老师来源映射加载失败，请稍后重试'
+      return
+    }
+    const normalized = String(row.teacher).replace(/\s+/g, '').toLowerCase()
+    const current = (props.state.teacherSourceMappings || []).find((mapping) =>
+      String(mapping.sourceType || 'WHEAT_EXCEL') === 'WHEAT_EXCEL' &&
+      String(mapping.sourceName || '').replace(/\s+/g, '').toLowerCase() === normalized
+    )
+    saved = await props.state.saveTeacherSourceMapping?.({
+      sourceType: 'WHEAT_EXCEL',
+      sourceName: row.teacher,
+      teacherId,
+      version: current?.version || 0
+    })
+  } catch (error) {
+    mappingError.value = error?.message || '老师来源映射保存失败，请稍后重试'
+    props.state.notify?.(mappingError.value)
+    return
+  }
+  if (!saved) {
+    mappingError.value = props.state.toast || '老师来源映射保存失败，请稍后重试'
+    return
+  }
   if (saved) await readPreview()
 }
 
@@ -152,6 +171,7 @@ const resetSelection = () => {
   fileName.value = ''
   selectedFile.value = null
   importError.value = ''
+  mappingError.value = ''
   showMapping.value = false
   teacherSelections.value = {}
   operation.value = 'preview'
@@ -340,6 +360,7 @@ const confirmImport = async () => {
         </div>
         <div v-if="!rows.length" class="import-empty-preview">没有识别到可展示的数据，请返回重试或检查文件内容。</div>
       </div>
+      <div v-if="mappingError" class="import-error" role="alert"><strong>老师映射保存失败</strong><span>{{ mappingError }}</span></div>
       <div v-if="importError" class="import-error" role="alert"><strong>确认失败</strong><span>{{ importError }}</span></div>
       <footer class="modal-actions">
         <button class="ghost" type="button" @click="startImport">重新选择</button>

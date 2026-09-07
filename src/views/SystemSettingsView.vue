@@ -636,14 +636,18 @@ const refreshBaiduStatuses = async () => {
 
 watch(() => (providerSettings.value || []).flatMap((group) => group.value?.providers || [])
   .filter(isBaiduProvider).map((provider) => String(provider.id)).join(','), () => {
-  refreshBaiduStatuses().catch(() => {})
+  refreshBaiduStatuses().catch((error) => {
+    props.state.notify?.(error?.message || '百度网盘授权状态加载失败，请稍后重试')
+  })
 }, { immediate: true })
 
 const returnToList = () => {
   if (isBaiduDrawerOpen.value && !closeBaiduProviderDrawer()) return
   draft.value = clone(selected() || {})
   mobileStage.value = 'list'
-  refreshBaiduStatuses().catch(() => {})
+  refreshBaiduStatuses().catch((error) => {
+    props.state.notify?.(error?.message || '百度网盘授权状态加载失败，请稍后重试')
+  })
 }
 
 onMounted(() => {
@@ -660,7 +664,9 @@ onMounted(() => {
   const oauthResult = new URLSearchParams(window.location.search).get('baiduOAuth')
   if (oauthResult === 'success') props.state.notify('百度网盘授权成功')
   if (oauthResult === 'failure') props.state.notify('百度网盘授权失败，请重试')
-  refreshBaiduStatuses().catch(() => {})
+  refreshBaiduStatuses().catch((error) => {
+    props.state.notify?.(error?.message || '百度网盘授权状态加载失败，请稍后重试')
+  })
   if (oauthResult) {
     const url = new URL(window.location.href)
     url.searchParams.delete('baiduOAuth')

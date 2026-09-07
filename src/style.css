@@ -2393,7 +2393,7 @@ label {
   position: fixed;
   top: 18px;
   left: 50%;
-  z-index: 20;
+  z-index: 1000;
   width: fit-content;
   max-width: 520px;
   margin: 0;
@@ -2747,7 +2747,7 @@ h2 {
   position: fixed;
   top: 18px;
   left: 50%;
-  z-index: 35;
+  z-index: 1000;
   display: flex;
   align-items: center;
   gap: 10px;

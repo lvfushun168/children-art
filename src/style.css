@@ -7344,6 +7344,7 @@ textarea:focus,
 
 .import-type-picker button {
   display: grid;
+  place-items: center;
   gap: 6px;
   min-height: 96px;
   padding: 14px;
@@ -7351,7 +7352,7 @@ textarea:focus,
   border-radius: 9px;
   background: var(--color-surface);
   color: inherit;
-  text-align: left;
+  text-align: center;
 }
 
 .import-type-picker button.selected {

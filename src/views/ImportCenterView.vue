@@ -52,7 +52,7 @@ onMounted(() => {
 const isBusy = computed(() => mode.value === 'processing')
 const rows = computed(() => {
   if (dataType.value === '学生名单') return props.state.importPreviewRows.filter((row) => row.type === 'student')
-  if (dataType.value === '班级课表') return props.state.importPreviewRows.filter((row) => row.type === 'class' || row.type === 'lesson')
+  if (dataType.value === '班级信息') return props.state.importPreviewRows.filter((row) => row.type === 'class' || row.type === 'lesson')
   return props.state.importPreviewRows
 })
 const validRows = computed(() => rows.value.filter((row) => row.status === '可导入'))
@@ -72,7 +72,7 @@ const latestBatch = computed(() => props.state.importBatches[0] || {
 })
 const columns = computed(() => {
   if (dataType.value === '学生名单') return ['学生姓名', '所在班级', '手机号', '年龄', '学号', '备注']
-  if (dataType.value === '班级课表') return ['班级名称', '任课老师', '课程类别/课程资料', '内容/本次课题', '学生姓名', '手机号', '教室', '人数/容量']
+  if (dataType.value === '班级信息') return ['班级名称', '任课老师', '课程类别/课程资料', '内容/本次课题', '学生姓名', '手机号', '教室', '人数/容量']
   return []
 })
 const mappingFields = computed(() => {
@@ -86,7 +86,7 @@ const mappingFields = computed(() => {
       { key: 'note', label: '备注' }
     ]
   }
-  if (dataType.value === '班级课表') {
+  if (dataType.value === '班级信息') {
     return [
       { key: 'className', label: '班级名称', required: true },
       { key: 'teacherName', label: '任课老师' },
@@ -281,7 +281,7 @@ const confirmImport = async () => {
       </div>
 
       <div class="import-type-picker">
-        <button v-for="type in ['综合课表', '学生名单', '班级课表']" :key="type" type="button" :class="{ selected: dataType === type }" @click="dataType = type">
+        <button v-for="type in ['综合课表', '学生名单', '班级信息']" :key="type" type="button" :class="{ selected: dataType === type }" @click="dataType = type">
           <strong>{{ type }}</strong>
         </button>
       </div>

@@ -7558,7 +7558,7 @@ export function useDeliveryWorkflow() {
     pendingImportMeta.version = 0
     pendingImportMeta.mapping = {}
     pendingImportMeta.source = source
-    pendingImportMeta.dataType = ({ 综合课表: 'COMBINED', 学生名单: 'STUDENTS', 班级课表: 'CLASSES' }[dataType] || dataType)
+    pendingImportMeta.dataType = ({ 综合课表: 'COMBINED', 学生名单: 'STUDENTS', 班级信息: 'CLASSES' }[dataType] || dataType)
     return true
   }
 

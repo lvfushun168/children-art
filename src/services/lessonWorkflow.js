@@ -67,3 +67,14 @@ export const lessonArchiveGuard = (status) => {
     message: `课次当前为“${lessonStatusLabel[normalizedStatus] || normalizedStatus || '未知'}”，暂不能归档`
   }
 }
+
+export const isLessonArchiveComplete = (status) => toApiLessonStatus(status) === 'COMPLETED'
+
+export const finishArchiveAndExit = async ({ archive, close, exit }) => {
+  const finished = await archive()
+  if (finished !== true) return false
+
+  close?.()
+  exit()
+  return true
+}

@@ -7,6 +7,7 @@ import TeacherEffectPreview from './TeacherEffectPreview.vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 import { sameId } from '../../services/mappers'
 import { MATERIAL_CATEGORIES } from '../../services/materialTypes'
+import { finishArchiveAndExit as runArchiveAndExit } from '../../services/lessonWorkflow.js'
 
 const props = defineProps({
   state: {
@@ -15,7 +16,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['navigate', 'back'])
+const emit = defineEmits(['navigate', 'back'])
 
 const showResourceDrawer = ref(false)
 const showContentSettings = ref(false)
@@ -585,6 +586,12 @@ const cloudArchiveActionDisabled = (item) => {
     || (batch?.status === 'SUCCEEDED' && !isBaidu))
 }
 
+const finishArchiveAndExit = () => runArchiveAndExit({
+  archive: () => props.state.archiveAll(),
+  close: () => props.state.closeArchiveRun?.(),
+  exit: () => emit('back')
+})
+
 watch(homeworkEditorOpen, async (open) => {
   if (!open) return
   await nextTick()
@@ -1081,9 +1088,6 @@ watch(homeworkEditorOpen, async (open) => {
             <span>第 5 步</span>
             <strong>完成本节归档</strong>
           </div>
-          <button class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running'" @click="state.archiveAll">
-            完成本节归档交付
-          </button>
         </div>
         <section class="archive-checklist-panel">
           <article class="archive-summary-card">
@@ -1344,7 +1348,7 @@ watch(homeworkEditorOpen, async (open) => {
       <footer v-if="state.currentStep !== 2 || (!studentDeliveryDrawerOpen && !studentDeliveryMobileDetailOpen)" class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
         <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.isProcessing" @click="state.nextStep">下一步</button>
-        <button v-else class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running'" @click="state.archiveAll">完成归档交付</button>
+        <button v-else class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running'" @click="finishArchiveAndExit">完成归档交付</button>
       </footer>
     </template>
   </section>

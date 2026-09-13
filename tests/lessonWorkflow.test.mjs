@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { lessonArchiveGuard, studentDeliveryReadiness } from '../src/services/lessonWorkflow.js'
+import {
+  finishArchiveAndExit,
+  isLessonArchiveComplete,
+  lessonArchiveGuard,
+  studentDeliveryReadiness
+} from '../src/services/lessonWorkflow.js'
 
 test('allows archive preparation only for processing lessons', () => {
   assert.deepEqual(lessonArchiveGuard('PROCESSING'), {
@@ -22,6 +27,39 @@ test('marks pending lessons for one automatic processing transition', () => {
 test('blocks exception and completed lessons with contextual messages', () => {
   assert.equal(lessonArchiveGuard('EXCEPTION').message, '请先恢复异常课次')
   assert.equal(lessonArchiveGuard('COMPLETED').message, '课次已完成，无需重复归档')
+})
+
+test('treats completed lesson statuses as an archive terminal state', () => {
+  assert.equal(isLessonArchiveComplete('COMPLETED'), true)
+  assert.equal(isLessonArchiveComplete('已完成'), true)
+  assert.equal(isLessonArchiveComplete('PROCESSING'), false)
+})
+
+test('closes the archive run and exits after archive succeeds', async () => {
+  const events = []
+  const result = await finishArchiveAndExit({
+    archive: async () => {
+      events.push('archive')
+      return true
+    },
+    close: () => events.push('close'),
+    exit: () => events.push('back')
+  })
+
+  assert.equal(result, true)
+  assert.deepEqual(events, ['archive', 'close', 'back'])
+})
+
+test('stays in the workspace when archive validation fails', async () => {
+  const events = []
+  const result = await finishArchiveAndExit({
+    archive: async () => false,
+    close: () => events.push('close'),
+    exit: () => events.push('back')
+  })
+
+  assert.equal(result, false)
+  assert.deepEqual(events, [])
 })
 
 test('marks student delivery ready without requiring manual confirmations', () => {

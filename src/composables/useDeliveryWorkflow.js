@@ -64,7 +64,7 @@ import {
   toApiLessonType,
   toApiWheatCommand
 } from '../services/mappers'
-import { lessonArchiveGuard, studentDeliveryReadiness } from '../services/lessonWorkflow.js'
+import { isLessonArchiveComplete, lessonArchiveGuard, studentDeliveryReadiness } from '../services/lessonWorkflow.js'
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import { copyTextToClipboard } from '../services/clipboard'
@@ -4070,19 +4070,22 @@ export function useDeliveryWorkflow() {
     const latest = await fetchLatestLessonRecord(task?.id)
     if (!latest) {
       lastArchiveGuardMessage = '课次状态刷新失败，请重试'
-      return null
+      return { kind: 'BLOCKED', detail: lastArchiveGuardMessage }
     }
     const guard = lessonArchiveGuard(latest.status)
-    if (guard.action === 'PROCEED') return latest
+    if (guard.action === 'PROCEED') return { kind: 'READY', lesson: latest }
     if (guard.action === 'START_PROCESSING') {
       const started = await startLessonProcessingOnOpen(latest)
-      if (started && toApiLessonStatus(started.status) === 'PROCESSING') return started
+      if (started && toApiLessonStatus(started.status) === 'PROCESSING') return { kind: 'READY', lesson: started }
       lastArchiveGuardMessage = '课次状态未进入处理中，请重试'
-      return null
+      return { kind: 'BLOCKED', detail: lastArchiveGuardMessage }
+    }
+    if (isLessonArchiveComplete(guard.status)) {
+      return { kind: 'ALREADY_COMPLETED', lesson: latest }
     }
     lastArchiveGuardMessage = guard.message
     notify(guard.message)
-    return null
+    return { kind: 'BLOCKED', detail: guard.message }
   }
 
   const cloudBatchWatchers = new Map()
@@ -6938,6 +6941,11 @@ export function useDeliveryWorkflow() {
       archiveRunCloseTimer = null
     }
     archiveRunState.open = false
+    archiveRunState.phase = 'idle'
+    archiveRunState.currentKey = ''
+    archiveRunState.items = []
+    archiveRunState.errorMessage = ''
+    archiveRunState.successMessage = ''
     return true
   }
 
@@ -7063,14 +7071,20 @@ export function useDeliveryWorkflow() {
     const requestedTask = activeTask.value
     if (!requestedTask?.id) return false
 
+    const preparation = await ensureLessonProcessingForArchive(requestedTask)
+    if (preparation?.kind === 'ALREADY_COMPLETED') {
+      closeArchiveRun()
+      notify('本节课已完成，已退出工作台')
+      return true
+    }
+
     resetArchiveRun()
     let task = null
 
     const lessonStatus = await runArchiveStep('lessonStatus', async () => {
-      const latest = await ensureLessonProcessingForArchive(requestedTask)
-      return latest
-        ? { ok: true, value: latest, detail: '已确认课次处于处理中' }
-        : { ok: false, detail: lastArchiveGuardMessage || '课次状态未进入处理中，请重试' }
+      return preparation?.kind === 'READY'
+        ? { ok: true, value: preparation.lesson, detail: '已确认课次处于处理中' }
+        : { ok: false, detail: preparation?.detail || lastArchiveGuardMessage || '课次状态未进入处理中，请重试' }
     }, '课次状态未进入处理中，请重试')
     if (!lessonStatus.ok) {
       stopArchiveRun('blocked', lessonStatus.detail)

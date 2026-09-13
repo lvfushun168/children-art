@@ -244,17 +244,10 @@ const selectedImageMode = (row) => {
 }
 
 const artworkVersionStatus = (row) => {
-  if (!row?.imageMatched) return '待上传'
-  if (row.imageConfirmed) return `已采用${selectedImageMode(row) === 'processed' ? '处理图' : '原图'}`
-
-  const processStatus = String(row.imageProcessStatus || '').toUpperCase()
-  if (processStatus === '失败' || processStatus === 'FAILED') return '处理失败，可采用原图'
-  if (processStatus === '处理中' || processStatus === 'PROCESSING') return '处理中'
-  if (hasProcessedImage(row) || processStatus === '成功' || processStatus === 'SUCCEEDED') return '处理图已生成，待确认'
-  return '未生成处理图'
+  return props.state.artworkStatusFor?.(row) || (!row?.imageMatched ? '待上传' : '待准备')
 }
 
-const artworkVersionStatusClass = (row) => row?.imageConfirmed ? 'ok-text' : 'missing-text'
+const artworkVersionStatusClass = (row) => artworkVersionStatus(row) === '已准备' ? 'ok-text' : 'missing-text'
 
 const feedbackProgress = (row) => props.state.jobProgressFor?.(row, 'FEEDBACK') || null
 const artworkTargetsFor = (row) => {
@@ -304,18 +297,24 @@ const batchJobProgressText = (type) => {
   return `${done}/${targets.length} 已完成`
 }
 
-const statusFor = (row) => {
-  if (!row?.imageMatched) return '作品待上传'
-  if (!row.imageConfirmed) return hasProcessedImage(row) ? '作品待确认' : '原图待确认'
-  if (!row.record?.trim()) return '课堂记录待补'
-  if (!row.comment?.trim()) return '课评待生成'
-  if (!row.confirmed) return '课评待确认'
-  return '已完成'
-}
+const artworkStatusFor = (row) => props.state.artworkStatusFor?.(row) || (!row?.imageMatched ? '待上传' : '待准备')
+const recordStatusFor = (row) => props.state.recordStatusFor?.(row) || (row?.record?.trim() ? '已保存' : '待补')
+const commentStatusFor = (row) => props.state.commentStatusFor?.(row) || (row?.comment?.trim() ? '已保存' : '待生成')
+const statusFor = (row) => props.state.studentDeliveryStatusFor?.(row) || (
+  row?.imageMatched && row?.record?.trim() && row?.comment?.trim() ? '已完成' : '未完成'
+)
 
 const statusClassFor = (row) => statusFor(row) === '已完成' ? 'done' : 'pending'
-
-const canConfirm = (row) => Boolean(row?.imageMatched && row.record?.trim() && row.comment?.trim())
+const draftStatusTextFor = (row, field = '') => {
+  const status = props.state.studentDraftStatusFor?.(row) || 'SAVED'
+  if (field && !String(row?.[field] || '').trim() && status === 'SAVED') return ''
+  if (status === 'SAVING' || status === 'DIRTY') return '保存中'
+  if (status === 'ERROR') return '保存失败，点击重试'
+  return '已保存'
+}
+const markDraftDirty = (row) => props.state.markStudentDraftDirty?.(row)
+const flushDraft = (row) => props.state.flushStudentDraft?.(row)
+const retryDraft = (row) => flushDraft(row)
 
 const setActive = (row) => {
   if (row?.studentId !== undefined && row?.studentId !== null) props.state.activeStudentId = row.studentId
@@ -391,7 +390,9 @@ const openComment = (row) => {
   setDrawerState(true)
 }
 
-const closeComment = () => {
+const closeComment = async () => {
+  const row = commentRow.value
+  if (row) await flushDraft(row)
   commentStudentId.value = null
   setDrawerState(false)
 }
@@ -406,14 +407,16 @@ const closeBatch = () => {
   setDrawerState(false)
 }
 
-const openMobileStudent = (row) => {
+const openMobileStudent = async (row) => {
+  if (mobileStudent.value && !sameId(mobileStudent.value.studentId, row?.studentId)) await flushDraft(mobileStudent.value)
   setActive(row)
   mobileStudentId.value = row?.studentId ?? null
   mobileSection.value = null
   emit('mobile-detail-state', true)
 }
 
-const closeMobileStudent = () => {
+const closeMobileStudent = async () => {
+  if (mobileStudent.value) await flushDraft(mobileStudent.value)
   mobileStudentId.value = null
   mobileSection.value = null
   emit('mobile-detail-state', false)
@@ -428,7 +431,8 @@ const openMobileSection = (section) => {
   mobileSection.value = section
 }
 
-const closeMobileSection = () => {
+const closeMobileSection = async () => {
+  if (mobileStudent.value) await flushDraft(mobileStudent.value)
   mobileSection.value = null
 }
 
@@ -459,7 +463,7 @@ const processCurrentImage = async (row) => {
   setActive(row)
   if (selectedImageTemplate.value && isClientCanvasTemplate(selectedImageTemplate.value)) {
     if (String(selectedImageTemplate.value.templateKey || '').toLowerCase() === 'original') {
-      await props.state.confirmCurrentImage('original', row)
+      props.state.notify('已保留原图')
     } else {
       await props.state.renderCurrentImage?.(row)
     }
@@ -492,108 +496,16 @@ const removeProcessedArtwork = async (row) => {
   if (removed !== false) props.state.notify('处理图已删除，请重新确认原图或重新处理')
 }
 
-const saveRecord = async (row) => {
-  if (!row?.record?.trim()) {
-    props.state.notify('请先录入当前学生的课堂表现')
-    return false
-  }
-  setActive(row)
-  const saved = await props.state.saveSessionRecord?.(row)
-  if (saved !== false) props.state.notify(`${studentFor(row.studentId).name}的课堂记录已保存`)
-  return saved !== false
-}
-
 const regenerateComment = async (row) => {
   if (!row) return
   if (feedbackJobActive(row)) return
   setActive(row)
+  if (!(await flushDraft(row))) return
   const generated = await props.state.generateOne(row)
   if (generated) {
     props.state.pulseComment?.()
     props.state.notify(`已重新生成${studentFor(row.studentId).name}的课评`)
   }
-}
-
-const confirmComment = async (row) => {
-  if (!row?.comment?.trim()) {
-    props.state.notify('请先生成或录入家长课评')
-    return false
-  }
-  setActive(row)
-  const confirmed = await props.state.confirmCurrentComment(row.studentId)
-  if (confirmed) closeComment()
-  return confirmed
-}
-
-const confirmMobileComment = async (row) => {
-  if (!row?.comment?.trim()) {
-    props.state.notify('请先生成或录入家长课评')
-    return false
-  }
-  setActive(row)
-  return props.state.confirmCurrentComment(row.studentId)
-}
-
-const selectImage = async (row, mode) => {
-  if (mode === 'processed' && !hasProcessedCandidate(row)) {
-    props.state.notify('当前学生还没有处理图')
-    return
-  }
-  if (mode !== 'processed' && !hasImage(imageAsset(row, mode))) {
-    props.state.notify(mode === 'processed' ? '当前学生还没有处理图' : '当前学生还没有原图')
-    return
-  }
-  setActive(row)
-  if (mode === 'processed') {
-    if (props.state.adoptCurrentImage) {
-      await props.state.adoptCurrentImage(row)
-      return
-    }
-    if (!hasImage(imageAsset(row, 'processed'))) {
-      props.state.notify('当前学生还没有可确认的处理图')
-      return
-    }
-  }
-  await props.state.confirmCurrentImage(mode, row)
-}
-
-const nextStudent = (row) => {
-  const index = props.state.attendingRows.findIndex((item) => sameId(item.studentId, row.studentId))
-  if (index >= 0 && index < props.state.attendingRows.length - 1) {
-    const next = props.state.attendingRows[index + 1]
-    setActive(next)
-    if (mobileStudentId.value !== null) mobileStudentId.value = next.studentId
-    return true
-  }
-  props.state.notify('全班学生交付内容已处理到最后一位')
-  return false
-}
-
-const saveAndConfirm = async (row) => {
-  if (!canConfirm(row)) {
-    props.state.notify(`${studentFor(row.studentId).name}还有作品、课堂记录或课评未补齐`)
-    return false
-  }
-  setActive(row)
-  if (!row.imageConfirmed) {
-    const artworks = Array.isArray(row.artworks) ? row.artworks.filter((artwork) => artwork.imageMatched) : []
-    if (artworks.length) {
-      for (const artwork of artworks) {
-        if (artwork.imageConfirmed) continue
-        const mode = artwork.processedVersionId ? 'processed' : 'original'
-        if (!(await props.state.confirmCurrentImage(mode, artwork))) return false
-      }
-    } else {
-      const mode = hasProcessedImage(row) ? 'processed' : 'original'
-      if (!(await props.state.confirmCurrentImage(mode, row))) return false
-    }
-  }
-  if (!(await props.state.confirmCurrentComment(row.studentId))) return false
-  if (sameId(commentStudentId.value, row.studentId)) closeComment()
-  if (sameId(artworkStudentId.value, row.studentId)) closeArtwork()
-  if (mobileStudentId.value !== null) mobileSection.value = null
-  nextStudent(row)
-  return true
 }
 
 watch(() => props.state.activeTask.id, () => {
@@ -632,7 +544,7 @@ onMounted(() => {
     <header class="student-delivery-head">
       <div>
         <span>第 3 步</span>
-        <h2>按学生完成作品、课堂记录与家长课评</h2>
+        <h2>按学生准备作品、课堂记录与家长课评</h2>
       </div>
       <div class="student-delivery-head-actions">
         <button type="button" class="secondary" @click="openBatch">批量操作</button>
@@ -645,7 +557,7 @@ onMounted(() => {
       <span>学生作品 {{ state.counts.matched }}/{{ state.counts.attend }} 人</span>
       <span>作品 {{ state.counts.artworkCount }} 张</span>
       <span>课堂记录 {{ state.counts.records }}/{{ state.counts.attend }}</span>
-      <span>课评确认 {{ state.counts.confirmed }}/{{ state.counts.attend }}</span>
+      <span>课评已填写 {{ state.counts.comments }}/{{ state.counts.attend }}</span>
     </div>
 
     <section class="student-delivery-desktop">
@@ -690,23 +602,24 @@ onMounted(() => {
                 </div>
               </td>
               <td class="delivery-record-cell">
-                <textarea v-model="row.record" rows="4" placeholder="记录孩子今天的课堂表现……" @input="row.confirmed = false" />
+                <span class="delivery-field-status" :class="recordStatusFor(row) === '已保存' ? 'ok-text' : 'missing-text'">课堂记录：{{ recordStatusFor(row) }}</span>
+                <textarea v-model="row.record" rows="4" placeholder="记录孩子今天的课堂表现……" @input="markDraftDirty(row)" @blur="flushDraft(row)" />
                 <div class="delivery-cell-actions">
                   <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = row.studentId; state.simulateVoice()">🎙语音转文字</button>
-                  <button type="button" class="ghost" :disabled="state.isProcessing || !row.record?.trim()" @click="saveRecord(row)">保存记录</button>
+                  <span v-if="draftStatusTextFor(row, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(row)), error: state.studentDraftStatusFor?.(row) === 'ERROR' }" :title="state.studentDraftErrorFor?.(row) || ''" @click="state.studentDraftStatusFor?.(row) === 'ERROR' && retryDraft(row)">{{ draftStatusTextFor(row, 'record') }}</span>
                 </div>
               </td>
               <td class="delivery-comment-cell">
-                <span class="delivery-comment-status" :class="row.comment?.trim() ? 'ok-text' : 'missing-text'">{{ row.confirmed ? '已确认' : row.comment?.trim() ? '已生成，待确认' : '尚未生成' }}</span>
+                <span class="delivery-comment-status" :class="commentStatusFor(row) === '已保存' ? 'ok-text' : 'missing-text'">课评：{{ commentStatusFor(row) }}</span>
                 <p class="delivery-comment-preview">{{ row.comment?.trim() || '先录入课堂记录才能生成/填写课评。' }}</p>
                 <span v-if="feedbackProgress(row)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(row).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(row)) }}</span>
                 <div class="delivery-cell-actions">
                   <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(row) || !row.record?.trim()" @click="openComment(row)">生成课评</button>
+                  <span v-if="draftStatusTextFor(row, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(row)), error: state.studentDraftStatusFor?.(row) === 'ERROR' }" :title="state.studentDraftErrorFor?.(row) || ''" @click="state.studentDraftStatusFor?.(row) === 'ERROR' && retryDraft(row)">{{ draftStatusTextFor(row, 'comment') }}</span>
                 </div>
               </td>
               <td class="delivery-status-cell">
                 <span class="delivery-status" :class="statusClassFor(row)">{{ statusFor(row) }}</span>
-                <button type="button" class="primary" :disabled="state.isProcessing || !canConfirm(row)" @click="saveAndConfirm(row)">保存并确认</button>
               </td>
             </tr>
             <tr v-if="!state.attendingRows.length">
@@ -725,7 +638,7 @@ onMounted(() => {
             <span class="mobile-student-copy">
               <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
               <small>{{ studentFor(row.studentId).parent || '家长未填写' }}</small>
-              <span class="mobile-student-flags"><i :class="row.imageMatched ? 'done' : 'pending'">作品 {{ row.imageMatched ? '已上传' : '待上传' }}</i><i :class="row.record?.trim() ? 'done' : 'pending'">记录 {{ row.record?.trim() ? '已记' : '待补' }}</i><i :class="row.confirmed ? 'done' : 'pending'">课评 {{ row.confirmed ? '已确认' : row.comment?.trim() ? '待确认' : '待生成' }}</i></span>
+              <span class="mobile-student-flags"><i :class="artworkStatusFor(row) === '已准备' ? 'done' : 'pending'">作品 {{ artworkStatusFor(row) }}</i><i :class="recordStatusFor(row) === '已保存' ? 'done' : 'pending'">记录 {{ recordStatusFor(row) }}</i><i :class="commentStatusFor(row) === '已保存' ? 'done' : 'pending'">课评 {{ commentStatusFor(row) }}</i></span>
             </span>
             <span class="mobile-student-status">{{ statusFor(row) }}<b>›</b></span>
           </button>
@@ -750,27 +663,27 @@ onMounted(() => {
               <span class="mobile-section-icon">作</span>
               <span class="mobile-section-copy">
                 <strong>作品</strong>
-                <small>{{ mobileStudent.imageConfirmed ? '已确认采用版本' : mobileStudent.imageMatched ? '已上传，待确认' : '待上传作品' }}</small>
+                <small>{{ artworkStatusFor(mobileStudent) === '已准备' ? '已有可交付版本' : artworkStatusFor(mobileStudent) }}</small>
               </span>
-              <span class="mobile-section-status"><span>{{ mobileStudent.imageConfirmed ? '已完成' : mobileStudent.imageMatched ? '待确认' : '待处理' }}</span><b>›</b></span>
+              <span class="mobile-section-status"><span>{{ artworkStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
 
             <button type="button" class="mobile-student-section-row" @click="openMobileSection('record')">
               <span class="mobile-section-icon">记</span>
               <span class="mobile-section-copy">
                 <strong>课堂记录</strong>
-                <small>{{ mobileStudent.record?.trim() ? '已记录课堂表现' : '待补充课堂表现' }}</small>
+                <small>{{ recordStatusFor(mobileStudent) === '已保存' ? '已记录课堂表现' : recordStatusFor(mobileStudent) }}</small>
               </span>
-              <span class="mobile-section-status"><span>{{ mobileStudent.record?.trim() ? '已完成' : '待处理' }}</span><b>›</b></span>
+              <span class="mobile-section-status"><span>{{ recordStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
 
             <button type="button" class="mobile-student-section-row" @click="openMobileSection('comment')">
               <span class="mobile-section-icon">评</span>
               <span class="mobile-section-copy">
                 <strong>家长课评</strong>
-                <small>{{ mobileStudent.confirmed ? '已确认发送内容' : mobileStudent.comment?.trim() ? '已生成，待确认' : '待生成课评' }}</small>
+                <small>{{ commentStatusFor(mobileStudent) === '已保存' ? '已填写家长课评' : commentStatusFor(mobileStudent) }}</small>
               </span>
-              <span class="mobile-section-status"><span>{{ mobileStudent.confirmed ? '已完成' : '待处理' }}</span><b>›</b></span>
+              <span class="mobile-section-status"><span>{{ commentStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
 
           </nav>
@@ -782,11 +695,11 @@ onMounted(() => {
             <strong>{{ mobileSectionTitle }}</strong>
           </div>
           <article class="mobile-student-editor-card">
-            <header><strong>课堂记录</strong><span>{{ mobileStudent.record?.trim() ? '已记录' : '待补' }}</span></header>
-            <textarea v-model="mobileStudent.record" rows="8" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" @input="mobileStudent.confirmed = false" />
+            <header><strong>课堂记录</strong><span>{{ recordStatusFor(mobileStudent) }}</span></header>
+            <textarea v-model="mobileStudent.record" rows="8" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" @input="markDraftDirty(mobileStudent)" @blur="flushDraft(mobileStudent)" />
             <div class="mobile-student-editor-actions">
               <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = mobileStudent.studentId; state.simulateVoice()">🎙 语音转文字</button>
-              <button type="button" class="secondary" :disabled="state.isProcessing || !mobileStudent.record?.trim()" @click="saveRecord(mobileStudent)">保存记录</button>
+              <span v-if="draftStatusTextFor(mobileStudent, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'record') }}</span>
             </div>
           </article>
         </section>
@@ -797,20 +710,21 @@ onMounted(() => {
             <strong>{{ mobileSectionTitle }}</strong>
           </div>
           <article class="mobile-student-editor-card">
-            <header><strong>家长课评</strong><span>{{ mobileStudent.confirmed ? '已确认' : mobileStudent.comment?.trim() ? '待确认' : '待生成' }}</span></header>
+            <header><strong>家长课评</strong><span>{{ commentStatusFor(mobileStudent) }}</span></header>
             <p class="mobile-comment-preview">{{ mobileStudent.comment?.trim() || '先录入课堂记录，再生成家长课评。' }}</p>
-            <textarea v-model="mobileStudent.comment" rows="9" placeholder="先录入课堂记录，再生成家长课评……" @input="mobileStudent.confirmed = false" />
+            <textarea v-model="mobileStudent.comment" rows="9" placeholder="先录入课堂记录，再生成家长课评……" @input="markDraftDirty(mobileStudent)" @blur="flushDraft(mobileStudent)" />
             <div class="mobile-student-editor-actions">
               <small v-if="feedbackProgress(mobileStudent)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(mobileStudent).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(mobileStudent)) }}</small>
               <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)">{{ feedbackJobActive(mobileStudent) ? '生成中…' : '重新生成' }}</button>
-              <button type="button" class="primary" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.comment?.trim()" @click="confirmMobileComment(mobileStudent)">确认课评</button>
+              <span v-if="draftStatusTextFor(mobileStudent, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'comment') }}</span>
             </div>
           </article>
         </section>
 
         <footer class="mobile-student-detail-actions">
           <button type="button" class="secondary" :disabled="mobileStudentIndex <= 0" @click="openMobileStudent(state.attendingRows[mobileStudentIndex - 1])">上一位</button>
-          <button type="button" class="primary" :disabled="state.isProcessing || !canConfirm(mobileStudent)" @click="saveAndConfirm(mobileStudent)">{{ mobileStudentIndex < state.attendingRows.length - 1 ? '保存并下一位' : '保存并完成当前学生' }}</button>
+          <button v-if="mobileStudentIndex < state.attendingRows.length - 1" type="button" class="primary" @click="openMobileStudent(state.attendingRows[mobileStudentIndex + 1])">下一位</button>
+          <button v-else type="button" class="primary" @click="closeMobileStudent">返回学生列表</button>
         </footer>
       </template>
     </section>
@@ -821,7 +735,7 @@ onMounted(() => {
           <div>
             <span>作品处理</span>
             <strong>{{ studentFor(artworkRow.studentId).name }}</strong>
-            <small>{{ artworkItem ? (jobProgressLabel(artworkProgress(artworkItem)) || artworkItem.imageProcessStatus || '尚未处理') : '尚未上传作品' }} · {{ artworkItem ? `当前采用：${selectedImageMode(artworkItem) === 'processed' ? '处理图' : '原图'}` : '可一次添加多张作品' }}</small>
+            <small>{{ artworkItem ? (jobProgressLabel(artworkProgress(artworkItem)) || artworkItem.imageProcessStatus || '尚未处理') : '尚未上传作品' }}</small>
           </div>
           <button type="button" class="ghost" @click="closeArtwork">关闭</button>
         </header>
@@ -874,7 +788,6 @@ onMounted(() => {
               <button v-if="hasImage(imageAsset(artworkItem, 'original'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="移除作品" aria-label="移除作品" @click.stop="removeOriginalArtwork(artworkItem)">×</button>
             </div>
             <div class="artwork-version-copy"><strong>原图</strong></div>
-            <button type="button" class="secondary" :disabled="state.isProcessing || !hasImage(imageAsset(artworkItem, 'original'))" @click="selectImage(artworkItem, 'original')">采用原图</button>
           </article>
           <article class="artwork-version-card" :class="{ selected: selectedImageMode(artworkItem) === 'processed' && hasProcessedCandidate(artworkItem) }">
             <div class="artwork-version-media">
@@ -894,7 +807,6 @@ onMounted(() => {
             <div class="artwork-version-copy">
               <strong>处理图</strong>
             </div>
-            <button type="button" class="primary" :disabled="state.isProcessing || artworkPreviewLoading || !hasProcessedCandidate(artworkItem)" @click="selectImage(artworkItem, 'processed')">采用处理图</button>
           </article>
         </section>
 
@@ -950,7 +862,7 @@ onMounted(() => {
           <div>
             <span>家长课评</span>
             <strong>{{ studentFor(commentRow.studentId).name }}</strong>
-            <small>{{ jobProgressLabel(feedbackProgress(commentRow)) || '课堂记录完成后，在这里生成、编辑并确认课评。' }}</small>
+            <small>{{ jobProgressLabel(feedbackProgress(commentRow)) || '可生成或编辑当前课评，编辑内容会自动保存。' }}</small>
           </div>
           <button type="button" class="ghost" @click="closeComment">关闭</button>
         </header>
@@ -973,13 +885,13 @@ onMounted(() => {
 
           <label class="drawer-field comment-editor-field">
             <span>课评内容</span>
-            <textarea v-model="commentRow.comment" rows="10" placeholder="先录入课堂记录，再生成家长课评……" @input="commentRow.confirmed = false" />
+            <textarea v-model="commentRow.comment" rows="10" placeholder="先录入课堂记录，再生成家长课评……" @input="markDraftDirty(commentRow)" @blur="flushDraft(commentRow)" />
           </label>
         </div>
 
         <footer class="drawer-action-bar">
           <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(commentRow) || !commentRow.record?.trim()" @click="regenerateComment(commentRow)">{{ feedbackJobActive(commentRow) ? '生成中…' : '重新生成' }}</button>
-          <button type="button" class="primary" :disabled="state.isProcessing || feedbackJobActive(commentRow) || !commentRow.comment?.trim()" @click="confirmComment(commentRow)">确认课评</button>
+          <span v-if="draftStatusTextFor(commentRow, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(commentRow)), error: state.studentDraftStatusFor?.(commentRow) === 'ERROR' }" @click="state.studentDraftStatusFor?.(commentRow) === 'ERROR' && retryDraft(commentRow)">{{ draftStatusTextFor(commentRow, 'comment') }}</span>
         </footer>
       </aside>
     </div>
@@ -990,7 +902,7 @@ onMounted(() => {
           <div>
             <span>批量操作</span>
             <strong>一次处理多个学生</strong>
-            <small>批量操作仍然作用于当前课次，不替代学生逐项确认。</small>
+            <small>批量处理当前课次的作品和课评内容。</small>
           </div>
           <button type="button" class="ghost" @click="closeBatch">关闭</button>
         </header>
@@ -1017,7 +929,7 @@ onMounted(() => {
           <section class="batch-operation-card">
             <div>
               <strong>批量生成课评</strong>
-              <small>已录入 {{ state.counts.records }} 人课堂记录，可统一生成草稿，之后仍需逐个确认。</small>
+              <small>已录入 {{ state.counts.records }} 人课堂记录，可生成课评草稿。</small>
             </div>
             <label class="drawer-field">
               <span>家长课评模板</span>

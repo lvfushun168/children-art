@@ -47,6 +47,30 @@ const homeworkOptionalFieldLabels = {
   requirement: '完成方式',
   dueDate: '回收日期'
 }
+const archiveRunStatusLabel = (status) => ({
+  PENDING: '待检查',
+  WORKING: '检查中',
+  PASSED: '已完成',
+  FAILED: '失败',
+  SKIPPED: '未执行'
+}[String(status || '').toUpperCase()] || '待检查')
+const archiveRunMark = (status) => ({
+  PENDING: '·',
+  WORKING: '…',
+  PASSED: '✓',
+  FAILED: '×',
+  SKIPPED: '—'
+}[String(status || '').toUpperCase()] || '·')
+const archiveRunFailureText = (failure) => {
+  if (typeof failure === 'string') return failure
+  if (!failure) return ''
+  return [failure.studentName, failure.reason].filter(Boolean).join('：')
+}
+const archiveRunProgress = computed(() => {
+  const items = props.state.archiveRunState?.items || []
+  const finished = items.filter((item) => ['PASSED', 'FAILED', 'SKIPPED'].includes(item.status)).length
+  return { finished, total: items.length, percent: items.length ? Math.round((finished / items.length) * 100) : 0 }
+})
 const attendanceOptions = ['到课', '请假', '旷课']
 const homeworkExamples = [
   {
@@ -1055,23 +1079,23 @@ watch(homeworkEditorOpen, async (open) => {
         <div class="section-head">
           <div>
             <span>第 5 步</span>
-            <strong>提交归档与交付收尾</strong>
+            <strong>完成本节归档</strong>
           </div>
-          <button class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">
+          <button class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running'" @click="state.archiveAll">
             完成本节归档交付
           </button>
         </div>
         <section class="archive-checklist-panel">
           <article class="archive-summary-card">
             <div>
-              <span>收口进度</span>
+              <span>归档进度</span>
               <strong>{{ state.archiveChecklistProgress.done }}/{{ state.archiveChecklistProgress.total }} 已完成</strong>
             </div>
             <div class="progress-track slim">
               <i :style="{ width: `${state.archiveChecklistProgress.percent}%` }"></i>
             </div>
             <div v-if="state.currentWarnings.length" class="archive-blocker">
-              <strong>还有 {{ state.currentWarnings.length }} 项前置内容未完成</strong>
+              <strong>还有 {{ state.currentWarnings.length }} 项内容未完成</strong>
               <small>{{ state.currentWarnings.slice(0, 3).join('、') }}{{ state.currentWarnings.length > 3 ? '……' : '' }}</small>
             </div>
             <div v-else-if="!state.archiveChecklistReady" class="archive-result-status">
@@ -1274,10 +1298,53 @@ watch(homeworkEditorOpen, async (open) => {
         </section>
       </div>
 
+      <div v-if="state.archiveRunState?.open" class="modal-backdrop archive-run-backdrop">
+        <section class="archive-run-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-run-title">
+          <header class="archive-run-head">
+            <div>
+              <span>本节课归档</span>
+              <strong id="archive-run-title">
+                {{ state.archiveRunState.phase === 'success' ? '本节课已完成归档' : state.archiveRunState.phase === 'running' ? '正在检查归档条件' : '归档未完成' }}
+              </strong>
+              <small v-if="state.archiveRunState.phase === 'running'">正在处理本节课内容，请稍候。</small>
+              <small v-else-if="state.archiveRunState.phase === 'success'">归档完成，页面即将更新。</small>
+              <small v-else>{{ state.archiveRunState.errorMessage || '请根据失败项处理后再次检查。' }}</small>
+            </div>
+            <button v-if="state.archiveRunState.phase !== 'running'" type="button" class="ghost" @click="state.closeArchiveRun">关闭</button>
+          </header>
+
+          <div class="archive-run-progress-summary" aria-live="polite">
+            <span>{{ archiveRunProgress.finished }}/{{ archiveRunProgress.total }} 项已处理</span>
+            <div class="progress-track slim"><i :style="{ width: `${archiveRunProgress.percent}%` }"></i></div>
+          </div>
+
+          <ol class="archive-run-list" aria-live="polite">
+            <li v-for="item in state.archiveRunState.items" :key="item.key" class="archive-run-item" :class="`archive-run-item-${String(item.status || '').toLowerCase()}`">
+              <span class="archive-run-mark" :aria-label="archiveRunStatusLabel(item.status)">{{ archiveRunMark(item.status) }}</span>
+              <div class="archive-run-item-copy">
+                <div>
+                  <strong>{{ item.title }}</strong>
+                  <span>{{ archiveRunStatusLabel(item.status) }}</span>
+                </div>
+                <small v-if="item.detail">{{ item.detail }}</small>
+                <ul v-if="item.failures?.length" class="archive-run-failures">
+                  <li v-for="(failure, index) in item.failures" :key="`${item.key}-failure-${index}`">{{ archiveRunFailureText(failure) }}</li>
+                </ul>
+              </div>
+            </li>
+          </ol>
+
+          <footer v-if="state.archiveRunState.phase !== 'running'" class="archive-run-actions">
+            <button v-if="['blocked', 'error'].includes(state.archiveRunState.phase)" type="button" class="secondary" @click="state.returnToStudentDeliveryFromArchiveRun">返回第三步处理</button>
+            <button type="button" class="ghost" @click="state.closeArchiveRun">关闭</button>
+          </footer>
+        </section>
+      </div>
+
       <footer v-if="state.currentStep !== 2 || (!studentDeliveryDrawerOpen && !studentDeliveryMobileDetailOpen)" class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
-        <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.currentStep === 2 && state.counts.studentDeliveryCompleted < state.counts.attend" @click="state.nextStep">下一步</button>
-        <button v-else class="primary" :disabled="state.isProcessing || state.currentWarnings.length" @click="state.archiveAll">完成归档交付</button>
+        <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.isProcessing" @click="state.nextStep">下一步</button>
+        <button v-else class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running'" @click="state.archiveAll">完成归档交付</button>
       </footer>
     </template>
   </section>

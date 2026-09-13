@@ -64,7 +64,7 @@ import {
   toApiLessonType,
   toApiWheatCommand
 } from '../services/mappers'
-import { lessonArchiveGuard } from '../services/lessonWorkflow.js'
+import { lessonArchiveGuard, studentDeliveryReadiness } from '../services/lessonWorkflow.js'
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import { copyTextToClipboard } from '../services/clipboard'
@@ -284,8 +284,23 @@ export function useDeliveryWorkflow() {
   const schedulePromises = new Map()
   const processingAction = ref('')
   const jobProgress = reactive({})
+  let jobProgressFor = null
   const jobWatchers = new Map()
   const toast = ref('')
+  const studentDraftStates = reactive({})
+  const studentDraftRows = new Map()
+  const studentDraftSaveTimers = new Map()
+  const studentDraftSaveChains = new Map()
+  const archiveRunState = reactive({
+    open: false,
+    phase: 'idle',
+    currentKey: '',
+    items: [],
+    errorMessage: '',
+    successMessage: ''
+  })
+  let archiveRunCloseTimer = null
+  let lastArchiveGuardMessage = ''
   const previewPulse = ref(false)
   const commentPulse = ref(false)
   const reportPulse = ref(false)
@@ -611,6 +626,45 @@ export function useDeliveryWorkflow() {
     const row = sessionStudentFor(targetId)
     return artworksForRow(row)[0] || (row?.artworkId ? row : null)
   }
+
+  const artworkTargetsForDelivery = (row) => {
+    const artworks = artworksForRow(row).filter((artwork) => artwork?.artworkId)
+    return artworks.length ? artworks : row?.artworkId ? [row] : []
+  }
+
+  const artworkCandidateForDelivery = (artwork) => {
+    if (!artwork) return null
+    const processedAvailable = Boolean(artwork.processedVersionId && (artwork.processedFileId || artwork.processedImage))
+    if (processedAvailable) {
+      return { mode: 'processed', versionId: artwork.processedVersionId }
+    }
+    const originalAvailable = Boolean(artwork.originalVersionId && (artwork.originalFileId || artwork.originalImage))
+    if (originalAvailable) {
+      return { mode: 'original', versionId: artwork.originalVersionId }
+    }
+    if (artwork.selectedVersionId && (artwork.displayFileId || artwork.fileId || artwork.image)) {
+      return { mode: 'selected', versionId: artwork.selectedVersionId }
+    }
+    return null
+  }
+
+  const artworkOperationStatus = (row) => {
+    const targets = artworkTargetsForDelivery(row)
+    if (!targets.length) {
+      return row?.imageMatched && (row.displayFileId || row.fileId || row.originalFileId || row.image) ? 'READY' : 'MISSING'
+    }
+    if (!row?.imageMatched) return 'MISSING'
+    const progress = targets.map((target) => jobProgressFor?.(target, 'ARTWORK')).filter(Boolean)
+    if (progress.some((value) => !['SUCCEEDED', 'FAILED', 'CANCELED'].includes(String(value.status || '').toUpperCase()))) return 'PROCESSING'
+    if (progress.some((value) => ['FAILED', 'CANCELED'].includes(String(value.status || '').toUpperCase()))) return 'FAILED'
+    const statuses = targets.map((target) => String(target.imageProcessStatus || '').toUpperCase())
+    if (statuses.some((status) => ['处理中', 'PROCESSING', 'QUEUED', 'RUNNING'].includes(status))) return 'PROCESSING'
+    if (statuses.some((status) => ['失败', '处理失败', 'FAILED', 'CANCELED'].includes(status))) return 'FAILED'
+    if (targets.some((target) => !artworkCandidateForDelivery(target))) return 'MISSING'
+    return 'READY'
+  }
+
+  const artworkReadyForDelivery = (row) => artworkOperationStatus(row) === 'READY'
   const activeArtwork = computed(() => artworkForTarget(activeArtworkId.value) || artworksForRow(activeSessionStudent.value)[0] || null)
   const activeStudent = computed(() => students.find((item) => sameId(item.id, activeStudentId.value)) || sessionStudents.value.find((item) => sameId(item.studentId, activeStudentId.value)) && {
     id: activeStudentId.value,
@@ -1164,7 +1218,7 @@ export function useDeliveryWorkflow() {
     comments: sessionStudents.value.filter((item) => item.attendance === '到课' && item.comment?.trim()).length,
     confirmed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.confirmed).length,
     deliveryConfirmed: confirmedDeliveryCount(sessionStudents.value),
-    studentDeliveryCompleted: sessionStudents.value.filter((item) => item.attendance === '到课' && item.imageMatched && item.imageConfirmed && item.record?.trim() && item.comment?.trim() && item.confirmed).length,
+    studentDeliveryCompleted: sessionStudents.value.filter((item) => item.attendance === '到课' && studentDeliveryReadinessFor(item).ready).length,
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
     artworkCount: sessionStudents.value.reduce((total, row) => total + artworkCountForRow(row), 0),
     confirmedArtworkCount: sessionStudents.value.reduce((total, row) => total + artworksForRow(row).filter((artwork) => artwork.imageMatched && artwork.imageConfirmed).length, 0),
@@ -1212,7 +1266,7 @@ export function useDeliveryWorkflow() {
     const completed =
       (attendanceConfirmed ? rows.length : 0) +
       (workspace.materials.length || workspace.materialsConfirmedEmpty ? rows.length : 0) +
-      rows.filter((row) => row.imageMatched && row.imageConfirmed && row.record?.trim() && row.comment?.trim() && row.confirmed).length +
+      rows.filter((row) => studentDeliveryReadinessFor(row).ready).length +
       (homeworkIsAssigned(workspace.homework) && !String(workspace.homework.content || '').trim() ? 0 : rows.length) +
       rows.filter((row) => row.archived).length
     const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 5)) * 100))
@@ -1229,11 +1283,7 @@ export function useDeliveryWorkflow() {
     attendingRows.value.forEach((row) => {
       const student = students.find((item) => sameId(item.id, row.studentId))
       const name = student?.name || row.studentName || '学生'
-      if (!row.imageMatched) warnings.push(`${name}缺作品`)
-      if (!row.imageConfirmed) warnings.push(`${name}图片待确认`)
-      if (!row.record?.trim()) warnings.push(`${name}缺课堂记录`)
-      if (!row.comment?.trim()) warnings.push(`${name}缺课评`)
-      if (row.comment?.trim() && !row.confirmed) warnings.push(`${name}课评待确认`)
+      studentDeliveryFailuresFor(row).forEach((failure) => warnings.push(`${name}${failure}`))
     })
     return warnings
   })
@@ -3801,6 +3851,7 @@ export function useDeliveryWorkflow() {
         archived: lesson.status === '已完成'
       }
       summarizeRowArtworks(row, rowArtworks, studentAssets)
+      syncRemoteStudentDraft(row)
       return row
     })
     const materialItems = assets.filter((asset) => !asset.studentId).map((asset) => ({
@@ -4015,14 +4066,21 @@ export function useDeliveryWorkflow() {
   }
 
   const ensureLessonProcessingForArchive = async (task) => {
+    lastArchiveGuardMessage = ''
     const latest = await fetchLatestLessonRecord(task?.id)
-    if (!latest) return null
+    if (!latest) {
+      lastArchiveGuardMessage = '课次状态刷新失败，请重试'
+      return null
+    }
     const guard = lessonArchiveGuard(latest.status)
     if (guard.action === 'PROCEED') return latest
     if (guard.action === 'START_PROCESSING') {
       const started = await startLessonProcessingOnOpen(latest)
-      return started && toApiLessonStatus(started.status) === 'PROCESSING' ? started : null
+      if (started && toApiLessonStatus(started.status) === 'PROCESSING') return started
+      lastArchiveGuardMessage = '课次状态未进入处理中，请重试'
+      return null
     }
+    lastArchiveGuardMessage = guard.message
     notify(guard.message)
     return null
   }
@@ -4257,7 +4315,7 @@ export function useDeliveryWorkflow() {
     return workspace
   }
 
-  const jobProgressFor = (row, type) => {
+  jobProgressFor = (row, type) => {
     if (!row) return null
     const businessObjectType = String(type || '').toUpperCase() === 'ARTWORK' ? 'ARTWORK' : 'FEEDBACK'
     const businessObjectId = businessObjectType === 'ARTWORK' ? row.artworkId : row.feedbackId
@@ -4378,6 +4436,9 @@ export function useDeliveryWorkflow() {
   onBeforeUnmount(() => {
     cancelJobWatchers()
     if (cloudProviderPickerResolver) cloudProviderPickerResolver(null)
+    studentDraftSaveTimers.forEach((timer) => clearTimeout(timer))
+    studentDraftSaveTimers.clear()
+    if (archiveRunCloseTimer) clearTimeout(archiveRunCloseTimer)
   })
 
   let portfolioStudioRef = null
@@ -5055,6 +5116,10 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteLogout = async () => {
+    if (!(await flushStudentDrafts())) {
+      notify('仍有课堂记录或课评草稿保存失败，请重试后再退出登录')
+      return false
+    }
     if (cloudProviderPickerResolver) cloudProviderPickerResolver(null)
     try {
       if (getAccessToken()) await api.auth.logout()
@@ -5124,6 +5189,18 @@ export function useDeliveryWorkflow() {
     Object.keys(studentProfileAudits).forEach((key) => delete studentProfileAudits[key])
     Object.keys(lessonWorkspaces).forEach((key) => delete lessonWorkspaces[key])
     shareDraftSaveChains.clear()
+    studentDraftSaveTimers.forEach((timer) => clearTimeout(timer))
+    studentDraftSaveTimers.clear()
+    studentDraftSaveChains.clear()
+    studentDraftRows.clear()
+    Object.keys(studentDraftStates).forEach((key) => delete studentDraftStates[key])
+    if (archiveRunCloseTimer) {
+      clearTimeout(archiveRunCloseTimer)
+      archiveRunCloseTimer = null
+    }
+    archiveRunState.open = false
+    archiveRunState.phase = 'idle'
+    archiveRunState.items = []
     selectedTaskSnapshot.value = null
     Object.keys(pageLoaded).forEach((key) => delete pageLoaded[key])
     Object.keys(pageErrors).forEach((key) => delete pageErrors[key])
@@ -5156,6 +5233,11 @@ export function useDeliveryWorkflow() {
   const remoteSelectTask = async (task, selectionSequenceOverride = null) => {
     if (!task?.id) return null
     const selectionSequence = selectionSequenceOverride ?? ++lessonSelectionSequence
+    const previousTaskId = activeTaskId.value
+    if (previousTaskId && !sameId(previousTaskId, task.id) && !(await flushStudentDrafts(previousTaskId))) {
+      notify('上一课次还有未保存的课堂记录或课评，请重试后再切换')
+      return null
+    }
     cancelJobWatchers()
     const latestTask = await fetchLatestLessonRecord(task.id)
     if (selectionSequence !== lessonSelectionSequence) return null
@@ -5750,8 +5832,207 @@ export function useDeliveryWorkflow() {
     version: row.feedbackVersion || 0
   })
 
+  const studentDraftKeyFor = (rowOrId, lessonId = activeTask.value?.id) => {
+    const studentId = rowOrId && typeof rowOrId === 'object' ? rowOrId.studentId : rowOrId
+    if (lessonId === null || lessonId === undefined || studentId === null || studentId === undefined) return ''
+    return `${lessonId}:${studentId}`
+  }
+
+  const ensureStudentDraftState = (row) => {
+    const key = studentDraftKeyFor(row, row?.lessonId || activeTask.value?.id)
+    if (!key) return null
+    if (!studentDraftStates[key]) {
+      studentDraftStates[key] = {
+        lessonId: row.lessonId || activeTask.value?.id || null,
+        studentId: row.studentId,
+        status: 'SAVED',
+        revision: 0,
+        savedRevision: 0,
+        error: ''
+      }
+    }
+    studentDraftRows.set(key, row)
+    return studentDraftStates[key]
+  }
+
+  const draftStateHasUnsavedChanges = (state) => Boolean(state && state.revision > state.savedRevision)
+
+  const syncRemoteStudentDraft = (row) => {
+    const key = studentDraftKeyFor(row, row.lessonId || activeTask.value?.id)
+    const localRow = studentDraftRows.get(key)
+    const state = ensureStudentDraftState(row)
+    if (!state) return row
+    if (draftStateHasUnsavedChanges(state) && localRow && localRow !== row) {
+      row.record = localRow.record || ''
+      row.comment = localRow.comment || ''
+    } else if (!draftStateHasUnsavedChanges(state)) {
+      state.status = 'SAVED'
+      state.error = ''
+      state.savedRevision = state.revision
+    }
+    studentDraftRows.set(key, row)
+    state.row = row
+    return row
+  }
+
+  const studentDraftStatusFor = (row) => ensureStudentDraftState(row)?.status || 'SAVED'
+  const studentDraftErrorFor = (row) => ensureStudentDraftState(row)?.error || ''
+
+  const saveStudentDraftNow = (row) => {
+    const state = ensureStudentDraftState(row)
+    const key = studentDraftKeyFor(row, row?.lessonId || activeTask.value?.id)
+    if (!state || !key) return Promise.resolve(false)
+    const timer = studentDraftSaveTimers.get(key)
+    if (timer) {
+      clearTimeout(timer)
+      studentDraftSaveTimers.delete(key)
+    }
+    const currentChain = studentDraftSaveChains.get(key)
+    if (currentChain) return currentChain
+    const lessonId = row.lessonId || activeTask.value?.id
+    const previous = currentChain || Promise.resolve(true)
+    const operation = previous.catch(() => false).then(async () => {
+      if (!lessonId || !row?.studentId) return false
+      while (draftStateHasUnsavedChanges(state)) {
+        const currentRow = state.row || row
+        const revision = state.revision
+        const body = feedbackBodyFor(currentRow)
+        state.status = 'SAVING'
+        state.error = ''
+        try {
+          const saved = await api.feedback.saveForStudent(lessonId, currentRow.studentId, body)
+          if (!saved?.id) throw new Error('自动保存未返回课评记录')
+          Object.assign(currentRow, {
+            feedbackId: saved.id,
+            feedbackVersion: saved.version ?? currentRow.feedbackVersion ?? 0,
+            feedbackVersionId: saved.currentVersionId || saved.confirmedVersionId || currentRow.feedbackVersionId || null
+          })
+          // 输入可能在请求期间继续发生。此时只同步版本信息，保留老师刚输入的
+          // 文本，下一轮循环会把最新内容继续保存，避免旧响应覆盖新草稿。
+          if (state.revision === revision) {
+            if (saved.classroomRecord !== undefined) currentRow.record = saved.classroomRecord || ''
+            if (saved.content !== undefined) currentRow.comment = saved.content || ''
+          }
+          state.savedRevision = revision
+          state.status = state.revision === revision ? 'SAVED' : 'DIRTY'
+          state.error = ''
+        } catch (error) {
+          if (error?.status === 409 && lessonId) {
+            try {
+              await refreshRemoteLesson(lessonId, { force: true })
+            } catch {
+              // 保留保存失败状态，用户仍可点击重试。
+            }
+          }
+          state.status = 'ERROR'
+          state.error = remoteErrorMessage(error, '自动保存失败，请点击重试')
+          return false
+        }
+      }
+      state.status = 'SAVED'
+      return true
+    })
+    studentDraftSaveChains.set(key, operation)
+    operation.finally(() => {
+      if (studentDraftSaveChains.get(key) === operation) studentDraftSaveChains.delete(key)
+    }).catch(() => {})
+    return operation
+  }
+
+  const markStudentDraftDirty = (row) => {
+    const state = ensureStudentDraftState(row)
+    const key = studentDraftKeyFor(row, row?.lessonId || activeTask.value?.id)
+    if (!state || !key) return false
+    state.revision += 1
+    state.status = 'DIRTY'
+    state.error = ''
+    const previousTimer = studentDraftSaveTimers.get(key)
+    if (previousTimer) clearTimeout(previousTimer)
+    studentDraftSaveTimers.set(key, setTimeout(() => {
+      studentDraftSaveTimers.delete(key)
+      void saveStudentDraftNow(row)
+    }, 800))
+    return true
+  }
+
+  const markStudentDraftSaved = (row) => {
+    const state = ensureStudentDraftState(row)
+    if (!state) return false
+    state.savedRevision = state.revision
+    state.status = 'SAVED'
+    state.error = ''
+    return true
+  }
+
+  const flushStudentDraft = async (row) => {
+    const state = ensureStudentDraftState(row)
+    const key = studentDraftKeyFor(row, row?.lessonId || activeTask.value?.id)
+    if (!state || !key) return true
+    const timer = studentDraftSaveTimers.get(key)
+    if (timer) {
+      clearTimeout(timer)
+      studentDraftSaveTimers.delete(key)
+    }
+    if (!draftStateHasUnsavedChanges(state) && state.status !== 'ERROR') return true
+    return saveStudentDraftNow(row)
+  }
+
+  const flushStudentDrafts = async (lessonId = activeTaskId.value) => {
+    const keys = Object.keys(studentDraftStates).filter((key) => String(studentDraftStates[key]?.lessonId) === String(lessonId))
+    if (!keys.length) return true
+    const results = await Promise.all(keys.map((key) => {
+      const row = studentDraftRows.get(key) || sessionStudents.value.find((item) => studentDraftKeyFor(item, lessonId) === key)
+      return row ? flushStudentDraft(row) : true
+    }))
+    return results.every(Boolean)
+  }
+
+  const artworkStatusFor = (row) => {
+    const status = artworkOperationStatus(row)
+    if (status === 'MISSING') return row?.imageMatched ? '待准备' : '待上传'
+    if (status === 'PROCESSING') return '处理中'
+    if (status === 'FAILED') return '处理失败'
+    return '已准备'
+  }
+
+  const recordStatusFor = (row) => {
+    if (!String(row?.record || '').trim()) return '待补'
+    const status = studentDraftStatusFor(row)
+    if (status === 'SAVING' || status === 'DIRTY') return '保存中'
+    if (status === 'ERROR') return '保存失败'
+    return '已保存'
+  }
+
+  const commentJobStatusFor = (row) => String(jobProgressFor?.(row, 'FEEDBACK')?.status || '').toUpperCase()
+
+  const commentStatusFor = (row) => {
+    const jobStatus = commentJobStatusFor(row)
+    if (jobStatus && !['SUCCEEDED', 'COMPLETED'].includes(jobStatus)) {
+      return ['FAILED', 'CANCELED'].includes(jobStatus) ? '生成失败' : '生成中'
+    }
+    if (!String(row?.comment || '').trim()) return '待生成'
+    const status = studentDraftStatusFor(row)
+    if (status === 'SAVING' || status === 'DIRTY') return '保存中'
+    if (status === 'ERROR') return '保存失败'
+    return '已保存'
+  }
+
+  const studentDeliveryReadinessFor = (row) => studentDeliveryReadiness({
+    artworkReady: artworkReadyForDelivery(row),
+    artworkStatus: artworkOperationStatus(row),
+    record: row?.record,
+    recordStatus: studentDraftStatusFor(row),
+    comment: row?.comment,
+    commentStatus: studentDraftStatusFor(row),
+    commentJobStatus: commentJobStatusFor(row)
+  })
+
+  const studentDeliveryStatusFor = (row) => studentDeliveryReadinessFor(row).ready ? '已完成' : '未完成'
+  const studentDeliveryFailuresFor = (row) => studentDeliveryReadinessFor(row).failures
+
   const remoteGenerateOne = async (row) => {
     if (!row) return null
+    if (!(await flushStudentDraft(row))) return null
     const result = await runRemote('正在生成当前学生课评...', async () => {
       // Persist the latest classroom record before every single-student generation.
       // Omit content so regeneration does not create an unnecessary manual version
@@ -5780,6 +6061,7 @@ export function useDeliveryWorkflow() {
         notify(progress.find((job) => ['FAILED', 'CANCELED'].includes(job.status))?.message || '课评生成失败，可直接重试')
         return null
       }
+      markStudentDraftSaved(row)
       return generation
     })
     return result
@@ -5791,6 +6073,7 @@ export function useDeliveryWorkflow() {
       notify('当前课次没有到课学生')
       return false
     }
+    if (!(await flushStudentDrafts(activeTask.value.id))) return false
     const result = await runRemote('正在保存课堂记录并生成全班 1v1 课评...', async () => {
       const savedFeedbacks = await api.feedback.saveBatch(activeTask.value.id,
         rows.map((row) => ({ studentId: String(row.studentId), ...feedbackBodyFor(row) })))
@@ -5814,6 +6097,7 @@ export function useDeliveryWorkflow() {
         notify(`${immediateFailures.length + failed.length} 个学生课评生成失败，可在对应学生行重试`)
         return null
       }
+      rows.forEach((row) => markStudentDraftSaved(row))
       return generation
     }, '课评生成任务已提交')
     return result
@@ -5835,6 +6119,7 @@ export function useDeliveryWorkflow() {
     }
     const confirmed = await runRemote('正在确认课评...', () => api.feedback.confirm(saved.id || row.feedbackId, { versionId: String(versionId), version: saved.version || row.feedbackVersion || 0 }))
     if (!confirmed) return false
+    markStudentDraftSaved(row)
     await refreshRemoteLesson(activeTask.value.id)
     const student = students.find((item) => sameId(item.id, targetStudentId))
     notify(`${student?.name || row.studentName || '当前学生'}课评已确认`)
@@ -5860,6 +6145,7 @@ export function useDeliveryWorkflow() {
     }, '全班课评已确认')
     if (!result) return false
     await refreshRemoteLesson(activeTask.value.id)
+    rows.forEach((row) => markStudentDraftSaved(row))
     return true
   }
 
@@ -5867,6 +6153,7 @@ export function useDeliveryWorkflow() {
     if (!row) return false
     const result = await runRemote('正在保存课堂记录...', () => api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row)))
     if (!result) return false
+    markStudentDraftSaved(row)
     await refreshRemoteLesson(activeTask.value.id)
     return true
   }
@@ -6596,44 +6883,318 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const remoteArchiveAll = async () => {
-    const requestedTask = activeTask.value
-    if (!requestedTask?.id) return false
+  const archiveRunDefinitions = [
+    { key: 'lessonStatus', title: '课次状态' },
+    { key: 'studentDelivery', title: '学生交付内容' },
+    { key: 'deliveryConfirm', title: '作品与课评' },
+    { key: 'parentTouch', title: '家长展示页与通知' },
+    { key: 'wheatTrace', title: '小麦消课待办' },
+    { key: 'archiveExtras', title: '网盘或老师课效归档' },
+    { key: 'completionCheck', title: '完成条件检查' },
+    { key: 'archiveCommit', title: '归档提交' }
+  ]
 
-    const task = await ensureLessonProcessingForArchive(requestedTask)
-    if (!task) return false
+  const resetArchiveRun = () => {
+    if (archiveRunCloseTimer) {
+      clearTimeout(archiveRunCloseTimer)
+      archiveRunCloseTimer = null
+    }
+    archiveRunState.open = true
+    archiveRunState.phase = 'running'
+    archiveRunState.currentKey = ''
+    archiveRunState.errorMessage = ''
+    archiveRunState.successMessage = ''
+    archiveRunState.items = archiveRunDefinitions.map((item) => ({
+      ...item,
+      status: 'PENDING',
+      detail: '',
+      failures: []
+    }))
+  }
 
-    if (!(await remoteSaveShareDraft('归档前保存展示草稿'))) return false
-    const lessonTouchTasks = wecomSendTasks.filter((item) => sameId(item.lessonId, task.id))
-    const touchReady = attendingRows.value.every((row) => lessonTouchTasks.some((item) =>
-      sameId(item.studentId, row.studentId) && ['待绑定家长群', '待老师确认发送', '已发送', '人工发送', '发送失败', '已跳过'].includes(item.status)
-    ))
-    if (!touchReady && !(await remotePushParentTouch())) return false
-    const lessonWheat = wheatTraces.find((item) => sameId(item.lessonId, task.id))
-    if (!lessonWheat?.id && !(await remoteGenerateWheatTraceTask())) return false
+  const updateArchiveRunItem = (key, patch = {}) => {
+    const item = archiveRunState.items.find((value) => value.key === key)
+    if (!item) return null
+    Object.assign(item, patch)
+    return item
+  }
 
-    const cloudBatch = await ensureCloudArchiveBatch(task.id, { waitForCompletion: false })
-    if (!cloudBatch) return false
-    selectCloudArchiveProvider(cloudBatch.providerConfigId)
-    if (cloudBatch?.required && !cloudBatchTerminal(cloudBatch)) {
-      const watcher = watchCloudArchiveBatch(cloudBatch.batchId || cloudBatch.id, task.id)
-      const completed = await watcher.promise
-      if (!completed || !['SUCCEEDED'].includes(String(completed.status).toUpperCase())
-        || cloudBatchIsWorking(completed)) {
-        notify(completed?.failureSummary || '必需的百度网盘归档尚未完成')
-        return false
+  const stopArchiveRun = (phase, detail) => {
+    const currentIndex = archiveRunDefinitions.findIndex((item) => item.key === archiveRunState.currentKey)
+    archiveRunState.items.forEach((item, index) => {
+      if (index > currentIndex && item.status === 'PENDING') {
+        item.status = 'SKIPPED'
+        item.detail = '上一项未完成，暂未处理'
+      }
+    })
+    archiveRunState.phase = phase
+    archiveRunState.errorMessage = detail || ''
+  }
+
+  const closeArchiveRun = () => {
+    if (archiveRunState.phase === 'running') return false
+    if (archiveRunCloseTimer) {
+      clearTimeout(archiveRunCloseTimer)
+      archiveRunCloseTimer = null
+    }
+    archiveRunState.open = false
+    return true
+  }
+
+  const returnToStudentDeliveryFromArchiveRun = () => {
+    currentStep.value = 2
+    closeArchiveRun()
+    return true
+  }
+
+  const runArchiveStep = async (key, action, fallbackDetail = '本项检查未通过') => {
+    archiveRunState.currentKey = key
+    updateArchiveRunItem(key, { status: 'WORKING', detail: '', failures: [] })
+    try {
+      const result = await action()
+      if (result === false || result === null || result === undefined || result?.ok === false) {
+        const detail = result?.detail || fallbackDetail
+        updateArchiveRunItem(key, {
+          status: 'FAILED',
+          detail,
+          failures: Array.isArray(result?.failures) ? result.failures : []
+        })
+        return { ok: false, detail, failures: result?.failures || [] }
+      }
+      const skipped = Boolean(result?.skipped)
+      updateArchiveRunItem(key, {
+        status: skipped ? 'SKIPPED' : 'PASSED',
+        detail: result?.detail || '',
+        failures: []
+      })
+      return { ok: true, value: result?.value ?? result, skipped }
+    } catch (error) {
+      const detail = remoteErrorMessage(error, fallbackDetail)
+      updateArchiveRunItem(key, { status: 'FAILED', detail, failures: [] })
+      return { ok: false, detail, failures: [] }
+    }
+  }
+
+  const archiveRowName = (row) => students.find((student) => sameId(student.id, row?.studentId))?.name
+    || row?.studentName
+    || '学生'
+
+  const confirmDeliveryBeforeArchive = async (lesson) => {
+    const failures = []
+    let artworkAttempted = false
+    const rows = attendingRows.value
+
+    for (const row of rows) {
+      const studentName = archiveRowName(row)
+      const targets = artworkTargetsForDelivery(row)
+      for (const artwork of targets) {
+        const candidate = artworkCandidateForDelivery(artwork)
+        if (!candidate) {
+          failures.push({ studentName, reason: '作品没有可交付版本' })
+          continue
+        }
+        if (artwork.selectedVersionId && sameId(artwork.selectedVersionId, candidate.versionId)) continue
+        artworkAttempted = true
+        try {
+          await api.assets.confirmArtwork(artwork.artworkId, {
+            versionId: String(candidate.versionId),
+            version: artwork.artworkVersion
+          })
+        } catch (error) {
+          failures.push({
+            studentName,
+            reason: `作品确认失败：${remoteErrorMessage(error, '请稍后重试')}`
+          })
+        }
       }
     }
 
-    const completion = await runRemote('正在检查归档前置条件...', () => api.lessons.completion(task.id))
-    if (!completion) return false
-    if (!completion.passed) {
-      const messages = (completion?.items || []).filter((item) => item.blocking && !item.passed).map((item) => item.message)
-      notify(messages.join('、') || '后端完成检查未通过')
+    const feedbackRows = rows.filter((row) => String(row.comment || '').trim())
+    let feedbackAttempted = false
+    if (feedbackRows.length === rows.length && rows.length) {
+      feedbackAttempted = true
+      try {
+        const saved = await api.feedback.saveBatch(lesson.id, rows.map((row) => ({
+          studentId: String(row.studentId),
+          ...feedbackBodyFor(row)
+        })))
+        const savedItems = Array.isArray(saved) ? saved : saved?.items || []
+        const savedByStudent = new Map(savedItems.map((item) => [String(item.studentId), item]))
+        const confirmations = []
+        rows.forEach((row) => {
+          const item = savedByStudent.get(String(row.studentId))
+          const versionId = item?.currentVersionId || item?.confirmedVersionId
+          if (!item?.id || !versionId) {
+            failures.push({ studentName: archiveRowName(row), reason: '课评保存后没有可确认版本' })
+            return
+          }
+          Object.assign(row, {
+            feedbackId: item.id,
+            feedbackVersion: item.version ?? row.feedbackVersion ?? 0,
+            feedbackVersionId: versionId
+          })
+          markStudentDraftSaved(row)
+          confirmations.push({
+            feedbackId: String(item.id),
+            versionId: String(versionId),
+            version: Number(item.version || row.feedbackVersion || 0)
+          })
+        })
+        if (!failures.length) await api.feedback.confirmBatch(lesson.id, confirmations)
+      } catch (error) {
+        failures.push({ studentName: '本课次课评', reason: `批量保存或确认失败：${remoteErrorMessage(error, '请稍后重试')}` })
+      }
+    } else {
+      rows.filter((row) => !String(row.comment || '').trim()).forEach((row) => {
+        failures.push({ studentName: archiveRowName(row), reason: '课评内容为空' })
+      })
+    }
+
+    if (artworkAttempted || feedbackAttempted) await refreshRemoteLesson(lesson.id, { force: true })
+    return {
+      ok: failures.length === 0,
+      detail: failures.length ? `有 ${failures.length} 项内容未处理` : `已处理 ${rows.length} 位学生的作品和课评`,
+      failures
+    }
+  }
+
+  const remoteArchiveAll = async () => {
+    if (archiveRunState.phase === 'running') return false
+    const requestedTask = activeTask.value
+    if (!requestedTask?.id) return false
+
+    resetArchiveRun()
+    let task = null
+
+    const lessonStatus = await runArchiveStep('lessonStatus', async () => {
+      const latest = await ensureLessonProcessingForArchive(requestedTask)
+      return latest
+        ? { ok: true, value: latest, detail: '已确认课次处于处理中' }
+        : { ok: false, detail: lastArchiveGuardMessage || '课次状态未进入处理中，请重试' }
+    }, '课次状态未进入处理中，请重试')
+    if (!lessonStatus.ok) {
+      stopArchiveRun('blocked', lessonStatus.detail)
       return false
     }
-    const result = await runRemote('正在完成本节归档交付...', () => api.lessons.archiveCommit(task.id, { version: completion.lessonVersion ?? task.version }, createIdempotencyKey(`archive-commit:${task.id}`)), '本节课已完成归档交付')
-    if (!result) return false
+    task = lessonStatus.value
+
+    const studentDelivery = await runArchiveStep('studentDelivery', async () => {
+      if (!(await flushStudentDrafts(task.id))) {
+        const failures = attendingRows.value
+          .filter((row) => studentDraftStatusFor(row) === 'ERROR')
+          .map((row) => ({ studentName: archiveRowName(row), reason: studentDraftErrorFor(row) || '自动保存失败' }))
+        return { ok: false, detail: '仍有课堂记录或课评草稿未保存', failures }
+      }
+      const workspace = await refreshRemoteLesson(task.id, { force: true })
+      if (!workspace) return { ok: false, detail: '学生交付内容刷新失败，请重试' }
+      const failures = attendingRows.value.flatMap((row) => studentDeliveryFailuresFor(row).map((reason) => ({
+        studentName: archiveRowName(row),
+        reason
+      })))
+      return failures.length
+        ? { ok: false, detail: `有 ${failures.length} 项学生交付内容未完成`, failures }
+        : { ok: true, detail: `已检查 ${attendingRows.value.length} 位到课学生` }
+    }, '学生交付内容未完成')
+    if (!studentDelivery.ok) {
+      stopArchiveRun('blocked', studentDelivery.detail)
+      return false
+    }
+
+    const deliveryConfirm = await runArchiveStep('deliveryConfirm', () => confirmDeliveryBeforeArchive(task), '作品或课评处理失败')
+    if (!deliveryConfirm.ok) {
+      stopArchiveRun('error', deliveryConfirm.detail)
+      return false
+    }
+
+    const parentTouch = await runArchiveStep('parentTouch', async () => {
+      if (!(await remoteSaveShareDraft('归档前保存展示草稿'))) return { ok: false, detail: '家长展示草稿保存失败' }
+      const lessonTouchTasks = wecomSendTasks.filter((item) => sameId(item.lessonId, task.id))
+      const touchReady = attendingRows.value.every((row) => lessonTouchTasks.some((item) =>
+        sameId(item.studentId, row.studentId) && ['待绑定家长群', '待老师确认发送', '已发送', '人工发送', '发送失败', '已跳过'].includes(item.status)
+      ))
+      if (!touchReady && !(await remotePushParentTouch())) return { ok: false, detail: '家长展示页或通知任务未完成' }
+      return { ok: true, detail: '家长展示页与通知任务已准备' }
+    }, '家长展示页或通知任务未完成')
+    if (!parentTouch.ok) {
+      stopArchiveRun('error', parentTouch.detail)
+      return false
+    }
+
+    const wheatStep = await runArchiveStep('wheatTrace', async () => {
+      const lessonWheat = wheatTraces.find((item) => sameId(item.lessonId, task.id))
+      if (lessonWheat?.id) return { ok: true, detail: '小麦消课待办已存在' }
+      return (await remoteGenerateWheatTraceTask())
+        ? { ok: true, detail: '小麦消课待办已创建' }
+        : { ok: false, detail: '小麦消课待办创建失败' }
+    }, '小麦消课待办未完成')
+    if (!wheatStep.ok) {
+      stopArchiveRun('error', wheatStep.detail)
+      return false
+    }
+
+    const archiveExtras = await runArchiveStep('archiveExtras', async () => {
+      const effect = activeWorkspace.value.teacherEffect
+      const cloudTarget = selectedArchiveTargets.value.find((id) => String(id).startsWith('cloud:'))
+      const hasCloudBatch = Boolean(activeWorkspace.value.cloudBatch?.batchId)
+      if (!cloudArchiveRule.required && !cloudTarget && !hasCloudBatch && !effect?.id) {
+        return { ok: true, skipped: true, detail: '未配置网盘或老师课效图，已跳过' }
+      }
+      const effectStatus = String(effect?.status || '').toUpperCase()
+      if (effect?.id && ['QUEUED', 'GENERATING', 'RUNNING'].includes(effectStatus)) return { ok: false, detail: '老师课效图正在生成，请完成后重试' }
+      if (effect?.id && ['FAILED', 'CANCELED'].includes(effectStatus)) return { ok: false, detail: '老师课效图生成失败，请先重试或跳过' }
+      if (effect?.id && ['PENDING', 'DRAFT'].includes(effectStatus) && !cloudTarget && !cloudArchiveRule.required && !hasCloudBatch) {
+        return { ok: false, detail: '老师课效图尚未生成，请完成配置或跳过后重试' }
+      }
+      if (effect?.id && ['GENERATED', 'CONFIRMED', 'SKIPPED'].includes(effectStatus) && !cloudTarget && !cloudArchiveRule.required && !hasCloudBatch) {
+        return { ok: true, detail: '老师课效图已准备' }
+      }
+      const providerConfigId = cloudTarget ? String(cloudTarget).replace(/^cloud:/, '') : null
+      const cloudBatch = await ensureCloudArchiveBatch(task.id, { waitForCompletion: false, providerConfigId })
+      if (!cloudBatch) return { ok: false, detail: '网盘归档批次未创建' }
+      selectCloudArchiveProvider(cloudBatch.providerConfigId)
+      if (!cloudBatchTerminal(cloudBatch)) {
+        const watcher = watchCloudArchiveBatch(cloudBatch.batchId || cloudBatch.id, task.id)
+        const completed = await watcher.promise
+        if (!completed || !['SUCCEEDED'].includes(String(completed.status).toUpperCase()) || cloudBatchIsWorking(completed)) {
+          return { ok: false, detail: completed?.failureSummary || '网盘归档尚未完成' }
+        }
+      }
+      return { ok: true, detail: '网盘归档已完成' }
+    }, '网盘或老师课效归档未完成')
+    if (!archiveExtras.ok) {
+      stopArchiveRun('error', archiveExtras.detail)
+      return false
+    }
+
+    const completionStep = await runArchiveStep('completionCheck', async () => {
+      const completion = await runRemote('正在检查完成条件...', () => api.lessons.completion(task.id))
+      if (!completion) return { ok: false, detail: '完成条件检查请求失败' }
+      if (!completion.passed) {
+        const failures = (completion.items || [])
+          .filter((item) => item.blocking && !item.passed)
+          .map((item) => ({ studentName: '归档检查', reason: item.message }))
+        return { ok: false, detail: failures.map((item) => item.reason).join('、') || '完成条件检查未通过', failures, completion }
+      }
+      return { ok: true, value: completion, detail: '完成条件检查已通过' }
+    }, '完成条件检查未通过')
+    if (!completionStep.ok) {
+      stopArchiveRun('blocked', completionStep.detail)
+      return false
+    }
+
+    const commit = await runArchiveStep('archiveCommit', async () => {
+      const completion = completionStep.value
+      const result = await runRemote(
+        '正在完成本节归档交付...',
+        () => api.lessons.archiveCommit(task.id, { version: completion.lessonVersion ?? task.version }, createIdempotencyKey(`archive-commit:${task.id}`)),
+        '本节课已完成归档交付'
+      )
+      return result ? { ok: true, detail: '本节课已完成归档交付' } : { ok: false, detail: '归档提交失败，请重试' }
+    }, '归档提交失败，请重试')
+    if (!commit.ok) {
+      stopArchiveRun('error', commit.detail)
+      return false
+    }
     await Promise.all([
       invalidateResource('lesson.workspace', { lessonId: task.id }),
       invalidateResource('archive.records'),
@@ -6644,6 +7205,13 @@ export function useDeliveryWorkflow() {
       invalidateResource('cloud-archive-todos'),
       invalidateResource('workbench.summary')
     ])
+    archiveRunState.currentKey = 'archiveCommit'
+    archiveRunState.phase = 'success'
+    archiveRunState.successMessage = '本节课已完成归档'
+    archiveRunCloseTimer = setTimeout(() => {
+      archiveRunCloseTimer = null
+      closeArchiveRun()
+    }, 1000)
     return true
   }
 
@@ -7996,6 +8564,20 @@ export function useDeliveryWorkflow() {
     taskProgress,
     progressForTask,
     currentWarnings,
+    archiveRunState,
+    closeArchiveRun,
+    returnToStudentDeliveryFromArchiveRun,
+    studentDeliveryStatusFor,
+    studentDeliveryFailuresFor,
+    artworkStatusFor,
+    recordStatusFor,
+    commentStatusFor,
+    studentDraftStatusFor,
+    studentDraftErrorFor,
+    markStudentDraftDirty,
+    markStudentDraftSaved,
+    flushStudentDraft,
+    flushStudentDrafts,
     archiveTargets,
     selectedArchiveTargets,
     archiveChecklist,

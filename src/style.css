@@ -230,6 +230,31 @@
   resize: vertical;
 }
 
+.delivery-field-status {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.delivery-autosave-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.delivery-autosave-status.saving {
+  color: var(--color-primary);
+}
+
+.delivery-autosave-status.error {
+  color: var(--color-danger);
+  cursor: pointer;
+}
+
 .delivery-comment-status {
   display: block;
   margin-bottom: 8px;
@@ -5707,6 +5732,214 @@ textarea:focus,
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.archive-run-backdrop {
+  z-index: 80;
+  padding: 16px;
+}
+
+.archive-run-dialog {
+  display: grid;
+  gap: 16px;
+  width: min(680px, 100%);
+  max-height: min(760px, calc(100dvh - 32px));
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface-warm);
+  box-shadow: var(--shadow-modal);
+  animation: archive-run-enter 0.24s ease both;
+}
+
+.archive-run-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.archive-run-head > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.archive-run-head span,
+.archive-run-head small,
+.archive-run-progress-summary {
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.archive-run-head strong {
+  font-size: 21px;
+}
+
+.archive-run-progress-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.archive-run-list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 4px 0 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.archive-run-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 11px;
+  align-items: start;
+  padding: 11px 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  background: var(--color-status-muted-bg);
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.archive-run-item-working {
+  border-color: var(--color-status-working-border);
+  background: var(--color-status-working-bg);
+  transform: translateX(2px);
+}
+
+.archive-run-item-passed {
+  border-color: color-mix(in srgb, var(--color-primary) 34%, transparent);
+  background: var(--color-primary-soft);
+}
+
+.archive-run-item-failed {
+  border-color: color-mix(in srgb, var(--color-danger) 46%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
+}
+
+.archive-run-item-skipped {
+  opacity: 0.65;
+}
+
+.archive-run-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.archive-run-item-working .archive-run-mark {
+  color: var(--color-primary);
+  animation: archive-run-pulse 0.9s ease-in-out infinite;
+}
+
+.archive-run-item-passed .archive-run-mark {
+  background: var(--color-primary);
+  color: var(--color-surface-warm);
+}
+
+.archive-run-item-failed .archive-run-mark {
+  background: var(--color-danger);
+  color: var(--color-surface-warm);
+}
+
+.archive-run-item-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.archive-run-item-copy > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.archive-run-item-copy > div span {
+  color: var(--color-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.archive-run-item-copy > small {
+  color: var(--color-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.archive-run-item-failed .archive-run-item-copy > div span,
+.archive-run-item-failed .archive-run-item-copy > small {
+  color: var(--color-danger);
+}
+
+.archive-run-failures {
+  display: grid;
+  gap: 3px;
+  max-height: 180px;
+  margin: 3px 0 0;
+  padding: 0 0 0 18px;
+  overflow: auto;
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.archive-run-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+@keyframes archive-run-enter {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes archive-run-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .archive-run-dialog,
+  .archive-run-item,
+  .archive-run-item-working .archive-run-mark {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .archive-run-backdrop {
+    align-items: end;
+    padding: 8px;
+  }
+
+  .archive-run-dialog {
+    max-height: calc(100dvh - 16px);
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .archive-run-head strong {
+    font-size: 18px;
+  }
+
+  .archive-run-item-copy > div {
+    display: grid;
+    gap: 2px;
+  }
 }
 
 .teacher-effect-drawer {

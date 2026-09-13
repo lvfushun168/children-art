@@ -7,6 +7,46 @@ const lessonStatusLabel = {
   COMPLETED: '已完成'
 }
 
+const draftPendingStatuses = new Set(['DIRTY', 'SAVING'])
+
+/**
+ * 汇总学生交付内容的完成条件。
+ *
+ * 这里刻意不读取“作品确认”或“课评确认”字段。它们属于第五步收口时
+ * 执行的服务端动作，第三步只负责判断内容是否已经准备好。
+ */
+export const studentDeliveryReadiness = ({
+  artworkReady = false,
+  artworkStatus = '',
+  record = '',
+  recordStatus = 'SAVED',
+  comment = '',
+  commentStatus = 'SAVED',
+  commentJobStatus = ''
+} = {}) => {
+  const failures = []
+  const normalizedArtworkStatus = String(artworkStatus || '').toUpperCase()
+  const normalizedRecordStatus = String(recordStatus || 'SAVED').toUpperCase()
+  const normalizedCommentStatus = String(commentStatus || 'SAVED').toUpperCase()
+  const normalizedCommentJobStatus = String(commentJobStatus || '').toUpperCase()
+
+  if (normalizedArtworkStatus === 'PROCESSING') failures.push('作品处理中')
+  else if (normalizedArtworkStatus === 'FAILED') failures.push('作品处理失败')
+  else if (!artworkReady) failures.push('作品待准备')
+
+  if (!String(record || '').trim()) failures.push('课堂记录待补')
+  else if (normalizedRecordStatus === 'ERROR') failures.push('课堂记录保存失败')
+  else if (draftPendingStatuses.has(normalizedRecordStatus)) failures.push('课堂记录保存中')
+
+  if (normalizedCommentJobStatus === 'FAILED' || normalizedCommentJobStatus === 'CANCELED') failures.push('课评生成失败')
+  else if (normalizedCommentJobStatus && !['SUCCEEDED', 'COMPLETED'].includes(normalizedCommentJobStatus)) failures.push('课评生成中')
+  else if (!String(comment || '').trim()) failures.push('课评待生成')
+  else if (normalizedCommentStatus === 'ERROR') failures.push('课评保存失败')
+  else if (draftPendingStatuses.has(normalizedCommentStatus)) failures.push('课评保存中')
+
+  return { ready: failures.length === 0, failures }
+}
+
 export const lessonArchiveGuard = (status) => {
   const normalizedStatus = toApiLessonStatus(status)
   if (normalizedStatus === 'PROCESSING') {

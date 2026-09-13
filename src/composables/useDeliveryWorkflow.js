@@ -64,6 +64,7 @@ import {
   toApiLessonType,
   toApiWheatCommand
 } from '../services/mappers'
+import { lessonArchiveGuard } from '../services/lessonWorkflow.js'
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import { copyTextToClipboard } from '../services/clipboard'
@@ -3875,6 +3876,7 @@ export function useDeliveryWorkflow() {
   const lessonWorkspaceLoaded = new Set()
   const preparationAutoApplyAttempts = new Set()
   const lessonStartPromises = new Map()
+  let lessonSelectionSequence = 0
   // 展示草稿会同时被高光勾选、说明输入框失焦等事件触发；按课次串行保存，
   // 确保后一个请求使用前一个请求返回的 page/homework 版本。
   const shareDraftSaveChains = new Map()
@@ -3968,6 +3970,14 @@ export function useDeliveryWorkflow() {
     return lesson
   }
 
+  const fetchLatestLessonRecord = async (lessonId) => {
+    if (!lessonId) return null
+    const value = await runRemote('正在刷新课次状态...', () => api.lessons.get(lessonId))
+    if (!value) return null
+    const lesson = mergeLessonRecord(value)
+    return lesson.id ? lesson : null
+  }
+
   const startLessonProcessingOnOpen = async (task) => {
     if (!task?.id || toApiLessonStatus(task.status) !== 'PENDING') return task
     const key = String(task.id)
@@ -3989,7 +3999,12 @@ export function useDeliveryWorkflow() {
         }
       )
       if (!result) return null
-      return mergeLessonRecord(result)
+      const lesson = mergeLessonRecord(result)
+      if (toApiLessonStatus(lesson.status) !== 'PROCESSING') {
+        notify('课次状态未进入处理中，请重试')
+        return null
+      }
+      return lesson
     })()
     lessonStartPromises.set(key, promise)
     try {
@@ -3997,6 +4012,19 @@ export function useDeliveryWorkflow() {
     } finally {
       if (lessonStartPromises.get(key) === promise) lessonStartPromises.delete(key)
     }
+  }
+
+  const ensureLessonProcessingForArchive = async (task) => {
+    const latest = await fetchLatestLessonRecord(task?.id)
+    if (!latest) return null
+    const guard = lessonArchiveGuard(latest.status)
+    if (guard.action === 'PROCEED') return latest
+    if (guard.action === 'START_PROCESSING') {
+      const started = await startLessonProcessingOnOpen(latest)
+      return started && toApiLessonStatus(started.status) === 'PROCESSING' ? started : null
+    }
+    notify(guard.message)
+    return null
   }
 
   const cloudBatchWatchers = new Map()
@@ -5042,6 +5070,7 @@ export function useDeliveryWorkflow() {
     lessonWorkspaceLoaded.clear()
     preparationAutoApplyAttempts.clear()
     lessonStartPromises.clear()
+    lessonSelectionSequence += 1
     clearProtectedMediaCache()
     portfolioStudioRef?.clearPortfolioSession?.()
     storedMe.value = null
@@ -5124,41 +5153,51 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const remoteSelectTask = async (task) => {
+  const remoteSelectTask = async (task, selectionSequenceOverride = null) => {
     if (!task?.id) return null
+    const selectionSequence = selectionSequenceOverride ?? ++lessonSelectionSequence
     cancelJobWatchers()
-    const openedTask = await startLessonProcessingOnOpen(task)
+    const latestTask = await fetchLatestLessonRecord(task.id)
+    if (selectionSequence !== lessonSelectionSequence) return null
+    if (!latestTask) return null
+    const openedTask = await startLessonProcessingOnOpen(latestTask)
+    if (selectionSequence !== lessonSelectionSequence) return null
     if (!openedTask) return null
-    activeTaskId.value = task.id
+    activeTaskId.value = openedTask.id
     selectedTaskSnapshot.value = openedTask
     const workspace = ensureLessonWorkspace(openedTask)
     if (workspace) workspace.currentStep = 0
     if (!pageLoaded.tasks) await loadPageData('tasks')
+    if (selectionSequence !== lessonSelectionSequence) return null
     return runRemote('正在加载课次工作区...', async () => {
       // 课次工作区只保存资源 ID；预览还需要资源详情和图片模板，因此在加载草稿前一并准备。
       // 资源目录失败不应阻断课次打开，预览组件本身还有安全兜底。
       // 已有网盘批次的按钮需要通过 providerConfigId 识别 Provider 类型，不能等到新建批次时才加载配置。
       await Promise.allSettled([loadTemplates(), loadResourceExternalLinks(), ensureCloudProviderCatalog()])
-      return loadLessonWorkspace(task.id)
+      const workspaceResult = await loadLessonWorkspace(openedTask.id)
+      return selectionSequence === lessonSelectionSequence ? workspaceResult : null
     })
   }
 
   const remoteSelectTaskById = async (lessonId) => {
     const key = String(lessonId || '')
     if (!key) return null
+    const selectionSequence = ++lessonSelectionSequence
     const existing = visibleTasks.value.find((task) => sameId(task.id, key)) ||
       inboxLessons.find((lesson) => sameId(lesson.id, key)) ||
       scheduleLessons.find((lesson) => sameId(lesson.id, key))
-    if (existing) return remoteSelectTask(existing)
+    if (existing) return remoteSelectTask(existing, selectionSequence)
     try {
       const value = await api.lessons.get(key)
+      if (selectionSequence !== lessonSelectionSequence) return null
       const task = mapLesson(value?.lesson || value)
       if (!task.id) {
         notify('未找到该课次或当前账号无权访问')
         return null
       }
-      return remoteSelectTask(task)
+      return remoteSelectTask(task, selectionSequence)
     } catch (error) {
+      if (selectionSequence !== lessonSelectionSequence) return null
       notify(remoteErrorMessage(error, '课次加载失败'))
       return null
     }
@@ -6558,8 +6597,11 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteArchiveAll = async () => {
-    const task = activeTask.value
-    if (!task?.id) return false
+    const requestedTask = activeTask.value
+    if (!requestedTask?.id) return false
+
+    const task = await ensureLessonProcessingForArchive(requestedTask)
+    if (!task) return false
 
     if (!(await remoteSaveShareDraft('归档前保存展示草稿'))) return false
     const lessonTouchTasks = wecomSendTasks.filter((item) => sameId(item.lessonId, task.id))

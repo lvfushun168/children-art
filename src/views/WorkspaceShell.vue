@@ -42,6 +42,8 @@ const showTodoCenter = ref(false)
 const productionHandoff = ref(null)
 const isMobileApp = ref(false)
 const routeTaskKey = ref('')
+const workspaceReadyTaskKey = ref('')
+let workspaceRequestSequence = 0
 const themeOptions = [
   { id: 'studio', label: '深海奶白', colorScheme: 'light' },
   { id: 'day', label: '清爽日间', colorScheme: 'light' },
@@ -63,10 +65,12 @@ const workspaceLaunch = computed(() => {
   if (route.name !== 'workspace-task') return null
   const lessonId = String(route.params.lessonId || '')
   if (!lessonId) return null
+  const ready = workspaceReadyTaskKey.value === lessonId
   return {
     source: route.query.source === 'schedule' ? 'schedule' : 'today',
     lessonId,
-    token: `route:${lessonId}`
+    ready,
+    token: `route:${lessonId}:${ready ? 'ready' : 'loading'}`
   }
 })
 
@@ -176,18 +180,39 @@ const applyTheme = (theme) => {
 }
 
 const ensureTaskFromRoute = async () => {
-  if (route.name !== 'workspace-task' || !state.isLoggedIn) return
+  const requestSequence = ++workspaceRequestSequence
+  if (route.name !== 'workspace-task' || !state.isLoggedIn) {
+    routeTaskKey.value = ''
+    workspaceReadyTaskKey.value = ''
+    return
+  }
   const lessonId = String(route.params.lessonId || '')
-  if (!lessonId || routeTaskKey.value === lessonId) return
+  if (!lessonId) {
+    routeTaskKey.value = ''
+    workspaceReadyTaskKey.value = ''
+    return
+  }
+  if (routeTaskKey.value === lessonId && workspaceReadyTaskKey.value === lessonId) return
   routeTaskKey.value = lessonId
+  workspaceReadyTaskKey.value = ''
   try {
     const selected = await state.selectTaskById?.(lessonId)
-    if (!selected && String(state.activeTaskId || '') !== lessonId) {
+    if (requestSequence !== workspaceRequestSequence
+      || route.name !== 'workspace-task'
+      || String(route.params.lessonId || '') !== lessonId) return
+    if (!selected) {
+      workspaceReadyTaskKey.value = ''
       await router.replace(NAV_ROUTE_PATHS.tasks)
+      return
     }
+    workspaceReadyTaskKey.value = lessonId
   } catch (error) {
+    if (requestSequence !== workspaceRequestSequence
+      || route.name !== 'workspace-task'
+      || String(route.params.lessonId || '') !== lessonId) return
     state.notify?.(error?.message || '课次加载失败，请稍后重试')
-    if (String(state.activeTaskId || '') !== lessonId) await router.replace(NAV_ROUTE_PATHS.tasks)
+    workspaceReadyTaskKey.value = ''
+    await router.replace(NAV_ROUTE_PATHS.tasks)
   }
 }
 
@@ -239,7 +264,11 @@ watch([activeNav, () => state.isLoggedIn], ([nav, loggedIn]) => {
 
 watch([() => route.name, () => route.params.lessonId, () => state.isLoggedIn], () => {
   if (route.name === 'workspace-task') void ensureTaskFromRoute()
-  else routeTaskKey.value = ''
+  else {
+    workspaceRequestSequence += 1
+    routeTaskKey.value = ''
+    workspaceReadyTaskKey.value = ''
+  }
 }, { immediate: true })
 </script>
 

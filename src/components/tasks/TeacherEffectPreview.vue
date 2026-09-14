@@ -1,6 +1,6 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
-import { api } from '../../services/api'
+import { protectedMediaUrl } from '../../services/protectedMediaCache'
 
 const RENDERER_VERSION = 'teacher-effect-canvas-v2'
 const MIN_TITLE_HEIGHT = 112
@@ -38,20 +38,16 @@ const loadSourceImage = async (source) => {
   if (imageCache.has(key)) return imageCache.get(key).image
 
   let url = ''
-  let ownedUrl = false
   if (source.fileId) {
-    const blob = await api.files.content(source.fileId)
-    url = URL.createObjectURL(blob)
-    ownedUrl = true
+    url = await protectedMediaUrl(source.fileId, { variant: 'original', priority: 'high' })
   } else {
     url = source.image
   }
   try {
     const image = await loadImage(url)
-    imageCache.set(key, { image, url: ownedUrl ? url : '' })
+    imageCache.set(key, { image, url: '' })
     return image
   } catch (loadError) {
-    if (ownedUrl) URL.revokeObjectURL(url)
     throw loadError
   }
 }

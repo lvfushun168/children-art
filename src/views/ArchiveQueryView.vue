@@ -38,6 +38,9 @@ const effectDetail = ref(null)
 const showWorkDrawer = ref(false)
 const showLessonDrawer = ref(false)
 const showEffectDrawer = ref(false)
+const workDrawerElement = ref(null)
+const lessonDrawerElement = ref(null)
+const effectDrawerElement = ref(null)
 const imagePreview = reactive({ open: false, fileId: null, src: '', alt: '', title: '', caption: '' })
 const downloadingFileId = ref('')
 const fileDownloadError = ref('')
@@ -771,7 +774,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
   </section>
 
   <div v-if="showWorkDrawer && selected" class="archive-drawer-backdrop" @click.self="closeWorkDrawer">
-    <aside class="archive-drawer" role="dialog" aria-modal="true" aria-label="作品归档详情">
+    <aside ref="workDrawerElement" class="archive-drawer" role="dialog" aria-modal="true" aria-label="作品归档详情">
       <header class="archive-drawer-head">
         <div>
           <span>{{ isEditingWork ? '编辑作品档案' : '作品归档详情' }} · {{ selected.archiveStatus === 'CURRENT' ? '进行中' : '正式档案' }}</span>
@@ -792,7 +795,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
               :aria-label="`查看${artwork.title || selected.studentName + '作品' + (index + 1)}`"
               @click="previewSelectedArtwork(artwork, index)"
             >
-              <ProtectedMedia class="archive-main-image" :file-id="artwork.fileId" :src="artwork.image" :alt="artwork.title || selected.studentName" />
+              <ProtectedMedia class="archive-main-image" :file-id="artwork.fileId" :src="artwork.image" :alt="artwork.title || selected.studentName" :observer-root="workDrawerElement" root-margin="80px" />
               <span class="archive-image-hint">点击查看原图</span>
             </button>
             <div v-else class="file-tile archive-main-image-empty">暂无原图</div>
@@ -951,7 +954,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
   </div>
 
   <div v-if="showLessonDrawer && selectedLesson" class="archive-drawer-backdrop" @click.self="showLessonDrawer = false">
-    <aside class="archive-drawer lesson-archive-detail" role="dialog" aria-modal="true" aria-label="课堂完整档案">
+    <aside ref="lessonDrawerElement" class="archive-drawer lesson-archive-detail" role="dialog" aria-modal="true" aria-label="课堂完整档案">
       <header class="archive-drawer-head">
         <div>
           <span>课堂完整档案</span>
@@ -995,7 +998,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
               :aria-label="`查看${asset.title || asset.type}原图`"
               @click="previewLessonAsset(asset)"
             >
-              <ProtectedMedia :file-id="asset.fileId" :src="asset.image" :alt="asset.title" />
+              <ProtectedMedia :file-id="asset.fileId" :src="asset.image" :alt="asset.title" :observer-root="lessonDrawerElement" root-margin="80px" />
               <span class="archive-image-hint">查看原图</span>
             </button>
             <ProtectedMedia
@@ -1003,6 +1006,8 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
               class="archive-media-video"
               tag="video"
               :file-id="asset.fileId"
+              :observer-root="lessonDrawerElement"
+              root-margin="80px"
               controls
               preload="metadata"
               :aria-label="asset.title || asset.type"
@@ -1048,7 +1053,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
                   :aria-label="`查看${work.studentName || '学生'}第${index + 1}张作品`"
                   @click="previewLessonWork(work, artwork, index)"
                 >
-                  <ProtectedMedia :file-id="artwork.fileId" :src="artwork.image" :alt="artwork.title || work.studentName" />
+                  <ProtectedMedia :file-id="artwork.fileId" :src="artwork.image" :alt="artwork.title || work.studentName" :observer-root="lessonDrawerElement" root-margin="80px" />
                   <span class="archive-image-hint">查看原图</span>
                 </button>
                 <div v-else class="file-tile">缺图</div>
@@ -1072,7 +1077,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
   </div>
 
   <div v-if="showEffectDrawer && selectedEffect" class="archive-drawer-backdrop" @click.self="showEffectDrawer = false">
-    <aside class="archive-drawer" role="dialog" aria-modal="true" aria-label="课效长图详情">
+    <aside ref="effectDrawerElement" class="archive-drawer" role="dialog" aria-modal="true" aria-label="课效长图详情">
       <header class="archive-drawer-head">
         <div>
           <span>课效长图详情</span>
@@ -1085,7 +1090,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <strong>{{ selectedEffect.title }}</strong>
         </div>
         <button
-          v-if="selectedEffect.cover || selectedEffect.outputFileId || selectedEffect.fileId"
+          v-if="selectedEffect.outputFileId || selectedEffect.fileId"
           class="archive-image-trigger"
           type="button"
           aria-label="查看课效长图原图"
@@ -1094,8 +1099,10 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <ProtectedMedia
             class="teacher-effect-preview-image"
             :file-id="selectedEffect.outputFileId || selectedEffect.fileId"
-            :src="selectedEffect.cover"
             :alt="selectedEffect.title"
+            variant="preview"
+            :observer-root="effectDrawerElement"
+            root-margin="80px"
           />
           <span class="archive-image-hint">点击查看原图</span>
         </button>

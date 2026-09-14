@@ -214,7 +214,9 @@ export const renderImageElement = async (image, template, renderContext = {}, op
 }
 
 export const renderArtworkFile = async (asset, template, renderContext = {}, options = {}) => {
-  const source = asset?.fileId ? await protectedMediaUrl(asset.fileId) : asset?.src
+  const source = asset?.fileId
+    ? await protectedMediaUrl(asset.fileId, { variant: 'original', priority: 'high' })
+    : asset?.src
   if (!source) throw new Error('没有可处理的原图')
   const image = await loadImage(source)
   return renderImageElement(image, template, renderContext, options)

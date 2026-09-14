@@ -134,3 +134,23 @@ test('loads and merges every page when a calendar range exceeds 200 lessons', as
   assert.equal(result.items[0].mapped, true)
   assert.equal(result.items.at(-1).id, 405)
 })
+
+test('limits historical page loading to two concurrent requests', async () => {
+  let active = 0
+  let maximum = 0
+  const result = await loadAllPageItems(async ({ page, pageSize }) => {
+    active += 1
+    maximum = Math.max(maximum, active)
+    await new Promise((resolve) => setTimeout(resolve, 3))
+    active -= 1
+    return {
+      page,
+      pageSize,
+      total: 605,
+      items: [{ id: page }]
+    }
+  }, (value) => value, {}, 200, 2)
+
+  assert.equal(maximum, 2)
+  assert.equal(result.items.length, 4)
+})

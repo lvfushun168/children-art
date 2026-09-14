@@ -146,9 +146,9 @@ export const putUploadSessionContent = async (session, body, contentType = 'appl
   return api.files.uploadContent(session?.fileUploadSessionId || session?.sessionId, body, contentType)
 }
 
-export const loadProtectedBlobUrl = async (fileId) => {
+export const loadProtectedBlobUrl = async (fileId, { variant = 'original' } = {}) => {
   if (!fileId) return ''
-  const blob = await api.files.content(fileId)
+  const blob = variant === 'preview' ? await api.files.preview(fileId) : await api.files.content(fileId)
   return URL.createObjectURL(blob)
 }
 

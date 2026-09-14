@@ -705,6 +705,40 @@ test('deduplicates protected file content requests by file ID', async () => {
   clearProtectedMediaCache()
 })
 
+test('keeps preview and original protected media requests isolated', async () => {
+  const requests = []
+  globalThis.fetch = async (url) => {
+    requests.push(String(url))
+    return response(200, new Blob(['image']), 'image/jpeg')
+  }
+
+  const preview = protectedMediaUrl('42', { variant: 'preview' })
+  const samePreview = protectedMediaUrl('42', { variant: 'preview' })
+  const original = protectedMediaUrl('42', { variant: 'original', priority: 'high' })
+  await Promise.all([preview, samePreview, original])
+
+  assert.deepEqual(requests.sort(), [
+    '/api/v1/files/42/content',
+    '/api/v1/files/42/preview'
+  ])
+  assert.equal(getApiRequestStats().find((item) => item.key.endsWith('/api/v1/files/42/preview'))?.cacheHits, 1)
+})
+
+test('removes a failed protected media request so retry can start again', async () => {
+  let attempts = 0
+  globalThis.fetch = async () => {
+    attempts += 1
+    if (attempts === 1) throw new Error('temporary media failure')
+    return response(200, new Blob(['image']), 'image/jpeg')
+  }
+
+  await assert.rejects(protectedMediaUrl('43', { variant: 'preview' }), /temporary media failure/)
+  const url = await protectedMediaUrl('43', { variant: 'preview' })
+
+  assert.match(url, /^blob:/)
+  assert.equal(attempts, 2)
+})
+
 test('maps preparation memory source, version and material counts', () => {
   assert.deepEqual(mapPreparationMemory({
     source: 'TOPIC_MEMORY',

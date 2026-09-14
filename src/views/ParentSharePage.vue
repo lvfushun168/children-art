@@ -14,10 +14,11 @@ const tokenValid = computed(() => Boolean(content.value))
 const lesson = computed(() => content.value?.lesson || {})
 const student = computed(() => content.value?.student || {})
 const studentArtworks = computed(() => (Array.isArray(student.value.artworks) ? student.value.artworks : [])
-  .filter((artwork) => artwork?.fileUrl || artwork?.artwork || artwork?.downloadUrl)
+  .filter((artwork) => artwork?.previewUrl || artwork?.fileUrl || artwork?.artwork || artwork?.downloadUrl)
   .map((artwork, index) => ({
     ...artwork,
     fileUrl: artwork.fileUrl || artwork.artwork || artwork.downloadUrl || '',
+    previewUrl: artwork.previewUrl || '',
     title: artwork.title || `学生作品${index + 1}`,
     sortOrder: Number(artwork.sortOrder ?? index),
     highlight: Boolean(artwork.highlight),
@@ -99,7 +100,15 @@ onMounted(async () => {
       <section v-if="route.type === 'student'" class="parent-content">
         <div v-if="studentRow.artworks.length" class="parent-artwork-gallery">
           <figure v-for="(artwork, index) in studentRow.artworks" :key="`${artwork.artworkId || artwork.fileUrl}-${index}`" class="parent-artwork-figure" :class="{ highlight: artwork.highlight }">
-            <img class="parent-artwork" :src="artwork.fileUrl" :alt="artwork.title || `${student.name}作品${index + 1}`" />
+            <img
+              v-if="artwork.previewUrl"
+              class="parent-artwork"
+              :src="artwork.previewUrl"
+              :alt="artwork.title || `${student.name}作品${index + 1}`"
+              loading="lazy"
+              decoding="async"
+            />
+            <span v-else class="parent-artwork-placeholder">暂无预览</span>
             <figcaption>{{ artwork.title }}<small v-if="artwork.highlight"> · 高光作品</small></figcaption>
           </figure>
         </div>
@@ -119,7 +128,7 @@ onMounted(async () => {
         <article v-if="displayConfig.showMaterials && materials.length" class="parent-section">
           <span>范画、步骤与课堂记录</span>
           <div class="parent-materials">
-            <template v-for="material in materials.filter((item) => item.fileUrl)" :key="material.fileUrl">
+            <template v-for="material in materials.filter((item) => item.fileUrl || item.previewUrl)" :key="material.fileUrl || material.previewUrl">
               <video
                 v-if="material.assetType === 'CLASSROOM_VIDEO' || material.type === '课堂视频' || material.mediaType?.startsWith('video/')"
                 :src="material.fileUrl"
@@ -127,7 +136,14 @@ onMounted(async () => {
                 preload="metadata"
                 :aria-label="material.title || material.fileName"
               />
-              <img v-else :src="material.fileUrl" :alt="material.title || material.fileName" />
+              <img
+                v-else-if="material.previewUrl"
+                :src="material.previewUrl"
+                :alt="material.title || material.fileName"
+                loading="lazy"
+                decoding="async"
+              />
+              <span v-else class="parent-artwork-placeholder">暂无预览</span>
             </template>
           </div>
         </article>
@@ -143,7 +159,16 @@ onMounted(async () => {
       <section v-else class="parent-class-grid">
         <article>
           <div v-if="studentRow.artworks.length" class="parent-class-artworks">
-            <img v-for="(artwork, index) in studentRow.artworks" :key="`${artwork.artworkId || artwork.fileUrl}-${index}`" :src="artwork.fileUrl" :alt="artwork.title || student.name" />
+            <template v-for="(artwork, index) in studentRow.artworks" :key="`${artwork.artworkId || artwork.fileUrl}-${index}`">
+              <img
+                v-if="artwork.previewUrl"
+                :src="artwork.previewUrl"
+                :alt="artwork.title || student.name"
+                loading="lazy"
+                decoding="async"
+              />
+              <span v-else class="parent-artwork-placeholder">暂无预览</span>
+            </template>
           </div>
           <strong>{{ student.name }}</strong>
           <small>{{ highlightedArtworks.length ? `${highlightedArtworks.length} 个高光作品` : `${studentRow.artworks.length} 张课堂作品` }}</small>

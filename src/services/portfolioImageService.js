@@ -7,7 +7,7 @@ export const resolvePortfolioImageSource = async (value = {}, loadProtectedSourc
   const fallback = fallbackImageSource(value)
   if (!value.fileId) return fallback
   try {
-    return await loadProtectedSource(value.fileId) || fallback
+    return await loadProtectedSource(value.fileId, { variant: 'original', priority: 'high' }) || fallback
   } catch {
     return fallback
   }

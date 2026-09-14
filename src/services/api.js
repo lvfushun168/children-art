@@ -100,6 +100,7 @@ export const api = {
     }),
     file: (fileId) => request(`/files/${id(fileId)}`),
     content: (fileId) => request(`/files/${id(fileId)}/content`, { responseType: 'blob' }),
+    preview: (fileId) => request(`/files/${id(fileId)}/preview`, { responseType: 'blob' }),
     addReference: (fileId, body) => request(`/files/${id(fileId)}/references`, { method: 'POST', body })
   },
   imports: {

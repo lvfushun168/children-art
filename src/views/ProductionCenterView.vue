@@ -5,6 +5,7 @@ import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
 import PptistWorkspace from '../components/production/PptistWorkspace.vue'
 import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import { sameId } from '../services/mappers'
+import { protectedMediaUrl } from '../services/protectedMediaCache'
 
 const props = defineProps({
   state: {
@@ -224,8 +225,11 @@ const copyRecordImage = async (record) => {
     return
   }
   try {
+    const source = record.fileId
+      ? await protectedMediaUrl(record.fileId, { variant: 'original', priority: 'high' })
+      : record.artwork
     if (window.ClipboardItem && navigator.clipboard?.write) {
-      const response = await fetch(record.artwork)
+      const response = await fetch(source)
       const blob = await response.blob()
       if (blob.type.startsWith('image/')) {
         await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
@@ -233,7 +237,7 @@ const copyRecordImage = async (record) => {
         return
       }
     }
-    await navigator.clipboard.writeText(record.artwork)
+    await navigator.clipboard.writeText(source || record.artwork)
     props.state.notify(`已复制图片链接：${record.course}`)
   } catch {
     await copyText(record.artwork, `已复制图片链接：${record.course}`)

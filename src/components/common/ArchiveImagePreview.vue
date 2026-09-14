@@ -47,6 +47,8 @@ onBeforeUnmount(() => {
           :file-id="fileId"
           :src="src"
           :alt="alt || title"
+          variant="original"
+          priority="high"
         />
         <div v-else class="file-tile">暂无可预览图片</div>
       </div>

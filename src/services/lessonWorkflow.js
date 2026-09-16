@@ -7,13 +7,13 @@ const lessonStatusLabel = {
   COMPLETED: '已完成'
 }
 
-const draftPendingStatuses = new Set(['DIRTY', 'SAVING'])
+const draftPendingStatuses = new Set(['DIRTY', 'SAVING', 'CONFIRMING'])
 
 /**
  * 汇总学生交付内容的完成条件。
  *
- * 这里刻意不读取“作品确认”或“课评确认”字段。它们属于第五步收口时
- * 执行的服务端动作，第三步只负责判断内容是否已经准备好。
+ * 这里刻意不读取“作品确认”或“课评确认”字段。第三步只负责判断内容
+ * 是否已经准备好，确认动作由自动保存流程和最终收口保护负责。
  */
 export const studentDeliveryReadiness = ({
   artworkReady = false,

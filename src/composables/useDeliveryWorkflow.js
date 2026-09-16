@@ -40,6 +40,7 @@ import {
   mapIdentityPermission,
   mapIdentityRole,
   mapIdentityUser,
+  isStudentRecordAssetType,
   mapLesson,
   mapPage,
   mapPreparationMemory,
@@ -65,6 +66,12 @@ import {
   toApiWheatCommand
 } from '../services/mappers'
 import { isLessonArchiveComplete, lessonArchiveGuard, studentDeliveryReadiness } from '../services/lessonWorkflow.js'
+import {
+  feedbackConfirmationPayloadFor,
+  feedbackContentFor,
+  feedbackIsConfirmed,
+  saveAndConfirmFeedback
+} from '../services/feedbackWorkflow.js'
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import { copyTextToClipboard } from '../services/clipboard'
@@ -95,6 +102,7 @@ import {
   apiAssetTypeForUpload,
   defaultMaterialVisible,
   materialCategoryForType,
+  studentRecordAssetTypeFor,
   uiMaterialTypeForUpload
 } from '../services/materialTypes'
 
@@ -332,6 +340,7 @@ export function useDeliveryWorkflow() {
         comment: '',
         confirmed: false,
         artworks: [],
+        studentRecords: [],
         activeArtworkId: null,
         highlight: false,
         highlightNote: '',
@@ -1808,6 +1817,7 @@ export function useDeliveryWorkflow() {
     if (activeCommentTemplate.value.name === '专业简洁版') {
       row.comment = `${student.nickname}本节课能围绕“${activeCourse.value.title}”完成主体表达，${complimentMap[inferredFocus]}。${observation} 下一步建议继续关注画面层次和细节完整度，让作品呈现更稳定。`
     }
+    row.confirmed = Boolean(row.comment.trim())
   }
 
   const generateAll = async () => {
@@ -1816,7 +1826,7 @@ export function useDeliveryWorkflow() {
       await wait(260)
       generateOne(row)
       activeStudentId.value = row.studentId
-      addAiLog('课评生成', students.find((item) => item.id === row.studentId)?.name || '学生', '成功', '生成 1v1 课评，等待老师确认')
+      addAiLog('课评生成', students.find((item) => item.id === row.studentId)?.name || '学生', '成功', '生成 1v1 课评并自动保存')
       pulseComment()
     }
     await wait(180)
@@ -1828,7 +1838,7 @@ export function useDeliveryWorkflow() {
     attendingRows.value.forEach((row) => {
       if (row.comment) row.confirmed = true
     })
-    notify('已确认全部课评')
+    notify('全班课评已保存')
   }
 
   const confirmCurrentComment = () => {
@@ -1838,7 +1848,7 @@ export function useDeliveryWorkflow() {
       return false
     }
     row.confirmed = true
-    notify(`${activeStudent.value?.name || '当前学生'}课评已确认`)
+    notify(`${activeStudent.value?.name || '当前学生'}课评已保存`)
     return true
   }
 
@@ -1879,7 +1889,8 @@ export function useDeliveryWorkflow() {
     lesson: clone(activeTask.value),
     klass: clone(activeClass.value),
     course: clone(activeCourse.value),
-    studentDeliveries: clone(sessionStudents.value),
+    // 学生记录只属于老师内部档案，不能随家长展示草稿保存或参与展示版本内容。
+    studentDeliveries: sessionStudents.value.map(({ studentRecords, ...row }) => clone(row)),
     students: clone(students),
     materials: clone(materials.value),
     homework: clone(homework.value),
@@ -1897,7 +1908,7 @@ export function useDeliveryWorkflow() {
       classId: activeTask.value.classId,
       courseId: activeTask.value.courseId
     },
-    studentDeliveries: sessionStudents.value.map(({ shareReady, archived, ...row }) => row),
+    studentDeliveries: sessionStudents.value.map(({ shareReady, archived, studentRecords, ...row }) => row),
     materials: materials.value,
     homework: homework.value,
     displayConfig: Object.fromEntries(Object.entries(displayConfig.value).filter(([key]) => !['publicStatus', 'expiresAt', 'expiresAtTimestamp'].includes(key))),
@@ -3810,14 +3821,24 @@ export function useDeliveryWorkflow() {
     artworksByStudent.forEach((items) => items.sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0) || String(left.id || '').localeCompare(String(right.id || ''), undefined, { numeric: true })))
     const feedbackByStudent = new Map(feedbacks.map((feedback) => [String(feedback.studentId), feedback]))
     const assetsByStudent = new Map()
-    assets.filter((asset) => asset.studentId).forEach((asset) => {
+    assets.filter((asset) => asset.studentId && !isStudentRecordAssetType(asset.assetType)).forEach((asset) => {
       const key = String(asset.studentId)
       if (!assetsByStudent.has(key)) assetsByStudent.set(key, [])
       assetsByStudent.get(key).push(asset)
     })
+    const studentRecordsByStudent = new Map()
+    assets.filter((asset) => asset.studentId && isStudentRecordAssetType(asset.assetType)).forEach((asset) => {
+      const key = String(asset.studentId)
+      if (!studentRecordsByStudent.has(key)) studentRecordsByStudent.set(key, [])
+      studentRecordsByStudent.get(key).push(asset)
+    })
+    studentRecordsByStudent.forEach((items) => items.sort((left, right) =>
+      String(left.createdAt || '').localeCompare(String(right.createdAt || ''))
+      || Number(left.id || 0) - Number(right.id || 0)))
     const rows = attendance.map((attendanceRow) => {
       const feedback = feedbackByStudent.get(String(attendanceRow.studentId))
       const studentAssets = assetsByStudent.get(String(attendanceRow.studentId)) || []
+      const studentRecords = studentRecordsByStudent.get(String(attendanceRow.studentId)) || []
       const studentName = attendanceRow.studentName || ''
       const rowArtworks = (artworksByStudent.get(String(attendanceRow.studentId)) || [])
         .map((artwork) => decorateArtworkForRow(artwork, studentName))
@@ -3845,6 +3866,7 @@ export function useDeliveryWorkflow() {
         highlight: rowArtworks.some((artwork) => artwork.highlight) || Boolean(draftStudent?.highlight),
         highlightNote: rowArtworks.find((artwork) => artwork.highlight)?.highlightNote || draftStudent?.highlightNote || '',
         artworks: rowArtworks,
+        studentRecords,
         activeArtworkId: rowArtworks[0]?.artworkId || null,
         uploadFailures: artworkUploadFailures.get(String(attendanceRow.studentId)) || [],
         shareReady: Boolean(draft.accessLinks?.some((link) => sameId(link.studentId, attendanceRow.studentId))),
@@ -5410,6 +5432,128 @@ export function useDeliveryWorkflow() {
     return true
   }
 
+  const studentRecordsFor = (row) => Array.isArray(row?.studentRecords) ? row.studentRecords : []
+
+  const studentRecordSortOrderFor = (row) => studentRecordsFor(row).reduce((max, record) =>
+    Math.max(max, Number(record?.sortOrder ?? -1)), -1) + 1
+
+  const studentRecordUploadItems = async (files, row) => {
+    const safeFiles = (files || []).filter(Boolean)
+    if (!safeFiles.length || !row?.studentId || !activeTask.value?.id) return { items: [], failed: [] }
+    const items = []
+    const failed = []
+    const baseSortOrder = studentRecordSortOrderFor(row)
+    for (const file of safeFiles) {
+      try {
+        const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-student-record-${row.studentId}`)
+        items.push({
+          file,
+          payload: {
+            studentId: String(row.studentId),
+            fileId: String(uploaded.id),
+            assetType: studentRecordAssetTypeFor(file),
+            title: file.name,
+            visible: false,
+            sortOrder: baseSortOrder + items.length
+          }
+        })
+      } catch (error) {
+        failed.push({ file, name: file.name || '未命名文件', message: error?.message || '上传失败' })
+      }
+    }
+    return { items, failed }
+  }
+
+  const remoteUploadStudentRecordFiles = async (files, row) => {
+    const result = await runRemote('正在上传学生记录...', async () => {
+      const prepared = await studentRecordUploadItems(files, row)
+      const boundItems = []
+      const failed = [...prepared.failed]
+      if (prepared.items.length) {
+        try {
+          await api.assets.createBatch(activeTask.value.id, prepared.items.map((item) => item.payload))
+          boundItems.push(...prepared.items)
+        } catch (batchError) {
+          for (const item of prepared.items) {
+            try {
+              await api.assets.create(activeTask.value.id, item.payload)
+              boundItems.push(item)
+            } catch (error) {
+              failed.push({ file: item.file, name: item.file.name || '未命名文件', message: error?.message || batchError?.message || '绑定学生记录失败' })
+            }
+          }
+        }
+      }
+      await refreshRemoteLesson(activeTask.value.id)
+      return { uploaded: boundItems.length, failed }
+    }, `已上传 ${files.length} 个学生记录`)
+    if (result?.failed?.length) notify(`${result.failed.length} 个学生记录上传失败：${result.failed.map((item) => item.name).join('、')}`)
+    return result
+  }
+
+  const remoteUploadStudentRecord = async (event, row) => {
+    const files = [...(event.target.files || [])]
+    event.target.value = ''
+    if (!files.length || !row?.studentId || !activeTask.value?.id) return false
+    const result = await remoteUploadStudentRecordFiles(files, row)
+    return Boolean(result?.uploaded)
+  }
+
+  const remoteRenameStudentRecord = async (record, row, title) => {
+    if (!record?.id || !row?.studentId) return false
+    const nextTitle = String(title || '').trim()
+    if (!nextTitle) {
+      notify('学生记录名称不能为空')
+      return false
+    }
+    const result = await runRemote('正在保存学生记录名称...', () => api.assets.update(record.id, {
+      studentId: String(row.studentId),
+      title: nextTitle,
+      visible: false,
+      sortOrder: Number(record.sortOrder || 0),
+      version: record.version
+    }), '学生记录名称已保存')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteRemoveStudentRecord = async (record, row) => {
+    if (!record?.id || !row?.studentId) return false
+    const result = await runRemote('正在删除学生记录...', () => api.assets.remove(record.id, record.version), '学生记录已删除')
+    if (!result) return false
+    await refreshRemoteLesson(activeTask.value.id)
+    return true
+  }
+
+  const remoteReplaceStudentRecord = async (event, row, record) => {
+    const file = [...(event.target.files || [])][0]
+    event.target.value = ''
+    if (!file || !row?.studentId || !record?.id || !activeTask.value?.id) return false
+    const result = await runRemote('正在重新上传学生记录...', async () => {
+      const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-student-record-${row.studentId}`)
+      const replacement = await api.assets.create(activeTask.value.id, {
+        studentId: String(row.studentId),
+        fileId: String(uploaded.id),
+        assetType: studentRecordAssetTypeFor(file),
+        title: record.title || file.name,
+        visible: false,
+        sortOrder: Number(record.sortOrder || 0)
+      })
+      try {
+        await api.assets.remove(record.id, record.version)
+      } catch (error) {
+        if (replacement?.id) {
+          await api.assets.remove(replacement.id, replacement.version).catch(() => {})
+        }
+        throw error
+      }
+      await refreshRemoteLesson(activeTask.value.id)
+      return true
+    }, '学生记录已重新上传')
+    return result === true
+  }
+
   const remoteConfirmNoLessonMaterials = async () => {
     const result = await runRemote('正在保存无资料确认...', () => api.assets.emptyConfirmation(activeTask.value.id, {
       confirmedEmpty: !materialsConfirmedEmpty.value,
@@ -5869,8 +6013,12 @@ export function useDeliveryWorkflow() {
       row.record = localRow.record || ''
       row.comment = localRow.comment || ''
     } else if (!draftStateHasUnsavedChanges(state)) {
-      state.status = 'SAVED'
-      state.error = ''
+      // 自动确认失败时保留错误提示，直到当前课评真正确认成功或内容被清空。
+      // 这样刷新工作区不会把“待确认”误显示成“已保存”。
+      if (state.status !== 'ERROR' || row.confirmed || !String(row.comment || '').trim()) {
+        state.status = 'SAVED'
+        state.error = ''
+      }
       state.savedRevision = state.revision
     }
     studentDraftRows.set(key, row)
@@ -5880,6 +6028,92 @@ export function useDeliveryWorkflow() {
 
   const studentDraftStatusFor = (row) => ensureStudentDraftState(row)?.status || 'SAVED'
   const studentDraftErrorFor = (row) => ensureStudentDraftState(row)?.error || ''
+
+  const feedbackViewForRow = (row) => ({
+    id: row?.feedbackId || null,
+    currentVersionId: row?.feedbackVersionId || null,
+    confirmedVersionId: row?.confirmed ? row.feedbackVersionId : null,
+    status: row?.confirmed ? 'CONFIRMED' : 'PENDING_CONFIRMATION',
+    classroomRecord: row?.record || '',
+    content: row?.comment || '',
+    version: Number(row?.feedbackVersion || 0)
+  })
+
+  const applyFeedbackToRow = (row, feedback, { syncContent = true } = {}) => {
+    if (!row || !feedback) return row
+    const responseContent = feedback.content === undefined || feedback.content === null
+      ? null
+      : String(feedback.content).trim()
+    const currentContent = String(row.comment || '').trim()
+    Object.assign(row, {
+      feedbackId: feedback.id ?? row.feedbackId ?? null,
+      feedbackVersion: feedback.version ?? row.feedbackVersion ?? 0,
+      feedbackVersionId: feedback.currentVersionId
+        ?? (feedbackIsConfirmed(feedback) ? feedback.confirmedVersionId : null),
+      // 请求返回的版本可能落后于老师刚输入的草稿；此时不能把旧版本的
+      // 确认结果带到新内容上。
+      confirmed: (syncContent || responseContent === null || responseContent === currentContent)
+        ? feedbackIsConfirmed(feedback)
+        : false
+    })
+    if (syncContent && feedback.classroomRecord !== undefined) row.record = feedback.classroomRecord || ''
+    if (syncContent && feedback.content !== undefined) row.comment = feedback.content || ''
+    return row
+  }
+
+  const confirmFeedbackVersion = async (row, feedback = feedbackViewForRow(row), { maxConflictRetries = 1 } = {}) => {
+    let targetRow = row
+    let targetFeedback = feedback
+    for (let attempt = 0; attempt <= maxConflictRetries; attempt += 1) {
+      const content = feedbackContentFor(targetFeedback, targetRow?.comment)
+      if (!content) {
+        if (targetRow) targetRow.confirmed = false
+        return { row: targetRow, feedback: targetFeedback, confirmed: false }
+      }
+      if (feedbackIsConfirmed(targetFeedback)) {
+        applyFeedbackToRow(targetRow, targetFeedback)
+        return { row: targetRow, feedback: targetFeedback, confirmed: true }
+      }
+      const payload = feedbackConfirmationPayloadFor(targetFeedback)
+      if (!payload) throw new Error('课评保存后没有可确认版本')
+      try {
+        const confirmed = await api.feedback.confirm(payload.feedbackId, {
+          versionId: payload.versionId,
+          version: payload.version
+        })
+        if (!confirmed?.id) throw new Error('课评确认未返回课评记录')
+        applyFeedbackToRow(targetRow, confirmed)
+        return { row: targetRow, feedback: confirmed, confirmed: true }
+      } catch (error) {
+        if (error?.status === 409 && attempt < maxConflictRetries && targetRow?.lessonId) {
+          try {
+            await refreshRemoteLesson(targetRow.lessonId, { force: true })
+            const latestRow = sessionStudentFor(targetRow.studentId)
+            if (latestRow) {
+              targetRow = latestRow
+              targetFeedback = feedbackViewForRow(latestRow)
+              continue
+            }
+          } catch {
+            // 保留原始版本冲突信息，交由调用方显示并允许重试。
+          }
+        }
+        const wrapped = new Error(`课评自动确认失败：${remoteErrorMessage(error, '请稍后重试')}`)
+        wrapped.status = error?.status
+        wrapped.code = error?.code
+        wrapped.cause = error
+        throw wrapped
+      }
+    }
+    throw new Error('课评自动确认失败，请刷新后重试')
+  }
+
+  const markStudentDraftError = (row, error, fallback = '课评保存失败，请点击重试') => {
+    const state = ensureStudentDraftState(row)
+    if (!state) return
+    state.status = 'ERROR'
+    state.error = remoteErrorMessage(error, fallback)
+  }
 
   const saveStudentDraftNow = (row) => {
     const state = ensureStudentDraftState(row)
@@ -5896,33 +6130,43 @@ export function useDeliveryWorkflow() {
     const previous = currentChain || Promise.resolve(true)
     const operation = previous.catch(() => false).then(async () => {
       if (!lessonId || !row?.studentId) return false
-      while (draftStateHasUnsavedChanges(state)) {
+      let conflictRetried = false
+      while (draftStateHasUnsavedChanges(state) || state.status === 'ERROR') {
         const currentRow = state.row || row
         const revision = state.revision
         const body = feedbackBodyFor(currentRow)
         state.status = 'SAVING'
         state.error = ''
         try {
-          const saved = await api.feedback.saveForStudent(lessonId, currentRow.studentId, body)
-          if (!saved?.id) throw new Error('自动保存未返回课评记录')
-          Object.assign(currentRow, {
-            feedbackId: saved.id,
-            feedbackVersion: saved.version ?? currentRow.feedbackVersion ?? 0,
-            feedbackVersionId: saved.currentVersionId || saved.confirmedVersionId || currentRow.feedbackVersionId || null
+          const result = await saveAndConfirmFeedback({
+            body,
+            save: (requestBody) => api.feedback.saveForStudent(lessonId, currentRow.studentId, requestBody),
+            confirm: (feedbackId, requestBody) => api.feedback.confirm(feedbackId, requestBody),
+            onSaved: (saved) => {
+              // 输入可能在请求期间继续发生。此时只同步版本信息，保留老师刚输入的
+              // 文本，下一轮循环会把最新内容继续保存，避免旧响应覆盖新草稿。
+              applyFeedbackToRow(currentRow, saved, { syncContent: state.revision === revision })
+              if (feedbackContentFor(saved, body.content) && !feedbackIsConfirmed(saved)) state.status = 'CONFIRMING'
+            }
           })
-          // 输入可能在请求期间继续发生。此时只同步版本信息，保留老师刚输入的
-          // 文本，下一轮循环会把最新内容继续保存，避免旧响应覆盖新草稿。
-          if (state.revision === revision) {
-            if (saved.classroomRecord !== undefined) currentRow.record = saved.classroomRecord || ''
-            if (saved.content !== undefined) currentRow.comment = saved.content || ''
-          }
+          const saved = result.saved
+          applyFeedbackToRow(currentRow, saved, { syncContent: state.revision === revision })
+          if (result.confirmed) applyFeedbackToRow(currentRow, result.confirmed, { syncContent: state.revision === revision })
           state.savedRevision = revision
           state.status = state.revision === revision ? 'SAVED' : 'DIRTY'
           state.error = ''
         } catch (error) {
-          if (error?.status === 409 && lessonId) {
+          if (error?.saved) applyFeedbackToRow(currentRow, error.saved, { syncContent: state.revision === revision })
+          if (error?.status === 409 && lessonId && !conflictRetried) {
+            conflictRetried = true
             try {
               await refreshRemoteLesson(lessonId, { force: true })
+              const latestRow = sessionStudentFor(currentRow.studentId)
+              if (latestRow) {
+                state.row = latestRow
+                studentDraftRows.set(key, latestRow)
+                continue
+              }
             } catch {
               // 保留保存失败状态，用户仍可点击重试。
             }
@@ -5976,6 +6220,8 @@ export function useDeliveryWorkflow() {
       clearTimeout(timer)
       studentDraftSaveTimers.delete(key)
     }
+    const currentChain = studentDraftSaveChains.get(key)
+    if (currentChain) return currentChain
     if (!draftStateHasUnsavedChanges(state) && state.status !== 'ERROR') return true
     return saveStudentDraftNow(row)
   }
@@ -6001,12 +6247,110 @@ export function useDeliveryWorkflow() {
   const recordStatusFor = (row) => {
     if (!String(row?.record || '').trim()) return '待补'
     const status = studentDraftStatusFor(row)
-    if (status === 'SAVING' || status === 'DIRTY') return '保存中'
+    if (status === 'SAVING' || status === 'DIRTY' || status === 'CONFIRMING') return '保存中'
     if (status === 'ERROR') return '保存失败'
     return '已保存'
   }
 
   const commentJobStatusFor = (row) => String(jobProgressFor?.(row, 'FEEDBACK')?.status || '').toUpperCase()
+
+  const feedbackStudentNameFor = (row) => students.find((student) => sameId(student.id, row?.studentId))?.name
+    || row?.studentName
+    || '学生'
+
+  const feedbackFailureDetailFor = (failures = [], fallback = '课评自动确认失败，请重试') => failures.length
+    ? failures.map((failure) => `${failure.studentName || '学生'}：${failure.reason || fallback}`).join('；')
+    : fallback
+
+  const autoConfirmFeedbackRows = async (lessonId, sourceRows = attendingRows.value, { ignoreJobStatus = false } = {}) => {
+    let rows = sourceRows
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const targets = []
+      const failures = []
+      rows = rows.map((row) => sessionStudentFor(row.studentId) || row)
+      rows.forEach((row) => {
+        const studentName = feedbackStudentNameFor(row)
+        if (!ignoreJobStatus) {
+          const jobStatus = commentJobStatusFor(row)
+          if (['QUEUED', 'PENDING', 'RUNNING', 'GENERATING'].includes(jobStatus)) {
+            failures.push({ studentName, reason: '课评正在生成' })
+            return
+          }
+          if (['FAILED', 'CANCELED'].includes(jobStatus)) {
+            failures.push({ studentName, reason: '课评生成失败' })
+            return
+          }
+        }
+        if (!String(row?.comment || '').trim() || row?.confirmed) return
+        const feedback = feedbackViewForRow(row)
+        const payload = feedbackConfirmationPayloadFor(feedback)
+        if (!payload) {
+          const reason = '课评没有可用版本'
+          failures.push({ studentName, reason })
+          markStudentDraftError(row, new Error(reason), reason)
+          return
+        }
+        targets.push({ row, feedback, payload })
+      })
+
+      if (failures.length) return { ok: false, detail: feedbackFailureDetailFor(failures), failures }
+      if (!targets.length) return { ok: true, detail: '课评已保存', failures: [], confirmedCount: 0 }
+
+      try {
+        const result = await api.feedback.confirmBatch(lessonId, targets.map(({ payload }) => payload))
+        const confirmedItems = Array.isArray(result) ? result : result?.items || []
+        const confirmedById = new Map(confirmedItems.filter((item) => item?.id).map((item) => [String(item.id), item]))
+        const missing = targets.filter(({ payload }) => {
+          const item = confirmedById.get(String(payload.feedbackId))
+          return !item || !feedbackIsConfirmed(item)
+        })
+        if (missing.length) {
+          const missingFailures = missing.map(({ row }) => ({ studentName: feedbackStudentNameFor(row), reason: '课评确认未完成' }))
+          missing.forEach(({ row }) => markStudentDraftError(row, new Error('课评确认未完成'), '课评确认未完成'))
+          return { ok: false, detail: feedbackFailureDetailFor(missingFailures), failures: missingFailures }
+        }
+        targets.forEach(({ row, payload }) => applyFeedbackToRow(row, confirmedById.get(String(payload.feedbackId))))
+        return { ok: true, detail: `已准备 ${targets.length} 名学生的课评`, failures: [], confirmedCount: targets.length }
+      } catch (error) {
+        if (error?.status === 409 && attempt === 0) {
+          try {
+            await refreshRemoteLesson(lessonId, { force: true })
+            rows = rows.map((row) => sessionStudentFor(row.studentId) || row)
+            continue
+          } catch {
+            // 保留当前版本冲突信息，交由下方的具体错误展示。
+          }
+        }
+        const reason = remoteErrorMessage(error, '课评自动确认失败，请重试')
+        const confirmFailures = targets.map(({ row }) => ({ studentName: feedbackStudentNameFor(row), reason }))
+        targets.forEach(({ row }) => markStudentDraftError(row, new Error(reason), reason))
+        return { ok: false, detail: feedbackFailureDetailFor(confirmFailures), failures: confirmFailures }
+      }
+    }
+    return { ok: false, detail: '课评自动确认失败，请刷新后重试', failures: [] }
+  }
+
+  const prepareFeedbackForParentDelivery = async (lessonId) => {
+    if (!(await flushStudentDrafts(lessonId))) {
+      const failures = attendingRows.value
+        .filter((row) => studentDraftStatusFor(row) === 'ERROR')
+        .map((row) => ({ studentName: feedbackStudentNameFor(row), reason: studentDraftErrorFor(row) || '课评保存失败' }))
+      return {
+        ok: false,
+        detail: feedbackFailureDetailFor(failures, '仍有课评未保存，请重试'),
+        failures
+      }
+    }
+    try {
+      const workspace = await refreshRemoteLesson(lessonId, { force: true })
+      if (!workspace) return { ok: false, detail: '课评刷新失败，请重试', failures: [] }
+      const result = await autoConfirmFeedbackRows(lessonId, attendingRows.value)
+      if (result.ok && result.confirmedCount) await refreshRemoteLesson(lessonId, { force: true })
+      return result
+    } catch (error) {
+      return { ok: false, detail: remoteErrorMessage(error, '课评准备失败，请重试'), failures: [] }
+    }
+  }
 
   const commentStatusFor = (row) => {
     const jobStatus = commentJobStatusFor(row)
@@ -6015,7 +6359,7 @@ export function useDeliveryWorkflow() {
     }
     if (!String(row?.comment || '').trim()) return '待生成'
     const status = studentDraftStatusFor(row)
-    if (status === 'SAVING' || status === 'DIRTY') return '保存中'
+    if (status === 'SAVING' || status === 'DIRTY' || status === 'CONFIRMING') return '保存中'
     if (status === 'ERROR') return '保存失败'
     return '已保存'
   }
@@ -6040,19 +6384,26 @@ export function useDeliveryWorkflow() {
       // Persist the latest classroom record before every single-student generation.
       // Omit content so regeneration does not create an unnecessary manual version
       // from the currently displayed AI candidate.
-      const feedback = await api.feedback.saveForStudent(activeTask.value.id, row.studentId, {
-        classroomRecord: row.record || '',
-        clear: false,
-        version: row.feedbackVersion || 0
-      })
-      if (!feedback?.id) throw new Error('课堂记录保存失败，无法生成课评')
-      Object.assign(row, {
-        feedbackId: feedback.id,
-        feedbackVersion: feedback.version ?? row.feedbackVersion ?? 0,
-        feedbackVersionId: feedback.currentVersionId || row.feedbackVersionId || null,
-        record: feedback.classroomRecord ?? row.record
-      })
-      const generation = await api.feedback.regenerate(feedback.id, {
+      let savedFeedback
+      try {
+        const saved = await saveAndConfirmFeedback({
+          body: {
+            classroomRecord: row.record || '',
+            clear: false,
+            version: row.feedbackVersion || 0
+          },
+          save: (requestBody) => api.feedback.saveForStudent(activeTask.value.id, row.studentId, requestBody),
+          confirm: (feedbackId, requestBody) => api.feedback.confirm(feedbackId, requestBody),
+          onSaved: (value) => applyFeedbackToRow(row, value)
+        })
+        savedFeedback = saved.confirmed || saved.saved
+      } catch (error) {
+        markStudentDraftError(row, error, '课堂记录保存或课评确认失败，请点击重试')
+        throw error
+      }
+      if (!savedFeedback?.id) throw new Error('课堂记录保存失败，无法生成课评')
+      applyFeedbackToRow(row, savedFeedback)
+      const generation = await api.feedback.regenerate(savedFeedback.id, {
         templateId: activeCommentTemplate.value?.id
       })
       if (generation?.status && generation.status !== 'QUEUED') {
@@ -6064,7 +6415,18 @@ export function useDeliveryWorkflow() {
         notify(progress.find((job) => ['FAILED', 'CANCELED'].includes(job.status))?.message || '课评生成失败，可直接重试')
         return null
       }
-      markStudentDraftSaved(row)
+      await refreshRemoteLessonAfterJobs(activeTask.value.id, [generation?.jobId])
+      const latestRow = sessionStudentFor(row.studentId) || row
+      if (!latestRow.comment?.trim()) throw new Error('课评生成完成但没有返回课评内容')
+      let confirmation
+      try {
+        confirmation = await confirmFeedbackVersion(latestRow, feedbackViewForRow(latestRow))
+      } catch (error) {
+        markStudentDraftError(latestRow, error, '课评自动确认失败，请点击重试')
+        throw error
+      }
+      if (!confirmation.confirmed) throw new Error('课评生成完成但没有可确认内容')
+      markStudentDraftSaved(confirmation.row)
       return generation
     })
     return result
@@ -6080,16 +6442,21 @@ export function useDeliveryWorkflow() {
     const result = await runRemote('正在保存课堂记录并生成全班 1v1 课评...', async () => {
       const savedFeedbacks = await api.feedback.saveBatch(activeTask.value.id,
         rows.map((row) => ({ studentId: String(row.studentId), ...feedbackBodyFor(row) })))
-      ;(Array.isArray(savedFeedbacks) ? savedFeedbacks : []).forEach((feedback) => {
+      const savedItems = Array.isArray(savedFeedbacks) ? savedFeedbacks : savedFeedbacks?.items || []
+      const savedByStudent = new Map(savedItems.map((feedback) => [String(feedback.studentId), feedback]))
+      const missingSavedRows = rows.filter((row) => !savedByStudent.get(String(row.studentId)))
+      if (missingSavedRows.length) {
+        missingSavedRows.forEach((row) => markStudentDraftError(row, new Error('课评保存失败，未返回当前版本'), '课评保存失败，未返回当前版本'))
+        throw new Error(`有 ${missingSavedRows.length} 名学生的课评保存失败`)
+      }
+      savedItems.forEach((feedback) => {
         const row = rows.find((item) => sameId(item.studentId, feedback.studentId))
         if (!row || !feedback?.id) return
-        Object.assign(row, {
-          feedbackId: feedback.id,
-          feedbackVersion: feedback.version ?? row.feedbackVersion ?? 0,
-          feedbackVersionId: feedback.currentVersionId || row.feedbackVersionId || null,
-          record: feedback.classroomRecord ?? row.record
-        })
+        applyFeedbackToRow(row, feedback)
       })
+      const savedConfirmation = await autoConfirmFeedbackRows(activeTask.value.id, rows, { ignoreJobStatus: true })
+      if (!savedConfirmation.ok) throw new Error(savedConfirmation.detail || '课评自动确认失败，请重试')
+      rows.forEach((row) => markStudentDraftSaved(row))
       const generation = await api.feedback.generate(activeTask.value.id, {
         templateId: activeCommentTemplate.value?.id
       })
@@ -6100,9 +6467,12 @@ export function useDeliveryWorkflow() {
         notify(`${immediateFailures.length + failed.length} 个学生课评生成失败，可在对应学生行重试`)
         return null
       }
-      rows.forEach((row) => markStudentDraftSaved(row))
+      await refreshRemoteLessonAfterJobs(activeTask.value.id, (generation?.items || []).map((item) => item.jobId))
+      const generatedConfirmation = await autoConfirmFeedbackRows(activeTask.value.id, attendingRows.value)
+      if (!generatedConfirmation.ok) throw new Error(generatedConfirmation.detail || '课评自动确认失败，请重试')
+      attendingRows.value.forEach((row) => markStudentDraftSaved(row))
       return generation
-    }, '课评生成任务已提交')
+    }, '课评已生成并保存')
     return result
   }
 
@@ -6113,50 +6483,53 @@ export function useDeliveryWorkflow() {
       notify('当前学生还没有课评内容')
       return false
     }
-    const saved = await runRemote('正在保存课评...', () => api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row)))
-    if (!saved) return false
-    const versionId = saved.currentVersionId || saved.confirmedVersionId || row.feedbackVersionId
-    if (!versionId) {
-      notify('当前课评暂无可确认版本，请刷新后重试')
-      return false
-    }
-    const confirmed = await runRemote('正在确认课评...', () => api.feedback.confirm(saved.id || row.feedbackId, { versionId: String(versionId), version: saved.version || row.feedbackVersion || 0 }))
-    if (!confirmed) return false
-    markStudentDraftSaved(row)
+    const result = await runRemote('正在保存课评...', async () => {
+      if (!(await flushStudentDraft(row))) throw new Error(studentDraftErrorFor(row) || '课评保存失败，请重试')
+      const latestRow = sessionStudentFor(targetStudentId) || row
+      let confirmation
+      try {
+        confirmation = await confirmFeedbackVersion(latestRow, feedbackViewForRow(latestRow))
+      } catch (error) {
+        markStudentDraftError(latestRow, error, '课评自动确认失败，请点击重试')
+        throw error
+      }
+      if (!confirmation.confirmed) throw new Error('当前课评没有可确认内容')
+      markStudentDraftSaved(confirmation.row)
+      return confirmation
+    }, '课评已保存')
+    if (!result) return false
     await refreshRemoteLesson(activeTask.value.id)
-    const student = students.find((item) => sameId(item.id, targetStudentId))
-    notify(`${student?.name || row.studentName || '当前学生'}课评已确认`)
     return true
   }
 
   const remoteConfirmAll = async () => {
     const rows = attendingRows.value.filter((row) => row.comment?.trim())
     if (!rows.length) {
-      notify('没有可确认的课评')
+      notify('没有可保存的课评')
       return false
     }
-    const result = await runRemote('正在批量保存并确认课评...', async () => {
-      const saved = await api.feedback.saveBatch(activeTask.value.id, rows.map((row) => ({ studentId: String(row.studentId), ...feedbackBodyFor(row) })))
-      const savedItems = Array.isArray(saved) ? saved : saved?.items || []
-      const confirmations = savedItems.filter((item) => item?.id && (item.currentVersionId || item.confirmedVersionId)).map((item) => ({
-        feedbackId: String(item.id),
-        versionId: String(item.currentVersionId || item.confirmedVersionId),
-        version: Number(item.version || 0)
-      }))
-      if (!confirmations.length) throw new Error('没有可确认的课评版本')
-      return api.feedback.confirmBatch(activeTask.value.id, confirmations)
-    }, '全班课评已确认')
+    const result = await runRemote('正在保存课评...', async () => {
+      if (!(await flushStudentDrafts(activeTask.value.id))) throw new Error('仍有课评未保存，请重试')
+      await refreshRemoteLesson(activeTask.value.id, { force: true })
+      const confirmation = await autoConfirmFeedbackRows(activeTask.value.id, attendingRows.value)
+      if (!confirmation.ok) throw new Error(confirmation.detail || '课评自动确认失败，请重试')
+      return confirmation
+    }, '全班课评已保存')
     if (!result) return false
     await refreshRemoteLesson(activeTask.value.id)
-    rows.forEach((row) => markStudentDraftSaved(row))
+    attendingRows.value.filter((row) => row.comment?.trim()).forEach((row) => markStudentDraftSaved(row))
     return true
   }
 
   const remoteSaveRecord = async (row) => {
     if (!row) return false
-    const result = await runRemote('正在保存课堂记录...', () => api.feedback.saveForStudent(activeTask.value.id, row.studentId, feedbackBodyFor(row)))
+    const state = ensureStudentDraftState(row)
+    if (state && !draftStateHasUnsavedChanges(state)) {
+      state.revision += 1
+      state.status = 'DIRTY'
+    }
+    const result = await runRemote('正在保存课堂记录...', () => flushStudentDraft(row), '课堂记录已保存')
     if (!result) return false
-    markStudentDraftSaved(row)
     await refreshRemoteLesson(activeTask.value.id)
     return true
   }
@@ -6304,7 +6677,15 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const remoteGenerateSharePages = async () => {
+  const remoteGenerateSharePages = async (options = {}) => {
+    const feedbackPrepared = options && typeof options === 'object' && options.feedbackPrepared === true
+    if (!feedbackPrepared) {
+      const feedbackReady = await prepareFeedbackForParentDelivery(activeTask.value?.id)
+      if (!feedbackReady.ok) {
+        notify(`发布失败：${feedbackReady.detail || '课评准备失败，请重试'}`)
+        return false
+      }
+    }
     const missing = attendingRows.value.filter((row) => !isDeliveryConfirmed(row))
     if (missing.length) {
       notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
@@ -6417,8 +6798,13 @@ export function useDeliveryWorkflow() {
       notify(`已有 ${pendingCreates.length} 个企业微信消息正在处理中，请稍后查看结果`)
       return false
     }
+    const feedbackReady = await prepareFeedbackForParentDelivery(lessonId)
+    if (!feedbackReady.ok) {
+      notify(`发布失败：${feedbackReady.detail || '课评准备失败，请重试'}`)
+      return false
+    }
     if (!sharePage.value?.publishedVersion) {
-      if (!(await remoteGenerateSharePages())) return false
+      if (!(await remoteGenerateSharePages({ feedbackPrepared: true }))) return false
     }
     let configuration
     try {
@@ -7028,27 +7414,22 @@ export function useDeliveryWorkflow() {
         })))
         const savedItems = Array.isArray(saved) ? saved : saved?.items || []
         const savedByStudent = new Map(savedItems.map((item) => [String(item.studentId), item]))
-        const confirmations = []
+        const missingSaved = []
         rows.forEach((row) => {
           const item = savedByStudent.get(String(row.studentId))
-          const versionId = item?.currentVersionId || item?.confirmedVersionId
-          if (!item?.id || !versionId) {
-            failures.push({ studentName: archiveRowName(row), reason: '课评保存后没有可确认版本' })
-            return
-          }
-          Object.assign(row, {
-            feedbackId: item.id,
-            feedbackVersion: item.version ?? row.feedbackVersion ?? 0,
-            feedbackVersionId: versionId
-          })
-          markStudentDraftSaved(row)
-          confirmations.push({
-            feedbackId: String(item.id),
-            versionId: String(versionId),
-            version: Number(item.version || row.feedbackVersion || 0)
-          })
+          if (!item?.id) missingSaved.push(row)
+          else applyFeedbackToRow(row, item)
         })
-        if (!failures.length) await api.feedback.confirmBatch(lesson.id, confirmations)
+        if (missingSaved.length) {
+          missingSaved.forEach((row) => failures.push({
+            studentName: archiveRowName(row),
+            reason: '课评保存失败，未返回当前版本'
+          }))
+        } else {
+          const confirmation = await autoConfirmFeedbackRows(lesson.id, rows, { ignoreJobStatus: true })
+          if (!confirmation.ok) failures.push(...confirmation.failures)
+          else rows.forEach((row) => markStudentDraftSaved(row))
+        }
       } catch (error) {
         failures.push({ studentName: '本课次课评', reason: `批量保存或确认失败：${remoteErrorMessage(error, '请稍后重试')}` })
       }
@@ -8642,6 +9023,11 @@ export function useDeliveryWorkflow() {
     uploadLessonMaterial: remoteUploadLessonMaterial,
     replaceLessonMaterial: remoteReplaceLessonMaterial,
     removeLessonMaterial: remoteRemoveLessonMaterial,
+    uploadStudentRecord: remoteUploadStudentRecord,
+    uploadStudentRecordFiles: remoteUploadStudentRecordFiles,
+    replaceStudentRecord: remoteReplaceStudentRecord,
+    renameStudentRecord: remoteRenameStudentRecord,
+    removeStudentRecord: remoteRemoveStudentRecord,
     confirmNoLessonMaterials: remoteConfirmNoLessonMaterials,
     reapplyLessonPreparation: remoteReapplyLessonPreparation,
     chooseImageTemplate,

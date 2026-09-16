@@ -27,7 +27,16 @@ const lessonTypeReverse = Object.fromEntries(Object.entries(lessonType).map(([ke
 const qualityReviewStatus = { PENDING_REVIEW: '待评分', REVIEWED: '已评分', SUBMITTED: '已评分', RETURNED: '已退回' }
 const attendanceStatus = { ATTENDED: '到课', ABSENT: '旷课', LEAVE: '请假', UNMARKED: '未标记' }
 const attendanceReverse = Object.fromEntries(Object.entries(attendanceStatus).map(([key, value]) => [value, key]))
-const assetType = { DEMO_IMAGE: '范画', STEP_IMAGE: '步骤图', COURSEWARE: '课件', STUDENT_PHOTO: '学生照片', CLASSROOM_PHOTO: '课堂照片', CLASSROOM_VIDEO: '课堂视频' }
+const assetType = {
+  DEMO_IMAGE: '范画',
+  STEP_IMAGE: '步骤图',
+  COURSEWARE: '课件',
+  STUDENT_PHOTO: '学生照片',
+  STUDENT_RECORD_PHOTO: '学生记录照片',
+  STUDENT_RECORD_VIDEO: '学生记录视频',
+  CLASSROOM_PHOTO: '课堂照片',
+  CLASSROOM_VIDEO: '课堂视频'
+}
 const assetTypeReverse = Object.fromEntries(Object.entries(assetType).map(([key, value]) => [value, key]))
 const artworkStatus = { ACTIVE: '已绑定', CONFIRMED: '已确认', PROCESSING: '处理中', FAILED: '处理失败', DELETED: '已删除' }
 const artworkConfirmationStatus = { PENDING: '待确认', CONFIRMED: '已确认', REJECTED: '已退回' }
@@ -41,6 +50,8 @@ export const toApiLessonStatus = (value) => lessonStatusReverse[value] || value
 export const toApiLessonType = (value) => lessonTypeReverse[value] || value
 export const toApiAttendanceStatus = (value) => attendanceReverse[value] || value
 export const toApiAssetType = (value) => assetTypeReverse[value] || value
+export const isStudentRecordAssetType = (value) => ['STUDENT_RECORD_PHOTO', 'STUDENT_RECORD_VIDEO'].includes(String(value || '').toUpperCase())
+export const isStudentRecordVideoAsset = (value) => String(value?.assetType || value || '').toUpperCase() === 'STUDENT_RECORD_VIDEO'
 export const toApiWheatCommand = (value) => ({
   '已人工处理': 'MARK_MANUALLY_COMPLETED',
   '无需处理': 'MARK_NOT_REQUIRED',
@@ -478,6 +489,20 @@ export const mapArchiveRecord = (value = {}) => {
       fileUrl: artwork.fileUrl || artwork.artwork || artwork.downloadUrl || artwork.file?.downloadUrl || ''
     }))
     .sort((left, right) => left.sortOrder - right.sortOrder || String(left.artworkId || '').localeCompare(String(right.artworkId || ''), undefined, { numeric: true }))
+  const rawStudentRecords = Array.isArray(studentSnapshot.studentRecords)
+    ? studentSnapshot.studentRecords
+    : Array.isArray(snapshot.studentRecords) ? snapshot.studentRecords : []
+  const studentRecords = rawStudentRecords.map((record, index) => ({
+    ...record,
+    assetId: safeUiId(record.assetId || record.id),
+    fileId: safeUiId(record.fileId || record.file?.id),
+    title: record.title || record.fileName || record.file?.originalFilename || `学生记录${index + 1}`,
+    assetType: record.assetType || '',
+    mediaType: record.mediaType || record.file?.mediaType || '',
+    fileName: record.fileName || record.file?.originalFilename || '',
+    sortOrder: Number(record.sortOrder ?? index),
+    image: record.image || record.file?.downloadUrl || record.downloadUrl || ''
+  })).sort((left, right) => left.sortOrder - right.sortOrder || String(left.assetId || '').localeCompare(String(right.assetId || ''), undefined, { numeric: true }))
   const coverArtwork = artworks[0] || artworkSnapshot
   if (Boolean(studentSnapshot.highlight) && artworks.length && !artworks.some((artwork) => artwork.highlight)) {
     artworks[0] = {
@@ -516,6 +541,8 @@ export const mapArchiveRecord = (value = {}) => {
     artwork: value.artwork || snapshot.artwork || coverArtwork.fileUrl || coverArtwork.downloadUrl || snapshot.file?.downloadUrl || '',
     artworks,
     artworkCount: artworks.length,
+    studentRecords,
+    studentRecordCount: studentRecords.length,
     feedback: value.feedback || studentSnapshot.feedback?.content || snapshot.feedback?.content || snapshot.feedback || '',
     tags: Array.isArray(value.tags) ? value.tags : typeof value.tags === 'string' ? value.tags.split(',').filter(Boolean) : [],
     version: Number(value.version || 0),

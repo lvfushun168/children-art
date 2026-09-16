@@ -500,6 +500,10 @@ test('maps archive, todo and teacher archive DTOs without losing string IDs', ()
         artworks: [
           { artworkId: '3', fileId: '9007199254740993', sortOrder: 1, title: '第二张' },
           { artworkId: '2', fileId: '4', sortOrder: 0, title: '第一张', highlight: true, highlightNote: '构图突出' }
+        ],
+        studentRecords: [
+          { assetId: '5', fileId: '6', assetType: 'STUDENT_RECORD_VIDEO', sortOrder: 1, title: '过程视频' },
+          { assetId: '4', fileId: '7', assetType: 'STUDENT_RECORD_PHOTO', sortOrder: 0, title: '过程照片' }
         ]
       }]
     }
@@ -511,6 +515,9 @@ test('maps archive, todo and teacher archive DTOs without losing string IDs', ()
   assert.equal(archive.artworkCount, 2)
   assert.deepEqual(archive.artworks.map((artwork) => artwork.title), ['第一张', '第二张'])
   assert.equal(archive.artworks[0].highlight, true)
+  assert.equal(archive.studentRecordCount, 2)
+  assert.deepEqual(archive.studentRecords.map((record) => record.title), ['过程照片', '过程视频'])
+  assert.equal(archive.studentRecords[1].assetType, 'STUDENT_RECORD_VIDEO')
 
   const archiveVersion = mapArchiveVersion({ id: '9007199254740993', lessonId: '12', versionNo: 2, createdAt: '2026-08-12T10:00:00Z' })
   assert.equal(archiveVersion.id, '9007199254740993')

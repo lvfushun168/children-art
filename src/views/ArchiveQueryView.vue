@@ -130,6 +130,7 @@ const normalizeStudentWork = (work = {}) => {
 }
 const selectedLessonWorks = computed(() => (selectedLesson.value?.studentWorks || []).map(normalizeStudentWork))
 const selectedWorkArtworks = computed(() => artworkItemsForWork(selected.value))
+const selectedStudentRecords = computed(() => Array.isArray(selected.value?.studentRecords) ? selected.value.studentRecords : [])
 
 const filteredTeacherEffects = computed(() => effectRecords.value)
 const selectedEffect = computed(() => effectDetail.value || filteredTeacherEffects.value.find((effect) => sameId(effect.id, selectedEffectId.value)) || null)
@@ -423,6 +424,14 @@ const previewSelectedArtwork = (artwork, index = 0) => openImagePreview({
   caption: artwork?.highlight ? `高光作品${artwork.highlightNote ? ` · ${artwork.highlightNote}` : ''}` : '归档作品 · 只读'
 })
 
+const previewStudentRecord = (record, index = 0) => openImagePreview({
+  fileId: record?.fileId,
+  src: record?.image,
+  alt: record?.title || selected.value?.studentName,
+  title: record?.title || `${selected.value?.studentName || '学生'} · 学生记录${index + 1}`,
+  caption: '学生记录 · 仅内部归档'
+})
+
 const previewLessonAsset = (asset) => openImagePreview({
   fileId: asset.fileId,
   src: asset.image,
@@ -632,7 +641,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>
           <strong>{{ record.title || `${record.studentName} · ${record.course}` }}</strong>
           <small>{{ record.date }} {{ record.time }} · {{ record.className }} · {{ record.teacher }}</small>
-          <small>{{ record.artworkCount || 0 }} 张作品<span v-if="record.highlight"> · {{ record.artworks?.filter((artwork) => artwork.highlight).length || 1 }} 个高光</span></small>
+          <small>{{ record.artworkCount || 0 }} 张作品<span v-if="record.highlight"> · {{ record.artworks?.filter((artwork) => artwork.highlight).length || 1 }} 个高光</span><span v-if="record.studentRecordCount"> · {{ record.studentRecordCount }} 个学生记录</span></small>
           <em v-if="record.sourceType === 'extraTask'">课外作品</em>
           <em v-if="record.archiveStatus === 'CURRENT'" class="current-tag">进行中</em>
           <em v-else class="formal-tag">正式档案</em>
@@ -811,6 +820,48 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </div>
         <div v-else class="file-tile archive-main-image-empty">暂无原图</div>
         <small class="archive-image-readonly-caption">{{ selected.archiveStatus === 'CURRENT' ? '当前课次作品 · 实时数据' : '正式归档作品 · 只读' }} · 共 {{ selectedWorkArtworks.length }} 张</small>
+      </section>
+      <section class="archive-detail-group archive-student-record-section">
+        <span>学生记录</span>
+        <div v-if="selectedStudentRecords.length" class="archive-work-gallery archive-work-gallery--detail student-record-archive-grid">
+          <figure v-for="(record, index) in selectedStudentRecords" :key="`${record.assetId || record.fileId}-${index}`" class="archive-work-artwork student-record-archive-card">
+            <button
+              v-if="!isVideoAsset(record) && (record.fileId || record.image)"
+              class="archive-image-trigger archive-image-trigger--card"
+              type="button"
+              :aria-label="`查看${record.title || '学生记录'}原图`"
+              @click="previewStudentRecord(record, index)"
+            >
+              <ProtectedMedia class="archive-main-image" :file-id="record.fileId" :src="record.image" :alt="record.title || selected.studentName" :observer-root="workDrawerElement" root-margin="80px" />
+              <span class="archive-image-hint">查看原图</span>
+            </button>
+            <ProtectedMedia
+              v-else-if="isVideoAsset(record) && record.fileId"
+              class="archive-media-video student-record-archive-video"
+              tag="video"
+              :file-id="record.fileId"
+              :src="record.image"
+              :observer-root="workDrawerElement"
+              root-margin="80px"
+              controls
+              preload="metadata"
+              muted
+              :aria-label="record.title || '学生记录视频'"
+            />
+            <div v-else class="file-tile archive-main-image-empty">文件不可用</div>
+            <figcaption>
+              <strong>{{ record.title || `学生记录${index + 1}` }}</strong>
+              <span>{{ isVideoAsset(record) ? '视频' : '图片' }}</span>
+              <button v-if="record.fileId" class="archive-download-link" type="button" :disabled="Boolean(downloadingFileId)" @click.stop="downloadArtwork(record, `${selected.studentName || '学生'}学生记录`, index)">
+                {{ downloadingFileId === String(record.fileId) ? '下载中…' : '下载' }}
+              </button>
+            </figcaption>
+          </figure>
+        </div>
+        <div v-else class="notice-box">
+          <small>暂无学生记录。</small>
+        </div>
+        <small class="archive-image-readonly-caption">仅老师可见 · 不计入作品数量 · {{ selected.archiveStatus === 'CURRENT' ? '当前课次实时数据' : '正式归档快照' }}</small>
       </section>
       <section class="archive-detail-group">
         <span>课次信息</span>

@@ -122,6 +122,7 @@ const mobileStudentIndex = computed(() =>
 )
 
 const mobileSectionTitle = computed(() => ({
+  studentRecords: '学生记录',
   record: '课堂记录',
   comment: '家长课评'
 }[mobileSection.value] || '学生事项'))
@@ -300,6 +301,12 @@ const batchJobProgressText = (type) => {
 const artworkStatusFor = (row) => props.state.artworkStatusFor?.(row) || (!row?.imageMatched ? '待上传' : '待准备')
 const recordStatusFor = (row) => props.state.recordStatusFor?.(row) || (row?.record?.trim() ? '已保存' : '待补')
 const commentStatusFor = (row) => props.state.commentStatusFor?.(row) || (row?.comment?.trim() ? '已保存' : '待生成')
+const studentRecordsFor = (row) => Array.isArray(row?.studentRecords) ? row.studentRecords : []
+const studentRecordCountFor = (row) => studentRecordsFor(row).length
+const studentRecordIsVideo = (record) => String(record?.assetType || record?.file?.mediaType || '').toUpperCase() === 'STUDENT_RECORD_VIDEO'
+  || String(record?.file?.mediaType || record?.mediaType || '').toLowerCase().startsWith('video/')
+const studentRecordFileId = (record) => record?.fileId || record?.file?.id || null
+const studentRecordName = (record, index = 0) => record?.title || record?.file?.originalFilename || `学生记录${index + 1}`
 const statusFor = (row) => props.state.studentDeliveryStatusFor?.(row) || (
   row?.imageMatched && row?.record?.trim() && row?.comment?.trim() ? '已完成' : '未完成'
 )
@@ -308,13 +315,46 @@ const statusClassFor = (row) => statusFor(row) === '已完成' ? 'done' : 'pendi
 const draftStatusTextFor = (row, field = '') => {
   const status = props.state.studentDraftStatusFor?.(row) || 'SAVED'
   if (field && !String(row?.[field] || '').trim() && status === 'SAVED') return ''
-  if (status === 'SAVING' || status === 'DIRTY') return '保存中'
+  if (status === 'SAVING' || status === 'DIRTY' || status === 'CONFIRMING') return '保存中'
   if (status === 'ERROR') return '保存失败，点击重试'
   return '已保存'
 }
 const markDraftDirty = (row) => props.state.markStudentDraftDirty?.(row)
 const flushDraft = (row) => props.state.flushStudentDraft?.(row)
 const retryDraft = (row) => flushDraft(row)
+
+const uploadStudentRecords = async (event, row) => {
+  if (!row) return
+  setActive(row)
+  await props.state.uploadStudentRecord?.(event, row)
+}
+
+const replaceStudentRecord = async (event, row, record) => {
+  if (!row || !record) return
+  setActive(row)
+  await props.state.replaceStudentRecord?.(event, row, record)
+}
+
+const removeStudentRecord = async (row, record) => {
+  if (!row || !record || !confirmDestructiveAction(`确定删除学生记录“${studentRecordName(record)}”吗？`)) return
+  setActive(row)
+  await props.state.removeStudentRecord?.(record, row)
+}
+
+const renameStudentRecord = async (event, row, record) => {
+  const input = event.target
+  const originalTitle = String(record?.title || '').trim()
+  const nextTitle = String(input.value || '').trim()
+  if (!nextTitle) {
+    input.value = originalTitle
+    props.state.notify('学生记录名称不能为空')
+    return
+  }
+  if (nextTitle === originalTitle) return
+  setActive(row)
+  const saved = await props.state.renameStudentRecord?.(record, row, nextTitle)
+  if (saved === false) input.value = originalTitle
+}
 
 const setActive = (row) => {
   if (row?.studentId !== undefined && row?.studentId !== null) props.state.activeStudentId = row.studentId
@@ -544,7 +584,7 @@ onMounted(() => {
     <header class="student-delivery-head">
       <div>
         <span>第 3 步</span>
-        <h2>按学生准备作品、课堂记录与家长课评</h2>
+        <h2>按学生准备作品、学生记录、课堂记录与家长课评</h2>
       </div>
       <div class="student-delivery-head-actions">
         <button type="button" class="secondary" @click="openBatch">批量操作</button>
@@ -567,6 +607,7 @@ onMounted(() => {
             <tr>
               <th>学生</th>
               <th>作品</th>
+              <th>学生记录</th>
               <th>课堂记录</th>
               <th>家长课评</th>
               <th>状态</th>
@@ -601,12 +642,47 @@ onMounted(() => {
                   <button type="button" class="ghost" @click="state.retryArtworkUploads?.(row)">重试</button>
                 </div>
               </td>
+              <td class="delivery-student-record-cell">
+                <div v-if="studentRecordsFor(row).length" class="student-record-list">
+                  <article v-for="(record, index) in studentRecordsFor(row)" :key="`${record.id || record.fileId}-${index}`" class="student-record-card">
+                    <div class="student-record-media">
+                      <ProtectedMedia
+                        :file-id="studentRecordFileId(record)"
+                        :tag="studentRecordIsVideo(record) ? 'video' : 'img'"
+                        :src="record.image || record.file?.downloadUrl || ''"
+                        :alt="studentRecordName(record, index)"
+                        controls
+                        preload="metadata"
+                        muted
+                      />
+                      <label class="student-record-replace" title="重新上传">
+                        替换
+                        <input type="file" accept="image/*,video/*" @change="replaceStudentRecord($event, row, record)" />
+                      </label>
+                    </div>
+                    <input
+                      class="student-record-name"
+                      :value="studentRecordName(record, index)"
+                      :aria-label="`学生记录名称${index + 1}`"
+                      @blur="renameStudentRecord($event, row, record)"
+                      @keydown.enter.prevent="renameStudentRecord($event, row, record)"
+                    />
+                    <button type="button" class="student-record-remove" :disabled="state.isProcessing" @click="removeStudentRecord(row, record)">删除</button>
+                  </article>
+                </div>
+                <div v-else class="student-record-empty">暂无学生记录</div>
+                <label class="delivery-add-student-record">
+                  选择文件
+                  <input type="file" accept="image/*,video/*" multiple @change="uploadStudentRecords($event, row)" />
+                </label>
+                <small class="student-record-count">{{ studentRecordCountFor(row) }} 个文件</small>
+              </td>
               <td class="delivery-record-cell">
                 <span class="delivery-field-status" :class="recordStatusFor(row) === '已保存' ? 'ok-text' : 'missing-text'">课堂记录：{{ recordStatusFor(row) }}</span>
                 <textarea v-model="row.record" rows="4" placeholder="记录孩子今天的课堂表现……" @input="markDraftDirty(row)" @blur="flushDraft(row)" />
                 <div class="delivery-cell-actions">
                   <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = row.studentId; state.simulateVoice()">🎙语音转文字</button>
-                  <span v-if="draftStatusTextFor(row, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(row)), error: state.studentDraftStatusFor?.(row) === 'ERROR' }" :title="state.studentDraftErrorFor?.(row) || ''" @click="state.studentDraftStatusFor?.(row) === 'ERROR' && retryDraft(row)">{{ draftStatusTextFor(row, 'record') }}</span>
+                  <span v-if="draftStatusTextFor(row, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(row)), error: state.studentDraftStatusFor?.(row) === 'ERROR' }" :title="state.studentDraftErrorFor?.(row) || ''" @click="state.studentDraftStatusFor?.(row) === 'ERROR' && retryDraft(row)">{{ draftStatusTextFor(row, 'record') }}</span>
                 </div>
               </td>
               <td class="delivery-comment-cell">
@@ -615,7 +691,7 @@ onMounted(() => {
                 <span v-if="feedbackProgress(row)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(row).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(row)) }}</span>
                 <div class="delivery-cell-actions">
                   <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(row) || !row.record?.trim()" @click="openComment(row)">生成课评</button>
-                  <span v-if="draftStatusTextFor(row, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(row)), error: state.studentDraftStatusFor?.(row) === 'ERROR' }" :title="state.studentDraftErrorFor?.(row) || ''" @click="state.studentDraftStatusFor?.(row) === 'ERROR' && retryDraft(row)">{{ draftStatusTextFor(row, 'comment') }}</span>
+                  <span v-if="draftStatusTextFor(row, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(row)), error: state.studentDraftStatusFor?.(row) === 'ERROR' }" :title="state.studentDraftErrorFor?.(row) || ''" @click="state.studentDraftStatusFor?.(row) === 'ERROR' && retryDraft(row)">{{ draftStatusTextFor(row, 'comment') }}</span>
                 </div>
               </td>
               <td class="delivery-status-cell">
@@ -623,7 +699,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!state.attendingRows.length">
-              <td colspan="5" class="student-delivery-empty-state">当前没有到课学生，请先在第 1 步确认出勤。</td>
+              <td colspan="6" class="student-delivery-empty-state">当前没有到课学生，请先在第 1 步确认出勤。</td>
             </tr>
           </tbody>
         </table>
@@ -638,7 +714,7 @@ onMounted(() => {
             <span class="mobile-student-copy">
               <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
               <small>{{ studentFor(row.studentId).parent || '家长未填写' }}</small>
-              <span class="mobile-student-flags"><i :class="artworkStatusFor(row) === '已准备' ? 'done' : 'pending'">作品 {{ artworkStatusFor(row) }}</i><i :class="recordStatusFor(row) === '已保存' ? 'done' : 'pending'">记录 {{ recordStatusFor(row) }}</i><i :class="commentStatusFor(row) === '已保存' ? 'done' : 'pending'">课评 {{ commentStatusFor(row) }}</i></span>
+              <span class="mobile-student-flags"><i :class="artworkStatusFor(row) === '已准备' ? 'done' : 'pending'">作品 {{ artworkStatusFor(row) }}</i><i>学生记录 {{ studentRecordCountFor(row) }}</i><i :class="recordStatusFor(row) === '已保存' ? 'done' : 'pending'">课堂记录 {{ recordStatusFor(row) }}</i><i :class="commentStatusFor(row) === '已保存' ? 'done' : 'pending'">课评 {{ commentStatusFor(row) }}</i></span>
             </span>
             <span class="mobile-student-status">{{ statusFor(row) }}<b>›</b></span>
           </button>
@@ -668,6 +744,15 @@ onMounted(() => {
               <span class="mobile-section-status"><span>{{ artworkStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
 
+            <button type="button" class="mobile-student-section-row" @click="openMobileSection('studentRecords')">
+              <span class="mobile-section-icon">拍</span>
+              <span class="mobile-section-copy">
+                <strong>学生记录</strong>
+                <small>{{ studentRecordCountFor(mobileStudent) ? `已上传 ${studentRecordCountFor(mobileStudent)} 个文件` : '可上传照片或视频' }}</small>
+              </span>
+              <span class="mobile-section-status"><span>{{ studentRecordCountFor(mobileStudent) }} 个</span><b>›</b></span>
+            </button>
+
             <button type="button" class="mobile-student-section-row" @click="openMobileSection('record')">
               <span class="mobile-section-icon">记</span>
               <span class="mobile-section-copy">
@@ -689,6 +774,49 @@ onMounted(() => {
           </nav>
         </template>
 
+        <section v-else-if="mobileSection === 'studentRecords'" class="mobile-student-subpage">
+          <div class="mobile-student-subpage-head">
+            <button type="button" class="ghost" @click="closeMobileSection">← 返回学生事项</button>
+            <strong>学生记录</strong>
+          </div>
+          <article class="mobile-student-editor-card student-record-mobile-card">
+            <header><strong>学生记录</strong><span>{{ studentRecordCountFor(mobileStudent) }} 个文件</span></header>
+            <div v-if="studentRecordsFor(mobileStudent).length" class="student-record-mobile-list">
+              <article v-for="(record, index) in studentRecordsFor(mobileStudent)" :key="`${record.id || record.fileId}-${index}`" class="student-record-mobile-item">
+                <ProtectedMedia
+                  class="student-record-mobile-media"
+                  :file-id="studentRecordFileId(record)"
+                  :tag="studentRecordIsVideo(record) ? 'video' : 'img'"
+                  :src="record.image || record.file?.downloadUrl || ''"
+                  :alt="studentRecordName(record, index)"
+                  controls
+                  preload="metadata"
+                  muted
+                />
+                <input
+                  class="student-record-name"
+                  :value="studentRecordName(record, index)"
+                  :aria-label="`学生记录名称${index + 1}`"
+                  @blur="renameStudentRecord($event, mobileStudent, record)"
+                  @keydown.enter.prevent="renameStudentRecord($event, mobileStudent, record)"
+                />
+                <div class="student-record-mobile-actions">
+                  <label class="ghost">
+                    重新上传
+                    <input type="file" accept="image/*,video/*" @change="replaceStudentRecord($event, mobileStudent, record)" />
+                  </label>
+                  <button type="button" class="ghost danger-text" :disabled="state.isProcessing" @click="removeStudentRecord(mobileStudent, record)">删除</button>
+                </div>
+              </article>
+            </div>
+            <div v-else class="student-record-empty">还没有学生记录，可上传照片或视频。</div>
+            <label class="delivery-add-student-record mobile-student-record-upload">
+              选择文件
+              <input type="file" accept="image/*,video/*" multiple @change="uploadStudentRecords($event, mobileStudent)" />
+            </label>
+          </article>
+        </section>
+
         <section v-else-if="mobileSection === 'record'" class="mobile-student-subpage">
           <div class="mobile-student-subpage-head">
             <button type="button" class="ghost" @click="closeMobileSection">← 返回学生事项</button>
@@ -699,7 +827,7 @@ onMounted(() => {
             <textarea v-model="mobileStudent.record" rows="8" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" @input="markDraftDirty(mobileStudent)" @blur="flushDraft(mobileStudent)" />
             <div class="mobile-student-editor-actions">
               <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = mobileStudent.studentId; state.simulateVoice()">🎙 语音转文字</button>
-              <span v-if="draftStatusTextFor(mobileStudent, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'record') }}</span>
+              <span v-if="draftStatusTextFor(mobileStudent, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'record') }}</span>
             </div>
           </article>
         </section>
@@ -716,7 +844,7 @@ onMounted(() => {
             <div class="mobile-student-editor-actions">
               <small v-if="feedbackProgress(mobileStudent)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(mobileStudent).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(mobileStudent)) }}</small>
               <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)">{{ feedbackJobActive(mobileStudent) ? '生成中…' : '重新生成' }}</button>
-              <span v-if="draftStatusTextFor(mobileStudent, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'comment') }}</span>
+              <span v-if="draftStatusTextFor(mobileStudent, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'comment') }}</span>
             </div>
           </article>
         </section>
@@ -891,7 +1019,7 @@ onMounted(() => {
 
         <footer class="drawer-action-bar">
           <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(commentRow) || !commentRow.record?.trim()" @click="regenerateComment(commentRow)">{{ feedbackJobActive(commentRow) ? '生成中…' : '重新生成' }}</button>
-          <span v-if="draftStatusTextFor(commentRow, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING'].includes(state.studentDraftStatusFor?.(commentRow)), error: state.studentDraftStatusFor?.(commentRow) === 'ERROR' }" @click="state.studentDraftStatusFor?.(commentRow) === 'ERROR' && retryDraft(commentRow)">{{ draftStatusTextFor(commentRow, 'comment') }}</span>
+          <span v-if="draftStatusTextFor(commentRow, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(commentRow)), error: state.studentDraftStatusFor?.(commentRow) === 'ERROR' }" @click="state.studentDraftStatusFor?.(commentRow) === 'ERROR' && retryDraft(commentRow)">{{ draftStatusTextFor(commentRow, 'comment') }}</span>
         </footer>
       </aside>
     </div>

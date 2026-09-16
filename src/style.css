@@ -84,7 +84,7 @@
 
 .student-delivery-table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 1320px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -110,9 +110,10 @@
 
 .student-delivery-table th:nth-child(1) { width: 112px; }
 .student-delivery-table th:nth-child(2) { width: 220px; }
-.student-delivery-table th:nth-child(3) { width: 235px; }
-.student-delivery-table th:nth-child(4) { width: 285px; }
-.student-delivery-table th:nth-child(5) { width: 122px; }
+.student-delivery-table th:nth-child(3) { width: 280px; }
+.student-delivery-table th:nth-child(4) { width: 235px; }
+.student-delivery-table th:nth-child(5) { width: 285px; }
+.student-delivery-table th:nth-child(6) { width: 122px; }
 
 .student-delivery-table tbody tr:last-child td {
   border-bottom: 0;
@@ -124,6 +125,7 @@
 
 .delivery-student-cell,
 .delivery-artwork-cell,
+.delivery-student-record-cell,
 .delivery-record-cell,
 .delivery-comment-cell,
 .delivery-status-cell {
@@ -192,6 +194,7 @@
 }
 
 .delivery-artwork-cell,
+.delivery-student-record-cell,
 .delivery-record-cell,
 .delivery-comment-cell,
 .delivery-status-cell {
@@ -202,6 +205,126 @@
 .delivery-artwork-cell > .delivery-empty {
   display: block;
   margin-bottom: 7px;
+}
+
+.delivery-student-record-cell {
+  min-width: 0;
+}
+
+.student-record-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.student-record-card {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.student-record-media {
+  position: relative;
+  display: grid;
+  width: 58px;
+  height: 58px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--color-primary-soft);
+}
+
+.student-record-media > img,
+.student-record-media > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.student-record-media > video {
+  background: var(--color-heading);
+}
+
+.student-record-media > .protected-media-placeholder {
+  min-height: 0;
+  height: 100%;
+  padding: 3px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.student-record-replace {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-heading) 76%, transparent);
+  color: var(--color-primary-contrast);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-record-replace input,
+.student-record-mobile-actions input {
+  display: none;
+}
+
+.student-record-name {
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.student-record-name:focus {
+  border-color: var(--color-primary);
+  outline: 0;
+  background: var(--color-surface);
+}
+
+.student-record-remove {
+  padding: 4px 5px;
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.student-record-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.student-record-empty,
+.student-record-count {
+  display: block;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.student-record-empty {
+  min-height: 30px;
+  padding: 7px 0;
 }
 
 .delivery-artwork-meta {
@@ -881,6 +1004,60 @@
   .mobile-student-editor-card > header > span {
     color: var(--color-muted);
     font-size: 12px;
+  }
+
+  .student-record-mobile-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .student-record-mobile-item {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border-soft);
+  }
+
+  .student-record-mobile-item:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .student-record-mobile-media {
+    display: block;
+    width: 100%;
+    height: 220px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--color-primary-soft);
+    object-fit: contain;
+  }
+
+  .student-record-mobile-media video {
+    background: var(--color-heading);
+  }
+
+  .student-record-mobile-media.protected-media-placeholder {
+    height: 220px;
+  }
+
+  .student-record-mobile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .student-record-mobile-actions > label {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0 9px;
+    cursor: pointer;
+  }
+
+  .mobile-student-record-upload {
+    justify-self: start;
   }
 
   .mobile-student-editor-card textarea {
@@ -13959,7 +14136,8 @@ textarea:focus,
 }
 
 .delivery-add-artwork,
-.drawer-add-artwork {
+.drawer-add-artwork,
+.delivery-add-student-record {
   display: inline-flex;
   align-items: center;
   width: fit-content;
@@ -13975,14 +14153,22 @@ textarea:focus,
 }
 
 .delivery-add-artwork:hover,
-.drawer-add-artwork:hover {
+.drawer-add-artwork:hover,
+.delivery-add-student-record:hover {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
 }
 
 .delivery-add-artwork input,
-.drawer-add-artwork input {
+.drawer-add-artwork input,
+.delivery-add-student-record input {
   display: none;
+}
+
+.delivery-add-student-record:focus-within {
+  border-color: var(--color-primary);
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
+  outline-offset: 1px;
 }
 
 .delivery-upload-failures {
@@ -14124,6 +14310,28 @@ textarea:focus,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.student-record-archive-card .archive-main-image,
+.student-record-archive-video,
+.student-record-archive-card .protected-media-placeholder {
+  display: block;
+  width: 100%;
+  height: 240px;
+  min-height: 160px;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 7px;
+  background: var(--color-surface-muted);
+}
+
+.student-record-archive-video {
+  background: var(--color-heading);
+}
+
+.student-record-archive-card figcaption > span {
+  color: var(--color-muted);
+  font-size: 11px;
 }
 
 .archive-highlight-label,

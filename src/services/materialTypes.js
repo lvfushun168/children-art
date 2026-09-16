@@ -17,6 +17,17 @@ const API_ASSET_TYPES = Object.freeze({
 
 export const isVideoFile = (file) => String(file?.type || '').toLowerCase().startsWith('video/')
 
+export const studentRecordAssetTypeFor = (file) => isVideoFile(file)
+  ? 'STUDENT_RECORD_VIDEO'
+  : 'STUDENT_RECORD_PHOTO'
+
+export const isStudentRecordAssetType = (value) => [
+  'STUDENT_RECORD_PHOTO',
+  'STUDENT_RECORD_VIDEO'
+].includes(String(value || '').toUpperCase())
+
+export const isStudentRecordVideo = (value) => String(value?.assetType || value || '').toUpperCase() === 'STUDENT_RECORD_VIDEO'
+
 const isClassroomCategory = (category) => [
   MATERIAL_CATEGORIES.CLASSROOM,
   '课堂照片',

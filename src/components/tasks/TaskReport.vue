@@ -26,8 +26,8 @@ defineEmits(['show-archives', 'show-students', 'show-wheat'])
         <strong>{{ counts.artworkCount }} 张 / {{ counts.matched }} 位学生</strong>
       </article>
       <article>
-        <span>课评确认</span>
-        <strong>{{ counts.confirmed }}/{{ counts.attend }}</strong>
+        <span>课评已保存</span>
+        <strong>{{ counts.comments }}/{{ counts.attend }}</strong>
       </article>
       <article>
         <span>家长展示页</span>

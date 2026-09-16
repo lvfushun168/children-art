@@ -102,6 +102,14 @@ test('keeps saving and asynchronous failures from being reported as complete', (
     commentStatus: 'SAVED',
     commentJobStatus: 'SUCCEEDED'
   }).failures, ['课堂记录保存失败'])
+  assert.deepEqual(studentDeliveryReadiness({
+    artworkReady: true,
+    record: '课堂记录',
+    recordStatus: 'CONFIRMING',
+    comment: '家长课评',
+    commentStatus: 'SAVED',
+    commentJobStatus: 'SUCCEEDED'
+  }).failures, ['课堂记录保存中'])
 })
 
 test('reports a feedback generation failure even before content exists', () => {

@@ -390,6 +390,33 @@ export const mapFeedback = (value = {}) => ({
   confirmedAt: displayDateTime(value.confirmedAt),
   version: Number(value.version || 0)
 })
+export const mapTotalFeedbackVersion = (value = {}) => ({
+  ...value,
+  id: safeUiId(value.id),
+  lessonFeedbackId: safeUiId(value.lessonFeedbackId),
+  jobId: safeUiId(value.jobId),
+  versionNo: Number(value.versionNo || 0),
+  statusLabel: feedbackStatus[value.status] || value.status || '',
+  createdBy: safeUiId(value.createdBy),
+  createdAt: displayDateTime(value.createdAt)
+})
+export const mapTotalFeedback = (value = {}) => {
+  const source = typeof value === 'string' ? { content: value, status: 'CONFIRMED' } : (value || {})
+  return {
+    ...source,
+    id: safeUiId(source.id),
+    lessonId: safeUiId(source.lessonId),
+    currentVersionId: safeUiId(source.currentVersionId),
+    confirmedVersionId: safeUiId(source.confirmedVersionId),
+    confirmedBy: safeUiId(source.confirmedBy),
+    status: source.status || 'DRAFT',
+    statusLabel: feedbackStatus[source.status] || source.status || '草稿',
+    content: source.content || '',
+    versions: Array.isArray(source.versions) ? source.versions.map(mapTotalFeedbackVersion) : [],
+    confirmedAt: displayDateTime(source.confirmedAt),
+    version: Number(source.version || 0)
+  }
+}
 export const mapJob = (value = {}) => ({
   ...value,
   id: safeUiId(value.id),
@@ -515,6 +542,20 @@ export const mapArchiveRecord = (value = {}) => {
   const archiveStatus = value.archiveStatus || snapshot.archiveStatus
     || (sourceType === 'lesson' && !value.archiveVersionId && snapshot.current ? 'CURRENT' : 'FORMAL')
   const fileId = safeUiId(value.fileId || snapshot.fileId || snapshot.artworkFileId || snapshot.file?.id || coverArtwork.fileId)
+  const totalFeedback = snapshot.totalFeedback || studentSnapshot.totalFeedback || {}
+  const personalFeedback = studentSnapshot.personalFeedback || {}
+  const legacyFeedback = typeof value.feedback === 'string' ? value.feedback : value.feedback?.content
+  const totalFeedbackContent = typeof totalFeedback === 'string' ? totalFeedback : totalFeedback?.content
+  const personalFeedbackContent = typeof personalFeedback === 'string' ? personalFeedback : personalFeedback?.content
+  const studentFeedbackContent = typeof studentSnapshot.feedback === 'string'
+    ? studentSnapshot.feedback
+    : studentSnapshot.feedback?.content
+  const snapshotFeedbackContent = typeof snapshot.feedback === 'string' ? snapshot.feedback : snapshot.feedback?.content
+  const hasNewTotalFeedback = Object.prototype.hasOwnProperty.call(snapshot, 'totalFeedback')
+    || Object.prototype.hasOwnProperty.call(studentSnapshot, 'totalFeedback')
+  const primaryFeedback = hasNewTotalFeedback
+    ? totalFeedbackContent || legacyFeedback || studentFeedbackContent || snapshotFeedbackContent || ''
+    : legacyFeedback || studentFeedbackContent || snapshotFeedbackContent || ''
   return {
     ...value,
     id: safeUiId(value.id),
@@ -543,7 +584,9 @@ export const mapArchiveRecord = (value = {}) => {
     artworkCount: artworks.length,
     studentRecords,
     studentRecordCount: studentRecords.length,
-    feedback: value.feedback || studentSnapshot.feedback?.content || snapshot.feedback?.content || snapshot.feedback || '',
+    feedback: primaryFeedback,
+    totalFeedback: totalFeedbackContent || '',
+    personalFeedback: personalFeedbackContent || '',
     tags: Array.isArray(value.tags) ? value.tags : typeof value.tags === 'string' ? value.tags.split(',').filter(Boolean) : [],
     version: Number(value.version || 0),
     highlight: value.highlight !== undefined ? Boolean(value.highlight) : artworks.some((artwork) => artwork.highlight) || Boolean(studentSnapshot.highlight),
@@ -617,6 +660,11 @@ export const mapSupervisionLesson = (value = {}) => {
     reviewerId: safeUiId(value.reviewerId),
     reviewedAt: displayDateTime(value.reviewedAt),
     reviewVersion: Number(value.reviewVersion || 0),
+    totalFeedbackReady: Boolean(
+      value.totalFeedbackReady
+      ?? value.deliverySummary?.feedbackConfirmed
+      ?? value.feedbackConfirmed
+    ),
     review
   }
 }

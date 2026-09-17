@@ -13,6 +13,10 @@ const content = ref(null)
 const tokenValid = computed(() => Boolean(content.value))
 const lesson = computed(() => content.value?.lesson || {})
 const student = computed(() => content.value?.student || {})
+const totalFeedback = computed(() => content.value?.totalFeedback || {})
+const feedbackContent = (value) => String(typeof value === 'string' ? value : value?.content || '').trim()
+const totalFeedbackContent = computed(() => feedbackContent(totalFeedback.value))
+const personalFeedbackContent = computed(() => feedbackContent(student.value?.feedback))
 const studentArtworks = computed(() => (Array.isArray(student.value.artworks) ? student.value.artworks : [])
   .filter((artwork) => artwork?.previewUrl || artwork?.fileUrl || artwork?.artwork || artwork?.downloadUrl)
   .map((artwork, index) => ({
@@ -29,7 +33,7 @@ const studentRow = computed(() => ({
   ...student.value,
   artworks: studentArtworks.value,
   image: studentArtworks.value[0]?.fileUrl || '',
-  comment: student.value.feedback?.content || ''
+  comment: totalFeedbackContent.value || personalFeedbackContent.value || ''
 }))
 const highlightedArtworks = computed(() => studentArtworks.value.filter((artwork) => artwork.highlight))
 const materials = computed(() => content.value?.materials || [])
@@ -113,8 +117,12 @@ onMounted(async () => {
           </figure>
         </div>
         <article class="parent-section">
-          <span>老师课评</span>
-          <p>{{ studentRow?.comment }}</p>
+          <span>{{ totalFeedbackContent ? '本节课总课评' : '老师课评' }}</span>
+          <p>{{ totalFeedbackContent || personalFeedbackContent || '暂无课评' }}</p>
+        </article>
+        <article v-if="totalFeedbackContent && personalFeedbackContent" class="parent-section">
+          <span>学生补充课评</span>
+          <p>{{ personalFeedbackContent }}</p>
         </article>
         <article v-if="displayConfig.showHighlight && highlightedArtworks.length" class="parent-section highlight">
           <span>高光作品</span>
@@ -157,6 +165,10 @@ onMounted(async () => {
       </section>
 
       <section v-else class="parent-class-grid">
+        <article v-if="totalFeedbackContent" class="parent-section parent-class-total-feedback">
+          <span>本节课总课评</span>
+          <p>{{ totalFeedbackContent }}</p>
+        </article>
         <article>
           <div v-if="studentRow.artworks.length" class="parent-class-artworks">
             <template v-for="(artwork, index) in studentRow.artworks" :key="`${artwork.artworkId || artwork.fileUrl}-${index}`">

@@ -124,7 +124,7 @@ const mobileStudentIndex = computed(() =>
 const mobileSectionTitle = computed(() => ({
   studentRecords: '学生记录',
   record: '课堂记录',
-  comment: '家长课评'
+  comment: '学生补充课评'
 }[mobileSection.value] || '学生事项'))
 
 const workImages = (row) => {
@@ -301,6 +301,10 @@ const batchJobProgressText = (type) => {
 const artworkStatusFor = (row) => props.state.artworkStatusFor?.(row) || (!row?.imageMatched ? '待上传' : '待准备')
 const recordStatusFor = (row) => props.state.recordStatusFor?.(row) || (row?.record?.trim() ? '已保存' : '待补')
 const commentStatusFor = (row) => props.state.commentStatusFor?.(row) || (row?.comment?.trim() ? '已保存' : '待生成')
+const totalFeedbackStatus = () => props.state.totalFeedbackStatusFor?.() || '待填写'
+const totalFeedbackDraftStatus = () => props.state.totalFeedbackDraftStatusFor?.() || 'SAVED'
+const totalFeedbackDraftError = () => props.state.totalFeedbackDraftErrorFor?.() || ''
+const totalFeedbackBusy = () => ['润色中', '保存中'].includes(totalFeedbackStatus())
 const studentRecordsFor = (row) => Array.isArray(row?.studentRecords) ? row.studentRecords : []
 const studentRecordCountFor = (row) => studentRecordsFor(row).length
 const studentRecordIsVideo = (record) => String(record?.assetType || record?.file?.mediaType || '').toUpperCase() === 'STUDENT_RECORD_VIDEO'
@@ -584,7 +588,7 @@ onMounted(() => {
     <header class="student-delivery-head">
       <div>
         <span>第 3 步</span>
-        <h2>按学生准备作品、学生记录、课堂记录与家长课评</h2>
+      <h2>按学生准备作品、学生记录、课堂记录、个人课评与本节总课评</h2>
       </div>
       <div class="student-delivery-head-actions">
         <button type="button" class="secondary" @click="openBatch">批量操作</button>
@@ -597,7 +601,8 @@ onMounted(() => {
       <span>学生作品 {{ state.counts.matched }}/{{ state.counts.attend }} 人</span>
       <span>作品 {{ state.counts.artworkCount }} 张</span>
       <span>课堂记录 {{ state.counts.records }}/{{ state.counts.attend }}</span>
-      <span>课评已填写 {{ state.counts.comments }}/{{ state.counts.attend }}</span>
+      <span>个人课评 {{ state.counts.comments }}/{{ state.counts.attend }}（选填）</span>
+      <span :class="state.counts.totalFeedbackReady ? 'ok-text' : 'missing-text'">总课评：{{ totalFeedbackStatus() }}</span>
     </div>
 
     <section class="student-delivery-desktop">
@@ -609,12 +614,13 @@ onMounted(() => {
               <th>作品</th>
               <th>学生记录</th>
               <th>课堂记录</th>
-              <th>家长课评</th>
+              <th>学生补充课评</th>
               <th>状态</th>
+              <th>总课评</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ 'delivery-row-done': statusFor(row) === '已完成' }">
+            <tr v-for="(row, rowIndex) in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ 'delivery-row-done': statusFor(row) === '已完成' }">
               <td class="delivery-student-cell">
                 <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
                 <small>{{ studentFor(row.studentId).parent || '家长未填写' }}</small>
@@ -678,7 +684,7 @@ onMounted(() => {
                 <small class="student-record-count">{{ studentRecordCountFor(row) }} 个文件</small>
               </td>
               <td class="delivery-record-cell">
-                <span class="delivery-field-status" :class="recordStatusFor(row) === '已保存' ? 'ok-text' : 'missing-text'">课堂记录：{{ recordStatusFor(row) }}</span>
+                <span class="delivery-field-status" :class="recordStatusFor(row) === '已保存' ? 'ok-text' : 'muted-text'">课堂记录（选填）：{{ recordStatusFor(row) === '待补' ? '未填写' : recordStatusFor(row) }}</span>
                 <textarea v-model="row.record" rows="4" placeholder="记录孩子今天的课堂表现……" @input="markDraftDirty(row)" @blur="flushDraft(row)" />
                 <div class="delivery-cell-actions">
                   <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = row.studentId; state.simulateVoice()">🎙语音转文字</button>
@@ -686,8 +692,8 @@ onMounted(() => {
                 </div>
               </td>
               <td class="delivery-comment-cell">
-                <span class="delivery-comment-status" :class="commentStatusFor(row) === '已保存' ? 'ok-text' : 'missing-text'">课评：{{ commentStatusFor(row) }}</span>
-                <p class="delivery-comment-preview">{{ row.comment?.trim() || '先录入课堂记录才能生成/填写课评。' }}</p>
+                <span class="delivery-comment-status" :class="commentStatusFor(row) === '已保存' ? 'ok-text' : 'muted-text'">个人课评（选填）：{{ commentStatusFor(row) === '待生成' ? '未填写' : commentStatusFor(row) }}</span>
+                <p class="delivery-comment-preview">{{ row.comment?.trim() || '可补充只针对这名学生的课评。' }}</p>
                 <span v-if="feedbackProgress(row)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(row).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(row)) }}</span>
                 <div class="delivery-cell-actions">
                   <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(row) || !row.record?.trim()" @click="openComment(row)">生成课评</button>
@@ -697,9 +703,27 @@ onMounted(() => {
               <td class="delivery-status-cell">
                 <span class="delivery-status" :class="statusClassFor(row)">{{ statusFor(row) }}</span>
               </td>
+              <td v-if="rowIndex === 0" class="delivery-total-feedback-cell" :rowspan="state.attendingRows.length">
+                <div class="delivery-total-feedback-editor">
+                  <span class="delivery-field-status" :class="state.counts.totalFeedbackReady ? 'ok-text' : 'missing-text'">总课评：{{ totalFeedbackStatus() }}</span>
+                  <textarea
+                    v-model="state.totalFeedback.content"
+                    rows="12"
+                    required
+                    aria-label="本节课总课评"
+                    @input="state.markTotalFeedbackDirty?.()"
+                    @blur="state.flushTotalFeedback?.()"
+                  />
+                    <div class="delivery-cell-actions delivery-total-feedback-actions">
+                      <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? '润色中…' : 'AI 润色' }}</button>
+                    </div>
+                  <span v-if="totalFeedbackDraftStatus() === 'ERROR'" class="delivery-autosave-status error" @click="state.flushTotalFeedback?.()">{{ totalFeedbackDraftError() || '总课评自动保存失败，点击重试' }}</span>
+                  <span v-else-if="['DIRTY', 'SAVING'].includes(totalFeedbackDraftStatus())" class="delivery-autosave-status saving">总课评自动保存中</span>
+                </div>
+              </td>
             </tr>
             <tr v-if="!state.attendingRows.length">
-              <td colspan="6" class="student-delivery-empty-state">当前没有到课学生，请先在第 1 步确认出勤。</td>
+              <td colspan="7" class="student-delivery-empty-state">当前没有到课学生，请先在第 1 步确认出勤。</td>
             </tr>
           </tbody>
         </table>
@@ -707,6 +731,29 @@ onMounted(() => {
     </section>
 
     <section class="student-delivery-mobile">
+      <section class="mobile-total-feedback-card">
+        <header>
+          <div>
+            <span>本节课</span>
+            <strong>总课评（必填）</strong>
+          </div>
+          <span class="delivery-status" :class="state.counts.totalFeedbackReady ? 'done' : 'pending'">{{ totalFeedbackStatus() }}</span>
+        </header>
+        <textarea
+          v-model="state.totalFeedback.content"
+          rows="7"
+          required
+          aria-label="本节课总课评"
+          placeholder="填写本节课面向所有家长的总课评……"
+          @input="state.markTotalFeedbackDirty?.()"
+          @blur="state.flushTotalFeedback?.()"
+        />
+        <small>总课评独立于某个学生，内容会自动保存并作为新家长页面的主课评。</small>
+        <div class="mobile-student-editor-actions">
+          <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? '润色中…' : 'AI 润色' }}</button>
+        </div>
+        <span v-if="totalFeedbackDraftStatus() === 'ERROR'" class="delivery-autosave-status error" @click="state.flushTotalFeedback?.()">{{ totalFeedbackDraftError() || '总课评自动保存失败，点击重试' }}</span>
+      </section>
       <template v-if="!mobileStudent">
         <div class="student-delivery-mobile-list">
           <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" type="button" class="student-delivery-mobile-card" @click="openMobileStudent(row)">
@@ -714,7 +761,7 @@ onMounted(() => {
             <span class="mobile-student-copy">
               <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
               <small>{{ studentFor(row.studentId).parent || '家长未填写' }}</small>
-              <span class="mobile-student-flags"><i :class="artworkStatusFor(row) === '已准备' ? 'done' : 'pending'">作品 {{ artworkStatusFor(row) }}</i><i>学生记录 {{ studentRecordCountFor(row) }}</i><i :class="recordStatusFor(row) === '已保存' ? 'done' : 'pending'">课堂记录 {{ recordStatusFor(row) }}</i><i :class="commentStatusFor(row) === '已保存' ? 'done' : 'pending'">课评 {{ commentStatusFor(row) }}</i></span>
+              <span class="mobile-student-flags"><i :class="artworkStatusFor(row) === '已准备' ? 'done' : 'pending'">作品 {{ artworkStatusFor(row) }}</i><i>学生记录 {{ studentRecordCountFor(row) }}</i><i :class="recordStatusFor(row) === '已保存' ? 'done' : 'pending'">课堂记录 {{ recordStatusFor(row) === '待补' ? '选填' : recordStatusFor(row) }}</i><i :class="commentStatusFor(row) === '已保存' ? 'done' : 'pending'">个人课评 {{ commentStatusFor(row) === '待生成' ? '选填' : commentStatusFor(row) }}</i></span>
             </span>
             <span class="mobile-student-status">{{ statusFor(row) }}<b>›</b></span>
           </button>
@@ -756,8 +803,8 @@ onMounted(() => {
             <button type="button" class="mobile-student-section-row" @click="openMobileSection('record')">
               <span class="mobile-section-icon">记</span>
               <span class="mobile-section-copy">
-                <strong>课堂记录</strong>
-                <small>{{ recordStatusFor(mobileStudent) === '已保存' ? '已记录课堂表现' : recordStatusFor(mobileStudent) }}</small>
+                <strong>课堂记录（选填）</strong>
+                <small>{{ recordStatusFor(mobileStudent) === '已保存' ? '已记录课堂表现' : '未填写也可以发布' }}</small>
               </span>
               <span class="mobile-section-status"><span>{{ recordStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
@@ -765,8 +812,8 @@ onMounted(() => {
             <button type="button" class="mobile-student-section-row" @click="openMobileSection('comment')">
               <span class="mobile-section-icon">评</span>
               <span class="mobile-section-copy">
-                <strong>家长课评</strong>
-                <small>{{ commentStatusFor(mobileStudent) === '已保存' ? '已填写家长课评' : commentStatusFor(mobileStudent) }}</small>
+                <strong>个人课评（选填）</strong>
+                <small>{{ commentStatusFor(mobileStudent) === '已保存' ? '已填写学生补充课评' : '未填写也可以发布' }}</small>
               </span>
               <span class="mobile-section-status"><span>{{ commentStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
@@ -823,7 +870,7 @@ onMounted(() => {
             <strong>{{ mobileSectionTitle }}</strong>
           </div>
           <article class="mobile-student-editor-card">
-            <header><strong>课堂记录</strong><span>{{ recordStatusFor(mobileStudent) }}</span></header>
+            <header><strong>课堂记录（选填）</strong><span>{{ recordStatusFor(mobileStudent) === '待补' ? '未填写' : recordStatusFor(mobileStudent) }}</span></header>
             <textarea v-model="mobileStudent.record" rows="8" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" @input="markDraftDirty(mobileStudent)" @blur="flushDraft(mobileStudent)" />
             <div class="mobile-student-editor-actions">
               <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = mobileStudent.studentId; state.simulateVoice()">🎙 语音转文字</button>
@@ -838,9 +885,9 @@ onMounted(() => {
             <strong>{{ mobileSectionTitle }}</strong>
           </div>
           <article class="mobile-student-editor-card">
-            <header><strong>家长课评</strong><span>{{ commentStatusFor(mobileStudent) }}</span></header>
-            <p class="mobile-comment-preview">{{ mobileStudent.comment?.trim() || '先录入课堂记录，再生成家长课评。' }}</p>
-            <textarea v-model="mobileStudent.comment" rows="9" placeholder="先录入课堂记录，再生成家长课评……" @input="markDraftDirty(mobileStudent)" @blur="flushDraft(mobileStudent)" />
+            <header><strong>个人课评（选填）</strong><span>{{ commentStatusFor(mobileStudent) === '待生成' ? '未填写' : commentStatusFor(mobileStudent) }}</span></header>
+            <p class="mobile-comment-preview">{{ mobileStudent.comment?.trim() || '可补充只针对这名学生的课评。' }}</p>
+            <textarea v-model="mobileStudent.comment" rows="9" placeholder="填写学生补充课评（选填）……" @input="markDraftDirty(mobileStudent)" @blur="flushDraft(mobileStudent)" />
             <div class="mobile-student-editor-actions">
               <small v-if="feedbackProgress(mobileStudent)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(mobileStudent).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(mobileStudent)) }}</small>
               <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)">{{ feedbackJobActive(mobileStudent) ? '生成中…' : '重新生成' }}</button>
@@ -988,7 +1035,7 @@ onMounted(() => {
       <aside class="library-drawer comment-review-drawer">
         <header class="drawer-head">
           <div>
-            <span>家长课评</span>
+            <span>学生补充课评</span>
             <strong>{{ studentFor(commentRow.studentId).name }}</strong>
             <small>{{ jobProgressLabel(feedbackProgress(commentRow)) || '可生成或编辑当前课评，编辑内容会自动保存。' }}</small>
           </div>
@@ -1002,7 +1049,7 @@ onMounted(() => {
           </section>
 
           <label class="drawer-field">
-            <span>家长课评模板</span>
+            <span>学生补充课评模板</span>
             <AdaptiveSelect
               :model-value="state.selectedCommentTemplate"
               :options="commentTemplateOptions"
@@ -1013,7 +1060,7 @@ onMounted(() => {
 
           <label class="drawer-field comment-editor-field">
             <span>课评内容</span>
-            <textarea v-model="commentRow.comment" rows="10" placeholder="先录入课堂记录，再生成家长课评……" @input="markDraftDirty(commentRow)" @blur="flushDraft(commentRow)" />
+            <textarea v-model="commentRow.comment" rows="10" placeholder="先录入课堂记录，再生成学生补充课评……" @input="markDraftDirty(commentRow)" @blur="flushDraft(commentRow)" />
           </label>
         </div>
 
@@ -1057,10 +1104,10 @@ onMounted(() => {
           <section class="batch-operation-card">
             <div>
               <strong>批量生成课评</strong>
-              <small>已录入 {{ state.counts.records }} 人课堂记录，可生成课评草稿。</small>
+              <small>已录入 {{ state.counts.records }} 人课堂记录，可生成学生补充课评草稿。</small>
             </div>
             <label class="drawer-field">
-              <span>家长课评模板</span>
+              <span>学生补充课评模板</span>
               <AdaptiveSelect
                 :model-value="state.selectedCommentTemplate"
                 :options="commentTemplateOptions"

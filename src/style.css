@@ -84,7 +84,7 @@
 
 .student-delivery-table {
   width: 100%;
-  min-width: 1320px;
+  min-width: 1640px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -114,6 +114,7 @@
 .student-delivery-table th:nth-child(4) { width: 235px; }
 .student-delivery-table th:nth-child(5) { width: 285px; }
 .student-delivery-table th:nth-child(6) { width: 122px; }
+.student-delivery-table th:nth-child(7) { width: 340px; }
 
 .student-delivery-table tbody tr:last-child td {
   border-bottom: 0;
@@ -353,6 +354,35 @@
   resize: vertical;
 }
 
+.delivery-total-feedback-cell {
+  position: relative;
+  vertical-align: top;
+  background: color-mix(in srgb, var(--color-primary-soft) 24%, transparent);
+}
+
+.delivery-total-feedback-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 280px;
+  position: absolute;
+  inset: 12px;
+  box-sizing: border-box;
+}
+
+.delivery-total-feedback-editor textarea {
+  flex: 1 1 228px;
+  min-height: 228px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.delivery-total-feedback-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+
 .delivery-field-status {
   display: block;
   margin-bottom: 6px;
@@ -538,6 +568,39 @@
 
 .student-delivery-mobile {
   display: none;
+}
+
+.mobile-total-feedback-card {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 14px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.mobile-total-feedback-card > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mobile-total-feedback-card > header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.mobile-total-feedback-card > header small,
+.mobile-total-feedback-card > small {
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.mobile-total-feedback-card textarea {
+  min-height: 180px;
+  resize: vertical;
 }
 
 .artwork-process-drawer {

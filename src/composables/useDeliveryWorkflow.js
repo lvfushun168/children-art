@@ -35,6 +35,7 @@ import {
   mapExtraArtwork,
   mapExtraTask,
   mapFeedback,
+  mapTotalFeedback,
   mapJob,
   mapFile,
   mapIdentityPermission,
@@ -299,6 +300,8 @@ export function useDeliveryWorkflow() {
   const studentDraftRows = new Map()
   const studentDraftSaveTimers = new Map()
   const studentDraftSaveChains = new Map()
+  const totalFeedbackSaveTimer = new Map()
+  const totalFeedbackSaveChains = new Map()
   const archiveRunState = reactive({
     open: false,
     phase: 'idle',
@@ -357,9 +360,32 @@ export function useDeliveryWorkflow() {
     wheatTrace: { status: '待生成', detail: '', traceId: null, updatedAt: '' }
   })
 
-  const createLessonWorkspace = (task, useInitialSeed = false) => ({
+  const createLessonWorkspace = (task, useInitialSeed = false) => {
+    const seededTotalFeedback = typeof task?.totalFeedback === 'string'
+      ? task.totalFeedback
+      : task?.totalFeedback?.content || ''
+    const seededTotalStatus = task?.totalFeedback?.status
+      || (String(seededTotalFeedback).trim() ? 'CONFIRMED' : 'DRAFT')
+    return {
     lessonId: task.id,
     studentDeliveries: createStudentDeliveries(task, useInitialSeed),
+    totalFeedback: {
+      id: null,
+      lessonId: task.id,
+      status: seededTotalStatus,
+      currentVersionId: null,
+      confirmedVersionId: null,
+      content: seededTotalFeedback,
+      version: 0,
+      confirmedBy: null,
+      confirmedAt: '',
+      versions: [],
+      draftStatus: 'SAVED',
+      draftError: '',
+      draftRevision: 0,
+      savedRevision: 0,
+      jobId: null
+    },
     materials: [],
     materialsConfirmedEmpty: false,
     materialsVersion: null,
@@ -406,7 +432,8 @@ export function useDeliveryWorkflow() {
       revokedAt: '',
       expiresAtTimestamp: null
     }
-  })
+    }
+  }
 
   const lessonWorkspaces = reactive({})
   const emptyLessonWorkspace = reactive(createLessonWorkspace({ id: null }, false))
@@ -417,6 +444,25 @@ export function useDeliveryWorkflow() {
     const workspace = lessonWorkspaces[task.id]
     if (!workspace.preparationMemory) {
       workspace.preparationMemory = mapPreparationMemory()
+    }
+    if (!workspace.totalFeedback) {
+      workspace.totalFeedback = {
+        id: null,
+        lessonId: task.id,
+        status: 'DRAFT',
+        currentVersionId: null,
+        confirmedVersionId: null,
+        content: '',
+        version: 0,
+        confirmedBy: null,
+        confirmedAt: '',
+        versions: [],
+        draftStatus: 'SAVED',
+        draftError: '',
+        draftRevision: 0,
+        savedRevision: 0,
+        jobId: null
+      }
     }
     if (!workspace.activeStudentId) {
       workspace.activeStudentId =
@@ -445,6 +491,7 @@ export function useDeliveryWorkflow() {
   })
   const homework = computed(() => activeWorkspace.value.homework)
   const displayConfig = computed(() => activeWorkspace.value.displayConfig)
+  const totalFeedback = computed(() => activeWorkspace.value.totalFeedback)
   const sharePage = computed(() => activeWorkspace.value.sharePage)
   const activeStudentId = computed({
     get: () => activeWorkspace.value.activeStudentId,
@@ -828,7 +875,9 @@ export function useDeliveryWorkflow() {
           })),
           fileId: row.displayFileId || row.fileId || null,
           artwork: row.image,
-          feedback: row.comment,
+          feedback: workspace.totalFeedback?.content || row.comment,
+          totalFeedback: workspace.totalFeedback?.content || '',
+          personalFeedback: row.comment || '',
           highlight: row.highlight,
           highlightNote: row.highlightNote,
           shareReady: row.shareReady,
@@ -860,6 +909,10 @@ export function useDeliveryWorkflow() {
         lessonType: task.lessonType,
         status: task.status,
         progress: progressForTask(task),
+        totalFeedback: workspace.totalFeedback?.content || task.totalFeedback || '',
+        totalFeedbackReady: (workspace.totalFeedback?.status === 'CONFIRMED'
+          && Boolean(String(workspace.totalFeedback?.content || '').trim()))
+          || Boolean(task.deliverySummary?.feedbackConfirmed || task.totalFeedbackReady),
         materials: materialItems,
         referenceMaterials: materialItems.filter((item) => item.type !== '课件'),
         coursewares: materialItems.filter((item) => item.type === '课件'),
@@ -1030,6 +1083,8 @@ export function useDeliveryWorkflow() {
         teacher: dashboard?.teacherName || lesson.teacher,
         course: dashboard?.courseTitle || lesson.course,
         review,
+        totalFeedbackReady: Boolean(lesson.totalFeedbackReady || dashboard?.totalFeedbackReady
+          || dashboard?.deliverySummary?.feedbackConfirmed),
         reviewStatus: lesson.status === '已完成'
           ? (review?.status || currentReview?.status || dashboard?.reviewStatus || '待评分')
           : (dashboard?.status || '未完成')
@@ -1212,7 +1267,7 @@ export function useDeliveryWorkflow() {
     const imagesReady = artworks.length
       ? artworks.every((artwork) => artwork.imageMatched && artwork.imageConfirmed)
       : Boolean(row?.imageConfirmed)
-    return row?.attendance === '到课' && imagesReady && row.confirmed
+    return row?.attendance === '到课' && imagesReady
   }
   const confirmedDeliveryCount = (rows = []) => rows.filter(isDeliveryConfirmed).length
 
@@ -1225,9 +1280,11 @@ export function useDeliveryWorkflow() {
     records: sessionStudents.value.filter((item) => item.attendance === '到课' && item.record?.trim()).length,
     processed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.processed).length,
     comments: sessionStudents.value.filter((item) => item.attendance === '到课' && item.comment?.trim()).length,
+    totalFeedbackReady: totalFeedbackReady() ? 1 : 0,
     confirmed: sessionStudents.value.filter((item) => item.attendance === '到课' && item.confirmed).length,
     deliveryConfirmed: confirmedDeliveryCount(sessionStudents.value),
-    studentDeliveryCompleted: sessionStudents.value.filter((item) => item.attendance === '到课' && studentDeliveryReadinessFor(item).ready).length,
+    studentDeliveryCompleted: sessionStudents.value.filter((item) => item.attendance === '到课'
+      && studentDeliveryReadinessFor(item).ready && totalFeedbackReady()).length,
     highlights: sessionStudents.value.filter((item) => item.attendance === '到课' && item.highlight).length,
     artworkCount: sessionStudents.value.reduce((total, row) => total + artworkCountForRow(row), 0),
     confirmedArtworkCount: sessionStudents.value.reduce((total, row) => total + artworksForRow(row).filter((artwork) => artwork.imageMatched && artwork.imageConfirmed).length, 0),
@@ -1275,7 +1332,8 @@ export function useDeliveryWorkflow() {
     const completed =
       (attendanceConfirmed ? rows.length : 0) +
       (workspace.materials.length || workspace.materialsConfirmedEmpty ? rows.length : 0) +
-      rows.filter((row) => studentDeliveryReadinessFor(row).ready).length +
+      rows.filter((row) => studentDeliveryReadinessFor(row).ready && workspace.totalFeedback?.status === 'CONFIRMED'
+        && String(workspace.totalFeedback?.content || '').trim()).length +
       (homeworkIsAssigned(workspace.homework) && !String(workspace.homework.content || '').trim() ? 0 : rows.length) +
       rows.filter((row) => row.archived).length
     const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 5)) * 100))
@@ -1289,6 +1347,9 @@ export function useDeliveryWorkflow() {
     else if (sessionStudents.value.some((row) => !isAttendanceMarked(row))) warnings.push('仍有学生未确认出勤')
     if (!materials.value.length && !materialsConfirmedEmpty.value) warnings.push('课堂资料待上传或确认无资料')
     if (homeworkIsAssigned(homework.value) && !String(homework.value.content || '').trim()) warnings.push('课后任务内容为空')
+    if (attendingRows.value.length && !totalFeedbackReady()) {
+      warnings.push('总课评待自动保存')
+    }
     attendingRows.value.forEach((row) => {
       const student = students.find((item) => sameId(item.id, row.studentId))
       const name = student?.name || row.studentName || '学生'
@@ -1432,7 +1493,7 @@ export function useDeliveryWorkflow() {
       .map((row, index) => {
         const student = students.find((item) => item.id === row.studentId)
         const link = studentShareUrlFor(row)
-        return `${index + 1}. ${student.name}\n作品文件：${fileNameFor(row)}\n展示页：${link}\n课评：${row.comment || '待生成'}`
+        return `${index + 1}. ${student.name}\n作品文件：${fileNameFor(row)}\n展示页：${link}\n总课评：${totalFeedback.value?.content || '待填写'}${row.comment ? `\n学生补充课评：${row.comment}` : ''}`
       })
       .join('\n\n')
   )
@@ -1889,6 +1950,11 @@ export function useDeliveryWorkflow() {
     lesson: clone(activeTask.value),
     klass: clone(activeClass.value),
     course: clone(activeCourse.value),
+    // 课次总课评属于本节课，不复制到学生记录中。
+    totalFeedback: {
+      content: totalFeedback.value?.content || '',
+      version: Number(totalFeedback.value?.version || 0)
+    },
     // 学生记录只属于老师内部档案，不能随家长展示草稿保存或参与展示版本内容。
     studentDeliveries: sessionStudents.value.map(({ studentRecords, ...row }) => clone(row)),
     students: clone(students),
@@ -1909,6 +1975,7 @@ export function useDeliveryWorkflow() {
       courseId: activeTask.value.courseId
     },
     studentDeliveries: sessionStudents.value.map(({ shareReady, archived, studentRecords, ...row }) => row),
+    totalFeedback: totalFeedback.value?.content || '',
     materials: materials.value,
     homework: homework.value,
     displayConfig: Object.fromEntries(Object.entries(displayConfig.value).filter(([key]) => !['publicStatus', 'expiresAt', 'expiresAtTimestamp'].includes(key))),
@@ -1931,9 +1998,13 @@ export function useDeliveryWorkflow() {
   }
 
   const generateSharePages = async () => {
+    if (!totalFeedbackReady()) {
+      notify('发布失败：请先填写总课评并等待自动保存完成')
+      return false
+    }
     const missing = attendingRows.value.filter((row) => !isDeliveryConfirmed(row))
     if (missing.length) {
-      notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
+      notify(`发布失败：还有 ${missing.length} 名学生的作品未确认`)
       return false
     }
     attendingRows.value.forEach((row) => ensureStudentToken(activeTask.value.id, row.studentId))
@@ -2067,7 +2138,7 @@ export function useDeliveryWorkflow() {
       className: activeClass.value.name,
       course: activeCourse.value.title,
       works: counts.value.attend,
-      comments: counts.value.comments || counts.value.attend,
+      comments: counts.value.totalFeedbackReady ? counts.value.attend : 0,
       highlights: counts.value.highlights,
       teacher: activeTask.value.teacher,
       wheatStatus,
@@ -2096,7 +2167,9 @@ export function useDeliveryWorkflow() {
         description: existing?.description || '',
         tags: existing?.tags || [],
         note: existing?.note || '',
-        feedback: row.comment,
+        feedback: totalFeedback.value?.content || row.comment,
+        totalFeedback: totalFeedback.value?.content || '',
+        personalFeedback: row.comment || '',
         homework: homework.value.content,
         highlight: existing?.highlight ?? row.highlight,
         highlightNote: existing?.highlightNote ?? row.highlightNote,
@@ -2211,7 +2284,11 @@ export function useDeliveryWorkflow() {
     }
     const missing = attendingRows.value.filter((row) => !isDeliveryConfirmed(row))
     if (missing.length) {
-      notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
+      notify(`发布失败：还有 ${missing.length} 名学生的作品未确认`)
+      return false
+    }
+    if (!totalFeedbackReady()) {
+      notify('发布失败：请先填写总课评并等待自动保存完成')
       return false
     }
     if (sharePage.value.status !== '已发布') await generateSharePages()
@@ -3774,6 +3851,7 @@ export function useDeliveryWorkflow() {
     const feedbacks = (feedbackModule.feedbacks || []).map(mapFeedback)
     const draft = mapSharePage(parentModule.sharePage || {})
     const currentDraft = draft.draftSnapshot || {}
+    const totalFeedbackRemote = mapTotalFeedback(feedbackModule.totalFeedback || currentDraft.totalFeedback || {})
     // 课次接口返回的草稿快照可能包含已选资源详情。先合并进全局资源目录，
     // 这样重新进入课次时，即使资源列表请求稍后完成，已保存的选择也能立即回显。
     const savedExternalLinks = Array.isArray(currentDraft.externalLinks)
@@ -3886,6 +3964,16 @@ export function useDeliveryWorkflow() {
     Object.assign(workspace, {
       lessonId: lesson.id,
       studentDeliveries: rows,
+      totalFeedback: {
+        ...workspace.totalFeedback,
+        ...totalFeedbackRemote,
+        lessonId: lesson.id,
+        draftStatus: 'SAVED',
+        draftError: '',
+        draftRevision: workspace.totalFeedback?.draftRevision || 0,
+        savedRevision: workspace.totalFeedback?.draftRevision || 0,
+        jobId: null
+      },
       materials: materialItems,
       materialsConfirmedEmpty: Boolean(assetsModule.materialsConfirmedEmpty),
       materialsVersion: assetsModule.materialsVersion === null || assetsModule.materialsVersion === undefined
@@ -4248,6 +4336,7 @@ export function useDeliveryWorkflow() {
   }
 
   const jobTerminalStatuses = new Set(['SUCCEEDED', 'FAILED', 'CANCELED'])
+  const jobSseAttemptTimeoutMs = 10000
   const jobStaleNotices = new Set()
 
   const jobPayload = (value) => {
@@ -4406,22 +4495,39 @@ export function useDeliveryWorkflow() {
       for (let attempt = 0; attempt < 3 && !controller.signal.aborted; attempt += 1) {
         if (attempt > 0) await wait(600)
         let terminalFromStream = false
-        try {
-          await subscribeSse(api.jobs.eventsPath(ids), {
-            signal: controller.signal,
-            onEvent: (event) => {
-              const payload = applyJobProgress(event.data)
-              if (payload && jobTerminalStatuses.has(payload.status) && areJobsTerminal(ids)) {
-                terminalFromStream = true
-                completed = true
-                controller.abort()
-              }
+        let streamTimedOut = false
+        const streamController = new AbortController()
+        const forwardAbort = () => streamController.abort()
+        if (controller.signal.aborted) streamController.abort()
+        else controller.signal.addEventListener('abort', forwardAbort, { once: true })
+        let timeoutId = null
+        const streamPromise = subscribeSse(api.jobs.eventsPath(ids), {
+          signal: streamController.signal,
+          onEvent: (event) => {
+            const payload = applyJobProgress(event.data)
+            if (payload && jobTerminalStatuses.has(payload.status) && areJobsTerminal(ids)) {
+              terminalFromStream = true
+              completed = true
+              controller.abort()
             }
+          }
+        }).catch(() => null)
+        try {
+          const timeoutPromise = new Promise((resolve) => {
+            timeoutId = setTimeout(() => {
+              if (!terminalFromStream && !areJobsTerminal(ids)) {
+                streamTimedOut = true
+                streamController.abort()
+              }
+              resolve('timeout')
+            }, jobSseAttemptTimeoutMs)
           })
-        } catch (error) {
-          if (controller.signal.aborted && (terminalFromStream || areJobsTerminal(ids))) break
-          if (controller.signal.aborted) return snapshots
-          // Reconnect a few times before falling back to the task query.
+          await Promise.race([streamPromise, timeoutPromise])
+          await streamPromise
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId)
+          controller.signal.removeEventListener('abort', forwardAbort)
+          streamController.abort()
         }
         if (controller.signal.aborted) break
         if (areJobsTerminal(ids)) break
@@ -4431,6 +4537,7 @@ export function useDeliveryWorkflow() {
           // The polling fallback below will retry the same query.
         }
         if (areJobsTerminal(ids)) break
+        if (streamTimedOut) continue
       }
 
       if (!controller.signal.aborted && !areJobsTerminal(ids)) {
@@ -5979,6 +6086,149 @@ export function useDeliveryWorkflow() {
     version: row.feedbackVersion || 0
   })
 
+  const totalFeedbackBodyFor = () => ({
+    content: totalFeedback.value?.content || '',
+    clear: false,
+    version: Number(totalFeedback.value?.version || 0)
+  })
+
+  const totalFeedbackDraftStatusFor = () => String(totalFeedback.value?.draftStatus || 'SAVED').toUpperCase()
+  const totalFeedbackDraftErrorFor = () => totalFeedback.value?.draftError || ''
+  const totalFeedbackJobActive = () => Boolean(totalFeedback.value?.jobId)
+  const totalFeedbackReady = () => String(totalFeedback.value?.content || '').trim().length > 0
+    && totalFeedback.value?.status === 'CONFIRMED'
+
+  const saveTotalFeedbackNow = (targetWorkspace = null, targetLessonId = null) => {
+    const workspace = targetWorkspace || ensureLessonWorkspace(activeTask.value)
+    const value = workspace.totalFeedback
+    const lessonId = targetLessonId || workspace.lessonId || activeTask.value?.id
+    if (!value || !lessonId) return Promise.resolve(false)
+    const key = String(lessonId)
+    const timer = totalFeedbackSaveTimer.get(key)
+    if (timer) {
+      clearTimeout(timer)
+      totalFeedbackSaveTimer.delete(key)
+    }
+    const currentChain = totalFeedbackSaveChains.get(key)
+    if (currentChain) return currentChain
+    const previous = currentChain || Promise.resolve(true)
+    const operation = previous.catch(() => false).then(async () => {
+      if (!String(value.content || '').trim() && value.draftStatus === 'SAVED') return true
+      const revision = Number(value.draftRevision || 0)
+      value.draftStatus = 'SAVING'
+      value.draftError = ''
+      try {
+        const saved = await api.feedback.saveTotal(lessonId, {
+          content: value.content || '',
+          clear: false,
+          version: Number(value.version || 0)
+        })
+        Object.assign(value, mapTotalFeedback(saved), {
+          draftStatus: Number(value.draftRevision || 0) === revision ? 'SAVED' : 'DIRTY',
+          draftError: '',
+          savedRevision: revision,
+          jobId: null
+        })
+        return true
+      } catch (error) {
+        value.draftStatus = 'ERROR'
+        value.draftError = remoteErrorMessage(error, '总课评自动保存失败，请重试')
+        return false
+      }
+    })
+    totalFeedbackSaveChains.set(key, operation)
+    operation.finally(() => {
+      if (totalFeedbackSaveChains.get(key) === operation) totalFeedbackSaveChains.delete(key)
+    }).catch(() => {})
+    return operation
+  }
+
+  const markTotalFeedbackDirty = () => {
+    const workspace = activeWorkspace.value
+    const value = workspace.totalFeedback
+    if (!value) return false
+    value.draftRevision = Number(value.draftRevision || 0) + 1
+    value.draftStatus = 'DIRTY'
+    value.draftError = ''
+    const lessonId = workspace.lessonId || activeTask.value?.id
+    if (!lessonId) return false
+    const previousTimer = totalFeedbackSaveTimer.get(String(lessonId))
+    if (previousTimer) clearTimeout(previousTimer)
+    totalFeedbackSaveTimer.set(String(lessonId), setTimeout(() => {
+      totalFeedbackSaveTimer.delete(String(lessonId))
+      void saveTotalFeedbackNow(workspace, lessonId)
+    }, 800))
+    return true
+  }
+
+  const flushTotalFeedback = async () => {
+    const workspace = activeWorkspace.value
+    const value = workspace.totalFeedback
+    if (!value) return true
+    const lessonId = workspace.lessonId || activeTask.value?.id
+    const timer = lessonId ? totalFeedbackSaveTimer.get(String(lessonId)) : null
+    if (timer) {
+      clearTimeout(timer)
+      totalFeedbackSaveTimer.delete(String(lessonId))
+    }
+    const currentChain = lessonId ? totalFeedbackSaveChains.get(String(lessonId)) : null
+    if (currentChain) return currentChain
+    if (Number(value.draftRevision || 0) === Number(value.savedRevision || 0)
+      && value.draftStatus !== 'ERROR') return true
+    return saveTotalFeedbackNow(workspace, lessonId)
+  }
+
+  const polishTotalFeedback = async () => {
+    if (!String(totalFeedback.value?.content || '').trim()) {
+      notify('请先填写总课评原文')
+      return false
+    }
+    if (!(await flushTotalFeedback())) return false
+    const result = await runRemote('正在润色总课评...', async () => {
+      const submitted = await api.feedback.polishTotal(activeTask.value.id, {
+        templateId: activeCommentTemplate.value?.id
+      })
+      if (!submitted?.jobId) throw new Error('总课评润色任务创建失败')
+      totalFeedback.value.jobId = submitted.jobId
+      try {
+        const progress = await watchJobs([submitted.jobId], activeTask.value.id)
+        const failed = progress.find((job) => ['FAILED', 'CANCELED'].includes(job.status))
+        if (failed) throw new Error(failed.message || '总课评润色失败，可重试')
+        const completed = progress.find((job) => sameId(job.jobId || job.id, submitted.jobId))
+        if (!completed || completed.status !== 'SUCCEEDED') {
+          const waitingMessage = completed?.status === 'RUNNING' ? '正在处理中' : '仍在排队'
+          throw new Error(`总课评润色任务${waitingMessage}，请稍后刷新后重试`)
+        }
+        await refreshRemoteLessonAfterJobs(activeTask.value.id, [submitted.jobId])
+        totalFeedback.value.jobId = null
+        return submitted
+      } catch (error) {
+        if (sameId(totalFeedback.value?.jobId, submitted.jobId)) {
+          totalFeedback.value.jobId = null
+          totalFeedback.value.status = totalFeedback.value.confirmedVersionId ? 'CONFIRMED' : 'DRAFT'
+        }
+        throw error
+      }
+    }, '总课评 AI 润色已完成并自动保存')
+    return Boolean(result)
+  }
+
+  const prepareTotalFeedbackForParentDelivery = async (lessonId = activeTask.value?.id) => {
+    if (!(await flushTotalFeedback())) {
+      return { ok: false, detail: totalFeedbackDraftErrorFor() || '总课评自动保存失败，请重试' }
+    }
+    try {
+      await refreshRemoteLesson(lessonId, { force: true })
+      if (totalFeedbackJobActive()) return { ok: false, detail: '总课评正在润色，请等待 AI 任务完成' }
+      if (!totalFeedbackReady()) {
+        return { ok: false, detail: '请先填写总课评并等待自动保存完成' }
+      }
+      return { ok: true, detail: '总课评已准备好' }
+    } catch (error) {
+      return { ok: false, detail: remoteErrorMessage(error, '总课评准备失败，请重试') }
+    }
+  }
+
   const studentDraftKeyFor = (rowOrId, lessonId = activeTask.value?.id) => {
     const studentId = rowOrId && typeof rowOrId === 'object' ? rowOrId.studentId : rowOrId
     if (lessonId === null || lessonId === undefined || studentId === null || studentId === undefined) return ''
@@ -6563,6 +6813,10 @@ export function useDeliveryWorkflow() {
       return course
     })(),
     // 仅保存展示草稿字段；受保护文件的 Blob URL 只存在于当前浏览器会话，不能写入服务端快照。
+    totalFeedback: {
+      content: totalFeedback.value?.content || '',
+      version: Number(totalFeedback.value?.version || 0)
+    },
     studentDeliveries: sessionStudents.value.map((row) => ({
       studentId: String(row.studentId),
       attendance: row.attendance,
@@ -6678,17 +6932,18 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteGenerateSharePages = async (options = {}) => {
-    const feedbackPrepared = options && typeof options === 'object' && options.feedbackPrepared === true
-    if (!feedbackPrepared) {
-      const feedbackReady = await prepareFeedbackForParentDelivery(activeTask.value?.id)
-      if (!feedbackReady.ok) {
-        notify(`发布失败：${feedbackReady.detail || '课评准备失败，请重试'}`)
-        return false
-      }
+    const totalFeedbackReadyResult = await prepareTotalFeedbackForParentDelivery(activeTask.value?.id)
+    if (!totalFeedbackReadyResult.ok) {
+      notify(`发布失败：${totalFeedbackReadyResult.detail || '总课评准备失败，请重试'}`)
+      return false
+    }
+    if (!(await flushStudentDrafts(activeTask.value?.id))) {
+      notify('发布失败：仍有学生交付草稿未保存，请重试')
+      return false
     }
     const missing = attendingRows.value.filter((row) => !isDeliveryConfirmed(row))
     if (missing.length) {
-      notify(`发布失败：还有 ${missing.length} 名学生的作品或课评未确认`)
+      notify(`发布失败：还有 ${missing.length} 名学生的作品未确认`)
       return false
     }
     const draftSaved = await remoteSaveShareDraft('发布前保存草稿')
@@ -6751,7 +7006,7 @@ export function useDeliveryWorkflow() {
       .map((row, index) => {
         const student = students.find((item) => sameId(item.id, row.studentId))
         const link = remoteStudentShareUrlFor(row)
-        return `${index + 1}. ${student?.name || row.studentName || '学生'}\n作品文件：${remoteFileNameFor(row)}\n展示页：${link || '待发布'}\n课评：${row.comment || '待生成'}`
+        return `${index + 1}. ${student?.name || row.studentName || '学生'}\n作品文件：${remoteFileNameFor(row)}\n展示页：${link || '待发布'}\n总课评：${totalFeedback.value?.content || '待填写'}${row.comment ? `\n学生补充课评：${row.comment}` : ''}`
       })
       .join('\n\n')
   )
@@ -6798,9 +7053,9 @@ export function useDeliveryWorkflow() {
       notify(`已有 ${pendingCreates.length} 个企业微信消息正在处理中，请稍后查看结果`)
       return false
     }
-    const feedbackReady = await prepareFeedbackForParentDelivery(lessonId)
+    const feedbackReady = await prepareTotalFeedbackForParentDelivery(lessonId)
     if (!feedbackReady.ok) {
-      notify(`发布失败：${feedbackReady.detail || '课评准备失败，请重试'}`)
+      notify(`发布失败：${feedbackReady.detail || '总课评准备失败，请重试'}`)
       return false
     }
     if (!sharePage.value?.publishedVersion) {
@@ -7275,7 +7530,7 @@ export function useDeliveryWorkflow() {
   const archiveRunDefinitions = [
     { key: 'lessonStatus', title: '课次状态' },
     { key: 'studentDelivery', title: '学生交付内容' },
-    { key: 'deliveryConfirm', title: '作品与课评' },
+    { key: 'deliveryConfirm', title: '作品与总课评' },
     { key: 'parentTouch', title: '家长展示页与通知' },
     { key: 'wheatTrace', title: '小麦消课待办' },
     { key: 'archiveExtras', title: '网盘或老师课效归档' },
@@ -7378,6 +7633,9 @@ export function useDeliveryWorkflow() {
     let artworkAttempted = false
     const rows = attendingRows.value
 
+    const totalReady = await prepareTotalFeedbackForParentDelivery(lesson.id)
+    if (!totalReady.ok) failures.push({ studentName: '本课次总课评', reason: totalReady.detail })
+
     for (const row of rows) {
       const studentName = archiveRowName(row)
       const targets = artworkTargetsForDelivery(row)
@@ -7403,46 +7661,10 @@ export function useDeliveryWorkflow() {
       }
     }
 
-    const feedbackRows = rows.filter((row) => String(row.comment || '').trim())
-    let feedbackAttempted = false
-    if (feedbackRows.length === rows.length && rows.length) {
-      feedbackAttempted = true
-      try {
-        const saved = await api.feedback.saveBatch(lesson.id, rows.map((row) => ({
-          studentId: String(row.studentId),
-          ...feedbackBodyFor(row)
-        })))
-        const savedItems = Array.isArray(saved) ? saved : saved?.items || []
-        const savedByStudent = new Map(savedItems.map((item) => [String(item.studentId), item]))
-        const missingSaved = []
-        rows.forEach((row) => {
-          const item = savedByStudent.get(String(row.studentId))
-          if (!item?.id) missingSaved.push(row)
-          else applyFeedbackToRow(row, item)
-        })
-        if (missingSaved.length) {
-          missingSaved.forEach((row) => failures.push({
-            studentName: archiveRowName(row),
-            reason: '课评保存失败，未返回当前版本'
-          }))
-        } else {
-          const confirmation = await autoConfirmFeedbackRows(lesson.id, rows, { ignoreJobStatus: true })
-          if (!confirmation.ok) failures.push(...confirmation.failures)
-          else rows.forEach((row) => markStudentDraftSaved(row))
-        }
-      } catch (error) {
-        failures.push({ studentName: '本课次课评', reason: `批量保存或确认失败：${remoteErrorMessage(error, '请稍后重试')}` })
-      }
-    } else {
-      rows.filter((row) => !String(row.comment || '').trim()).forEach((row) => {
-        failures.push({ studentName: archiveRowName(row), reason: '课评内容为空' })
-      })
-    }
-
-    if (artworkAttempted || feedbackAttempted) await refreshRemoteLesson(lesson.id, { force: true })
+    if (artworkAttempted) await refreshRemoteLesson(lesson.id, { force: true })
     return {
       ok: failures.length === 0,
-      detail: failures.length ? `有 ${failures.length} 项内容未处理` : `已处理 ${rows.length} 位学生的作品和课评`,
+      detail: failures.length ? `有 ${failures.length} 项内容未处理` : `已处理 ${rows.length} 位学生的作品和总课评`,
       failures
     }
   }
@@ -7474,11 +7696,12 @@ export function useDeliveryWorkflow() {
     task = lessonStatus.value
 
     const studentDelivery = await runArchiveStep('studentDelivery', async () => {
-      if (!(await flushStudentDrafts(task.id))) {
+      if (!(await flushStudentDrafts(task.id)) || !(await flushTotalFeedback())) {
         const failures = attendingRows.value
           .filter((row) => studentDraftStatusFor(row) === 'ERROR')
           .map((row) => ({ studentName: archiveRowName(row), reason: studentDraftErrorFor(row) || '自动保存失败' }))
-        return { ok: false, detail: '仍有课堂记录或课评草稿未保存', failures }
+        if (totalFeedbackDraftStatusFor() === 'ERROR') failures.push({ studentName: '本课次总课评', reason: totalFeedbackDraftErrorFor() || '总课评自动保存失败' })
+        return { ok: false, detail: '仍有交付内容未保存', failures }
       }
       const workspace = await refreshRemoteLesson(task.id, { force: true })
       if (!workspace) return { ok: false, detail: '学生交付内容刷新失败，请重试' }
@@ -7495,7 +7718,7 @@ export function useDeliveryWorkflow() {
       return false
     }
 
-    const deliveryConfirm = await runArchiveStep('deliveryConfirm', () => confirmDeliveryBeforeArchive(task), '作品或课评处理失败')
+    const deliveryConfirm = await runArchiveStep('deliveryConfirm', () => confirmDeliveryBeforeArchive(task), '作品或总课评处理失败')
     if (!deliveryConfirm.ok) {
       stopArchiveRun('error', deliveryConfirm.detail)
       return false
@@ -8933,6 +9156,7 @@ export function useDeliveryWorkflow() {
     activeClass,
     activeCourse,
     activeSessionStudent,
+    totalFeedback,
     activeArtworkId,
     activeArtwork,
     activeStudent,
@@ -8973,6 +9197,18 @@ export function useDeliveryWorkflow() {
     markStudentDraftSaved,
     flushStudentDraft,
     flushStudentDrafts,
+    totalFeedbackStatusFor: () => {
+      if (totalFeedbackJobActive()) return '润色中'
+      if (totalFeedbackDraftStatusFor() === 'ERROR') return '保存失败'
+      if (['DIRTY', 'SAVING'].includes(totalFeedbackDraftStatusFor())) return '保存中'
+      if (!String(totalFeedback.value?.content || '').trim()) return '待填写'
+      return totalFeedbackReady() ? '已保存' : '待自动保存'
+    },
+    totalFeedbackDraftStatusFor,
+    totalFeedbackDraftErrorFor,
+    markTotalFeedbackDirty,
+    flushTotalFeedback,
+    polishTotalFeedback,
     archiveTargets,
     selectedArchiveTargets,
     archiveChecklist,

@@ -358,6 +358,7 @@ const imageProtocolOptions = ['WAN_NATIVE', 'OPENAI_COMPATIBLE']
 const imageSizeOptions = ['1K', '2K', '4K']
 const aiCapabilityOptions = [
   { value: 'FEEDBACK_GENERATION', label: '文本生成 / 课评' },
+  { value: 'TOTAL_FEEDBACK_POLISH', label: '总课评润色（复用文本模型）' },
   { value: 'TEXT_TO_IMAGE', label: '文生图' },
   { value: 'IMAGE_TO_IMAGE', label: '图生图' }
 ]
@@ -464,7 +465,7 @@ const addProvider = () => {
     appId: '',
     secretKey: '',
     secretRef: '',
-    capabilities: isAiCategory.value ? ['FEEDBACK_GENERATION', 'TEXT_TO_IMAGE', 'IMAGE_TO_IMAGE'] : [],
+    capabilities: isAiCategory.value ? ['FEEDBACK_GENERATION', 'TOTAL_FEEDBACK_POLISH', 'TEXT_TO_IMAGE', 'IMAGE_TO_IMAGE'] : [],
     config: isAiCategory.value ? {
       protocol: 'OPENAI_COMPATIBLE',
       textProtocol: 'OPENAI_COMPATIBLE',
@@ -564,7 +565,7 @@ const setProviderType = (provider, value) => {
     provider.authType = 'API Key'
     provider.capabilities = provider.capabilities?.length
       ? provider.capabilities
-      : ['FEEDBACK_GENERATION', 'TEXT_TO_IMAGE', 'IMAGE_TO_IMAGE']
+      : ['FEEDBACK_GENERATION', 'TOTAL_FEEDBACK_POLISH', 'TEXT_TO_IMAGE', 'IMAGE_TO_IMAGE']
     provider.config = {
       protocol: 'OPENAI_COMPATIBLE',
       textProtocol: 'OPENAI_COMPATIBLE',

@@ -73,7 +73,7 @@ test('marks student delivery ready without requiring manual confirmations', () =
   }), { ready: true, failures: [] })
 })
 
-test('reports the missing student delivery parts', () => {
+test('does not require optional classroom records or personal feedback', () => {
   assert.deepEqual(studentDeliveryReadiness({
     artworkReady: false,
     record: '',
@@ -81,7 +81,7 @@ test('reports the missing student delivery parts', () => {
     commentStatus: 'SAVED'
   }), {
     ready: false,
-    failures: ['作品待准备', '课堂记录待补']
+    failures: ['作品待准备']
   })
 })
 

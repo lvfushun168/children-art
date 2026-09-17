@@ -1036,6 +1036,7 @@ watch(homeworkEditorOpen, async (open) => {
             <DeliveryPreview
               :active-student="state.activeStudent"
               :active-session-student="state.activeSessionStudent"
+              :total-feedback="state.totalFeedback"
               :active-course="state.activeCourse"
               :active-task="state.activeTask"
               :active-image-template="state.activeImageTemplate"

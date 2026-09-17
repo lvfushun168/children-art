@@ -11,6 +11,10 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  totalFeedback: {
+    type: Object,
+    default: () => ({})
+  },
   activeCourse: {
     type: Object,
     required: true
@@ -132,6 +136,8 @@ const artworkConfirmation = (artwork) => artwork?.imageConfirmed ? '老师已确
 const homeworkIsAssigned = (value) => value?.taskMode
   ? value.taskMode === 'ASSIGNED'
   : Boolean(String(value?.content || '').trim())
+const totalFeedbackContent = computed(() => String(props.totalFeedback?.content || '').trim())
+const personalFeedbackContent = computed(() => String(props.activeSessionStudent?.comment || '').trim())
 const formatHomeworkDate = (value) => {
   if (!value) return ''
   const [year, month, day] = String(value).slice(0, 10).split('-')
@@ -182,7 +188,14 @@ const formatHomeworkDate = (value) => {
       <small v-if="displayConfig.showLessonType">
         {{ activeTask.lessonType }}
       </small>
-      <p>{{ activeSessionStudent.comment || '暂无课评' }}</p>
+      <section class="preview-feedback-block">
+        <strong>本节课总课评</strong>
+        <p>{{ totalFeedbackContent || '暂无总课评' }}</p>
+        <template v-if="personalFeedbackContent">
+          <strong>学生补充课评</strong>
+          <p>{{ personalFeedbackContent }}</p>
+        </template>
+      </section>
       <div v-if="displayConfig.showMaterials" class="preview-materials">
         <template v-for="material in materials.filter((item) => item.visible && item.type !== '课件')" :key="material.id">
           <ProtectedMedia

@@ -946,8 +946,12 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <section class="archive-detail-group">
         <span>本次交付内容 · 只读</span>
         <article class="archive-block">
-          <strong>课评</strong>
-          <p>{{ selected.feedback }}</p>
+          <strong>{{ selected.totalFeedback ? '总课评' : '课评' }}</strong>
+          <p>{{ selected.totalFeedback || selected.feedback || '暂无课评。' }}</p>
+        </article>
+        <article v-if="selected.totalFeedback && selected.personalFeedback" class="archive-block">
+          <strong>学生补充课评</strong>
+          <p>{{ selected.personalFeedback }}</p>
         </article>
         <article class="archive-block">
           <strong>课后任务</strong>

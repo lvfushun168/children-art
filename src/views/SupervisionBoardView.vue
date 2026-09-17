@@ -100,7 +100,7 @@ watch(todayLessons, (lessons) => {
 const checkpointsFor = (lesson) => [
   { label: '资料', done: lesson.status === '已完成' || lesson.materials?.length > 0 },
   { label: '作品', done: lesson.status === '已完成' || lesson.worksCount > 0 },
-  { label: '课评', done: lesson.status === '已完成' || lesson.studentWorks?.some((work) => work.feedback) },
+  { label: '课评', done: lesson.status === '已完成' || lesson.totalFeedbackReady || Boolean(String(lesson.totalFeedback || '').trim()) },
   { label: '展示', done: lesson.status === '已完成' || lesson.shareReadyCount > 0 },
   { label: '归档', done: lesson.status === '已完成' || lesson.archivedCount > 0 },
   { label: '小麦', done: ['已人工处理', '无需处理'].includes(lesson.wheatStatus) }

@@ -34,14 +34,12 @@ export const studentDeliveryReadiness = ({
   else if (normalizedArtworkStatus === 'FAILED') failures.push('作品处理失败')
   else if (!artworkReady) failures.push('作品待准备')
 
-  if (!String(record || '').trim()) failures.push('课堂记录待补')
-  else if (normalizedRecordStatus === 'ERROR') failures.push('课堂记录保存失败')
+  if (normalizedRecordStatus === 'ERROR' && String(record || '').trim()) failures.push('课堂记录保存失败')
   else if (draftPendingStatuses.has(normalizedRecordStatus)) failures.push('课堂记录保存中')
 
   if (normalizedCommentJobStatus === 'FAILED' || normalizedCommentJobStatus === 'CANCELED') failures.push('课评生成失败')
   else if (normalizedCommentJobStatus && !['SUCCEEDED', 'COMPLETED'].includes(normalizedCommentJobStatus)) failures.push('课评生成中')
-  else if (!String(comment || '').trim()) failures.push('课评待生成')
-  else if (normalizedCommentStatus === 'ERROR') failures.push('课评保存失败')
+  else if (normalizedCommentStatus === 'ERROR' && String(comment || '').trim()) failures.push('课评保存失败')
   else if (draftPendingStatuses.has(normalizedCommentStatus)) failures.push('课评保存中')
 
   return { ready: failures.length === 0, failures }

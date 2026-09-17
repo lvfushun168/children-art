@@ -14,7 +14,7 @@ const { clearSession, createIdempotencyKey, getAccessToken, getApiRequestStats, 
 const { api } = await import('../src/services/api.js')
 const { downloadProtectedFile } = await import('../src/services/fileService.js')
 const { clearProtectedMediaCache, protectedMediaUrl } = await import('../src/services/protectedMediaCache.js')
-const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCloudArchiveBatch, mapCloudArchiveJob, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapPreparationMemory, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
+const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCloudArchiveBatch, mapCloudArchiveJob, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapPreparationMemory, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTotalFeedback, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
 
 const response = (status, payload, contentType = 'application/json') => ({
   status,
@@ -603,6 +603,67 @@ test('maps artwork, feedback, job and share DTOs while preserving protocol codes
   assert.equal(mapHomework({ content: '旧数据任务', visible: true }).taskMode, 'ASSIGNED')
   assert.equal(mapHomework({ taskMode: 'NONE', content: '历史残留内容', visible: true }).visible, false)
   assert.equal(share.homework.taskMode, 'NONE')
+})
+
+test('maps total feedback candidates and keeps archive total feedback as the primary text', () => {
+  const total = mapTotalFeedback({
+    id: '9007199254740993',
+    lessonId: '12',
+    status: 'CONFIRMED',
+    currentVersionId: '14',
+    content: 'AI 润色候选',
+    versions: [{ id: '14', lessonFeedbackId: '9007199254740993', versionNo: 2, versionKind: 'AI_CANDIDATE' }]
+  })
+  assert.equal(total.id, '9007199254740993')
+  assert.equal(total.lessonId, 12)
+  assert.equal(total.status, 'CONFIRMED')
+  assert.equal(total.versions[0].lessonFeedbackId, '9007199254740993')
+
+  const archive = mapArchiveRecord({
+    id: '20',
+    studentId: '2',
+    snapshot: {
+      totalFeedback: { content: '本节课总课评' },
+      students: [{
+        studentId: '2',
+        feedback: { content: '学生补充课评' },
+        personalFeedback: { content: '学生补充课评' }
+      }]
+    }
+  })
+  assert.equal(archive.feedback, '本节课总课评')
+  assert.equal(archive.totalFeedback, '本节课总课评')
+  assert.equal(archive.personalFeedback, '学生补充课评')
+
+  const legacy = mapArchiveRecord({
+    id: '21',
+    studentId: '2',
+    snapshot: { students: [{ studentId: '2', feedback: { content: '历史学生课评' } }] }
+  })
+  assert.equal(legacy.feedback, '历史学生课评')
+  assert.equal(legacy.totalFeedback, '')
+})
+
+test('uses the total feedback endpoints and preserves version fields', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options })
+    return response(200, { data: { id: '8', status: 'CONFIRMED' }, meta: {}, error: null })
+  }
+
+  await api.feedback.total('12')
+  await api.feedback.saveTotal('12', { content: '总课评原文', version: 2 })
+  await api.feedback.polishTotal('12', { templateId: '3' })
+  await api.feedback.totalVersions('8')
+
+  assert.deepEqual(calls.map((call) => call.url), [
+    '/api/v1/lessons/12/total-feedback',
+    '/api/v1/lessons/12/total-feedback',
+    '/api/v1/lessons/12/total-feedback/polish',
+    '/api/v1/total-feedback/8/versions'
+  ])
+  assert.deepEqual(JSON.parse(calls[1].options.body), { content: '总课评原文', version: 2 })
+  assert.deepEqual(JSON.parse(calls[2].options.body), { templateId: '3' })
 })
 
 test('defaults paged requests to twenty rows and repeats wheat status filters', async () => {

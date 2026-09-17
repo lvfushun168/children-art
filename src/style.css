@@ -5,7 +5,13 @@
 /* ---------- 学生维度交付工作台：桌面表格 / 手机学生详情 ---------- */
 .student-delivery-workspace {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
+  min-width: 0;
+}
+
+.student-delivery-workspace > * {
+  min-width: 0;
 }
 
 .student-delivery-head {
@@ -263,6 +269,22 @@
 
 .student-record-replace {
   position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: transparent;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-record-replace > span {
+  position: absolute;
   right: 3px;
   bottom: 3px;
   display: inline-flex;
@@ -272,9 +294,10 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-heading) 76%, transparent);
   color: var(--color-primary-contrast);
-  font-size: 10px;
-  font-weight: 800;
-  cursor: pointer;
+}
+
+.student-record-replace:hover > span {
+  background: color-mix(in srgb, var(--color-heading) 88%, transparent);
 }
 
 .student-record-replace input,

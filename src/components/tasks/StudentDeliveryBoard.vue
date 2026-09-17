@@ -661,8 +661,8 @@ onMounted(() => {
                         preload="metadata"
                         muted
                       />
-                      <label class="student-record-replace" title="重新上传">
-                        替换
+                      <label class="student-record-replace" title="点击媒体或“替换”重新上传" aria-label="替换学生记录">
+                        <span aria-hidden="true">替换</span>
                         <input type="file" accept="image/*,video/*" @change="replaceStudentRecord($event, row, record)" />
                       </label>
                     </div>

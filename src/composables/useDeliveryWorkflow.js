@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { usePortfolioStudio } from './usePortfolioStudio'
 import { api } from '../services/api'
 import {
@@ -114,6 +114,25 @@ const homeworkIsAssigned = (value) => value?.taskMode
   ? value.taskMode === 'ASSIGNED'
   : Boolean(String(value?.content || '').trim())
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const createShareDraftState = () => ({
+  status: 'SAVED',
+  error: '',
+  revision: 0,
+  savedRevision: 0,
+  savedSignature: ''
+})
+const shareDraftSignatureForWorkspace = (workspace) => JSON.stringify({
+  taskMode: homeworkIsAssigned(workspace?.homework) ? 'ASSIGNED' : 'NONE',
+  content: String(workspace?.homework?.content || ''),
+  requirement: String(workspace?.homework?.requirement || ''),
+  dueDate: String(workspace?.homework?.dueDate || ''),
+  externalLinkIds: (Array.isArray(workspace?.homework?.externalLinkIds) ? workspace.homework.externalLinkIds : []).map(String),
+  showHomework: homeworkIsAssigned(workspace?.homework) && workspace?.displayConfig?.showHomework !== false
+})
+const shareDraftHasUnsavedChanges = (state) => Boolean(state) && (
+  Number(state.revision || 0) !== Number(state.savedRevision || 0)
+  || String(state.status || '').toUpperCase() === 'ERROR'
+)
 const PREPARATION_MATERIAL_LABELS = new Set(['范画', '步骤图', '课件'])
 const displayDateFromValue = (value) => {
   if (!value) return ''
@@ -302,6 +321,8 @@ export function useDeliveryWorkflow() {
   const studentDraftSaveChains = new Map()
   const totalFeedbackSaveTimer = new Map()
   const totalFeedbackSaveChains = new Map()
+  const shareDraftSaveTimers = new Map()
+  let removeShareDraftPagehide = () => {}
   const archiveRunState = reactive({
     open: false,
     phase: 'idle',
@@ -386,6 +407,7 @@ export function useDeliveryWorkflow() {
       savedRevision: 0,
       jobId: null
     },
+    shareDraft: createShareDraftState(),
     materials: [],
     materialsConfirmedEmpty: false,
     materialsVersion: null,
@@ -445,6 +467,7 @@ export function useDeliveryWorkflow() {
     if (!workspace.preparationMemory) {
       workspace.preparationMemory = mapPreparationMemory()
     }
+    if (!workspace.shareDraft) workspace.shareDraft = createShareDraftState()
     if (!workspace.totalFeedback) {
       workspace.totalFeedback = {
         id: null,
@@ -1923,12 +1946,15 @@ export function useDeliveryWorkflow() {
     if (!Array.isArray(homework.value.externalLinkIds)) homework.value.externalLinkIds = []
     const normalizedId = fromApiId(id)
     if (normalizedId === null || normalizedId === undefined) return
+    const before = shareDraftSignatureForWorkspace(activeWorkspace.value)
     const index = homework.value.externalLinkIds.findIndex((item) => sameId(item, normalizedId))
     if (index >= 0) homework.value.externalLinkIds.splice(index, 1)
     else homework.value.externalLinkIds.push(normalizedId)
+    if (before !== shareDraftSignatureForWorkspace(activeWorkspace.value)) markShareDraftDirty()
   }
 
-  const setHomeworkMode = (mode) => {
+  const setHomeworkMode = (mode, { markDirty = true } = {}) => {
+    const before = shareDraftSignatureForWorkspace(activeWorkspace.value)
     const nextMode = mode === 'ASSIGNED' ? 'ASSIGNED' : 'NONE'
     homework.value.taskMode = nextMode
     if (nextMode === 'NONE') {
@@ -1938,12 +1964,17 @@ export function useDeliveryWorkflow() {
       homework.value.visible = true
       displayConfig.value.showHomework = true
     }
+    const changed = before !== shareDraftSignatureForWorkspace(activeWorkspace.value)
+    if (changed && markDirty) markShareDraftDirty()
+    return changed
   }
 
   const applyHomeworkExample = ({ content = '', requirement = '' } = {}) => {
-    setHomeworkMode('ASSIGNED')
+    const before = shareDraftSignatureForWorkspace(activeWorkspace.value)
+    setHomeworkMode('ASSIGNED', { markDirty: false })
     homework.value.content = content
     homework.value.requirement = requirement
+    if (before !== shareDraftSignatureForWorkspace(activeWorkspace.value)) markShareDraftDirty()
   }
 
   const shareDraftPayload = () => ({
@@ -2925,13 +2956,30 @@ export function useDeliveryWorkflow() {
     return task
   }
 
-  const nextStep = () => {
-    if (currentStep.value < steps.value.length - 1) currentStep.value += 1
+  const goToStep = async (target) => {
+    const numericTarget = Number(target)
+    const next = Number.isFinite(numericTarget)
+      ? Math.max(0, Math.min(steps.value.length - 1, numericTarget))
+      : currentStep.value
+    const previous = currentStep.value
+    if (next === previous) return true
+    if (previous === 3 && next !== 3) {
+      try {
+        await flushShareDraft(activeTaskId.value, {
+          reason: '离开第 4 步前自动保存课后任务',
+          notifyOnError: true
+        })
+      } catch {
+        notify('家长展示草稿保存失败，本次修改可能未保存')
+      }
+    }
+    currentStep.value = next
+    return true
   }
 
-  const prevStep = () => {
-    if (currentStep.value > 0) currentStep.value -= 1
-  }
+  const nextStep = () => goToStep(currentStep.value + 1)
+
+  const prevStep = () => goToStep(currentStep.value - 1)
 
   const replaceReactive = (target, values = []) => {
     target.splice(0, target.length, ...(Array.isArray(values) ? values : []))
@@ -3871,6 +3919,13 @@ export function useDeliveryWorkflow() {
     const teacherEffectValue = value?.teacherEffect?.teacherEffect || value?.m3?.teacherEffect?.teacherEffect
     const teacherEffect = teacherEffectValue || createTeacherEffectPlaceholder(lesson)
     const workspace = ensureLessonWorkspace(lesson)
+    const shareDraftState = workspace.shareDraft || (workspace.shareDraft = createShareDraftState())
+    const preserveLocalShareDraft = shareDraftHasUnsavedChanges(shareDraftState)
+      ? {
+          homework: clone(workspace.homework),
+          showHomework: workspace.displayConfig?.showHomework
+        }
+      : null
     const cloudArchiveModule = value?.cloudArchive || value?.m3?.cloudArchive || {}
     const cloudJobs = (cloudArchiveModule.jobs || []).map(mapCloudArchiveJob)
     const cloudBatch = cloudArchiveModule.batch ? mapCloudArchiveBatch(cloudArchiveModule.batch) : workspace.cloudBatch
@@ -3960,7 +4015,18 @@ export function useDeliveryWorkflow() {
       lessonId: lesson.id
     }))
     const homeworkData = mapHomework(parentModule.homework || draft.homework || draft.publishedSnapshot?.homework || {})
-    draftDisplayConfig.showHomework = homeworkIsAssigned(homeworkData) && homeworkData.visible !== false && draftDisplayConfig.showHomework !== false
+    const nextHomework = preserveLocalShareDraft
+      ? {
+          ...homeworkData,
+          ...preserveLocalShareDraft.homework,
+          lessonId: lesson.id,
+          version: Number(homeworkData.version ?? preserveLocalShareDraft.homework.version ?? 0),
+          externalLinkIds: fromApiIds(preserveLocalShareDraft.homework.externalLinkIds || [])
+        }
+      : { ...homeworkData, lessonId: lesson.id, externalLinkIds: fromApiIds(homeworkData.externalLinkIds || []) }
+    draftDisplayConfig.showHomework = homeworkIsAssigned(nextHomework)
+      && nextHomework.visible !== false
+      && (preserveLocalShareDraft ? preserveLocalShareDraft.showHomework !== false : draftDisplayConfig.showHomework !== false)
     Object.assign(workspace, {
       lessonId: lesson.id,
       studentDeliveries: rows,
@@ -3980,7 +4046,7 @@ export function useDeliveryWorkflow() {
         ? workspace.materialsVersion ?? null
         : Number(assetsModule.materialsVersion || 0),
       preparationMemory,
-      homework: { ...workspace.homework, ...homeworkData, lessonId: lesson.id, externalLinkIds: fromApiIds(homeworkData.externalLinkIds || []) },
+      homework: { ...workspace.homework, ...nextHomework },
       displayConfig: draftDisplayConfig,
       sharePage: mergeSharePageForWorkspace(workspace, draft),
       teacherEffect,
@@ -3992,6 +4058,14 @@ export function useDeliveryWorkflow() {
       completion: value?.completion || value?.completionCheck || null,
       availableCommands: value?.availableCommands || []
     })
+    if (preserveLocalShareDraft) {
+      shareDraftState.status = String(shareDraftState.status || '').toUpperCase() === 'ERROR' ? 'ERROR' : 'DIRTY'
+    } else {
+      shareDraftState.status = 'SAVED'
+      shareDraftState.error = ''
+      shareDraftState.savedRevision = Number(shareDraftState.revision || 0)
+      shareDraftState.savedSignature = shareDraftSignatureForWorkspace(workspace)
+    }
     const activeRow = rows.find((row) => sameId(row.studentId, workspace.activeStudentId)) || rows.find((row) => row.attendance === '到课')
     if (!activeRow?.artworks?.some((artwork) => sameId(artwork.artworkId, workspace.activeArtworkId))) {
       workspace.activeArtworkId = activeRow?.artworks?.[0]?.artworkId || null
@@ -4565,11 +4639,32 @@ export function useDeliveryWorkflow() {
     jobWatchers.clear()
   }
 
+  onMounted(() => {
+    if (typeof window === 'undefined') return
+    const handlePageHide = () => {
+      const lessonId = activeTaskId.value
+      const workspace = lessonId ? lessonWorkspaces[String(lessonId)] : null
+      if (!workspace || !shareDraftHasUnsavedChanges(workspace.shareDraft)) return
+      void flushShareDraft(lessonId, {
+        reason: '页面关闭前自动保存课后任务',
+        keepalive: true,
+        silent: true,
+        notifyOnError: false
+      })
+    }
+    window.addEventListener('pagehide', handlePageHide)
+    removeShareDraftPagehide = () => window.removeEventListener('pagehide', handlePageHide)
+  })
+
   onBeforeUnmount(() => {
+    removeShareDraftPagehide()
+    removeShareDraftPagehide = () => {}
     cancelJobWatchers()
     if (cloudProviderPickerResolver) cloudProviderPickerResolver(null)
     studentDraftSaveTimers.forEach((timer) => clearTimeout(timer))
     studentDraftSaveTimers.clear()
+    shareDraftSaveTimers.forEach((timer) => clearTimeout(timer))
+    shareDraftSaveTimers.clear()
     if (archiveRunCloseTimer) clearTimeout(archiveRunCloseTimer)
   })
 
@@ -5248,6 +5343,15 @@ export function useDeliveryWorkflow() {
   }
 
   const remoteLogout = async () => {
+    let shareDraftSaved = true
+    try {
+      shareDraftSaved = await flushShareDraft()
+    } catch {
+      shareDraftSaved = false
+    }
+    if (!shareDraftSaved) {
+      notify('家长展示草稿保存失败，本次修改可能未保存，仍将退出登录')
+    }
     if (!(await flushStudentDrafts())) {
       notify('仍有课堂记录或课评草稿保存失败，请重试后再退出登录')
       return false
@@ -5320,6 +5424,8 @@ export function useDeliveryWorkflow() {
     Object.keys(studentProfiles).forEach((key) => delete studentProfiles[key])
     Object.keys(studentProfileAudits).forEach((key) => delete studentProfileAudits[key])
     Object.keys(lessonWorkspaces).forEach((key) => delete lessonWorkspaces[key])
+    shareDraftSaveTimers.forEach((timer) => clearTimeout(timer))
+    shareDraftSaveTimers.clear()
     shareDraftSaveChains.clear()
     studentDraftSaveTimers.forEach((timer) => clearTimeout(timer))
     studentDraftSaveTimers.clear()
@@ -5366,9 +5472,23 @@ export function useDeliveryWorkflow() {
     if (!task?.id) return null
     const selectionSequence = selectionSequenceOverride ?? ++lessonSelectionSequence
     const previousTaskId = activeTaskId.value
-    if (previousTaskId && !sameId(previousTaskId, task.id) && !(await flushStudentDrafts(previousTaskId))) {
-      notify('上一课次还有未保存的课堂记录或课评，请重试后再切换')
-      return null
+    if (previousTaskId && !sameId(previousTaskId, task.id)) {
+      let shareDraftSaved = true
+      try {
+        shareDraftSaved = await flushShareDraft(previousTaskId, {
+          reason: '切换课次前自动保存课后任务',
+          retryOnError: false
+        })
+      } catch {
+        shareDraftSaved = false
+      }
+      if (!shareDraftSaved) {
+        notify('上一课次的家长展示草稿保存失败，本次修改可能未保存，仍将切换')
+      }
+      if (!(await flushStudentDrafts(previousTaskId))) {
+        notify('上一课次还有未保存的课堂记录或课评，请重试后再切换')
+        return null
+      }
     }
     cancelJobWatchers()
     const latestTask = await fetchLatestLessonRecord(task.id)
@@ -6862,43 +6982,186 @@ export function useDeliveryWorkflow() {
     }))
   })
 
+  const shareDraftWorkspaceFor = (lessonId = activeTaskId.value) => {
+    const key = String(lessonId || '')
+    if (!key) return null
+    if (lessonWorkspaces[key]) return lessonWorkspaces[key]
+    return sameId(activeTask.value?.id, lessonId) ? activeWorkspace.value : null
+  }
+
+  const shareDraftStatusFor = (lessonId = activeTaskId.value) => {
+    const workspace = shareDraftWorkspaceFor(lessonId)
+    return String(workspace?.shareDraft?.status || 'SAVED').toUpperCase()
+  }
+
+  const shareDraftErrorFor = (lessonId = activeTaskId.value) => {
+    const workspace = shareDraftWorkspaceFor(lessonId)
+    return workspace?.shareDraft?.error || ''
+  }
+
+  const shareDraftFailureMessageFor = (workspace) =>
+    workspace?.shareDraft?.error || '家长展示草稿自动保存失败，请重试'
+
+  const markShareDraftDirty = (lessonId = activeTaskId.value) => {
+    const workspace = shareDraftWorkspaceFor(lessonId)
+    const state = workspace?.shareDraft
+    const key = String(lessonId || workspace?.lessonId || '')
+    if (!workspace || !state || !key) return false
+    state.revision = Number(state.revision || 0) + 1
+    state.status = 'DIRTY'
+    state.error = ''
+    const previousTimer = shareDraftSaveTimers.get(key)
+    if (previousTimer) clearTimeout(previousTimer)
+    shareDraftSaveTimers.set(key, setTimeout(() => {
+      shareDraftSaveTimers.delete(key)
+      void saveShareDraftNow(workspace, lessonId, {
+        reason: '自动保存课后任务',
+        silent: true,
+        notifyOnError: false
+      })
+    }, 800))
+    return true
+  }
+
+  const requestShareDraft = async (lessonId, payload, { silent = false, keepalive = false } = {}) => {
+    const label = '正在保存家长展示草稿...'
+    const previousProcessingAction = processingAction.value
+    if (!silent) processingAction.value = label
+    try {
+      return await api.parent.saveDraft(lessonId, payload, { keepalive })
+    } finally {
+      if (!silent && processingAction.value === label) processingAction.value = previousProcessingAction
+    }
+  }
+
+  const saveShareDraftNow = (workspace, lessonId, {
+    reason = '调整展示内容',
+    force = false,
+    silent = true,
+    notifyOnError = false,
+    keepalive = false
+  } = {}) => {
+    const state = workspace?.shareDraft
+    const key = String(lessonId || workspace?.lessonId || '')
+    if (!workspace || !state || !key) return Promise.resolve(false)
+    const timer = shareDraftSaveTimers.get(key)
+    if (timer) {
+      clearTimeout(timer)
+      shareDraftSaveTimers.delete(key)
+    }
+    const currentChain = shareDraftSaveChains.get(key)
+    if (currentChain) return currentChain
+
+    const operation = (async () => {
+      let forceSave = force
+      let conflictRetried = false
+      while (forceSave || shareDraftHasUnsavedChanges(state)) {
+        // 用户已经切换到另一课次时，不要把当前课次的草稿保存到错误的工作区。
+        if (!sameId(activeTask.value?.id, lessonId)) return false
+        const revision = Number(state.revision || 0)
+        state.status = 'SAVING'
+        state.error = ''
+        try {
+          const signature = shareDraftSignatureForWorkspace(workspace)
+          const payload = remoteShareDraftPayload()
+          const result = await requestShareDraft(lessonId, payload, { silent, keepalive })
+          const pageValue = result?.page || result
+          if (!pageValue || typeof pageValue !== 'object') {
+            throw new Error('保存家长展示草稿后未收到服务器版本')
+          }
+          const page = mapSharePage(pageValue)
+          workspace.sharePage = mergeSharePageForWorkspace(workspace, page)
+          if (page.homework?.version !== undefined) {
+            workspace.homework.version = Number(page.homework.version || 0)
+          }
+          workspace.sharePage.draftSnapshot = page.draftSnapshot || payload
+          state.savedRevision = revision
+          state.savedSignature = signature
+          const currentSignature = shareDraftSignatureForWorkspace(workspace)
+          const revisionIsCurrent = Number(state.revision || 0) === revision && currentSignature === signature
+          state.status = revisionIsCurrent ? 'SAVED' : 'DIRTY'
+          state.error = ''
+          forceSave = false
+          if (revisionIsCurrent) {
+            if (!silent) {
+              addStatusLog('家长展示页', lessonId, '已发布', '草稿', reason)
+              notify('展示草稿已保存')
+            }
+            return true
+          }
+        } catch (error) {
+          if (error?.status === 409 && !conflictRetried) {
+            conflictRetried = true
+            try {
+              const refreshed = await refreshRemoteLesson(lessonId, { force: true })
+              if (refreshed) continue
+            } catch {
+              // 保留版本冲突信息，交由下方错误状态展示并允许重试。
+            }
+          }
+          state.status = 'ERROR'
+          state.error = remoteErrorMessage(error, '家长展示草稿自动保存失败，请重试')
+          if (notifyOnError) notify(shareDraftFailureMessageFor(workspace))
+          return false
+        }
+      }
+      state.status = 'SAVED'
+      state.error = ''
+      return true
+    })()
+    shareDraftSaveChains.set(key, operation)
+    operation.finally(() => {
+      if (shareDraftSaveChains.get(key) === operation) shareDraftSaveChains.delete(key)
+    }).catch(() => {})
+    return operation
+  }
+
+  const flushShareDraft = async (lessonId = activeTaskId.value, {
+    reason = '离开前自动保存课后任务',
+    retryOnError = true,
+    notifyOnError = false,
+    silent = true,
+    keepalive = false
+  } = {}) => {
+    const workspace = shareDraftWorkspaceFor(lessonId)
+    const state = workspace?.shareDraft
+    const key = String(lessonId || workspace?.lessonId || '')
+    if (!workspace || !state || !key) return true
+    const timer = shareDraftSaveTimers.get(key)
+    if (timer) {
+      clearTimeout(timer)
+      shareDraftSaveTimers.delete(key)
+    }
+    const currentChain = shareDraftSaveChains.get(key)
+    if (currentChain) {
+      const result = await currentChain
+      if (!result && notifyOnError) notify(`家长展示草稿保存失败，本次修改可能未保存：${shareDraftFailureMessageFor(workspace)}`)
+      return result
+    }
+    if (!shareDraftHasUnsavedChanges(state)) return true
+    if (!retryOnError && String(state.status || '').toUpperCase() === 'ERROR') {
+      if (notifyOnError) notify(`家长展示草稿保存失败，本次修改可能未保存：${shareDraftFailureMessageFor(workspace)}`)
+      return false
+    }
+    const result = await saveShareDraftNow(workspace, lessonId, { reason, silent, notifyOnError, keepalive })
+    return result
+  }
+
+  const retryShareDraft = () => flushShareDraft(activeTaskId.value, {
+    reason: '重试保存家长展示草稿',
+    retryOnError: true,
+    notifyOnError: true
+  })
+
   const remoteSaveShareDraft = async (reason = '调整展示内容') => {
     const lessonId = activeTask.value?.id
     if (!lessonId) return false
-    const key = String(lessonId)
-    const previous = shareDraftSaveChains.get(key) || Promise.resolve(true)
-    const operation = previous.catch(() => false).then(async () => {
-      // 用户已经切换到另一课次时，不要把当前课次的草稿保存到错误的工作区。
-      if (!sameId(activeTask.value?.id, lessonId)) return false
-      const task = activeTask.value
-      const payload = remoteShareDraftPayload()
-      const result = await runRemote(
-        '正在保存家长展示草稿...',
-        () => api.parent.saveDraft(lessonId, payload),
-        '展示草稿已保存',
-        () => refreshRemoteLesson(lessonId, { force: true })
-      )
-      if (!result) return false
-      const workspace = ensureLessonWorkspace(task)
-      const page = mapSharePage(result)
-      workspace.sharePage = mergeSharePageForWorkspace(workspace, page)
-      if (page.homework) {
-        workspace.homework = {
-          ...workspace.homework,
-          ...page.homework,
-          version: Number(page.homework.version ?? workspace.homework.version ?? 0)
-        }
-      }
-      workspace.sharePage.draftSnapshot = payload
-      addStatusLog('家长展示页', lessonId, '已发布', '草稿', reason)
-      return true
+    return saveShareDraftNow(activeWorkspace.value, lessonId, {
+      reason,
+      force: true,
+      silent: false,
+      notifyOnError: true
     })
-    shareDraftSaveChains.set(key, operation)
-    try {
-      return await operation
-    } finally {
-      if (shareDraftSaveChains.get(key) === operation) shareDraftSaveChains.delete(key)
-    }
   }
 
   const remoteToggleHighlight = async (target) => {
@@ -7954,6 +8217,9 @@ export function useDeliveryWorkflow() {
     lessonWorkspaceEpochs.delete(key)
     lessonWorkspaceLoaded.delete(key)
     lessonStartPromises.delete(key)
+    const shareDraftTimer = shareDraftSaveTimers.get(key)
+    if (shareDraftTimer) clearTimeout(shareDraftTimer)
+    shareDraftSaveTimers.delete(key)
     shareDraftSaveChains.delete(key)
     delete lessonWorkspaces[key]
     if (sameId(activeTaskId.value, current.id)) {
@@ -9197,6 +9463,11 @@ export function useDeliveryWorkflow() {
     markStudentDraftSaved,
     flushStudentDraft,
     flushStudentDrafts,
+    shareDraftStatusFor,
+    shareDraftErrorFor,
+    markShareDraftDirty,
+    flushShareDraft,
+    retryShareDraft,
     totalFeedbackStatusFor: () => {
       if (totalFeedbackJobActive()) return '润色中'
       if (totalFeedbackDraftStatusFor() === 'ERROR') return '保存失败'
@@ -9389,6 +9660,7 @@ export function useDeliveryWorkflow() {
     addExtraTaskWork: remoteAddExtraTaskWork,
     updateExtraTaskWork: remoteUpdateExtraTaskWork,
     deleteExtraTaskWork: remoteDeleteExtraTaskWork,
+    goToStep,
     nextStep,
     prevStep,
     nowText,

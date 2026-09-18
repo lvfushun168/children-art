@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import SidebarNav from '../components/layout/SidebarNav.vue'
 import TodoCenterDrawer from '../components/layout/TodoCenterDrawer.vue'
 import UserMenu from '../components/layout/UserMenu.vue'
@@ -173,6 +173,21 @@ const exitTaskWorkspace = (source) => {
   void router.push(source === 'schedule' ? NAV_ROUTE_PATHS.schedule : NAV_ROUTE_PATHS.tasks)
 }
 
+const flushTaskShareDraftBeforeNavigation = async (lessonId) => {
+  if (!lessonId || typeof state.flushShareDraft !== 'function') return true
+  try {
+    const saved = await state.flushShareDraft(lessonId, {
+      reason: '离开课次工作台前自动保存课后任务',
+      notifyOnError: false
+    })
+    if (!saved) state.notify?.('家长展示草稿保存失败，本次修改可能未保存')
+    return saved
+  } catch {
+    state.notify?.('家长展示草稿保存失败，本次修改可能未保存')
+    return false
+  }
+}
+
 const applyTheme = (theme) => {
   if (typeof document === 'undefined') return
   document.documentElement.dataset.theme = theme
@@ -270,6 +285,23 @@ watch([() => route.name, () => route.params.lessonId, () => state.isLoggedIn], (
     workspaceReadyTaskKey.value = ''
   }
 }, { immediate: true })
+
+onBeforeRouteLeave(async (_to, from) => {
+  if (from.name === 'workspace-task') await flushTaskShareDraftBeforeNavigation(from.params.lessonId)
+  // 保存失败仍允许离开，错误会保留在课次工作区并向老师提示。
+  return true
+})
+
+onBeforeRouteUpdate(async (to, from) => {
+  const leavingTaskWorkspace = from.name === 'workspace-task'
+    && (to.name !== 'workspace-task'
+      || String(from.params.lessonId || '') !== String(to.params.lessonId || ''))
+  if (leavingTaskWorkspace) {
+    await flushTaskShareDraftBeforeNavigation(from.params.lessonId)
+  }
+  // 同一课次的 query 变化或保存失败均不阻止导航。
+  return true
+})
 </script>
 
 <template>

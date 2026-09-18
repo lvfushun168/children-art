@@ -223,7 +223,8 @@ export const request = async (path, options = {}, retry = true) => {
     responseType,
     rawBody = false,
     idempotencyKey,
-    signal
+    signal,
+    keepalive = false
   } = options
   const url = resolveUrl(path)
   const upperMethod = String(method).toUpperCase()
@@ -249,7 +250,7 @@ export const request = async (path, options = {}, retry = true) => {
 
   let response
   try {
-    response = await fetch(url, { method: upperMethod, headers: requestHeaders, body: requestBody, signal })
+    response = await fetch(url, { method: upperMethod, headers: requestHeaders, body: requestBody, signal, keepalive })
   } catch (error) {
     notifyApiRequest({ method: upperMethod, path: requestPath, url, status: 0, ok: false, cached: false, durationMs: (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt })
     throw new ApiError(error?.message || '网络连接失败', { code: 'NETWORK_ERROR', url })

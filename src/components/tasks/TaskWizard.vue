@@ -94,6 +94,15 @@ const applyHomeworkExample = (example) => {
   props.state.applyHomeworkExample(example)
   homeworkOptionalFieldEnabled.requirement = Boolean(String(example?.requirement || '').trim())
 }
+const shareDraftStatus = () => String(props.state.shareDraftStatusFor?.() || 'SAVED').toUpperCase()
+const shareDraftStatusText = () => {
+  const status = shareDraftStatus()
+  if (status === 'ERROR') return '保存失败，可重试'
+  if (['DIRTY', 'SAVING'].includes(status)) return '正在自动保存…'
+  return status === 'SAVED' ? '草稿已自动保存' : ''
+}
+const retryShareDraft = () => props.state.retryShareDraft?.()
+const goToStep = (index) => props.state.goToStep?.(index) ?? (props.state.currentStep = index)
 const homeworkEditorTitle = computed(() => homeworkEditorField.value === 'content' ? '编辑任务内容' : '编辑完成方式 / 家长配合')
 const homeworkEditorPlaceholder = computed(() => homeworkEditorField.value === 'content'
   ? '例如：回家观察一种暖色系物品，说一说它的颜色和形状。'
@@ -109,8 +118,10 @@ const closeHomeworkEditor = () => {
 const saveHomeworkEditor = () => {
   const field = homeworkEditorField.value
   const value = homeworkEditorDraft.value.trim()
+  const previousValue = String(props.state.homework?.[field] || '')
   props.state.homework[field] = value
   if (field === 'requirement' && !value) homeworkOptionalFieldEnabled.requirement = false
+  if (previousValue !== value) props.state.markShareDraftDirty?.()
   closeHomeworkEditor()
 }
 const toggleHomeworkOptionalField = (field, enabled, event) => {
@@ -125,13 +136,10 @@ const toggleHomeworkOptionalField = (field, enabled, event) => {
     return
   }
 
+  const previousValue = String(props.state.homework?.[field] || '')
   homeworkOptionalFieldEnabled[field] = false
   props.state.homework[field] = ''
-}
-const saveHomeworkDraft = () => {
-  if (!String(props.state.homework?.requirement || '').trim()) homeworkOptionalFieldEnabled.requirement = false
-  if (!String(props.state.homework?.dueDate || '').trim()) homeworkOptionalFieldEnabled.dueDate = false
-  props.state.saveShareDraft('保存课后任务配置')
+  if (previousValue !== '') props.state.markShareDraftDirty?.()
 }
 const openHomeworkDatePicker = () => {
   const input = homeworkDateInput.value
@@ -631,7 +639,7 @@ watch(homeworkEditorOpen, async (open) => {
           v-for="(step, index) in state.steps"
           :key="step.title"
           :class="{ active: state.currentStep === index, finished: step.done === step.total && step.total > 0 }"
-          @click="state.currentStep = index"
+          @click="goToStep(index)"
         >
           <b>{{ index + 1 }}</b>
           <span>
@@ -858,7 +866,13 @@ watch(homeworkEditorOpen, async (open) => {
             <strong>课后任务与家长展示</strong>
           </div>
           <div class="section-actions">
-            <button class="ghost" type="button" @click="saveHomeworkDraft">保存本步</button>
+            <span
+              v-if="shareDraftStatusText()"
+              class="delivery-autosave-status"
+              :class="{ saving: ['DIRTY', 'SAVING'].includes(shareDraftStatus()), error: shareDraftStatus() === 'ERROR' }"
+              :title="state.shareDraftErrorFor?.() || ''"
+              @click="shareDraftStatus() === 'ERROR' && retryShareDraft()"
+            >{{ shareDraftStatusText() }}</span>
             <button class="secondary" type="button" @click="showSharePreview = true">家长页预览</button>
           </div>
         </div>
@@ -950,6 +964,7 @@ watch(homeworkEditorOpen, async (open) => {
                     :min="state.activeTask.dateValue || undefined"
                     :disabled="!homeworkOptionalFieldEnabled.dueDate"
                     aria-label="预计回收或检查日期"
+                    @change="state.markShareDraftDirty?.()"
                   />
                 </div>
               </div>

@@ -180,7 +180,7 @@ export const api = {
   },
   parent: {
     draft: (lessonId) => request(`/lessons/${id(lessonId)}/share-page/draft`),
-    saveDraft: (lessonId, body) => request(`/lessons/${id(lessonId)}/share-page/draft`, { method: 'PUT', body }),
+    saveDraft: (lessonId, body, options = {}) => request(`/lessons/${id(lessonId)}/share-page/draft`, { ...options, method: 'PUT', body }),
     publish: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/share-page/publish`, { method: 'POST', body, idempotencyKey: key }),
     skip: (lessonId, body) => request(`/lessons/${id(lessonId)}/share-page/skip`, { method: 'POST', body }),
     revoke: (pageId, body) => request(`/share-pages/${id(pageId)}/revoke`, { method: 'POST', body }),

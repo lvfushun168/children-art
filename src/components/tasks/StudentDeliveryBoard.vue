@@ -723,7 +723,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!state.attendingRows.length">
-              <td colspan="7" class="student-delivery-empty-state">当前没有到课学生，请先在第 1 步确认出勤。</td>
+              <td colspan="7" class="student-delivery-empty-state">当前没有到课学生，请先在第 2 步确认出勤。</td>
             </tr>
           </tbody>
         </table>
@@ -765,7 +765,7 @@ onMounted(() => {
             </span>
             <span class="mobile-student-status">{{ statusFor(row) }}<b>›</b></span>
           </button>
-          <div v-if="!state.attendingRows.length" class="student-delivery-empty-state">当前没有到课学生，请先在第 1 步确认出勤。</div>
+          <div v-if="!state.attendingRows.length" class="student-delivery-empty-state">当前没有到课学生，请先在第 2 步确认出勤。</div>
         </div>
       </template>
 

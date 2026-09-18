@@ -1337,8 +1337,8 @@ export function useDeliveryWorkflow() {
   }))
 
   const steps = computed(() => [
-    { title: '课次与出勤', done: counts.value.attendanceConfirmed ? 1 : 0, total: 1 },
     { title: '课堂素材', done: counts.value.classroomMaterialsDone, total: 1 },
+    { title: '课次与出勤', done: counts.value.attendanceConfirmed ? 1 : 0, total: 1 },
     { title: '学生交付', done: counts.value.studentDeliveryCompleted, total: counts.value.attend },
     { title: '课后任务与家长展示', done: counts.value.homeworkReady, total: 1 },
     { title: '提交归档', done: counts.value.archived, total: counts.value.attend }

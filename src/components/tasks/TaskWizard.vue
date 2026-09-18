@@ -626,10 +626,10 @@ watch(homeworkEditorOpen, async (open) => {
         </button>
       </nav>
 
-      <section v-if="state.currentStep === 0" class="step-panel">
+      <section v-if="state.currentStep === 1" class="step-panel">
         <div class="section-head">
           <div>
-            <span>第 1 步</span>
+            <span>第 2 步</span>
             <strong>确认课次信息和学生出勤</strong>
           </div>
         </div>
@@ -675,10 +675,10 @@ watch(homeworkEditorOpen, async (open) => {
         </div>
       </section>
 
-      <section v-if="state.currentStep === 1" class="step-panel">
+      <section v-if="state.currentStep === 0" class="step-panel">
         <div class="section-head">
           <div>
-            <span>第 2 步</span>
+            <span>第 1 步</span>
             <strong>整理本节课的课堂素材</strong>
           </div>
         </div>

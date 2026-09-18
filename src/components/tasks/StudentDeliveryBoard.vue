@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 import { sameId } from '../../services/mappers'
 import { imageTemplateSummary, isClientCanvasTemplate, renderArtworkFile } from '../../services/imageTemplateRenderer'
@@ -21,6 +21,33 @@ const mobileSection = ref(null)
 const aiPromptOpen = ref(false)
 const aiPrompt = ref('')
 const aiPromptError = ref('')
+const desktopTotalFeedbackTextarea = ref(null)
+const mobileTotalFeedbackTextarea = ref(null)
+
+const resizeTotalFeedbackTextarea = (textarea, minHeight) => {
+  if (!textarea) return
+  textarea.style.height = 'auto'
+  textarea.style.height = `${Math.max(textarea.scrollHeight, minHeight)}px`
+}
+
+const resolveTotalFeedbackTextarea = (textarea) => Array.isArray(textarea) ? textarea[0] : textarea
+
+const syncTotalFeedbackTextareaHeight = async () => {
+  await nextTick()
+  const desktopTextarea = resolveTotalFeedbackTextarea(desktopTotalFeedbackTextarea.value)
+  const mobileTextarea = resolveTotalFeedbackTextarea(mobileTotalFeedbackTextarea.value)
+  if (props.state.attendingRows.length > 1) {
+    desktopTextarea?.style.removeProperty('height')
+  } else {
+    resizeTotalFeedbackTextarea(desktopTextarea, 120)
+  }
+  resizeTotalFeedbackTextarea(mobileTextarea, 180)
+}
+
+const handleTotalFeedbackInput = () => {
+  props.state.markTotalFeedbackDirty?.()
+  void syncTotalFeedbackTextareaHeight()
+}
 
 const studentFor = (studentId) => {
   const student = props.state.students.find((item) => sameId(item.id, studentId))
@@ -231,7 +258,10 @@ watch(
   { immediate: true }
 )
 
-onBeforeUnmount(() => clearArtworkPreview())
+onBeforeUnmount(() => {
+  clearArtworkPreview()
+  window.removeEventListener('resize', syncTotalFeedbackTextareaHeight)
+})
 
 const selectedImageMode = (row) => {
   if (!row) return 'original'
@@ -578,8 +608,16 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => [props.state.totalFeedback?.content || '', props.state.attendingRows.length],
+  () => { void syncTotalFeedbackTextareaHeight() },
+  { immediate: true }
+)
+
 onMounted(() => {
   void props.state.loadTemplates?.()
+  window.addEventListener('resize', syncTotalFeedbackTextareaHeight)
+  void syncTotalFeedbackTextareaHeight()
 })
 </script>
 
@@ -703,15 +741,24 @@ onMounted(() => {
               <td class="delivery-status-cell">
                 <span class="delivery-status" :class="statusClassFor(row)">{{ statusFor(row) }}</span>
               </td>
-              <td v-if="rowIndex === 0" class="delivery-total-feedback-cell" :rowspan="state.attendingRows.length">
+              <td
+                v-if="rowIndex === 0"
+                class="delivery-total-feedback-cell"
+                :class="{
+                  'delivery-total-feedback-cell-single': state.attendingRows.length === 1,
+                  'delivery-total-feedback-cell-multi': state.attendingRows.length > 1
+                }"
+                :rowspan="state.attendingRows.length"
+              >
                 <div class="delivery-total-feedback-editor">
                   <span class="delivery-field-status" :class="state.counts.totalFeedbackReady ? 'ok-text' : 'missing-text'">总课评：{{ totalFeedbackStatus() }}</span>
                   <textarea
+                    ref="desktopTotalFeedbackTextarea"
                     v-model="state.totalFeedback.content"
-                    rows="12"
+                    rows="4"
                     required
                     aria-label="本节课总课评"
-                    @input="state.markTotalFeedbackDirty?.()"
+                    @input="handleTotalFeedbackInput"
                     @blur="state.flushTotalFeedback?.()"
                   />
                     <div class="delivery-cell-actions delivery-total-feedback-actions">
@@ -740,12 +787,13 @@ onMounted(() => {
           <span class="delivery-status" :class="state.counts.totalFeedbackReady ? 'done' : 'pending'">{{ totalFeedbackStatus() }}</span>
         </header>
         <textarea
+          ref="mobileTotalFeedbackTextarea"
           v-model="state.totalFeedback.content"
           rows="7"
           required
           aria-label="本节课总课评"
           placeholder="填写本节课面向所有家长的总课评……"
-          @input="state.markTotalFeedbackDirty?.()"
+          @input="handleTotalFeedbackInput"
           @blur="state.flushTotalFeedback?.()"
         />
         <small>总课评独立于某个学生，内容会自动保存并作为新家长页面的主课评。</small>

@@ -595,14 +595,14 @@ export const lessonMaterials = [
     type: '范画',
     title: '向日葵完整范画',
     image: 'https://images.unsplash.com/photo-1597848212624-a19eb35e2651?auto=format&fit=crop&w=720&q=80',
-    visible: true
+    visible: false
   },
   {
     id: 2,
-    type: '步骤图',
+    type: '范画',
     title: '花盘和花瓣分步示意',
     image: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=720&q=80',
-    visible: true
+    visible: false
   }
 ]
 

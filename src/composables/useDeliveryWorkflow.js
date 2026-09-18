@@ -103,6 +103,7 @@ import {
   MATERIAL_CATEGORIES,
   apiAssetTypeForUpload,
   defaultMaterialVisible,
+  isReferenceMaterialType,
   materialCategoryForType,
   studentRecordAssetTypeFor,
   uiMaterialTypeForUpload
@@ -135,7 +136,7 @@ const shareDraftHasUnsavedChanges = (state) => Boolean(state) && (
   Number(state.revision || 0) !== Number(state.savedRevision || 0)
   || String(state.status || '').toUpperCase() === 'ERROR'
 )
-const PREPARATION_MATERIAL_LABELS = new Set(['范画', '步骤图', '课件'])
+const PREPARATION_MATERIAL_LABELS = new Set(['范画', '步骤图', '课堂参考图', '课件'])
 const displayDateFromValue = (value) => {
   if (!value) return ''
   const [, month, day] = value.split('-').map(Number)
@@ -507,6 +508,7 @@ export function useDeliveryWorkflow() {
   const materials = computed(() => activeWorkspace.value.materials)
   const demoMaterials = computed(() => materials.value.filter((item) => item.type === '范画'))
   const stepMaterials = computed(() => materials.value.filter((item) => item.type === '步骤图'))
+  const referenceImageMaterials = computed(() => materials.value.filter((item) => isReferenceMaterialType(item.type) || isReferenceMaterialType(item.assetType)))
   const classroomMediaMaterials = computed(() => materials.value.filter((item) => ['课堂照片', '课堂视频'].includes(item.type)))
   const referenceMaterials = computed(() => materials.value.filter((item) => item.type !== '课件'))
   const coursewareMaterials = computed(() => materials.value.filter((item) => item.type === '课件'))
@@ -914,7 +916,11 @@ export function useDeliveryWorkflow() {
       }).map(toStudentWork))
       const materialItems = (workspace.materials || []).map((material) => ({
         ...material,
-        archiveRole: material.type === '课件' ? '备课课件' : material.type === '步骤图' ? '课堂步骤' : '课堂参考'
+        archiveRole: material.type === '课件'
+          ? '备课课件'
+          : isReferenceMaterialType(material.type) || isReferenceMaterialType(material.assetType)
+            ? '范画'
+            : ['课堂照片', '课堂视频'].includes(material.type) ? '课堂记录' : '范画'
       }))
       return {
         id: `task-${task.id}`,
@@ -1320,12 +1326,13 @@ export function useDeliveryWorkflow() {
     homeworkReady: homeworkIsAssigned(homework.value) && !homeworkPlainText(homework.value) ? 0 : 1,
     demoMaterials: demoMaterials.value.length,
     stepMaterials: stepMaterials.value.length,
+    referenceImages: referenceImageMaterials.value.length,
     classroomMedia: classroomMediaMaterials.value.length,
     referenceMaterials: referenceMaterials.value.length,
     coursewares: coursewareMaterials.value.length,
     classroomMaterials: materials.value.length,
     classroomMaterialsDone: materials.value.length || materialsConfirmedEmpty.value ? 1 : 0,
-    artworks: materials.value.filter((item) => item.type === '范画').length,
+    artworks: referenceImageMaterials.value.length,
     visibleMaterials: materials.value.filter((item) => item.visible).length
   }))
 
@@ -1653,6 +1660,11 @@ export function useDeliveryWorkflow() {
   }
 
   const toggleMaterialVisible = (material) => {
+    if (isReferenceMaterialType(material?.type) || isReferenceMaterialType(material?.assetType)) {
+      material.visible = false
+      notify(`${material.title}已隐藏`)
+      return
+    }
     material.visible = !material.visible
     notify(`${material.title}${material.visible ? '会展示给家长' : '已隐藏'}`)
   }
@@ -1661,7 +1673,7 @@ export function useDeliveryWorkflow() {
     if (material?.fileUrl && String(material.fileUrl).startsWith('blob:')) URL.revokeObjectURL(material.fileUrl)
   }
 
-  const addMaterial = (type = '范画') => {
+  const addMaterial = (type = MATERIAL_CATEGORIES.REFERENCE) => {
     materials.value.push({
       id: Date.now(),
       lessonId: activeTaskId.value,
@@ -1673,7 +1685,7 @@ export function useDeliveryWorkflow() {
     notify(`已上传一张${type}`)
   }
 
-  const uploadLessonMaterial = (event, category = '范画') => {
+  const uploadLessonMaterial = (event, category = MATERIAL_CATEGORIES.REFERENCE) => {
     const files = [...(event.target.files || [])]
     if (!files.length) return
     files.forEach((file, index) => {
@@ -1723,7 +1735,7 @@ export function useDeliveryWorkflow() {
       fileName: file.name,
       fileExt: extension,
       fileSize: file.size,
-      visible: category === '课堂记录' ? Boolean(material.visible) : defaultMaterialVisible(category)
+      visible: category === MATERIAL_CATEGORIES.CLASSROOM ? Boolean(material.visible) : defaultMaterialVisible(category)
     })
     if (previousUrl && String(previousUrl).startsWith('blob:')) URL.revokeObjectURL(previousUrl)
     notify(`已替换${material.title}`)
@@ -4149,7 +4161,7 @@ export function useDeliveryWorkflow() {
   const preparationApplyReasonMessage = (reason) => ({
     NO_TOPIC: '当前课次缺少主题或班级信息，无法自动带入材料',
     NO_MATCH_SCOPE: '当前课次缺少主题或班级信息，无法自动带入材料',
-    HAS_PREPARATION_MATERIALS: '本课已有范画、步骤图或课件，系统不会合并材料',
+    HAS_PREPARATION_MATERIALS: '本课已有范画或课件，系统不会合并材料',
     MATERIALS_CONFIRMED_EMPTY: '本节已确认无资料，如需带入材料请先取消无资料确认',
     SUPPRESSED: '本课已暂不自动带入材料，可在空状态下手动重新带入',
     NOT_EDITABLE: '当前课次不可编辑，暂时不能带入材料',
@@ -4164,7 +4176,7 @@ export function useDeliveryWorkflow() {
     if (preparationAutoApplyAttempts.has(key)) return workspace
     preparationAutoApplyAttempts.add(key)
     const materials = Array.isArray(workspace.materials) ? workspace.materials : []
-    if (materials.some((item) => PREPARATION_MATERIAL_LABELS.has(item.type)) || workspace.materialsConfirmedEmpty) {
+    if (materials.some((item) => PREPARATION_MATERIAL_LABELS.has(item.type) || isReferenceMaterialType(item.assetType)) || workspace.materialsConfirmedEmpty) {
       return workspace
     }
     const memory = workspace.preparationMemory || {}
@@ -5570,10 +5582,11 @@ export function useDeliveryWorkflow() {
 
   const remoteToggleMaterialVisible = async (material) => {
     if (!material?.id) return false
+    const isReference = isReferenceMaterialType(material.type) || isReferenceMaterialType(material.assetType)
     const result = await runRemote('正在更新素材展示状态...', () => api.assets.update(material.id, {
       studentId: material.studentId === null || material.studentId === undefined ? undefined : String(material.studentId),
       title: material.title || undefined,
-      visible: !material.visible,
+      visible: isReference ? false : !material.visible,
       sortOrder: material.sortOrder || 0,
       version: material.version
     }))
@@ -5594,10 +5607,11 @@ export function useDeliveryWorkflow() {
       return false
     }
     if (nextTitle === String(material.title || '').trim()) return true
+    const isReference = isReferenceMaterialType(material.type) || isReferenceMaterialType(material.assetType)
     const result = await runRemote('正在保存素材名称...', () => api.assets.update(material.id, {
       studentId: material.studentId === null || material.studentId === undefined ? undefined : String(material.studentId),
       title: nextTitle,
-      visible: material.visible,
+      visible: isReference ? false : material.visible,
       sortOrder: material.sortOrder || 0,
       version: material.version
     }), '素材名称已保存')
@@ -5606,8 +5620,9 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const remoteUploadLessonMaterialFiles = async (files, category = '范画', replacement = null) => {
+  const remoteUploadLessonMaterialFiles = async (files, category = MATERIAL_CATEGORIES.REFERENCE, replacement = null) => {
     if (!files.length || !activeTask.value?.id) return false
+    const isReference = isReferenceMaterialType(category)
     const result = await runRemote(
       replacement ? '正在替换课堂素材...' : '正在上传课堂资料...',
       async () => {
@@ -5621,7 +5636,7 @@ export function useDeliveryWorkflow() {
             fileId: String(uploaded.id),
             assetType: apiAssetTypeForUpload(category, file),
             title: file.name,
-            visible: replacement ? Boolean(replacement.visible) : defaultMaterialVisible(category),
+            visible: isReference ? false : replacement ? Boolean(replacement.visible) : defaultMaterialVisible(category),
             sortOrder: replacement ? Number(replacement.sortOrder || 0) : materials.value.length + items.length
           })
         }
@@ -5653,7 +5668,7 @@ export function useDeliveryWorkflow() {
       '任务图片已上传')
   }
 
-  const remoteUploadLessonMaterial = async (event, category = '范画') => {
+  const remoteUploadLessonMaterial = async (event, category = MATERIAL_CATEGORIES.REFERENCE) => {
     const files = [...(event.target.files || [])]
     event.target.value = ''
     return remoteUploadLessonMaterialFiles(files, category)
@@ -9358,6 +9373,7 @@ export function useDeliveryWorkflow() {
     materials,
     demoMaterials,
     stepMaterials,
+    referenceImageMaterials,
     classroomMediaMaterials,
     referenceMaterials,
     coursewareMaterials,

@@ -14,7 +14,7 @@ const { clearSession, createIdempotencyKey, getAccessToken, getApiRequestStats, 
 const { api } = await import('../src/services/api.js')
 const { downloadProtectedFile } = await import('../src/services/fileService.js')
 const { clearProtectedMediaCache, protectedMediaUrl } = await import('../src/services/protectedMediaCache.js')
-const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapCloudArchiveBatch, mapCloudArchiveJob, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapPreparationMemory, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTotalFeedback, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
+const { mapArchiveRecord, mapArchiveVersion, mapArtwork, mapAsset, mapCloudArchiveBatch, mapCloudArchiveJob, mapCourse, mapExternalLink, mapFeedback, mapHomework, mapIdentityPermission, mapJob, mapLesson, mapPage, mapPreparationMemory, mapQualityReview, mapSharePage, mapSupervisionLesson, mapTeacherArchive, mapTodo, mapTotalFeedback, mapTouchTask, mapWheat, sameId } = await import('../src/services/mappers.js')
 
 const response = (status, payload, contentType = 'application/json') => ({
   status,
@@ -839,4 +839,9 @@ test('maps preparation memory source, version and material counts', () => {
     hasDefault: false,
     counts: { DEMO_IMAGE: 2, STEP_IMAGE: 1 }
   })
+})
+
+test('maps historical reference asset types to the unified 范画 label', () => {
+  assert.equal(mapAsset({ assetType: 'DEMO_IMAGE' }).type, '范画')
+  assert.equal(mapAsset({ assetType: 'STEP_IMAGE' }).type, '范画')
 })

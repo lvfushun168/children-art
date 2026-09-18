@@ -429,7 +429,7 @@ const previewStudentRecord = (record, index = 0) => openImagePreview({
   src: record?.image,
   alt: record?.title || selected.value?.studentName,
   title: record?.title || `${selected.value?.studentName || '学生'} · 学生记录${index + 1}`,
-  caption: '学生记录 · 仅内部归档'
+  caption: '学生记录'
 })
 
 const previewLessonAsset = (asset) => openImagePreview({
@@ -540,7 +540,7 @@ watch(activeTab, (tab) => {
 
 const assetMeta = (asset) => {
   if (asset.fileName) return `${asset.fileName}${asset.fileExt ? ` · ${asset.fileExt.toUpperCase()}` : ''}`
-  return asset.visible ? '家长展示页可见' : '仅内部归档'
+  return asset.visible ? '已展示' : '已隐藏'
 }
 
 const mediaTypeOf = (asset) => String(asset?.file?.mediaType || asset?.mediaType || '').toLowerCase()

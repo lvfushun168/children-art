@@ -1,4 +1,5 @@
 import { markdownToPlainText } from './markdown.js'
+import { MATERIAL_CATEGORIES } from './materialTypes.js'
 
 const safeUiId = (value) => {
   if (value === null || value === undefined || value === '') return null
@@ -30,8 +31,8 @@ const qualityReviewStatus = { PENDING_REVIEW: '待评分', REVIEWED: '已评分'
 const attendanceStatus = { ATTENDED: '到课', ABSENT: '旷课', LEAVE: '请假', UNMARKED: '未标记' }
 const attendanceReverse = Object.fromEntries(Object.entries(attendanceStatus).map(([key, value]) => [value, key]))
 const assetType = {
-  DEMO_IMAGE: '范画',
-  STEP_IMAGE: '步骤图',
+  DEMO_IMAGE: MATERIAL_CATEGORIES.REFERENCE,
+  STEP_IMAGE: MATERIAL_CATEGORIES.REFERENCE,
   COURSEWARE: '课件',
   STUDENT_PHOTO: '学生照片',
   STUDENT_RECORD_PHOTO: '学生记录照片',
@@ -40,6 +41,10 @@ const assetType = {
   CLASSROOM_VIDEO: '课堂视频'
 }
 const assetTypeReverse = Object.fromEntries(Object.entries(assetType).map(([key, value]) => [value, key]))
+assetTypeReverse[MATERIAL_CATEGORIES.REFERENCE] = 'DEMO_IMAGE'
+assetTypeReverse[MATERIAL_CATEGORIES.DEMO] = 'DEMO_IMAGE'
+assetTypeReverse[MATERIAL_CATEGORIES.STEP] = 'STEP_IMAGE'
+assetTypeReverse['课堂参考图'] = 'DEMO_IMAGE'
 const artworkStatus = { ACTIVE: '已绑定', CONFIRMED: '已确认', PROCESSING: '处理中', FAILED: '处理失败', DELETED: '已删除' }
 const artworkConfirmationStatus = { PENDING: '待确认', CONFIRMED: '已确认', REJECTED: '已退回' }
 const feedbackStatus = { DRAFT: '草稿', GENERATED: '已生成', CONFIRMED: '已确认', FAILED: '生成失败' }

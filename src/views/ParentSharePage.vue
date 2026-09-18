@@ -39,6 +39,10 @@ const studentRow = computed(() => ({
 }))
 const highlightedArtworks = computed(() => studentArtworks.value.filter((artwork) => artwork.highlight))
 const materials = computed(() => content.value?.materials || [])
+const isReferenceMaterial = (material) => ['DEMO_IMAGE', 'STEP_IMAGE'].includes(String(material?.assetType || '').toUpperCase())
+  || ['范画', '步骤图', '课堂参考图'].includes(material?.type)
+const hasLegacyReferenceMaterials = computed(() => materials.value.some(isReferenceMaterial))
+const materialSectionTitle = computed(() => hasLegacyReferenceMaterials.value ? '范画、步骤与课堂记录' : '课堂记录')
 const homework = computed(() => content.value?.homework || {})
 const externalLinks = computed(() => content.value?.externalLinks || [])
 const hasHomework = computed(() => homework.value.taskMode
@@ -136,7 +140,7 @@ onMounted(async () => {
           </div>
         </article>
         <article v-if="displayConfig.showMaterials && materials.length" class="parent-section">
-          <span>范画、步骤与课堂记录</span>
+          <span>{{ materialSectionTitle }}</span>
           <div class="parent-materials">
             <template v-for="material in materials.filter((item) => item.fileUrl || item.previewUrl)" :key="material.fileUrl || material.previewUrl">
               <video

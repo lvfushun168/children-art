@@ -1,4 +1,5 @@
 export const MATERIAL_CATEGORIES = Object.freeze({
+  REFERENCE: '范画',
   DEMO: '范画',
   STEP: '步骤图',
   CLASSROOM: '课堂记录',
@@ -10,6 +11,7 @@ export const FILE_VALIDATION_PROFILES = Object.freeze({
 })
 
 const API_ASSET_TYPES = Object.freeze({
+  [MATERIAL_CATEGORIES.REFERENCE]: 'DEMO_IMAGE',
   [MATERIAL_CATEGORIES.DEMO]: 'DEMO_IMAGE',
   [MATERIAL_CATEGORIES.STEP]: 'STEP_IMAGE',
   [MATERIAL_CATEGORIES.COURSEWARE]: 'COURSEWARE'
@@ -34,6 +36,15 @@ const isClassroomCategory = (category) => [
   '课堂视频'
 ].includes(category)
 
+export const isReferenceMaterialType = (value) => [
+  MATERIAL_CATEGORIES.REFERENCE,
+  MATERIAL_CATEGORIES.DEMO,
+  MATERIAL_CATEGORIES.STEP,
+  '课堂参考图',
+  'DEMO_IMAGE',
+  'STEP_IMAGE'
+].includes(String(value || '').trim().toUpperCase())
+
 export const apiAssetTypeForUpload = (category, file) => {
   if (isClassroomCategory(category)) {
     return isVideoFile(file) ? 'CLASSROOM_VIDEO' : 'CLASSROOM_PHOTO'
@@ -48,15 +59,11 @@ export const uiMaterialTypeForUpload = (category, file) => {
   return category
 }
 
-export const defaultMaterialVisible = (category) => [
-  MATERIAL_CATEGORIES.DEMO,
-  MATERIAL_CATEGORIES.STEP
-].includes(category)
+export const defaultMaterialVisible = () => false
 
 export const materialCategoryForType = (type) => {
-  if (type === '范画') return MATERIAL_CATEGORIES.DEMO
-  if (type === '步骤图') return MATERIAL_CATEGORIES.STEP
+  if (isReferenceMaterialType(type)) return MATERIAL_CATEGORIES.REFERENCE
   if (type === '课件') return MATERIAL_CATEGORIES.COURSEWARE
   if (type === '课堂照片' || type === '课堂视频') return MATERIAL_CATEGORIES.CLASSROOM
-  return type || MATERIAL_CATEGORIES.DEMO
+  return type || MATERIAL_CATEGORIES.REFERENCE
 }

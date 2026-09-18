@@ -5,6 +5,7 @@ import {
   MATERIAL_CATEGORIES,
   apiAssetTypeForUpload,
   defaultMaterialVisible,
+  isReferenceMaterialType,
   isStudentRecordAssetType,
   isStudentRecordVideo,
   materialCategoryForType,
@@ -20,14 +21,25 @@ test('classifies classroom image and video uploads without mixing material secti
   assert.equal(uiMaterialTypeForUpload(MATERIAL_CATEGORIES.CLASSROOM, { type: 'video/mp4' }), '课堂视频')
 })
 
-test('keeps the four material categories and visibility defaults explicit', () => {
+test('merges reference images while preserving legacy API asset types', () => {
+  assert.equal(apiAssetTypeForUpload(MATERIAL_CATEGORIES.REFERENCE, { type: 'image/png' }), 'DEMO_IMAGE')
   assert.equal(apiAssetTypeForUpload(MATERIAL_CATEGORIES.DEMO, { type: 'image/png' }), 'DEMO_IMAGE')
   assert.equal(apiAssetTypeForUpload(MATERIAL_CATEGORIES.STEP, { type: 'image/png' }), 'STEP_IMAGE')
+  assert.equal(uiMaterialTypeForUpload(MATERIAL_CATEGORIES.REFERENCE, { type: 'image/png' }), '范画')
   assert.equal(apiAssetTypeForUpload(MATERIAL_CATEGORIES.COURSEWARE, { type: 'application/pdf' }), 'COURSEWARE')
-  assert.equal(defaultMaterialVisible(MATERIAL_CATEGORIES.DEMO), true)
-  assert.equal(defaultMaterialVisible(MATERIAL_CATEGORIES.STEP), true)
+  assert.equal(defaultMaterialVisible(MATERIAL_CATEGORIES.REFERENCE), false)
+  assert.equal(defaultMaterialVisible(MATERIAL_CATEGORIES.DEMO), false)
+  assert.equal(defaultMaterialVisible(MATERIAL_CATEGORIES.STEP), false)
   assert.equal(defaultMaterialVisible(MATERIAL_CATEGORIES.CLASSROOM), false)
   assert.equal(defaultMaterialVisible(MATERIAL_CATEGORIES.COURSEWARE), false)
+  assert.equal(materialCategoryForType('范画'), MATERIAL_CATEGORIES.REFERENCE)
+  assert.equal(materialCategoryForType('步骤图'), MATERIAL_CATEGORIES.REFERENCE)
+  assert.equal(materialCategoryForType('DEMO_IMAGE'), MATERIAL_CATEGORIES.REFERENCE)
+  assert.equal(materialCategoryForType('STEP_IMAGE'), MATERIAL_CATEGORIES.REFERENCE)
+  assert.equal(isReferenceMaterialType('课堂参考图'), true)
+  assert.equal(isReferenceMaterialType('DEMO_IMAGE'), true)
+  assert.equal(isReferenceMaterialType('STEP_IMAGE'), true)
+  assert.equal(isReferenceMaterialType('课堂照片'), false)
   assert.equal(materialCategoryForType('课堂视频'), MATERIAL_CATEGORIES.CLASSROOM)
   assert.equal(materialCategoryForType('课件'), MATERIAL_CATEGORIES.COURSEWARE)
 })

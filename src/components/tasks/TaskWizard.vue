@@ -8,7 +8,7 @@ import ProtectedMedia from '../common/ProtectedMedia.vue'
 import MarkdownEditor from '../common/MarkdownEditor.vue'
 import { sameId } from '../../services/mappers'
 import { markdownToPlainText } from '../../services/markdown.js'
-import { MATERIAL_CATEGORIES } from '../../services/materialTypes'
+import { isReferenceMaterialType, MATERIAL_CATEGORIES } from '../../services/materialTypes'
 import { finishArchiveAndExit as runArchiveAndExit } from '../../services/lessonWorkflow.js'
 
 const props = defineProps({
@@ -176,26 +176,15 @@ const materialSections = computed(() => {
   const materials = resolveStateValue(props.state.materials) || []
   return [
     {
-      key: 'demo',
+      key: 'reference',
       title: '范画',
-      description: '本节课的示范作品',
-      category: MATERIAL_CATEGORIES.DEMO,
+      description: '本节课的示范作品和绘画步骤',
+      category: MATERIAL_CATEGORIES.REFERENCE,
       uploadLabel: '上传范画',
       accept: 'image/*',
       empty: '尚未上传范画',
       kind: 'image',
-      materials: materials.filter((item) => item.type === '范画')
-    },
-    {
-      key: 'step',
-      title: '步骤图',
-      description: '本节课的绘画步骤',
-      category: MATERIAL_CATEGORIES.STEP,
-      uploadLabel: '上传步骤图',
-      accept: 'image/*',
-      empty: '尚未上传步骤图',
-      kind: 'image',
-      materials: materials.filter((item) => item.type === '步骤图')
+      materials: materials.filter((item) => isReferenceMaterialType(item.type) || isReferenceMaterialType(item.assetType))
     },
     {
       key: 'classroom',
@@ -211,7 +200,7 @@ const materialSections = computed(() => {
     {
       key: 'courseware',
       title: '课件',
-      description: '仅内部归档，供后续复用',
+      description: '本节课的课件文件',
       category: MATERIAL_CATEGORIES.COURSEWARE,
       uploadLabel: '上传课件',
       accept: '',
@@ -221,42 +210,10 @@ const materialSections = computed(() => {
     }
   ]
 })
-const activeMaterialSectionKey = ref('demo')
+const activeMaterialSectionKey = ref('reference')
 const activeMaterialSection = computed(() => materialSections.value.find((section) => section.key === activeMaterialSectionKey.value) || materialSections.value[0] || null)
 const classroomMaterialSection = computed(() => materialSections.value.find((section) => section.key === 'classroom'))
 const classroomMaterialCount = computed(() => classroomMaterialSection.value?.materials.length || 0)
-const preparationMemory = computed(() => resolveStateValue(props.state.activeWorkspace?.preparationMemory) || {})
-const preparationMemorySource = computed(() => preparationMemory.value.memorySource || preparationMemory.value.source || 'NONE')
-const preparationMemoryScopeLabel = computed(() => preparationMemorySource.value === 'CLASS_MEMORY' ? '本班同课程' : '本主题')
-const preparationMemoryNextLessonLabel = computed(() => preparationMemorySource.value === 'CLASS_MEMORY' ? '同班同课程课次' : '同主题课次')
-const preparationMemoryNoticeTitle = computed(() => {
-  if (preparationMemory.value.autoApplied) {
-    return preparationMemory.value.covered
-      ? '本课已调整，并已更新' + preparationMemoryScopeLabel.value + '默认材料'
-      : '已自动带入' + preparationMemoryScopeLabel.value + '上次使用的材料'
-  }
-  return preparationMemoryScopeLabel.value + '默认材料已记住'
-})
-const preparationMemorySummary = computed(() => {
-  const counts = preparationMemory.value.counts || {}
-  const parts = [
-    ['DEMO_IMAGE', '范画'],
-    ['STEP_IMAGE', '步骤图'],
-    ['COURSEWARE', '课件']
-  ].map(([key, label]) => Number(counts[key] || 0) > 0 ? `${label} ${counts[key]} 个` : '').filter(Boolean)
-  return parts.join('、') || '范画、步骤图和课件'
-})
-const showPreparationMemoryNotice = computed(() => Boolean(
-  preparationMemory.value.autoApplied || preparationMemory.value.hasDefault
-))
-const canReapplyPreparation = computed(() => {
-  const materials = resolveStateValue(props.state.materials) || []
-  const hasPreparationMaterials = materials.some((item) => ['范画', '步骤图', '课件'].includes(item.type))
-  return Boolean(preparationMemory.value.autoApplied && !hasPreparationMaterials && !resolveStateValue(props.state.materialsConfirmedEmpty))
-})
-const reapplyPreparation = async () => {
-  await props.state.reapplyLessonPreparation?.()
-}
 const editingMaterialId = ref(null)
 const materialNameDraft = ref('')
 const materialNameSaving = ref(false)
@@ -379,7 +336,8 @@ const teacherEffectSourceOptions = computed(() => {
   const sourceOptions = []
   const lessonMaterials = resolveStateValue(props.state.materials) || []
   lessonMaterials
-    .filter((material) => material?.id && material.fileId && material.type !== '课堂视频' && material.visible !== false)
+    .filter((material) => material?.id && material.fileId && material.type !== '课堂视频'
+      && (material.visible !== false || isReferenceMaterialType(material.type) || isReferenceMaterialType(material.assetType)))
     .forEach((material) => sourceOptions.push({
       sourceAssetId: String(material.id),
       sourceType: 'LESSON_ASSET',
@@ -540,7 +498,7 @@ watch(() => props.state.activeTask.id, () => {
   showResourceDrawer.value = false
   showContentSettings.value = false
   showTeacherEffectDrawer.value = false
-  activeMaterialSectionKey.value = 'demo'
+  activeMaterialSectionKey.value = 'reference'
   replaceTarget.value = null
   showSharePreview.value = false
   resourceSearch.value = ''
@@ -725,16 +683,6 @@ watch(homeworkEditorOpen, async (open) => {
           </div>
         </div>
 
-        <div v-if="showPreparationMemoryNotice" class="preparation-memory-notice">
-          <div>
-            <strong>{{ preparationMemoryNoticeTitle }}</strong>
-            <span>{{ preparationMemorySummary }} · 下次打开{{ preparationMemoryNextLessonLabel }}会自动带入</span>
-          </div>
-          <button v-if="canReapplyPreparation" class="secondary" type="button" @click="reapplyPreparation">
-            重新带入默认材料
-          </button>
-        </div>
-
         <section class="classroom-materials-board">
           <nav class="material-tabs" role="tablist" aria-label="课堂素材分类">
             <button
@@ -813,7 +761,7 @@ watch(homeworkEditorOpen, async (open) => {
                     :title="material.title || material.file?.originalFilename || '未命名课件'"
                     @click.stop="startMaterialNameEdit(material)"
                   >{{ material.title || material.file?.originalFilename || '未命名课件' }}</button>
-                  <small>{{ sameId(editingMaterialId, material.id) && materialNameSaving ? '正在保存名称…' : '仅内部归档' }}</small>
+                  <small v-if="sameId(editingMaterialId, material.id) && materialNameSaving">正在保存名称…</small>
                 </div>
                 <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || '课件'}`" @click="state.removeLessonMaterial(material)">×</button>
               </article>
@@ -840,7 +788,7 @@ watch(homeworkEditorOpen, async (open) => {
                 </div>
                 <div class="material-card-copy">
                   <div class="material-card-title">
-                    <span>{{ material.type }}</span>
+                    <span>{{ isReferenceMaterialType(material.type || material.assetType) ? '范画' : material.type }}</span>
                     <input
                       v-if="sameId(editingMaterialId, material.id)"
                       :ref="setMaterialNameInput"
@@ -862,12 +810,12 @@ watch(homeworkEditorOpen, async (open) => {
                     >{{ material.title || '未命名素材' }}</button>
                   </div>
                   <small v-if="sameId(editingMaterialId, material.id) && materialNameSaving" class="material-name-saving">正在保存名称…</small>
-                  <label class="material-visibility-switch">
+                  <label v-if="!isReferenceMaterialType(material.type || material.assetType) || material.visible" class="material-visibility-switch">
                     <input type="checkbox" :checked="material.visible" @change="state.toggleMaterialVisible(material)" />
                     <span class="switch-track" aria-hidden="true"><span></span></span>
                     <span>家长可见</span>
                   </label>
-                  <small>{{ material.visible ? '将显示在家长展示页' : '仅保存到内部档案' }}</small>
+                  <small v-if="!isReferenceMaterialType(material.type || material.assetType)">{{ material.visible ? '已展示' : '已隐藏' }}</small>
                 </div>
               </article>
             </div>

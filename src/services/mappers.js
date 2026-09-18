@@ -1,3 +1,5 @@
+import { markdownToPlainText } from './markdown.js'
+
 const safeUiId = (value) => {
   if (value === null || value === undefined || value === '') return null
   const text = String(value)
@@ -432,7 +434,7 @@ export const mapJob = (value = {}) => ({
 })
 export const mapHomework = (value = {}) => {
   const content = String(value.content || '')
-  const taskMode = value.taskMode === 'ASSIGNED' || (!value.taskMode && content.trim()) ? 'ASSIGNED' : 'NONE'
+  const taskMode = value.taskMode === 'ASSIGNED' || (!value.taskMode && markdownToPlainText(content)) ? 'ASSIGNED' : 'NONE'
   return {
     ...value,
     taskMode,

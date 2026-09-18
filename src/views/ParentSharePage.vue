@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../services/api'
+import MarkdownContent from '../components/common/MarkdownContent.vue'
+import { markdownToPlainText } from '../services/markdown.js'
 
 const props = defineProps({
   state: { type: Object, required: true },
@@ -41,7 +43,7 @@ const homework = computed(() => content.value?.homework || {})
 const externalLinks = computed(() => content.value?.externalLinks || [])
 const hasHomework = computed(() => homework.value.taskMode
   ? homework.value.taskMode === 'ASSIGNED'
-  : Boolean(String(homework.value.content || '').trim()))
+  : Boolean(markdownToPlainText(homework.value.content || '')))
 const displayConfig = computed(() => {
   const config = {
     showMaterials: true,
@@ -157,7 +159,7 @@ onMounted(async () => {
         </article>
         <article v-if="displayConfig.showHomework && hasHomework" class="parent-section homework">
           <span>课后任务</span>
-          <p>{{ homework.content }}</p>
+          <MarkdownContent :content="homework.content" />
           <small v-if="homework.requirement">完成方式：{{ homework.requirement }}</small>
           <small v-if="homework.dueDate">预计回收：{{ formatHomeworkDate(homework.dueDate) }}</small>
           <a v-for="link in externalLinks" :key="link.title" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.title }}</a>

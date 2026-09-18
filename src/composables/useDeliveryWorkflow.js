@@ -75,6 +75,7 @@ import {
 } from '../services/feedbackWorkflow.js'
 import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
+import { markdownToPlainText } from '../services/markdown.js'
 import { copyTextToClipboard } from '../services/clipboard'
 import { loadAllPageItems } from '../utils/pagination'
 import {
@@ -110,9 +111,10 @@ import {
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const DEFAULT_ARCHIVE_RULE = '/{campus}/教学资料归档/课程归总/{year}/{term}+{classType}归总'
 const templateIsEnabled = (value) => String(value?.status || 'ENABLED').toUpperCase() !== 'DISABLED'
+const homeworkPlainText = (value) => markdownToPlainText(value?.content || '')
 const homeworkIsAssigned = (value) => value?.taskMode
   ? value.taskMode === 'ASSIGNED'
-  : Boolean(String(value?.content || '').trim())
+  : Boolean(homeworkPlainText(value))
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const createShareDraftState = () => ({
   status: 'SAVED',
@@ -1315,7 +1317,7 @@ export function useDeliveryWorkflow() {
     highlightArtworkCount: sessionStudents.value.reduce((total, row) => total + artworksForRow(row).filter((artwork) => artwork.highlight).length, 0),
     shareReady: sessionStudents.value.filter((item) => item.attendance === '到课' && item.shareReady).length,
     archived: sessionStudents.value.filter((item) => item.attendance === '到课' && item.archived).length,
-    homeworkReady: homeworkIsAssigned(homework.value) && !String(homework.value.content || '').trim() ? 0 : 1,
+    homeworkReady: homeworkIsAssigned(homework.value) && !homeworkPlainText(homework.value) ? 0 : 1,
     demoMaterials: demoMaterials.value.length,
     stepMaterials: stepMaterials.value.length,
     classroomMedia: classroomMediaMaterials.value.length,
@@ -1357,7 +1359,7 @@ export function useDeliveryWorkflow() {
       (workspace.materials.length || workspace.materialsConfirmedEmpty ? rows.length : 0) +
       rows.filter((row) => studentDeliveryReadinessFor(row).ready && workspace.totalFeedback?.status === 'CONFIRMED'
         && String(workspace.totalFeedback?.content || '').trim()).length +
-      (homeworkIsAssigned(workspace.homework) && !String(workspace.homework.content || '').trim() ? 0 : rows.length) +
+      (homeworkIsAssigned(workspace.homework) && !homeworkPlainText(workspace.homework) ? 0 : rows.length) +
       rows.filter((row) => row.archived).length
     const workspaceProgress = Math.min(100, Math.round((completed / (rows.length * 5)) * 100))
     if (sameId(task.id, activeTaskId.value)) return taskProgress.value
@@ -1369,7 +1371,7 @@ export function useDeliveryWorkflow() {
     if (!sessionStudents.value.length) warnings.push('当前班级没有学生名单')
     else if (sessionStudents.value.some((row) => !isAttendanceMarked(row))) warnings.push('仍有学生未确认出勤')
     if (!materials.value.length && !materialsConfirmedEmpty.value) warnings.push('课堂资料待上传或确认无资料')
-    if (homeworkIsAssigned(homework.value) && !String(homework.value.content || '').trim()) warnings.push('课后任务内容为空')
+    if (homeworkIsAssigned(homework.value) && !homeworkPlainText(homework.value)) warnings.push('课后任务内容为空')
     if (attendingRows.value.length && !totalFeedbackReady()) {
       warnings.push('总课评待自动保存')
     }
@@ -5640,6 +5642,17 @@ export function useDeliveryWorkflow() {
     return result === true
   }
 
+  const remoteUploadHomeworkImage = async (file) => {
+    if (!file || !activeTask.value?.id) return null
+    if (!String(file.type || '').startsWith('image/')) {
+      notify('任务图片只支持图片文件')
+      return null
+    }
+    return runRemote('正在上传任务图片...',
+      () => uploadFile(file, `lesson-${activeTask.value.id}-homework-image`),
+      '任务图片已上传')
+  }
+
   const remoteUploadLessonMaterial = async (event, category = '范画') => {
     const files = [...(event.target.files || [])]
     event.target.value = ''
@@ -9528,6 +9541,7 @@ export function useDeliveryWorkflow() {
     renameLessonMaterial: remoteRenameLessonMaterial,
     addMaterial: remoteUploadLessonMaterial,
     uploadLessonMaterial: remoteUploadLessonMaterial,
+    uploadHomeworkImage: remoteUploadHomeworkImage,
     replaceLessonMaterial: remoteReplaceLessonMaterial,
     removeLessonMaterial: remoteRemoveLessonMaterial,
     uploadStudentRecord: remoteUploadStudentRecord,

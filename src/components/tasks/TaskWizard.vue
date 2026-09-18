@@ -5,7 +5,9 @@ import DeliveryPreview from './DeliveryPreview.vue'
 import StudentDeliveryBoard from './StudentDeliveryBoard.vue'
 import TeacherEffectPreview from './TeacherEffectPreview.vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
+import MarkdownEditor from '../common/MarkdownEditor.vue'
 import { sameId } from '../../services/mappers'
+import { markdownToPlainText } from '../../services/markdown.js'
 import { MATERIAL_CATEGORIES } from '../../services/materialTypes'
 import { finishArchiveAndExit as runArchiveAndExit } from '../../services/lessonWorkflow.js'
 
@@ -36,6 +38,7 @@ const homeworkEditorOpen = ref(false)
 const homeworkEditorField = ref('content')
 const homeworkEditorDraft = ref('')
 const homeworkEditorTextarea = ref(null)
+const homeworkEditorRef = ref(null)
 const homeworkDateInput = ref(null)
 const teacherEffectDraft = reactive({
   title: '',
@@ -107,6 +110,11 @@ const homeworkEditorTitle = computed(() => homeworkEditorField.value === 'conten
 const homeworkEditorPlaceholder = computed(() => homeworkEditorField.value === 'content'
   ? '例如：回家观察一种暖色系物品，说一说它的颜色和形状。'
   : '例如：拍 1 张照片，下节课前发给老师。')
+const homeworkContentPreview = computed(() => {
+  const content = String(props.state.homework?.content || '')
+  const plainText = markdownToPlainText(content)
+  return plainText || (content.trim() ? '已填写任务内容' : '点击填写任务内容')
+})
 const openHomeworkEditor = (field) => {
   homeworkEditorField.value = field
   homeworkEditorDraft.value = String(props.state.homework?.[field] || '')
@@ -117,12 +125,22 @@ const closeHomeworkEditor = () => {
 }
 const saveHomeworkEditor = () => {
   const field = homeworkEditorField.value
-  const value = homeworkEditorDraft.value.trim()
+  const value = field === 'content' ? String(homeworkEditorDraft.value || '') : homeworkEditorDraft.value.trim()
   const previousValue = String(props.state.homework?.[field] || '')
   props.state.homework[field] = value
   if (field === 'requirement' && !value) homeworkOptionalFieldEnabled.requirement = false
   if (previousValue !== value) props.state.markShareDraftDirty?.()
   closeHomeworkEditor()
+}
+const handleHomeworkImageUpload = async (file, insert) => {
+  if (!file || !String(file.type || '').startsWith('image/')) {
+    props.state.notify?.('任务图片只支持图片文件')
+    return
+  }
+  const uploaded = await props.state.uploadHomeworkImage?.(file)
+  if (!uploaded?.id) return
+  const alt = String(file.name || '任务图片').replace(/[\[\]]/g, '')
+  insert?.(`![${alt}](homework-file://${uploaded.id})`)
 }
 const toggleHomeworkOptionalField = (field, enabled, event) => {
   if (enabled) {
@@ -603,6 +621,7 @@ const finishArchiveAndExit = () => runArchiveAndExit({
 watch(homeworkEditorOpen, async (open) => {
   if (!open) return
   await nextTick()
+  homeworkEditorRef.value?.focus?.()
   homeworkEditorTextarea.value?.focus()
 })
 </script>
@@ -903,12 +922,12 @@ watch(homeworkEditorOpen, async (open) => {
                 </div>
                 <button
                   class="homework-field-preview"
-                  :class="{ empty: !state.homework.content.trim() }"
+                  :class="{ empty: !markdownToPlainText(state.homework.content) }"
                   type="button"
                   :title="state.homework.content || '点击填写任务内容'"
                   @click="openHomeworkEditor('content')"
                 >
-                  <span>{{ state.homework.content || '点击填写任务内容' }}</span>
+                  <span>{{ homeworkContentPreview }}</span>
                   <strong>{{ state.homework.content ? '编辑' : '填写' }}</strong>
                 </button>
               </div>
@@ -1081,7 +1100,16 @@ watch(homeworkEditorOpen, async (open) => {
               </div>
               <button class="ghost" type="button" @click="closeHomeworkEditor">关闭</button>
             </header>
+            <MarkdownEditor
+              v-if="homeworkEditorField === 'content'"
+              ref="homeworkEditorRef"
+              v-model="homeworkEditorDraft"
+              :placeholder="homeworkEditorPlaceholder"
+              :image-uploading="state.isProcessing"
+              @upload-image="handleHomeworkImageUpload"
+            />
             <textarea
+              v-else
               ref="homeworkEditorTextarea"
               v-model="homeworkEditorDraft"
               rows="8"

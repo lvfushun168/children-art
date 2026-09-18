@@ -1,6 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
+import MarkdownContent from '../common/MarkdownContent.vue'
+import { markdownToPlainText } from '../../services/markdown.js'
 
 const props = defineProps({
   activeStudent: {
@@ -135,7 +137,7 @@ const artworkConfirmation = (artwork) => artwork?.imageConfirmed ? '老师已确
 
 const homeworkIsAssigned = (value) => value?.taskMode
   ? value.taskMode === 'ASSIGNED'
-  : Boolean(String(value?.content || '').trim())
+  : Boolean(markdownToPlainText(value?.content || ''))
 const totalFeedbackContent = computed(() => String(props.totalFeedback?.content || '').trim())
 const personalFeedbackContent = computed(() => String(props.activeSessionStudent?.comment || '').trim())
 const formatHomeworkDate = (value) => {
@@ -212,7 +214,7 @@ const formatHomeworkDate = (value) => {
       </div>
       <div v-if="displayConfig.showHomework && homeworkIsAssigned(homework)" class="homework-preview">
         <strong>课后任务</strong>
-        <small>{{ homework.content }}</small>
+        <MarkdownContent :content="homework.content" private-media />
         <small v-if="homework.requirement">完成方式：{{ homework.requirement }}</small>
         <small v-if="homework.dueDate">截止日期：{{ formatHomeworkDate(homework.dueDate) }}</small>
         <a v-for="link in selectedExternalLinks" :key="link.id" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.title }}</a>

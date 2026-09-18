@@ -5345,7 +5345,7 @@ textarea:focus,
 .homework-editor-modal {
   display: grid;
   gap: 14px;
-  width: min(680px, 100%);
+  width: min(980px, 100%);
   max-height: calc(100dvh - 32px);
   padding: 18px;
   border: 1px solid var(--color-border);
@@ -5365,6 +5365,131 @@ textarea:focus,
 .homework-editor-modal .drawer-actions > div {
   display: flex;
   gap: 8px;
+}
+
+.markdown-editor {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.markdown-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.markdown-editor-toolbar button {
+  min-width: 36px;
+  padding: 7px 10px;
+}
+
+.markdown-editor-footer {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.markdown-editor-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.markdown-editor-panels > textarea,
+.markdown-editor-preview-panel {
+  min-height: 300px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.markdown-editor-panels > textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.65;
+}
+
+.markdown-editor-preview-panel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow: auto;
+}
+
+.markdown-editor-preview-label {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.markdown-editor-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.markdown-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+
+.markdown-content > :first-child {
+  margin-top: 0;
+}
+
+.markdown-content > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content p,
+.markdown-content ul,
+.markdown-content ol,
+.markdown-content blockquote,
+.markdown-content pre {
+  margin: 0 0 8px;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 22px;
+}
+
+.markdown-content blockquote {
+  padding-left: 10px;
+  border-left: 3px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+.markdown-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 8px 0;
+  border-radius: 8px;
+}
+
+.markdown-content a {
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.markdown-content pre {
+  max-width: 100%;
+  padding: 10px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--color-surface-muted);
+}
+
+.markdown-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .homework-example-row {
@@ -7243,6 +7368,10 @@ textarea:focus,
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.homework-preview .markdown-content {
+  padding: 2px 0;
 }
 
 .share-open-link {
@@ -12501,6 +12630,7 @@ textarea:focus,
   .lesson-asset-grid,
   .lesson-work-grid,
   .homework-editor,
+  .markdown-editor-panels,
   .content-settings-body,
   .publish-check-grid,
   .publish-defaults,

@@ -10888,85 +10888,37 @@ textarea:focus,
   font-size: 13px;
 }
 
-.date-time-range-controls {
-  display: grid;
-  grid-template-columns: minmax(180px, 1.25fr) minmax(130px, 1fr) auto minmax(130px, 1fr);
-  align-items: end;
-  gap: 8px;
+.date-time-range-field .dp__main,
+.date-time-range-field .dp__input_wrap {
+  width: 100%;
 }
 
-.date-time-range-item {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-}
-
-.date-time-range-item span {
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.date-time-range-date {
-  cursor: pointer;
-}
-
-.date-time-range-time,
-.date-time-range-time input {
-  cursor: pointer;
-}
-
-.date-time-range-time {
-  position: relative;
-}
-
-.time-picker-popover {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 8px);
-  left: 0;
-  display: grid;
-  min-width: 220px;
-  gap: 10px;
-  padding: 10px;
+.date-time-range-field .dp__input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 36px 9px 10px;
   border: 1px solid var(--color-border-strong);
-  border-radius: 9px;
+  border-radius: 7px;
   background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.date-time-range-field .dp__input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+.date-time-range-field .dp__input_icon {
+  color: var(--color-primary);
+}
+
+.date-time-range-field .dp__menu {
+  z-index: 60;
+  border-color: var(--color-border);
+  border-radius: 9px;
   box-shadow: var(--shadow-popover);
-}
-
-.time-picker-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.time-picker-controls select {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 7px;
-}
-
-.time-picker-controls span {
-  color: var(--color-muted);
-  font-weight: 800;
-}
-
-.time-picker-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 7px;
-}
-
-.time-picker-actions button {
-  min-height: 32px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-
-.date-time-range-separator {
-  padding-bottom: 11px;
-  color: var(--color-muted);
-  font-size: 13px;
+  font-family: inherit;
 }
 
 .lesson-mode-switch {
@@ -13193,12 +13145,9 @@ textarea:focus,
     justify-self: start;
   }
 
-  .date-time-range-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .date-time-range-separator {
-    display: none;
+  .app-shell-mobile .date-time-range-field .dp__input {
+    min-height: 44px;
+    font-size: 15px;
   }
 
   .app-shell-mobile .wizard.panel {

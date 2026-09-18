@@ -199,10 +199,10 @@ const materialSections = computed(() => {
     },
     {
       key: 'classroom',
-      title: '课堂记录',
-      description: '课堂照片和课堂视频',
+      title: '教学风采',
+      description: '教学照片和视频',
       category: MATERIAL_CATEGORIES.CLASSROOM,
-      uploadLabel: '添加课堂记录',
+      uploadLabel: '添加照片和视频',
       accept: 'image/*,video/*',
       empty: '尚未添加课堂记录',
       kind: 'media',

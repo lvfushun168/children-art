@@ -686,21 +686,34 @@ watch(homeworkEditorOpen, async (open) => {
           </div>
         </div>
         <div class="roster-table">
-          <button
+          <div
             v-for="row in state.sessionStudents"
             :key="`${row.lessonId}-${row.studentId}`"
+            class="roster-row"
             :class="{ active: sameId(row.studentId, state.activeStudentId) }"
             @click="state.activeStudentId = row.studentId"
           >
             <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
             <span>{{ studentFor(row.studentId).parent }}</span>
-            <AdaptiveSelect
-              :model-value="row.attendance"
-              :options="attendanceOptions"
-              @update:model-value="state.setAttendance(row, $event)"
-              @click.stop
-            />
-          </button>
+            <div class="attendance-radio-group" role="radiogroup" :aria-label="`${studentFor(row.studentId).name}出勤状态`">
+              <label
+                v-for="option in attendanceOptions"
+                :key="option"
+                class="attendance-radio"
+                :class="{ selected: row.attendance === option }"
+              >
+                <input
+                  class="attendance-radio-input"
+                  type="radio"
+                  :name="`attendance-${row.lessonId}-${row.studentId}`"
+                  :value="option"
+                  :checked="row.attendance === option"
+                  @change="state.activeStudentId = row.studentId; state.setAttendance(row, option)"
+                />
+                <span>{{ option }}</span>
+              </label>
+            </div>
+          </div>
         </div>
       </section>
 

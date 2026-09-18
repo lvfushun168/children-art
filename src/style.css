@@ -3251,7 +3251,7 @@ h2 {
   background: var(--color-surface-muted);
 }
 
-.roster-table > button {
+.roster-table > .roster-row {
   position: relative;
   z-index: 0;
   display: grid;
@@ -3266,15 +3266,75 @@ h2 {
   text-align: left;
 }
 
-.roster-table > button:focus-within {
+.roster-table > .roster-row:focus-within {
   z-index: 2;
 }
 
-.roster-table > button:has(.adaptive-select.open) {
-  z-index: 2;
+.attendance-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
-.roster-table > button.active {
+.attendance-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--color-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.attendance-radio:hover {
+  background: var(--color-surface-muted);
+}
+
+.attendance-radio.selected {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.attendance-radio-input {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  min-width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.attendance-radio-input::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  transform: scale(0);
+  transition: transform 0.14s ease;
+}
+
+.attendance-radio-input:checked {
+  border-color: var(--color-primary);
+}
+
+.attendance-radio-input:checked::before {
+  transform: scale(1);
+}
+
+.roster-table > .roster-row.active {
   outline: 2px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
   background: var(--color-primary-soft);
 }
@@ -13220,15 +13280,15 @@ textarea:focus,
     gap: 3px;
   }
 
-  .app-shell-mobile .roster-table > button {
+  .app-shell-mobile .roster-table > .roster-row {
     grid-template-columns: 1fr;
     gap: 8px;
     min-height: 0;
     padding: 12px;
   }
 
-  .app-shell-mobile .roster-table .adaptive-select {
-    max-width: none;
+  .app-shell-mobile .attendance-radio-group {
+    justify-content: flex-start;
   }
 
   .app-shell-mobile .classroom-materials-board,

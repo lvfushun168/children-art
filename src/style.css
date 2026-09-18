@@ -13081,9 +13081,19 @@ textarea:focus,
   }
 
   .app-shell-mobile .focus-breadcrumb {
+    flex-direction: row;
+    align-items: center;
     min-height: 46px;
     margin-bottom: 8px;
-    padding-right: 112px;
+    padding-right: 0;
+  }
+
+  .app-shell-mobile .focus-breadcrumb .back-link {
+    width: fit-content;
+    max-width: calc(100% - 170px);
+    margin-bottom: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .app-shell-mobile .today-hero {

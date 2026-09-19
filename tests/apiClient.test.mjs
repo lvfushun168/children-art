@@ -152,6 +152,35 @@ test('reads authenticated SSE snapshots and progress events', async () => {
   assert.equal(events[1].data.percent, 100)
 })
 
+test('reads AI stream events when an SSE record is split across network chunks', async () => {
+  setSession({ accessToken: 'sse-token', refreshToken: 'refresh-token', me: { user: { id: '1' } } })
+  const chunks = [
+    'event: stream-snapshot\ndata: {"jobId":"123","status":"RUNNING","seq":7,"content":"已有',
+    '完整文本"}\n\nevent: stream-delta\ndata: {"jobId":"123","status":"RUNNING","seq":8,"delta":"，继续生成"}\n\n'
+  ]
+  globalThis.fetch = async () => {
+    let index = 0
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () => index < chunks.length
+            ? { value: new TextEncoder().encode(chunks[index++]), done: false }
+            : { value: undefined, done: true },
+          releaseLock: () => {}
+        })
+      }
+    }
+  }
+
+  const events = []
+  await subscribeSse('/api/v1/jobs/events?ids=123', { onEvent: (event) => events.push(event) })
+  assert.deepEqual(events.map((event) => event.event), ['stream-snapshot', 'stream-delta'])
+  assert.equal(events[0].data.content, '已有完整文本')
+  assert.equal(events[1].data.delta, '，继续生成')
+})
+
 test('serializes cloud archive batch IDs as strings at the API boundary', async () => {
   let received
   globalThis.fetch = async (_url, options) => {

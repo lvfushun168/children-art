@@ -77,6 +77,7 @@ import { sha256ForFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import { markdownToPlainText } from '../services/markdown.js'
 import { copyTextToClipboard } from '../services/clipboard'
+import { mergeJobStream } from '../services/jobStream.js'
 import { loadAllPageItems } from '../utils/pagination'
 import {
   DEFAULT_BAIDU_BACKEND_BASE_URL,
@@ -4424,7 +4425,7 @@ export function useDeliveryWorkflow() {
   }
 
   const jobTerminalStatuses = new Set(['SUCCEEDED', 'FAILED', 'CANCELED'])
-  const jobSseAttemptTimeoutMs = 10000
+  const jobSseAttemptTimeoutMs = 30000
   const jobStaleNotices = new Set()
 
   const jobPayload = (value) => {
@@ -4465,13 +4466,30 @@ export function useDeliveryWorkflow() {
   const applyJobProgress = (value) => {
     const payload = jobPayload(value)
     if (!payload) return null
-    jobProgress[payload.jobId] = payload
+    const previous = jobProgress[payload.jobId]
+    jobProgress[payload.jobId] = previous?.streamSeq !== undefined
+      ? { ...payload, streamSeq: previous.streamSeq, streamContent: previous.streamContent || '', streamStatus: previous.streamStatus || 'RUNNING' }
+      : payload
     if (payload.status === 'FAILED' && payload.failureCode === 'STALE_JOB_ATTEMPT'
       && !jobStaleNotices.has(payload.jobId)) {
       jobStaleNotices.add(payload.jobId)
       notify('原输入已变化，本次 AI 结果未应用，请确认最新内容后重新生成')
     }
     return payload
+  }
+
+  const applyJobStream = (value, eventName) => {
+    let source = value
+    if (typeof source === 'string') {
+      try { source = JSON.parse(source) } catch { return null }
+    }
+    const merged = mergeJobStream(jobProgress[String(source?.jobId ?? source?.id ?? '')] || {}, source, eventName)
+    if (!merged) return null
+    jobProgress[merged.jobId] = {
+      ...merged.state,
+      streamUpdatedAt: Date.now()
+    }
+    return merged
   }
 
   const jobResultFor = (jobId, key) => {
@@ -4568,7 +4586,7 @@ export function useDeliveryWorkflow() {
     return snapshots
   }
 
-  const watchJobs = (jobIds = [], lessonId) => {
+  const watchJobs = (jobIds = [], lessonId, options = {}) => {
     const ids = [...new Set(jobIds.filter(Boolean).map(String))]
     if (!ids.length) return waitForJobs([], lessonId)
     const key = ids.slice().sort((left, right) => left.localeCompare(right, undefined, { numeric: true })).join(',')
@@ -4589,9 +4607,30 @@ export function useDeliveryWorkflow() {
         if (controller.signal.aborted) streamController.abort()
         else controller.signal.addEventListener('abort', forwardAbort, { once: true })
         let timeoutId = null
+        let resolveTimeout
+        const resetStreamTimeout = () => {
+          if (timeoutId) clearTimeout(timeoutId)
+          timeoutId = setTimeout(() => {
+            if (!terminalFromStream && !areJobsTerminal(ids)) {
+              streamTimedOut = true
+              streamController.abort()
+            }
+            resolveTimeout?.('timeout')
+          }, jobSseAttemptTimeoutMs)
+        }
+        const timeoutPromise = new Promise((resolve) => {
+          resolveTimeout = resolve
+        })
+        resetStreamTimeout()
         const streamPromise = subscribeSse(api.jobs.eventsPath(ids), {
           signal: streamController.signal,
           onEvent: (event) => {
+            resetStreamTimeout()
+            if (event.event === 'stream-snapshot' || event.event === 'stream-delta') {
+              const stream = applyJobStream(event.data, event.event)
+              if (stream) options.onStreamText?.(stream)
+              return
+            }
             const payload = applyJobProgress(event.data)
             if (payload && jobTerminalStatuses.has(payload.status) && areJobsTerminal(ids)) {
               terminalFromStream = true
@@ -4601,15 +4640,6 @@ export function useDeliveryWorkflow() {
           }
         }).catch(() => null)
         try {
-          const timeoutPromise = new Promise((resolve) => {
-            timeoutId = setTimeout(() => {
-              if (!terminalFromStream && !areJobsTerminal(ids)) {
-                streamTimedOut = true
-                streamController.abort()
-              }
-              resolve('timeout')
-            }, jobSseAttemptTimeoutMs)
-          })
           await Promise.race([streamPromise, timeoutPromise])
           await streamPromise
         } finally {
@@ -6332,6 +6362,7 @@ export function useDeliveryWorkflow() {
       return false
     }
     if (!(await flushTotalFeedback())) return false
+    const originalContent = String(totalFeedback.value?.content || '')
     const result = await runRemote('正在润色总课评...', async () => {
       const submitted = await api.feedback.polishTotal(activeTask.value.id, {
         templateId: activeCommentTemplate.value?.id
@@ -6339,7 +6370,11 @@ export function useDeliveryWorkflow() {
       if (!submitted?.jobId) throw new Error('总课评润色任务创建失败')
       totalFeedback.value.jobId = submitted.jobId
       try {
-        const progress = await watchJobs([submitted.jobId], activeTask.value.id)
+        const progress = await watchJobs([submitted.jobId], activeTask.value.id, {
+          onStreamText: ({ text, status }) => {
+            if (['RUNNING', 'SUCCEEDED', 'COMPLETED'].includes(status)) totalFeedback.value.content = text
+          }
+        })
         const failed = progress.find((job) => ['FAILED', 'CANCELED'].includes(job.status))
         if (failed) throw new Error(failed.message || '总课评润色失败，可重试')
         const completed = progress.find((job) => sameId(job.jobId || job.id, submitted.jobId))
@@ -6351,10 +6386,11 @@ export function useDeliveryWorkflow() {
         totalFeedback.value.jobId = null
         return submitted
       } catch (error) {
-        if (sameId(totalFeedback.value?.jobId, submitted.jobId)) {
-          totalFeedback.value.jobId = null
-          totalFeedback.value.status = totalFeedback.value.confirmedVersionId ? 'CONFIRMED' : 'DRAFT'
-        }
+        totalFeedback.value.content = originalContent
+        totalFeedback.value.draftStatus = 'SAVED'
+        totalFeedback.value.draftError = ''
+        if (sameId(totalFeedback.value?.jobId, submitted.jobId)) totalFeedback.value.jobId = null
+        totalFeedback.value.status = totalFeedback.value.confirmedVersionId ? 'CONFIRMED' : 'DRAFT'
         throw error
       }
     }, '总课评 AI 润色已完成并自动保存')
@@ -6778,7 +6814,17 @@ export function useDeliveryWorkflow() {
   const remoteGenerateOne = async (row) => {
     if (!row) return null
     if (!(await flushStudentDraft(row))) return null
+    const originalComment = String(row.comment || '')
     const result = await runRemote('正在生成当前学生课评...', async () => {
+      let streamedRow = row
+      let generationStarted = false
+      const restoreOriginalComment = () => {
+        row.comment = originalComment
+        if (streamedRow && streamedRow !== row) streamedRow.comment = originalComment
+        markStudentDraftSaved(row)
+        if (streamedRow && streamedRow !== row) markStudentDraftSaved(streamedRow)
+      }
+      try {
       // Persist the latest classroom record before every single-student generation.
       // Omit content so regeneration does not create an unnecessary manual version
       // from the currently displayed AI candidate.
@@ -6805,16 +6851,30 @@ export function useDeliveryWorkflow() {
         templateId: activeCommentTemplate.value?.id
       })
       if (generation?.status && generation.status !== 'QUEUED') {
+        restoreOriginalComment()
         notify(generation.message || '课评任务提交失败，请稍后重试')
         return null
       }
-      const progress = await watchJobs([generation?.jobId], activeTask.value.id)
+      generationStarted = true
+      const progress = await watchJobs([generation?.jobId], activeTask.value.id, {
+        onStreamText: ({ text, status }) => {
+          if (['RUNNING', 'SUCCEEDED', 'COMPLETED'].includes(status)) streamedRow.comment = text
+        }
+      })
       if (progress.some((job) => ['FAILED', 'CANCELED'].includes(job.status))) {
+        restoreOriginalComment()
         notify(progress.find((job) => ['FAILED', 'CANCELED'].includes(job.status))?.message || '课评生成失败，可直接重试')
+        return null
+      }
+      const completed = progress.find((job) => sameId(job.jobId || job.id, generation?.jobId))
+      if (!completed || completed.status !== 'SUCCEEDED') {
+        restoreOriginalComment()
+        notify(completed?.status === 'RUNNING' ? '课评仍在处理中，请稍后刷新后重试' : '课评任务未完成，请稍后刷新后重试')
         return null
       }
       await refreshRemoteLessonAfterJobs(activeTask.value.id, [generation?.jobId])
       const latestRow = sessionStudentFor(row.studentId) || row
+      streamedRow = latestRow
       if (!latestRow.comment?.trim()) throw new Error('课评生成完成但没有返回课评内容')
       let confirmation
       try {
@@ -6826,6 +6886,10 @@ export function useDeliveryWorkflow() {
       if (!confirmation.confirmed) throw new Error('课评生成完成但没有可确认内容')
       markStudentDraftSaved(confirmation.row)
       return generation
+      } catch (error) {
+        if (generationStarted) restoreOriginalComment()
+        throw error
+      }
     })
     return result
   }

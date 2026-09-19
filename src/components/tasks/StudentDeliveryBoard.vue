@@ -671,9 +671,16 @@ onMounted(() => {
                   </button>
                 </div>
                 <button v-else type="button" class="delivery-empty delivery-empty-action" @click="openArtwork(row)">尚未上传作品，点击上传</button>
-                <label class="delivery-add-artwork">
+                <label class="delivery-add-artwork" :for="`delivery-artwork-upload-${rowIndex}`">
                   ＋添加作品
-                  <input type="file" accept="image/*" multiple @change="state.updateImage($event, row)" />
+                  <input
+                    :id="`delivery-artwork-upload-${rowIndex}`"
+                    name="artworkFiles"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    @change="state.updateImage($event, row)"
+                  />
                 </label>
                 <div class="delivery-artwork-meta">
                   <span :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${row.artworkCount || workImages(row).length || 1} 张` : '待上传' }}</span>
@@ -699,12 +706,20 @@ onMounted(() => {
                         preload="metadata"
                         muted
                       />
-                      <label class="student-record-replace" title="点击媒体或“替换”重新上传" aria-label="替换学生记录">
+                      <label class="student-record-replace" :for="`student-record-replace-${rowIndex}-${index}`" title="点击媒体或“替换”重新上传" aria-label="替换学生记录">
                         <span aria-hidden="true">替换</span>
-                        <input type="file" accept="image/*,video/*" @change="replaceStudentRecord($event, row, record)" />
+                        <input
+                          :id="`student-record-replace-${rowIndex}-${index}`"
+                          name="studentRecordReplacement"
+                          type="file"
+                          accept="image/*,video/*"
+                          @change="replaceStudentRecord($event, row, record)"
+                        />
                       </label>
                     </div>
                     <input
+                      :id="`student-record-name-${rowIndex}-${index}`"
+                      :name="`studentRecordName-${row.studentId}-${index}`"
                       class="student-record-name"
                       :value="studentRecordName(record, index)"
                       :aria-label="`学生记录名称${index + 1}`"
@@ -715,15 +730,31 @@ onMounted(() => {
                   </article>
                 </div>
                 <div v-else class="student-record-empty">暂无学生记录</div>
-                <label class="delivery-add-student-record">
+                <label class="delivery-add-student-record" :for="`student-record-upload-${rowIndex}`">
                   选择文件
-                  <input type="file" accept="image/*,video/*" multiple @change="uploadStudentRecords($event, row)" />
+                  <input
+                    :id="`student-record-upload-${rowIndex}`"
+                    name="studentRecordFiles"
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    @change="uploadStudentRecords($event, row)"
+                  />
                 </label>
                 <small class="student-record-count">{{ studentRecordCountFor(row) }} 个文件</small>
               </td>
               <td class="delivery-record-cell">
                 <span class="delivery-field-status" :class="recordStatusFor(row) === '已保存' ? 'ok-text' : 'muted-text'">课堂记录（选填）：{{ recordStatusFor(row) === '待补' ? '未填写' : recordStatusFor(row) }}</span>
-                <textarea v-model="row.record" rows="4" placeholder="记录孩子今天的课堂表现……" @input="markDraftDirty(row)" @blur="flushDraft(row)" />
+                <textarea
+                  :id="`delivery-record-${rowIndex}`"
+                  :name="`deliveryRecord-${row.studentId}`"
+                  :aria-label="`${studentFor(row.studentId).name}课堂记录`"
+                  v-model="row.record"
+                  rows="4"
+                  placeholder="记录孩子今天的课堂表现……"
+                  @input="markDraftDirty(row)"
+                  @blur="flushDraft(row)"
+                />
                 <div class="delivery-cell-actions">
                   <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = row.studentId; state.simulateVoice()">🎙语音转文字</button>
                   <span v-if="draftStatusTextFor(row, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(row)), error: state.studentDraftStatusFor?.(row) === 'ERROR' }" :title="state.studentDraftErrorFor?.(row) || ''" @click="state.studentDraftStatusFor?.(row) === 'ERROR' && retryDraft(row)">{{ draftStatusTextFor(row, 'record') }}</span>
@@ -753,16 +784,19 @@ onMounted(() => {
                 <div class="delivery-total-feedback-editor">
                   <span class="delivery-field-status" :class="state.counts.totalFeedbackReady ? 'ok-text' : 'missing-text'">总课评：{{ totalFeedbackStatus() }}</span>
                   <textarea
+                    id="desktop-total-feedback"
+                    name="totalFeedback"
                     ref="desktopTotalFeedbackTextarea"
                     v-model="state.totalFeedback.content"
                     rows="4"
                     required
                     aria-label="本节课总课评"
+                    :readonly="state.isProcessing || totalFeedbackBusy()"
                     @input="handleTotalFeedbackInput"
                     @blur="state.flushTotalFeedback?.()"
                   />
                     <div class="delivery-cell-actions delivery-total-feedback-actions">
-                      <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? '润色中…' : 'AI 润色' }}</button>
+                      <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? 'AI 正在生成…' : 'AI 润色' }}</button>
                     </div>
                   <span v-if="totalFeedbackDraftStatus() === 'ERROR'" class="delivery-autosave-status error" @click="state.flushTotalFeedback?.()">{{ totalFeedbackDraftError() || '总课评自动保存失败，点击重试' }}</span>
                   <span v-else-if="['DIRTY', 'SAVING'].includes(totalFeedbackDraftStatus())" class="delivery-autosave-status saving">总课评自动保存中</span>
@@ -787,18 +821,21 @@ onMounted(() => {
           <span class="delivery-status" :class="state.counts.totalFeedbackReady ? 'done' : 'pending'">{{ totalFeedbackStatus() }}</span>
         </header>
         <textarea
+          id="mobile-total-feedback"
+          name="totalFeedbackMobile"
           ref="mobileTotalFeedbackTextarea"
           v-model="state.totalFeedback.content"
           rows="7"
           required
           aria-label="本节课总课评"
           placeholder="填写本节课面向所有家长的总课评……"
+          :readonly="state.isProcessing || totalFeedbackBusy()"
           @input="handleTotalFeedbackInput"
           @blur="state.flushTotalFeedback?.()"
         />
         <small>总课评独立于某个学生，内容会自动保存并作为新家长页面的主课评。</small>
         <div class="mobile-student-editor-actions">
-          <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? '润色中…' : 'AI 润色' }}</button>
+          <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? 'AI 正在生成…' : 'AI 润色' }}</button>
         </div>
         <span v-if="totalFeedbackDraftStatus() === 'ERROR'" class="delivery-autosave-status error" @click="state.flushTotalFeedback?.()">{{ totalFeedbackDraftError() || '总课评自动保存失败，点击重试' }}</span>
       </section>
@@ -889,6 +926,8 @@ onMounted(() => {
                   muted
                 />
                 <input
+                  :id="`mobile-student-record-name-${mobileStudent.studentId}-${index}`"
+                  :name="`mobileStudentRecordName-${mobileStudent.studentId}-${index}`"
                   class="student-record-name"
                   :value="studentRecordName(record, index)"
                   :aria-label="`学生记录名称${index + 1}`"
@@ -896,18 +935,31 @@ onMounted(() => {
                   @keydown.enter.prevent="renameStudentRecord($event, mobileStudent, record)"
                 />
                 <div class="student-record-mobile-actions">
-                  <label class="ghost">
+                  <label class="ghost" :for="`mobile-student-record-replace-${mobileStudent.studentId}-${index}`">
                     重新上传
-                    <input type="file" accept="image/*,video/*" @change="replaceStudentRecord($event, mobileStudent, record)" />
+                    <input
+                      :id="`mobile-student-record-replace-${mobileStudent.studentId}-${index}`"
+                      name="mobileStudentRecordReplacement"
+                      type="file"
+                      accept="image/*,video/*"
+                      @change="replaceStudentRecord($event, mobileStudent, record)"
+                    />
                   </label>
                   <button type="button" class="ghost danger-text" :disabled="state.isProcessing" @click="removeStudentRecord(mobileStudent, record)">删除</button>
                 </div>
               </article>
             </div>
             <div v-else class="student-record-empty">还没有学生记录，可上传照片或视频。</div>
-            <label class="delivery-add-student-record mobile-student-record-upload">
+            <label class="delivery-add-student-record mobile-student-record-upload" :for="`mobile-student-record-upload-${mobileStudent.studentId}`">
               选择文件
-              <input type="file" accept="image/*,video/*" multiple @change="uploadStudentRecords($event, mobileStudent)" />
+              <input
+                :id="`mobile-student-record-upload-${mobileStudent.studentId}`"
+                name="mobileStudentRecordFiles"
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                @change="uploadStudentRecords($event, mobileStudent)"
+              />
             </label>
           </article>
         </section>
@@ -919,7 +971,16 @@ onMounted(() => {
           </div>
           <article class="mobile-student-editor-card">
             <header><strong>课堂记录（选填）</strong><span>{{ recordStatusFor(mobileStudent) === '待补' ? '未填写' : recordStatusFor(mobileStudent) }}</span></header>
-            <textarea v-model="mobileStudent.record" rows="8" placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……" @input="markDraftDirty(mobileStudent)" @blur="flushDraft(mobileStudent)" />
+            <textarea
+              id="mobile-student-record"
+              name="mobileStudentRecord"
+              aria-label="课堂记录"
+              v-model="mobileStudent.record"
+              rows="8"
+              placeholder="记录孩子今天的课堂表现、作品特点，以及可以继续提升的地方……"
+              @input="markDraftDirty(mobileStudent)"
+              @blur="flushDraft(mobileStudent)"
+            />
             <div class="mobile-student-editor-actions">
               <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = mobileStudent.studentId; state.simulateVoice()">🎙 语音转文字</button>
               <span v-if="draftStatusTextFor(mobileStudent, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'record') }}</span>
@@ -935,9 +996,19 @@ onMounted(() => {
           <article class="mobile-student-editor-card">
             <header><strong>个人课评（选填）</strong><span>{{ commentStatusFor(mobileStudent) === '待生成' ? '未填写' : commentStatusFor(mobileStudent) }}</span></header>
             <p class="mobile-comment-preview">{{ mobileStudent.comment?.trim() || '可补充只针对这名学生的课评。' }}</p>
-            <textarea v-model="mobileStudent.comment" rows="9" placeholder="填写学生补充课评（选填）……" @input="markDraftDirty(mobileStudent)" @blur="flushDraft(mobileStudent)" />
+            <textarea
+              id="mobile-student-comment"
+              name="mobileStudentComment"
+              aria-label="个人课评"
+              v-model="mobileStudent.comment"
+              rows="9"
+              placeholder="填写学生补充课评（选填）……"
+              :readonly="state.isProcessing || feedbackJobActive(mobileStudent)"
+              @input="markDraftDirty(mobileStudent)"
+              @blur="flushDraft(mobileStudent)"
+            />
             <div class="mobile-student-editor-actions">
-              <small v-if="feedbackProgress(mobileStudent)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(mobileStudent).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(mobileStudent)) }}</small>
+              <small v-if="feedbackProgress(mobileStudent)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(mobileStudent).status === 'FAILED' }">{{ feedbackJobActive(mobileStudent) ? 'AI 正在生成' : jobProgressLabel(feedbackProgress(mobileStudent)) }}</small>
               <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)">{{ feedbackJobActive(mobileStudent) ? '生成中…' : '重新生成' }}</button>
               <span v-if="draftStatusTextFor(mobileStudent, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'comment') }}</span>
             </div>
@@ -968,14 +1039,16 @@ onMounted(() => {
           <span>第 {{ artworkItems.findIndex((item) => sameId(item.artworkId, artworkItem?.artworkId)) + 1 }}/{{ artworkItems.length }} 张</span>
           <button type="button" class="ghost" @click="switchArtwork(1)">下一张 ›</button>
         </div>
-        <label class="drawer-add-artwork">
+        <label class="drawer-add-artwork" for="artwork-drawer-upload">
           ＋ 添加作品（可多选）
-          <input type="file" accept="image/*" multiple @change="state.updateImage($event, artworkRow)" />
+          <input id="artwork-drawer-upload" name="artworkDrawerFiles" type="file" accept="image/*" multiple @change="state.updateImage($event, artworkRow)" />
         </label>
 
-        <label class="drawer-field artwork-name-field">
+        <label class="drawer-field artwork-name-field" for="artwork-name">
           <span>作品名称</span>
           <input
+            id="artwork-name"
+            name="artworkName"
             v-model="artworkNameDraft"
             class="artwork-name-input"
             maxlength="255"
@@ -1002,11 +1075,11 @@ onMounted(() => {
         <section class="artwork-version-list">
           <article class="artwork-version-card" :class="{ selected: selectedImageMode(artworkItem) === 'original' && hasImage(imageAsset(artworkItem, 'original')) }">
             <div class="artwork-version-media">
-              <label class="artwork-media-upload" :class="{ empty: !hasImage(imageAsset(artworkItem, 'original')) }" title="点击替换原图">
+              <label class="artwork-media-upload" for="artwork-original-replace" :class="{ empty: !hasImage(imageAsset(artworkItem, 'original')) }" title="点击替换原图">
                 <ProtectedMedia v-if="hasImage(imageAsset(artworkItem, 'original'))" :file-id="imageAsset(artworkItem, 'original').fileId" :src="imageAsset(artworkItem, 'original').src" alt="作品原图" />
                 <span v-else class="delivery-empty">尚未上传原图，点击上传</span>
                 <span v-if="hasImage(imageAsset(artworkItem, 'original'))" class="artwork-media-hover-hint">点击替换原图</span>
-                <input type="file" accept="image/*" @change="replaceOriginalImage($event, artworkItem)" />
+                <input id="artwork-original-replace" name="artworkOriginalFile" type="file" accept="image/*" @change="replaceOriginalImage($event, artworkItem)" />
               </label>
               <button v-if="hasImage(imageAsset(artworkItem, 'original'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="移除作品" aria-label="移除作品" @click.stop="removeOriginalArtwork(artworkItem)">×</button>
             </div>
@@ -1038,8 +1111,8 @@ onMounted(() => {
           <button type="button" class="secondary" :disabled="state.isProcessing || artworkJobActive(artworkItem) || !artworkItem.imageMatched" @click="processCurrentImage(artworkItem)">{{ artworkJobActive(artworkItem) ? '处理中…' : processActionLabel }}</button>
         </footer>
 
-        <label class="inline-check artwork-highlight-setting"><input type="checkbox" :checked="artworkItem.highlight" @change="state.toggleHighlight(artworkItem)" /><span>标记为本节高光作品</span></label>
-        <textarea v-if="artworkItem.highlight" v-model="artworkItem.highlightNote" rows="3" maxlength="2000" placeholder="补充高光说明" @blur="state.saveArtworkHighlight?.(artworkItem)" />
+        <label class="inline-check artwork-highlight-setting" for="artwork-highlight"><input id="artwork-highlight" name="artworkHighlight" type="checkbox" :checked="artworkItem.highlight" @change="state.toggleHighlight(artworkItem)" /><span>标记为本节高光作品</span></label>
+        <textarea v-if="artworkItem.highlight" id="artwork-highlight-note" name="artworkHighlightNote" v-model="artworkItem.highlightNote" rows="3" maxlength="2000" placeholder="补充高光说明" @blur="state.saveArtworkHighlight?.(artworkItem)" />
         </template>
         <div v-else class="drawer-empty-artwork">还没有作品，请使用上方“添加作品”一次选择一张或多张图片。</div>
       </aside>
@@ -1056,9 +1129,11 @@ onMounted(() => {
         </header>
 
 
-        <label class="drawer-field">
+        <label class="drawer-field" for="ai-image-prompt">
           <span>处理提示词</span>
           <textarea
+            id="ai-image-prompt"
+            name="aiImagePrompt"
             v-model="aiPrompt"
             rows="6"
             maxlength="500"
@@ -1085,7 +1160,7 @@ onMounted(() => {
           <div>
             <span>学生补充课评</span>
             <strong>{{ studentFor(commentRow.studentId).name }}</strong>
-            <small>{{ jobProgressLabel(feedbackProgress(commentRow)) || '可生成或编辑当前课评，编辑内容会自动保存。' }}</small>
+            <small>{{ feedbackJobActive(commentRow) ? 'AI 正在生成' : jobProgressLabel(feedbackProgress(commentRow)) || '可生成或编辑当前课评，编辑内容会自动保存。' }}</small>
           </div>
           <button type="button" class="ghost" @click="closeComment">关闭</button>
         </header>
@@ -1106,9 +1181,18 @@ onMounted(() => {
             />
           </label>
 
-          <label class="drawer-field comment-editor-field">
+          <label class="drawer-field comment-editor-field" :for="`student-comment-drawer-${commentRow.studentId}`">
             <span>课评内容</span>
-            <textarea v-model="commentRow.comment" rows="10" placeholder="先录入课堂记录，再生成学生补充课评……" @input="markDraftDirty(commentRow)" @blur="flushDraft(commentRow)" />
+            <textarea
+              :id="`student-comment-drawer-${commentRow.studentId}`"
+              name="studentComment"
+              v-model="commentRow.comment"
+              rows="10"
+              placeholder="先录入课堂记录，再生成学生补充课评……"
+              :readonly="state.isProcessing || feedbackJobActive(commentRow)"
+              @input="markDraftDirty(commentRow)"
+              @blur="flushDraft(commentRow)"
+            />
           </label>
         </div>
 

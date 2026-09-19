@@ -83,6 +83,19 @@ test('forwards keepalive for best-effort page-hide draft saves', async () => {
   assert.deepEqual(JSON.parse(received.body), { version: 3 })
 })
 
+test('forwards keepalive for total feedback page-hide saves', async () => {
+  let received
+  globalThis.fetch = async (_url, options) => {
+    received = options
+    return response(200, { data: { ok: true }, meta: {}, error: null })
+  }
+
+  await api.feedback.saveTotal(17, { content: '今天完成了色彩练习', version: 3 }, { keepalive: true })
+
+  assert.equal(received.keepalive, true)
+  assert.deepEqual(JSON.parse(received.body), { content: '今天完成了色彩练习', version: 3 })
+})
+
 test('refreshes once for concurrent 401 responses and retries both requests', async () => {
   setSession({ accessToken: 'old-token', refreshToken: 'refresh-token', me: { user: { id: '1' } } })
   const calls = []

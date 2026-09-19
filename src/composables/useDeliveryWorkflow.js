@@ -137,6 +137,10 @@ const shareDraftHasUnsavedChanges = (state) => Boolean(state) && (
   Number(state.revision || 0) !== Number(state.savedRevision || 0)
   || String(state.status || '').toUpperCase() === 'ERROR'
 )
+const totalFeedbackDraftHasUnsavedChanges = (state) => Boolean(state) && (
+  Number(state.draftRevision || 0) !== Number(state.savedRevision || 0)
+  || ['DIRTY', 'SAVING', 'ERROR'].includes(String(state.draftStatus || '').toUpperCase())
+)
 const PREPARATION_MATERIAL_LABELS = new Set(['范画', '步骤图', '课堂参考图', '课件'])
 const displayDateFromValue = (value) => {
   if (!value) return ''
@@ -3941,6 +3945,9 @@ export function useDeliveryWorkflow() {
           showHomework: workspace.displayConfig?.showHomework
         }
       : null
+    const preserveLocalTotalFeedback = totalFeedbackDraftHasUnsavedChanges(workspace.totalFeedback)
+      ? { ...workspace.totalFeedback }
+      : null
     const cloudArchiveModule = value?.cloudArchive || value?.m3?.cloudArchive || {}
     const cloudJobs = (cloudArchiveModule.jobs || []).map(mapCloudArchiveJob)
     const cloudBatch = cloudArchiveModule.batch ? mapCloudArchiveBatch(cloudArchiveModule.batch) : workspace.cloudBatch
@@ -4042,19 +4049,36 @@ export function useDeliveryWorkflow() {
     draftDisplayConfig.showHomework = homeworkIsAssigned(nextHomework)
       && nextHomework.visible !== false
       && (preserveLocalShareDraft ? preserveLocalShareDraft.showHomework !== false : draftDisplayConfig.showHomework !== false)
+    const nextTotalFeedback = preserveLocalTotalFeedback
+      ? {
+          ...totalFeedbackRemote,
+          ...preserveLocalTotalFeedback,
+          lessonId: lesson.id,
+          version: Number(totalFeedbackRemote.version ?? preserveLocalTotalFeedback.version ?? 0),
+          status: 'DRAFT',
+          draftStatus: String(preserveLocalTotalFeedback.draftStatus || '').toUpperCase() === 'ERROR' ? 'ERROR' : 'DIRTY',
+          draftError: preserveLocalTotalFeedback.draftError || '',
+          draftRevision: Number(preserveLocalTotalFeedback.draftRevision || 0),
+          savedRevision: Number(preserveLocalTotalFeedback.savedRevision || 0),
+          jobId: preserveLocalTotalFeedback.jobId || null
+        }
+      : {
+          ...workspace.totalFeedback,
+          ...totalFeedbackRemote,
+          lessonId: lesson.id,
+          draftStatus: 'SAVED',
+          draftError: '',
+          draftRevision: workspace.totalFeedback?.draftRevision || 0,
+          savedRevision: workspace.totalFeedback?.draftRevision || 0,
+          jobId: null
+        }
+    const totalFeedbackWorkspaceValue = preserveLocalTotalFeedback
+      ? Object.assign(workspace.totalFeedback, nextTotalFeedback)
+      : nextTotalFeedback
     Object.assign(workspace, {
       lessonId: lesson.id,
       studentDeliveries: rows,
-      totalFeedback: {
-        ...workspace.totalFeedback,
-        ...totalFeedbackRemote,
-        lessonId: lesson.id,
-        draftStatus: 'SAVED',
-        draftError: '',
-        draftRevision: workspace.totalFeedback?.draftRevision || 0,
-        savedRevision: workspace.totalFeedback?.draftRevision || 0,
-        jobId: null
-      },
+      totalFeedback: totalFeedbackWorkspaceValue,
       materials: materialItems,
       materialsConfirmedEmpty: Boolean(assetsModule.materialsConfirmedEmpty),
       materialsVersion: assetsModule.materialsVersion === null || assetsModule.materialsVersion === undefined
@@ -4688,13 +4712,18 @@ export function useDeliveryWorkflow() {
     const handlePageHide = () => {
       const lessonId = activeTaskId.value
       const workspace = lessonId ? lessonWorkspaces[String(lessonId)] : null
-      if (!workspace || !shareDraftHasUnsavedChanges(workspace.shareDraft)) return
-      void flushShareDraft(lessonId, {
-        reason: '页面关闭前自动保存课后任务',
-        keepalive: true,
-        silent: true,
-        notifyOnError: false
-      })
+      if (!workspace) return
+      if (shareDraftHasUnsavedChanges(workspace.shareDraft)) {
+        void flushShareDraft(lessonId, {
+          reason: '页面关闭前自动保存课后任务',
+          keepalive: true,
+          silent: true,
+          notifyOnError: false
+        })
+      }
+      if (totalFeedbackDraftHasUnsavedChanges(workspace.totalFeedback)) {
+        void flushTotalFeedback({ keepalive: true })
+      }
     }
     window.addEventListener('pagehide', handlePageHide)
     removeShareDraftPagehide = () => window.removeEventListener('pagehide', handlePageHide)
@@ -4707,6 +4736,8 @@ export function useDeliveryWorkflow() {
     if (cloudProviderPickerResolver) cloudProviderPickerResolver(null)
     studentDraftSaveTimers.forEach((timer) => clearTimeout(timer))
     studentDraftSaveTimers.clear()
+    totalFeedbackSaveTimer.forEach((timer) => clearTimeout(timer))
+    totalFeedbackSaveTimer.clear()
     shareDraftSaveTimers.forEach((timer) => clearTimeout(timer))
     shareDraftSaveTimers.clear()
     if (archiveRunCloseTimer) clearTimeout(archiveRunCloseTimer)
@@ -5396,6 +5427,15 @@ export function useDeliveryWorkflow() {
     if (!shareDraftSaved) {
       notify('家长展示草稿保存失败，本次修改可能未保存，仍将退出登录')
     }
+    let totalFeedbackSaved = true
+    try {
+      totalFeedbackSaved = await flushTotalFeedback()
+    } catch {
+      totalFeedbackSaved = false
+    }
+    if (!totalFeedbackSaved) {
+      notify('总课评保存失败，本次修改可能未保存，仍将退出登录')
+    }
     if (!(await flushStudentDrafts())) {
       notify('仍有课堂记录或课评草稿保存失败，请重试后再退出登录')
       return false
@@ -5471,6 +5511,9 @@ export function useDeliveryWorkflow() {
     shareDraftSaveTimers.forEach((timer) => clearTimeout(timer))
     shareDraftSaveTimers.clear()
     shareDraftSaveChains.clear()
+    totalFeedbackSaveTimer.forEach((timer) => clearTimeout(timer))
+    totalFeedbackSaveTimer.clear()
+    totalFeedbackSaveChains.clear()
     studentDraftSaveTimers.forEach((timer) => clearTimeout(timer))
     studentDraftSaveTimers.clear()
     studentDraftSaveChains.clear()
@@ -5528,6 +5571,15 @@ export function useDeliveryWorkflow() {
       }
       if (!shareDraftSaved) {
         notify('上一课次的家长展示草稿保存失败，本次修改可能未保存，仍将切换')
+      }
+      let totalFeedbackSaved = true
+      try {
+        totalFeedbackSaved = await flushTotalFeedback()
+      } catch {
+        totalFeedbackSaved = false
+      }
+      if (!totalFeedbackSaved) {
+        notify('上一课次的总课评保存失败，本次修改可能未保存，仍将切换')
       }
       if (!(await flushStudentDrafts(previousTaskId))) {
         notify('上一课次还有未保存的课堂记录或课评，请重试后再切换')
@@ -6276,7 +6328,7 @@ export function useDeliveryWorkflow() {
   const totalFeedbackReady = () => String(totalFeedback.value?.content || '').trim().length > 0
     && totalFeedback.value?.status === 'CONFIRMED'
 
-  const saveTotalFeedbackNow = (targetWorkspace = null, targetLessonId = null) => {
+  const saveTotalFeedbackNow = (targetWorkspace = null, targetLessonId = null, { keepalive = false } = {}) => {
     const workspace = targetWorkspace || ensureLessonWorkspace(activeTask.value)
     const value = workspace.totalFeedback
     const lessonId = targetLessonId || workspace.lessonId || activeTask.value?.id
@@ -6291,28 +6343,57 @@ export function useDeliveryWorkflow() {
     if (currentChain) return currentChain
     const previous = currentChain || Promise.resolve(true)
     const operation = previous.catch(() => false).then(async () => {
-      if (!String(value.content || '').trim() && value.draftStatus === 'SAVED') return true
-      const revision = Number(value.draftRevision || 0)
-      value.draftStatus = 'SAVING'
-      value.draftError = ''
-      try {
-        const saved = await api.feedback.saveTotal(lessonId, {
-          content: value.content || '',
-          clear: false,
-          version: Number(value.version || 0)
-        })
-        Object.assign(value, mapTotalFeedback(saved), {
-          draftStatus: Number(value.draftRevision || 0) === revision ? 'SAVED' : 'DIRTY',
-          draftError: '',
-          savedRevision: revision,
-          jobId: null
-        })
-        return true
-      } catch (error) {
-        value.draftStatus = 'ERROR'
-        value.draftError = remoteErrorMessage(error, '总课评自动保存失败，请重试')
-        return false
+      let conflictRetried = false
+      while (totalFeedbackDraftHasUnsavedChanges(value)) {
+        const revision = Number(value.draftRevision || 0)
+        const content = String(value.content || '')
+        value.draftStatus = 'SAVING'
+        value.draftError = ''
+        try {
+          const saved = await api.feedback.saveTotal(lessonId, {
+            content,
+            clear: false,
+            version: Number(value.version || 0)
+          }, { keepalive })
+          const changedDuringRequest = Number(value.draftRevision || 0) !== revision
+          const latestContent = String(value.content || '')
+          const mapped = mapTotalFeedback(saved)
+          Object.assign(value, mapped, {
+            // 请求期间如果继续输入，只同步服务端版本信息，保留本地最新文本，
+            // 下一轮循环会继续保存这次输入，避免旧响应覆盖老师刚输入的内容。
+            content: changedDuringRequest ? latestContent : mapped.content,
+            status: changedDuringRequest ? 'DRAFT' : mapped.status,
+            draftStatus: changedDuringRequest ? 'DIRTY' : 'SAVED',
+            draftError: '',
+            savedRevision: revision,
+            jobId: null
+          })
+          if (!changedDuringRequest) return true
+        } catch (error) {
+          if (error?.status === 409 && !conflictRetried) {
+            conflictRetried = true
+            try {
+              const latest = mapTotalFeedback(await api.feedback.total(lessonId))
+              const latestContent = String(value.content || '')
+              Object.assign(value, latest, {
+                // 版本冲突只更新服务端版本，老师本地尚未保存的文本必须保留。
+                content: latestContent,
+                status: 'DRAFT',
+                draftStatus: 'DIRTY',
+                draftError: '',
+                jobId: null
+              })
+              continue
+            } catch {
+              // 刷新服务端版本失败时，保留原始冲突并显示重试状态。
+            }
+          }
+          value.draftStatus = 'ERROR'
+          value.draftError = remoteErrorMessage(error, '总课评自动保存失败，请重试')
+          return false
+        }
       }
+      return true
     })
     totalFeedbackSaveChains.set(key, operation)
     operation.finally(() => {
@@ -6339,7 +6420,7 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const flushTotalFeedback = async () => {
+  const flushTotalFeedback = async ({ keepalive = false } = {}) => {
     const workspace = activeWorkspace.value
     const value = workspace.totalFeedback
     if (!value) return true
@@ -6351,9 +6432,8 @@ export function useDeliveryWorkflow() {
     }
     const currentChain = lessonId ? totalFeedbackSaveChains.get(String(lessonId)) : null
     if (currentChain) return currentChain
-    if (Number(value.draftRevision || 0) === Number(value.savedRevision || 0)
-      && value.draftStatus !== 'ERROR') return true
-    return saveTotalFeedbackNow(workspace, lessonId)
+    if (!totalFeedbackDraftHasUnsavedChanges(value)) return true
+    return saveTotalFeedbackNow(workspace, lessonId, { keepalive })
   }
 
   const polishTotalFeedback = async () => {

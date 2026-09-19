@@ -149,7 +149,7 @@ export const api = {
   feedback: {
     list: (lessonId) => request(`/lessons/${id(lessonId)}/feedbacks`),
     total: (lessonId) => request(`/lessons/${id(lessonId)}/total-feedback`),
-    saveTotal: (lessonId, body) => request(`/lessons/${id(lessonId)}/total-feedback`, { method: 'PUT', body }),
+    saveTotal: (lessonId, body, options = {}) => request(`/lessons/${id(lessonId)}/total-feedback`, { ...options, method: 'PUT', body }),
     totalVersions: (feedbackId) => request(`/total-feedback/${id(feedbackId)}/versions`),
     polishTotal: (lessonId, body) => request(`/lessons/${id(lessonId)}/total-feedback/polish`, {
       method: 'POST', body: feedbackGenerationBody(body)

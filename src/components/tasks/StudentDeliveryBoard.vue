@@ -335,6 +335,7 @@ const totalFeedbackStatus = () => props.state.totalFeedbackStatusFor?.() || '待
 const totalFeedbackDraftStatus = () => props.state.totalFeedbackDraftStatusFor?.() || 'SAVED'
 const totalFeedbackDraftError = () => props.state.totalFeedbackDraftErrorFor?.() || ''
 const totalFeedbackBusy = () => ['润色中', '保存中'].includes(totalFeedbackStatus())
+const totalFeedbackReadonly = () => props.state.isProcessing || totalFeedbackStatus() === '润色中'
 const studentRecordsFor = (row) => Array.isArray(row?.studentRecords) ? row.studentRecords : []
 const studentRecordCountFor = (row) => studentRecordsFor(row).length
 const studentRecordIsVideo = (record) => String(record?.assetType || record?.file?.mediaType || '').toUpperCase() === 'STUDENT_RECORD_VIDEO'
@@ -791,7 +792,7 @@ onMounted(() => {
                     rows="4"
                     required
                     aria-label="本节课总课评"
-                    :readonly="state.isProcessing || totalFeedbackBusy()"
+                    :readonly="totalFeedbackReadonly()"
                     @input="handleTotalFeedbackInput"
                     @blur="state.flushTotalFeedback?.()"
                   />
@@ -829,7 +830,7 @@ onMounted(() => {
           required
           aria-label="本节课总课评"
           placeholder="填写本节课面向所有家长的总课评……"
-          :readonly="state.isProcessing || totalFeedbackBusy()"
+          :readonly="totalFeedbackReadonly()"
           @input="handleTotalFeedbackInput"
           @blur="state.flushTotalFeedback?.()"
         />

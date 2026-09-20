@@ -2845,12 +2845,17 @@ label {
   min-height: 104px;
   gap: 6px 14px;
   padding: 16px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-primary);
   border-radius: 12px;
-  background: var(--color-surface);
-  color: var(--color-heading);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
   text-align: left;
   box-shadow: var(--shadow-panel);
+}
+
+.module-entry-card:hover {
+  border-color: var(--color-primary-strong);
+  background: var(--color-primary-strong);
 }
 
 .module-entry-icon {
@@ -2860,8 +2865,8 @@ label {
   width: 46px;
   height: 46px;
   border-radius: 12px;
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary-contrast) 18%, transparent);
+  color: var(--color-primary-contrast);
 }
 
 .module-entry-copy {
@@ -2875,7 +2880,7 @@ label {
 }
 
 .module-entry-card small {
-  color: var(--color-muted);
+  color: color-mix(in srgb, var(--color-primary-contrast) 76%, transparent);
 }
 
 h1,

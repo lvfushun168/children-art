@@ -1,5 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import { sameId } from '../services/mappers'
 import {
@@ -695,7 +697,7 @@ onBeforeUnmount(() => {
     type="button"
     @click="$emit('backToGroup')"
   >
-    ← 返回{{ groupLabel }}
+    <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
   <button
@@ -704,11 +706,11 @@ onBeforeUnmount(() => {
     type="button"
     @click="returnToList"
   >
-    ← 返回配置列表
+    <AppIcon name="back" :size="16" />返回配置列表
   </button>
 
   <PageHead eyebrow="后台配置" title="系统配置">
-    <button v-if="(!isMobileFlow || mobileStage === 'detail') && !isCloudCategory" class="primary" :disabled="!canSave" @click="saveCurrent">保存当前配置</button>
+    <button v-if="(!isMobileFlow || mobileStage === 'detail') && !isCloudCategory" class="primary" :disabled="!canSave" @click="saveCurrent"><AppIcon name="save" :size="16" />保存当前配置</button>
   </PageHead>
 
   <section class="settings-layout" :class="`mobile-settings-stage-${mobileStage}`">
@@ -740,7 +742,7 @@ onBeforeUnmount(() => {
               <span>百度网盘账号</span>
               <strong>{{ baiduProviders.length }} 个账号</strong>
             </div>
-            <button class="primary settings-baidu-add-button" type="button" :disabled="!canAddProvider" @click="addProvider">新增账号</button>
+            <button class="primary settings-baidu-add-button" type="button" :disabled="!canAddProvider" @click="addProvider"><AppIcon name="add" :size="15" />新增账号</button>
           </div>
           <div v-if="!baiduProviders.length" class="notice-box">还没有百度网盘账号，点击“新增账号”开始配置。</div>
           <div v-else class="directory-table-wrap">
@@ -768,13 +770,14 @@ onBeforeUnmount(() => {
                     <span>{{ baiduAccountIdentityLabel(provider) }}</span>
                     <small v-if="provider.baiduUid">UID {{ provider.baiduUid }}</small>
                   </td>
-                  <td><span class="status-pill" :class="baiduStatusClass(provider)">{{ baiduStatusLabel(provider) }}</span></td>
-                  <td><span class="template-status-tag" :class="{ disabled: !provider.enabled }">{{ baiduAccountStatusLabel(provider) }}</span></td>
+                  <td><AppStatusTag class="status-pill" :class="baiduStatusClass(provider)" :status="baiduStatusLabel(provider)" /></td>
+                  <td><AppStatusTag class="template-status-tag" :class="{ disabled: !provider.enabled }" :status="baiduAccountStatusLabel(provider)" /></td>
                   <td>{{ baiduTestStatusLabel(provider) }}</td>
                   <td>
                     <div class="button-pair settings-baidu-account-actions">
-                      <button class="ghost" type="button" @click.stop="selectBaiduProvider(provider)">编辑</button>
+                      <button class="ghost" type="button" @click.stop="selectBaiduProvider(provider)"><AppIcon name="edit" :size="15" />编辑</button>
                       <button class="ghost" type="button" @click.stop="provider.enabled ? disableBaiduProvider(provider) : restoreBaiduProvider(provider)">
+                        <AppIcon :name="provider.enabled ? 'close' : 'retry'" :size="15" />
                         {{ provider.enabled ? '停用' : '恢复' }}
                       </button>
                     </div>
@@ -794,7 +797,7 @@ onBeforeUnmount(() => {
                 <strong>{{ provider.name || '未命名账号' }}</strong>
                 <span>{{ baiduAccountIdentityLabel(provider) }}<template v-if="provider.baiduUid"> · UID {{ provider.baiduUid }}</template></span>
                 <small>{{ baiduStatusLabel(provider) }} · {{ baiduTestStatusLabel(provider) }}</small>
-                <em>{{ baiduAccountStatusLabel(provider) }} · 点击查看详情</em>
+                <AppStatusTag :status="baiduAccountStatusLabel(provider)" />
               </button>
             </div>
           </div>
@@ -806,9 +809,7 @@ onBeforeUnmount(() => {
               <span>企业微信客户群</span>
               <strong>{{ wecomDraft.id ? '已配置' : '尚未配置' }}</strong>
             </div>
-            <span class="status-pill" :class="{ success: wecomDraft.status === 'ENABLED', warning: wecomDraft.status !== 'ENABLED' }">
-              {{ wecomDraft.status === 'ENABLED' ? '已启用' : '未启用' }}
-            </span>
+            <AppStatusTag class="status-pill" :class="{ success: wecomDraft.status === 'ENABLED', warning: wecomDraft.status !== 'ENABLED' }" :status="wecomDraft.status === 'ENABLED' ? '已启用' : '未启用'" />
           </div>
           <div class="form-grid">
             <label>配置名称<input v-model="wecomDraft.name" placeholder="企业微信客户群" /></label>
@@ -818,7 +819,7 @@ onBeforeUnmount(() => {
             <label class="inline-check wide"><input v-model="wecomDraft.status" true-value="ENABLED" false-value="DISABLED" type="checkbox" /> <span>启用企业微信群发送</span></label>
           </div>
           <div class="cloud-provider-actions">
-            <button class="ghost" type="button" @click="testWecom">测试客户群查询</button>
+            <button class="ghost" type="button" @click="testWecom"><AppIcon name="search" :size="15" />测试客户群查询</button>
             <span v-if="wecomDraft.lastTestMessage" class="provider-test-feedback" :class="{ success: wecomDraft.lastTestSuccess }">
               {{ wecomDraft.lastTestMessage }}<template v-if="wecomDraft.lastTestedAt"> · {{ formatDateTime(wecomDraft.lastTestedAt) }}</template>
             </span>
@@ -869,7 +870,7 @@ onBeforeUnmount(() => {
             <p class="settings-hint">文本和图片可以共用一个密钥，但允许使用不同协议和接口地址。图片协议选 WAN_NATIVE 时支持把学生原图作为输入进行图生图。</p>
             <div class="cloud-provider-actions">
               <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该 AI</span></label>
-              <button class="ghost" type="button" @click="testProvider(provider)">测试连接</button>
+              <button class="ghost" type="button" @click="testProvider(provider)"><AppIcon name="link" :size="15" />测试连接</button>
             </div>
           </template>
           <template v-else>
@@ -885,7 +886,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="cloud-provider-actions">
               <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该{{ currentProviderLabel }}</span></label>
-              <button class="ghost" type="button" @click="testProvider(provider)">测试连接</button>
+              <button class="ghost" type="button" @click="testProvider(provider)"><AppIcon name="link" :size="15" />测试连接</button>
             </div>
           </template>
           </article>
@@ -905,8 +906,9 @@ onBeforeUnmount(() => {
           </small>
         </div>
         <div class="button-pair">
-          <button class="ghost" type="button" @click="closeBaiduProviderDrawer">关闭</button>
+          <button class="ghost" type="button" @click="closeBaiduProviderDrawer"><AppIcon name="close" :size="16" />关闭</button>
           <button class="primary" type="button" :disabled="!String(baiduDrawerProvider.name || '').trim()" @click="saveBaiduProvider">
+            <AppIcon name="save" :size="16" />
             {{ baiduDrawerMode === 'new' ? '保存账号' : '保存修改' }}
           </button>
         </div>
@@ -1013,10 +1015,10 @@ onBeforeUnmount(() => {
         <p v-if="baiduDrawerProvider.authErrorMessage" class="settings-error">{{ baiduDrawerProvider.authErrorMessage }}</p>
         <div class="cloud-provider-actions">
           <label class="inline-check"><input v-model="baiduDrawerProvider.enabled" type="checkbox" /> <span>启用百度网盘归档</span></label>
-          <button v-if="!isNewBaiduProvider(baiduDrawerProvider) && baiduDrawerProvider.enabled" class="danger-text" type="button" @click="disableBaiduProvider(baiduDrawerProvider)">停用账号</button>
-          <button v-if="!isNewBaiduProvider(baiduDrawerProvider) && !baiduDrawerProvider.enabled" class="secondary" type="button" @click="restoreBaiduProvider(baiduDrawerProvider)">恢复账号</button>
-          <button class="secondary" type="button" @click="authorizeBaidu(baiduDrawerProvider)">{{ baiduDrawerProvider.oauthAuthorized ? '重新授权百度网盘' : '授权百度网盘' }}</button>
-          <button class="ghost" type="button" @click="testProvider(baiduDrawerProvider)">测试连接</button>
+          <button v-if="!isNewBaiduProvider(baiduDrawerProvider) && baiduDrawerProvider.enabled" class="danger-text" type="button" @click="disableBaiduProvider(baiduDrawerProvider)"><AppIcon name="close" :size="15" />停用账号</button>
+          <button v-if="!isNewBaiduProvider(baiduDrawerProvider) && !baiduDrawerProvider.enabled" class="secondary" type="button" @click="restoreBaiduProvider(baiduDrawerProvider)"><AppIcon name="retry" :size="15" />恢复账号</button>
+          <button class="secondary" type="button" @click="authorizeBaidu(baiduDrawerProvider)"><AppIcon name="link" :size="15" />{{ baiduDrawerProvider.oauthAuthorized ? '重新授权百度网盘' : '授权百度网盘' }}</button>
+          <button class="ghost" type="button" @click="testProvider(baiduDrawerProvider)"><AppIcon name="link" :size="15" />测试连接</button>
         </div>
         <p
           v-if="baiduDrawerProvider.testMessage"

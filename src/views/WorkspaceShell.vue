@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
+import AppIcon from '../components/common/AppIcon.vue'
 import SidebarNav from '../components/layout/SidebarNav.vue'
 import TodoCenterDrawer from '../components/layout/TodoCenterDrawer.vue'
 import UserMenu from '../components/layout/UserMenu.vue'
@@ -348,7 +349,7 @@ onBeforeRouteUpdate(async (to, from) => {
       </div>
       <div v-if="activePageError" class="notice-box error-box workspace-page-error" role="alert">
         <small>{{ activePageError }}</small>
-        <button class="ghost" type="button" @click="retryActivePage">重试</button>
+        <button class="ghost" type="button" @click="retryActivePage"><AppIcon name="retry" :size="15" />重试</button>
       </div>
 
       <UserMenu
@@ -369,7 +370,7 @@ onBeforeRouteUpdate(async (to, from) => {
       />
 
       <template v-else-if="isMobileApp && routeMode === 'group'">
-        <button class="module-back-link" type="button" @click="returnToMobileGroups">← 返回上一级</button>
+        <button class="module-back-link" type="button" @click="returnToMobileGroups"><AppIcon name="back" :size="16" />返回上一级</button>
         <ModuleHubView v-if="activeGroup" :group="activeGroup" @open="openNav" />
       </template>
 
@@ -379,7 +380,7 @@ onBeforeRouteUpdate(async (to, from) => {
         @open="openNav"
       />
 
-      <button v-if="showModuleBack" class="module-back-link" type="button" @click="returnToGroup">← 返回{{ activeGroup?.label || '上一级' }}</button>
+      <button v-if="showModuleBack" class="module-back-link" type="button" @click="returnToGroup"><AppIcon name="back" :size="16" />返回{{ activeGroup?.label || '上一级' }}</button>
 
       <TasksView v-if="showActivePage && activeNav === 'tasks'" :state="state" :workspace-launch="workspaceLaunch" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @back-to-source="exitTaskWorkspace" @open-task="launchTaskWorkspace" @navigate="handleNavigate" />
 

@@ -2,6 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { sameId } from '../../services/mappers'
 import DateTimeRangeField from '../common/DateTimeRangeField.vue'
+import AppIcon from '../common/AppIcon.vue'
+import AppStatusTag from '../common/AppStatusTag.vue'
 
 const props = defineProps({
   tasks: {
@@ -177,7 +179,7 @@ const saveLesson = () => {
       <div>
         <strong>{{ tasks.length }} 个课后任务</strong>
       </div>
-      <button class="secondary" @click="openLessonDialog">新增临时课</button>
+      <button class="secondary" @click="openLessonDialog"><AppIcon name="add" :size="16" />新增临时课</button>
     </div>
     <button
       v-for="task in tasks"
@@ -202,7 +204,7 @@ const saveLesson = () => {
         </small>
         <i class="mini-progress"><b :style="{ width: `${progressForTask(task)}%` }"></b></i>
       </span>
-      <em>{{ task.status }} · {{ progressForTask(task) }}%</em>
+      <AppStatusTag :status="`${task.status} · ${progressForTask(task)}%`" />
     </button>
 
     <div
@@ -222,8 +224,9 @@ const saveLesson = () => {
             <strong>{{ isTemporary ? '创建临时课' : '补录班级课次' }}</strong>
           </div>
           <div class="button-pair lesson-drawer-actions">
-            <button class="ghost" type="button" @click="showLessonDialog = false">关闭</button>
+            <button class="ghost" type="button" @click="showLessonDialog = false"><AppIcon name="close" :size="16" />关闭</button>
             <button class="primary" type="button" :disabled="isSubmitting" @click="saveLesson">
+              <AppIcon name="save" :size="16" />
               {{ isSubmitting ? '正在创建…' : isTemporary ? '创建临时课' : '创建课后待办' }}
             </button>
           </div>

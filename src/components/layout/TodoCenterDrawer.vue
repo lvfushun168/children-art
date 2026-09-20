@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import AppStatusTag from '../common/AppStatusTag.vue'
 import { sameId } from '../../services/mappers'
 
 const props = defineProps({
@@ -135,7 +136,7 @@ const openSupervision = () => {
                 <strong>{{ task.date || task.dateValue }} {{ task.time }} · {{ klassName(task) }}</strong>
                 <small>{{ courseName(task) }} · {{ task.teacher }} · {{ task.lessonType }}</small>
               </div>
-              <em>{{ task.status }} · {{ state.progressForTask(task) }}%</em>
+              <AppStatusTag :status="`${task.status} · ${state.progressForTask(task)}%`" />
             </button>
             <small v-if="!pendingLessons.length" class="empty-note">当前没有未完成的课后交付。</small>
           </section>
@@ -151,15 +152,15 @@ const openSupervision = () => {
                 <small v-if="task.failureReason">失败原因：{{ task.failureReason }}</small>
                 <small v-if="['已发送', '人工发送'].includes(task.status) && task.wecomDispatchStatusCode === 'FAILED'">最近一次发送失败，可重新发送</small>
               </div>
-              <em>{{ task.status }}</em>
+              <AppStatusTag :status="task.status" />
               <input v-model="reasons[`wecom-${task.id}`]" placeholder="取消发送原因（必填）" />
               <div class="button-pair">
-                <button v-if="task.status === '待老师确认发送'" type="button" class="secondary" @click="updateWecomTask(task, '已发送')">人工确认已发送</button>
-                <button v-if="typeof state.canResendWecomTask === 'function' && state.canResendWecomTask(task)" type="button" class="secondary" @click="state.retryWecomSendTask(task)">重新发送</button>
-                <button type="button" class="ghost" @click="state.manualCopyWecomTask(task)">复制链接人工发送</button>
-                <button v-if="task.status === '发送失败'" type="button" class="ghost" @click="state.retryWecomSendTask(task)">重试发送</button>
-                <button v-if="task.status === '待绑定家长群'" type="button" class="ghost" @click="goTask(task)">打开课次</button>
-                <button v-if="!['发送失败', '已发送', '人工发送'].includes(task.status)" type="button" class="ghost" @click="updateWecomTask(task, '已取消')">取消发送</button>
+                <button v-if="task.status === '待老师确认发送'" type="button" class="secondary" @click="updateWecomTask(task, '已发送')"><AppIcon name="check" :size="15" />人工确认已发送</button>
+                <button v-if="typeof state.canResendWecomTask === 'function' && state.canResendWecomTask(task)" type="button" class="secondary" @click="state.retryWecomSendTask(task)"><AppIcon name="retry" :size="15" />重新发送</button>
+                <button type="button" class="ghost" @click="state.manualCopyWecomTask(task)"><AppIcon name="copy" :size="15" />复制链接人工发送</button>
+                <button v-if="task.status === '发送失败'" type="button" class="ghost" @click="state.retryWecomSendTask(task)"><AppIcon name="retry" :size="15" />重试发送</button>
+                <button v-if="task.status === '待绑定家长群'" type="button" class="ghost" @click="goTask(task)"><AppIcon name="external-link" :size="15" />打开课次</button>
+                <button v-if="!['发送失败', '已发送', '人工发送'].includes(task.status)" type="button" class="ghost" @click="updateWecomTask(task, '已取消')"><AppIcon name="close" :size="15" />取消发送</button>
               </div>
             </article>
             <small v-if="!wecomTodos.length" class="empty-note">暂无待确认的企微通知任务。</small>
@@ -173,12 +174,12 @@ const openSupervision = () => {
                 <strong>{{ trace.lesson }}</strong>
                 <small>{{ trace.course }} · {{ trace.teacher }} · {{ trace.note }}</small>
               </div>
-              <em>{{ trace.status }}</em>
+              <AppStatusTag :status="trace.status" />
               <input v-model="reasons[`wheat-${trace.id}`]" placeholder="异常、无需处理或更正原因" />
               <div class="button-pair">
-                <button type="button" class="secondary" @click="updateTrace(trace, '已人工处理')">标记已处理</button>
-                <button type="button" class="ghost" @click="updateTrace(trace, '无需处理')">无需处理</button>
-                <button v-if="trace.status === '待处理'" type="button" class="ghost" @click="updateTrace(trace, '异常')">异常</button>
+                <button type="button" class="secondary" @click="updateTrace(trace, '已人工处理')"><AppIcon name="check" :size="15" />标记已处理</button>
+                <button type="button" class="ghost" @click="updateTrace(trace, '无需处理')"><AppIcon name="close" :size="15" />无需处理</button>
+                <button v-if="trace.status === '待处理'" type="button" class="ghost" @click="updateTrace(trace, '异常')"><AppIcon name="warning" :size="15" />异常</button>
               </div>
             </article>
             <small v-if="!wheatTodos.length" class="empty-note">暂无小麦消课待办。</small>
@@ -193,23 +194,23 @@ const openSupervision = () => {
                 <small v-if="job.failureReason">失败原因：{{ job.failureReason }}</small>
                 <small v-if="job.failureCode">错误码：{{ job.failureCode }}</small>
               </div>
-              <em>同步失败</em>
+              <AppStatusTag status="同步失败" />
               <div class="button-pair">
-                <button v-if="lessonForCloudJob(job)" type="button" class="ghost" @click="goTask(lessonForCloudJob(job))">打开课次</button>
-                <button v-if="job.retryable !== false" type="button" class="secondary" @click="retryCloud(job)">重试同步</button>
+                <button v-if="lessonForCloudJob(job)" type="button" class="ghost" @click="goTask(lessonForCloudJob(job))"><AppIcon name="external-link" :size="15" />打开课次</button>
+                <button v-if="job.retryable !== false" type="button" class="secondary" @click="retryCloud(job)"><AppIcon name="retry" :size="15" />重试同步</button>
               </div>
             </article>
             <small v-if="!cloudTodos.length" class="empty-note">暂无网盘同步异常。</small>
           </section>
 
           <section v-if="activeCategory === 'reviews'" class="todo-group">
-            <div class="mini-head"><div><span>待评分</span><strong>{{ reviewTodos.length }} 节待评分</strong></div><button type="button" class="ghost" @click="openSupervision">去教管看板</button></div>
+            <div class="mini-head"><div><span>待评分</span><strong>{{ reviewTodos.length }} 节待评分</strong></div><button type="button" class="ghost" @click="openSupervision"><AppIcon name="view" :size="15" />去教管看板</button></div>
             <article v-for="review in reviewTodos" :key="`review-${review.id}`" class="todo-row static">
               <div>
                 <strong>{{ review.date || review.dateValue }}<span v-if="review.time"> {{ review.time }}</span> · {{ review.className || klassName(review) }}</strong>
                 <small>{{ review.courseTitle || review.course || courseName(review) }} · {{ review.teacher }} · {{ review.lessonType }}</small>
               </div>
-              <em>{{ review.status }}</em>
+              <AppStatusTag :status="review.status" />
             </article>
             <small v-if="!reviewTodos.length" class="empty-note">暂无待评分课次。</small>
           </section>

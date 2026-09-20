@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import { identityModuleLabel, identityStatusClass, identityStatusLabel } from '../data/identity'
 
@@ -46,7 +48,7 @@ onMounted(loadResources)
 
 <template>
   <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">
-    ← 返回{{ groupLabel }}
+    <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
   <PageHead eyebrow="权限中心" title="权限资源" />
@@ -71,7 +73,7 @@ onMounted(loadResources)
       <div v-if="state.identityLoading.permissions" class="identity-empty">正在加载权限资源...</div>
       <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.permissions }}</strong>
-        <button class="ghost" type="button" @click="loadResources">重试</button>
+        <button class="ghost" type="button" @click="loadResources"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="!permissionGroups.length" class="identity-empty">
         <strong>没有匹配的权限资源</strong>
@@ -85,7 +87,7 @@ onMounted(loadResources)
               <strong>{{ identityModuleLabel(group.module) }}</strong>
               <small>{{ group.module }}</small>
             </span>
-            <b>{{ group.permissions.length }} 项 · {{ openedModules[group.module] ? '收起' : '展开' }}</b>
+            <b>{{ group.permissions.length }} 项 · {{ openedModules[group.module] ? '收起' : '展开' }}<AppIcon :name="openedModules[group.module] ? 'collapse' : 'expand'" :size="14" /></b>
           </button>
           <div v-if="openedModules[group.module]" class="identity-resource-table">
             <article v-for="permission in group.permissions" :key="permission.permissionKey">
@@ -93,7 +95,7 @@ onMounted(loadResources)
                 <strong>{{ permission.description || permission.permissionKey || '未命名权限' }}</strong>
                 <small v-if="permission.permissionKey">{{ permission.permissionKey }}</small>
               </div>
-              <span class="identity-status" :class="identityStatusClass(permission.status)">{{ identityStatusLabel(permission.status) }}</span>
+              <AppStatusTag class="identity-status" :class="identityStatusClass(permission.status)" :status="identityStatusLabel(permission.status)" />
             </article>
           </div>
         </section>

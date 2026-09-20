@@ -1,4 +1,6 @@
 <script setup>
+import AppIcon from '../common/AppIcon.vue'
+
 defineProps({
   counts: {
     type: Object,
@@ -39,9 +41,9 @@ defineEmits(['show-archives', 'show-students', 'show-wheat'])
       </article>
     </div>
     <div class="report-actions">
-      <button class="primary" @click="$emit('show-archives')">查看本节课档案</button>
-      <button class="secondary" @click="$emit('show-students')">查看学生成长记录</button>
-      <button class="secondary" @click="$emit('show-wheat')">打开待办中心</button>
+      <button class="primary" @click="$emit('show-archives')"><AppIcon name="archive" :size="16" />查看本节课档案</button>
+      <button class="secondary" @click="$emit('show-students')"><AppIcon name="student" :size="16" />查看学生成长记录</button>
+      <button class="secondary" @click="$emit('show-wheat')"><AppIcon name="todo" :size="16" />打开待办中心</button>
     </div>
   </section>
 </template>

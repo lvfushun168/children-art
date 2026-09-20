@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import { sameId } from '../services/mappers'
 
@@ -35,7 +36,7 @@ const saveTeacher = async (teacher) => {
 
 <template>
   <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">
-    ← 返回{{ groupLabel }}
+    <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
   <PageHead eyebrow="后台配置" title="权限配置" />
@@ -62,7 +63,7 @@ const saveTeacher = async (teacher) => {
             </label>
           </div>
           <div class="teacher-row-actions">
-            <button class="ghost" type="button" @click="saveTeacher(teacher)">保存资料</button>
+            <button class="ghost" type="button" @click="saveTeacher(teacher)"><AppIcon name="save" :size="15" />保存资料</button>
           </div>
         </article>
 
@@ -70,7 +71,7 @@ const saveTeacher = async (teacher) => {
           <input v-model="newTeacher.name" placeholder="姓名" aria-label="新增账号姓名" />
           <input v-model="newTeacher.phone" placeholder="手机号" aria-label="新增账号手机号" />
           <AdaptiveSelect v-model="newTeacher.role" :options="['老师', '管理员']" aria-label="新增账号角色" />
-          <button class="primary" type="button" @click="addTeacher">新增</button>
+          <button class="primary" type="button" @click="addTeacher"><AppIcon name="add" :size="15" />新增</button>
         </article>
       </div>
     </section>

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import AppStatusTag from '../common/AppStatusTag.vue'
 import {
   CALENDAR_DEFAULT_END,
   CALENDAR_DEFAULT_START,
@@ -257,7 +258,7 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
                 <small :class="{ 'topic-empty': !lesson.topic }">课题：{{ lesson.topic || '未填写' }}</small>
               </span>
               <span class="schedule-lesson-card-side">
-                <em class="schedule-status-tag" :class="statusClass(lessonStatus(lesson))">{{ lessonStatus(lesson) }}</em>
+                <AppStatusTag class="schedule-status-tag" :class="statusClass(lessonStatus(lesson))" :status="lessonStatus(lesson)" />
                 <small>{{ lessonSource(lesson) }}</small>
               </span>
             </button>
@@ -397,7 +398,7 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
               <small :class="{ 'topic-empty': !lesson.topic }">课题：{{ lesson.topic || '未填写' }}</small>
             </span>
             <span class="schedule-lesson-card-side">
-              <em class="schedule-status-tag" :class="statusClass(lessonStatus(lesson))">{{ lessonStatus(lesson) }}</em>
+              <AppStatusTag class="schedule-status-tag" :class="statusClass(lessonStatus(lesson))" :status="lessonStatus(lesson)" />
               <small>{{ lessonSource(lesson) }}</small>
             </span>
           </button>
@@ -727,6 +728,8 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
 
 .schedule-status-tag {
   display: inline-flex;
+  align-items: center;
+  gap: 5px;
   width: fit-content;
   padding: 3px 7px;
   border-radius: 999px;

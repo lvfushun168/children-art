@@ -1,12 +1,16 @@
 import {
   Archive,
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   BookOpen,
   Building2,
   CalendarDays,
   CalendarRange,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   CircleHelp,
   CircleX,
   ClipboardCheck,
@@ -25,9 +29,11 @@ import {
   KeyRound,
   LayoutTemplate,
   Link2,
+  LogOut,
   ListChecks,
   ListFilter,
   ListTodo,
+  Mic,
   MoreHorizontal,
   PanelsTopLeft,
   Pencil,
@@ -101,7 +107,14 @@ const actionIcons = {
   play: Play,
   more: MoreHorizontal,
   link: Link2,
-  calendar: CalendarDays
+  logout: LogOut,
+  calendar: CalendarDays,
+  password: KeyRound,
+  voice: Mic,
+  'move-up': ArrowUp,
+  'move-down': ArrowDown,
+  expand: ChevronDown,
+  collapse: ChevronUp
 }
 
 const statusIcons = {

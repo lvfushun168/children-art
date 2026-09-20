@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, watch } from 'vue'
 import ProtectedMedia from './ProtectedMedia.vue'
+import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -37,7 +38,7 @@ onBeforeUnmount(() => {
           <strong>{{ title || alt || '图片预览' }}</strong>
           <small v-if="caption">{{ caption }}</small>
         </div>
-        <button class="ghost" type="button" aria-label="关闭原图预览" @click="close">关闭</button>
+        <button class="ghost" type="button" aria-label="关闭原图预览" @click="close"><AppIcon name="close" :size="16" />关闭</button>
       </header>
 
       <div class="archive-image-preview-stage">

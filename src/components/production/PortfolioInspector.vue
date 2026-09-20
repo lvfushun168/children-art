@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
+import AppIcon from '../common/AppIcon.vue'
 import { sameId } from '../../services/mappers'
 
 const props = defineProps({
@@ -67,7 +68,7 @@ const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project,
           <span>第 {{ pageIndex + 1 }} 页 · {{ roleLabels[activeSlot.role] || (activeSlot.type === 'image' ? '图片位' : '文字位') }}</span>
           <strong>{{ activeSlot.type === 'image' ? '替换图片' : '修改文字' }}</strong>
         </div>
-        <button class="ghost" @click="emit('clearSelection')">取消选中</button>
+        <button class="ghost" @click="emit('clearSelection')"><AppIcon name="close" :size="15" />取消选中</button>
       </header>
 
       <section v-if="activeSlot.type === 'image'" class="pf-inspector-group">
@@ -107,8 +108,8 @@ const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project,
           </label>
         </div>
         <div class="button-pair">
-          <button class="ghost" @click="setCrop({ scale: 1, x: 50, y: 50 })">复位裁切</button>
-          <button class="ghost danger-action" :disabled="!resolved.record" @click="state.clearSlotRecord(project, page, activeSlot)">移出这张</button>
+          <button class="ghost" @click="setCrop({ scale: 1, x: 50, y: 50 })"><AppIcon name="reset" :size="15" />复位裁切</button>
+          <button class="ghost danger-action" :disabled="!resolved.record" @click="state.clearSlotRecord(project, page, activeSlot)"><AppIcon name="delete" :size="15" />移出这张</button>
         </div>
       </section>
 
@@ -125,6 +126,7 @@ const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project,
           :disabled="!resolved.edited"
           @click="state.resetSlotText(project, page, activeSlot)"
         >
+          <AppIcon name="reset" :size="15" />
           恢复档案文字
         </button>
       </section>
@@ -153,7 +155,7 @@ const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project,
             <strong>{{ issue.title }}</strong>
             <small>{{ issue.detail }}</small>
           </div>
-          <button v-if="issue.pageNos.length" class="ghost" @click="emit('focusPage', issue.pageNos[0] - 1)">
+          <button v-if="issue.pageNos.length" class="ghost" @click="emit('focusPage', issue.pageNos[0] - 1)"><AppIcon name="view" :size="15" />
             去第 {{ issue.pageNos[0] }} 页
           </button>
         </article>
@@ -188,7 +190,7 @@ const chooseRecord = (recordId) => props.state.assignRecordToSlot(props.project,
           <label><input v-model="project.book.showCourse" type="checkbox" /> 显示课程主题</label>
           <label><input v-model="project.book.showWatermark" type="checkbox" /> 显示机构水印</label>
         </div>
-        <button class="secondary" @click="state.autoPaginate(project)">按当前作品重新生成页卡</button>
+        <button class="secondary" @click="state.autoPaginate(project)"><AppIcon name="retry" :size="15" />按当前作品重新生成页卡</button>
       </section>
     </template>
   </aside>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
+import AppIcon from '../common/AppIcon.vue'
 
 const props = defineProps({
   state: { type: Object, required: true }
@@ -41,10 +42,10 @@ const changeLesson = (action) => {
         <input v-model="lessonReason" placeholder="异常、恢复或重开原因（必填）" />
       </label>
       <div class="button-pair">
-        <button v-if="state.activeTask.status === '待处理'" class="primary" @click="changeLesson('start')">开始处理</button>
-        <button v-if="['待处理', '处理中'].includes(state.activeTask.status)" class="ghost" @click="changeLesson('exception')">标记异常</button>
-        <button v-if="state.activeTask.status === '异常'" class="primary" @click="changeLesson('recover')">恢复处理</button>
-        <button v-if="state.activeTask.status === '已完成' && state.isAdmin" class="secondary" @click="changeLesson('reopen')">管理员重开</button>
+        <button v-if="state.activeTask.status === '待处理'" class="primary" @click="changeLesson('start')"><AppIcon name="play" :size="15" />开始处理</button>
+        <button v-if="['待处理', '处理中'].includes(state.activeTask.status)" class="ghost" @click="changeLesson('exception')"><AppIcon name="warning" :size="15" />标记异常</button>
+        <button v-if="state.activeTask.status === '异常'" class="primary" @click="changeLesson('recover')"><AppIcon name="retry" :size="15" />恢复处理</button>
+        <button v-if="state.activeTask.status === '已完成' && state.isAdmin" class="secondary" @click="changeLesson('reopen')"><AppIcon name="retry" :size="15" />管理员重开</button>
       </div>
       <small v-if="state.activeTask.exceptionReason">最近异常：{{ state.activeTask.exceptionType }} · {{ state.activeTask.exceptionReason }}</small>
     </article>
@@ -60,9 +61,9 @@ const changeLesson = (action) => {
         <input v-model="shareReason" placeholder="新草稿或撤销原因" />
       </label>
       <div class="button-pair">
-        <button v-if="state.sharePage.status === '已发布'" class="secondary" @click="state.saveShareDraft(shareReason)">保存新草稿</button>
-        <button v-if="state.sharePage.status !== '已失效'" class="primary" :disabled="state.isProcessing" @click="state.generateSharePages">{{ state.sharePage.publishedVersion ? '发布新版本' : '首次发布' }}</button>
-        <button v-if="state.isAdmin && state.sharePage.publishedSnapshot && state.sharePage.status !== '已失效'" class="ghost" @click="state.revokeSharePage(shareReason)">撤销链接</button>
+        <button v-if="state.sharePage.status === '已发布'" class="secondary" @click="state.saveShareDraft(shareReason)"><AppIcon name="save" :size="15" />保存新草稿</button>
+        <button v-if="state.sharePage.status !== '已失效'" class="primary" :disabled="state.isProcessing" @click="state.generateSharePages"><AppIcon name="send" :size="15" />{{ state.sharePage.publishedVersion ? '发布新版本' : '首次发布' }}</button>
+        <button v-if="state.isAdmin && state.sharePage.publishedSnapshot && state.sharePage.status !== '已失效'" class="ghost" @click="state.revokeSharePage(shareReason)"><AppIcon name="close" :size="15" />撤销链接</button>
       </div>
       <small v-if="state.sharePage.revokedReason">撤销原因：{{ state.sharePage.revokedReason }}</small>
     </article>

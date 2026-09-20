@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, reactive, ref, watch } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
 import PptistWorkspace from '../components/production/PptistWorkspace.vue'
@@ -341,8 +342,8 @@ watch(
   <div v-if="state.toast" class="toast">{{ state.toast }}</div>
 
   <template v-if="!project">
-    <button v-if="groupLabel && setupStep === 'student'" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
-    <button v-else-if="setupStep === 'template'" class="module-back-link" type="button" @click="setupStep = 'student'">← 返回上一步</button>
+    <button v-if="groupLabel && setupStep === 'student'" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
+    <button v-else-if="setupStep === 'template'" class="module-back-link" type="button" @click="setupStep = 'student'"><AppIcon name="back" :size="16" />返回上一步</button>
     <PageHead eyebrow="课后工作 · 学期作品册" title="制作中心" />
 
     <section class="pc-create-shell">
@@ -379,7 +380,7 @@ watch(
                 <strong>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</strong>
                 <small>{{ portfolioRecordsLoading ? '正在加载该学生的全部作品…' : createDraft.studentId ? '下一步选择模板' : '请选择学生' }}</small>
               </div>
-              <button class="primary" :disabled="portfolioRecordsLoading || !selectedStudentRecords.length" @click="goTemplateStep">下一步：选择模板</button>
+              <button class="primary" :disabled="portfolioRecordsLoading || !selectedStudentRecords.length" @click="goTemplateStep"><AppIcon name="next" :size="16" />下一步：选择模板</button>
             </section>
           </section>
 
@@ -454,7 +455,7 @@ watch(
                 <strong>{{ selectedTemplate?.name || '系统默认模板' }}</strong>
                 <small>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</small>
               </div>
-              <button class="primary" :disabled="portfolioRecordsLoading || !selectedStudentRecords.length" @click="confirmCreate">进入 PPT 工作台</button>
+              <button class="primary" :disabled="portfolioRecordsLoading || !selectedStudentRecords.length" @click="confirmCreate"><AppIcon name="play" :size="16" />进入 PPT 工作台</button>
             </section>
           </section>
         </template>
@@ -465,15 +466,15 @@ watch(
   <template v-else>
     <div class="pc-editor-page">
       <header class="pc-editor-head panel">
-        <button class="back-link" @click="backToList">← 返回模板选择</button>
+        <button class="back-link" @click="backToList"><AppIcon name="back" :size="16" />返回模板选择</button>
         <div>
           <span>{{ template?.name }} · A4 横向 · 右上角打孔</span>
           <strong>{{ project.title }}</strong>
           <small>{{ state.projectSubjectLabel(project) }} · {{ state.projectClassLabel(project) }} · {{ project.recordIds.length }} 幅作品 · {{ project.deck?.slides?.length || 0 }} 页</small>
         </div>
         <div class="pc-editor-actions">
-          <button class="ghost" @click="openTemplateSaveDialog(false)">保存为模板</button>
-          <button class="primary" :disabled="exporting" @click="recordExport">{{ exporting ? '正在导出...' : '导出作品册' }}</button>
+          <button class="ghost" @click="openTemplateSaveDialog(false)"><AppIcon name="save" :size="15" />保存为模板</button>
+          <button class="primary" :disabled="exporting" @click="recordExport"><AppIcon name="download" :size="16" />{{ exporting ? '正在导出...' : '导出作品册' }}</button>
         </div>
       </header>
 
@@ -516,8 +517,8 @@ watch(
                 <em v-if="record.highlight">高光作品</em>
               </div>
               <div class="button-pair">
-                <button class="ghost" @click="copyRecordImage(record)">复制图片</button>
-                <button class="ghost" @click="copyRecordText(record)">复制课评</button>
+                <button class="ghost" @click="copyRecordImage(record)"><AppIcon name="copy" :size="15" />复制图片</button>
+                <button class="ghost" @click="copyRecordText(record)"><AppIcon name="copy" :size="15" />复制课评</button>
               </div>
             </article>
           </div>
@@ -541,16 +542,16 @@ watch(
           <span>{{ leaveAfterTemplateDecision ? '离开工作台' : '保存模板' }}</span>
           <strong>{{ leaveAfterTemplateDecision ? '是否把本次排版保存成新模板？' : '为本次排版命名' }}</strong>
         </div>
-        <button class="ghost" @click="showTemplateSaveDialog = false">关闭</button>
+        <button class="ghost" @click="showTemplateSaveDialog = false"><AppIcon name="close" :size="16" />关闭</button>
       </div>
       <label>
         模板名称
         <input v-model="templateName" placeholder="例如：彤彤春季成长册模板" />
       </label>
       <div class="modal-actions">
-        <button v-if="leaveAfterTemplateDecision" class="ghost" @click="skipTemplateSave">不保存，返回模板选择</button>
-        <button v-else class="ghost" @click="showTemplateSaveDialog = false">取消</button>
-        <button class="primary" :disabled="!templateName.trim()" @click="saveAsTemplate">保存模板</button>
+        <button v-if="leaveAfterTemplateDecision" class="ghost" @click="skipTemplateSave"><AppIcon name="back" :size="15" />不保存，返回模板选择</button>
+        <button v-else class="ghost" @click="showTemplateSaveDialog = false"><AppIcon name="close" :size="15" />取消</button>
+        <button class="primary" :disabled="!templateName.trim()" @click="saveAsTemplate"><AppIcon name="save" :size="16" />保存模板</button>
       </div>
     </section>
   </div>

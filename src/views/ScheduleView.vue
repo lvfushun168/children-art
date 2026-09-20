@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import ClassLessonGenerationDialog from '../components/masterdata/ClassLessonGenerationDialog.vue'
 import ScheduleCalendar from '../components/schedule/ScheduleCalendar.vue'
@@ -200,9 +201,9 @@ onMounted(async () => {
 
 <template>
   <div class="schedule-page directory-page">
-    <button v-if="groupLabel" class="module-back-link" type="button" @click="emit('backToGroup')">← 返回{{ groupLabel }}</button>
+    <button v-if="groupLabel" class="module-back-link" type="button" @click="emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
     <PageHead eyebrow="课后工作" title="课表 / 上课安排">
-      <button class="primary" type="button" :disabled="!canGenerateLessons" @click="showGenerationDialog = true">创建固定排课</button>
+      <button class="primary" type="button" :disabled="!canGenerateLessons" @click="showGenerationDialog = true"><AppIcon name="add" :size="16" />创建固定排课</button>
     </PageHead>
 
     <form class="directory-toolbar panel schedule-toolbar" @submit.prevent="reload">
@@ -227,8 +228,8 @@ onMounted(async () => {
         <AdaptiveSelect v-model="classId" :options="[{ label: '全部班级', value: 'all' }, ...classOptions]" />
       </label>
       <div class="button-pair directory-toolbar-actions">
-        <button class="secondary" type="submit" :disabled="state.scheduleLoading">查询</button>
-        <button class="ghost" type="button" @click="resetFilters">重置</button>
+        <button class="secondary" type="submit" :disabled="state.scheduleLoading"><AppIcon name="search" :size="15" />查询</button>
+        <button class="ghost" type="button" @click="resetFilters"><AppIcon name="reset" :size="15" />重置</button>
       </div>
     </form>
 
@@ -237,7 +238,7 @@ onMounted(async () => {
 
       <div v-if="state.scheduleError" class="notice-box error-box" role="alert">
         <small>{{ state.scheduleError }}</small>
-        <button class="ghost" type="button" @click="reload">重试</button>
+        <button class="ghost" type="button" @click="reload"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="state.scheduleLoading" class="notice-box">
         <small>正在加载课表，请稍候……</small>

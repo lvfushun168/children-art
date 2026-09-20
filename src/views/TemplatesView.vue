@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import { normalizeImageTemplate } from '../services/imageTemplateRenderer'
 
@@ -297,7 +299,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
     type="button"
     @click="backToGroup"
   >
-    ← 返回{{ groupLabel }}
+    <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
   <button
@@ -306,7 +308,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
     type="button"
     @click="returnToTypes"
   >
-    ← 返回模板类型
+    <AppIcon name="back" :size="16" />返回模板类型
   </button>
 
   <button
@@ -315,12 +317,12 @@ onBeforeUnmount(() => cleanupMobileMedia())
     type="button"
     @click="returnToList"
   >
-    ← 返回模板列表
+    <AppIcon name="back" :size="16" />返回模板列表
   </button>
 
   <PageHead title="模板配置">
     <div class="button-pair">
-      <button class="primary" :disabled="!canWriteTemplates" @click="startNew">新增{{ activeLabel }}</button>
+      <button class="primary" :disabled="!canWriteTemplates" @click="startNew"><AppIcon name="add" :size="15" />新增{{ activeLabel }}</button>
     </div>
   </PageHead>
 
@@ -349,8 +351,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <AdaptiveSelect v-model="statusInput" :options="statusOptions" />
         </label>
         <div class="button-pair directory-toolbar-actions">
-          <button class="ghost" type="button" @click="resetFilters">重置</button>
-          <button class="primary" type="button" :disabled="!canWriteTemplates" @click="startNew">新增{{ activeLabel }}</button>
+          <button class="ghost" type="button" @click="resetFilters"><AppIcon name="reset" :size="15" />重置</button>
+          <button class="primary" type="button" :disabled="!canWriteTemplates" @click="startNew"><AppIcon name="add" :size="15" />新增{{ activeLabel }}</button>
         </div>
       </form>
 
@@ -400,8 +402,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
                   <small>{{ secondarySummaryFor(item) }}</small>
                 </td>
                 <td>v{{ item.templateVersion || 1 }}</td>
-                <td><span class="template-status-tag" :class="{ disabled: uiStatus(item.status) === '停用' }">{{ uiStatus(item.status) }}</span></td>
-                <td><button class="ghost" type="button" @click.stop="selectTemplate(item)">{{ canWriteTemplates ? '编辑' : '查看详情' }}</button></td>
+                <td><AppStatusTag class="template-status-tag" :class="{ disabled: uiStatus(item.status) === '停用' }" :status="uiStatus(item.status)" /></td>
+                <td><button class="ghost" type="button" @click.stop="selectTemplate(item)"><AppIcon :name="canWriteTemplates ? 'edit' : 'view'" :size="15" />{{ canWriteTemplates ? '编辑' : '查看详情' }}</button></td>
               </tr>
             </tbody>
           </table>
@@ -418,7 +420,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
               <strong>{{ item.name }}</strong>
               <span>{{ summaryFor(item) }} · {{ secondarySummaryFor(item) }}</span>
               <small>{{ item.templateKey || '保存后生成模板标识' }} · v{{ item.templateVersion || 1 }}</small>
-              <em>{{ uiStatus(item.status) }}</em>
+              <AppStatusTag :status="uiStatus(item.status)" />
             </button>
           </div>
         </div>
@@ -434,9 +436,9 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <small v-if="mode !== 'new'" class="template-drawer-meta">{{ selected?.templateKey || '未生成标识' }} · v{{ selected?.templateVersion || 1 }}</small>
           </div>
           <div class="button-pair">
-            <button class="ghost" type="button" @click="closeDrawer">关闭</button>
+            <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="16" />关闭</button>
             <button v-if="mode === 'detail' && canWriteTemplates" class="secondary" type="button" @click="startEdit">编辑</button>
-            <button v-if="mode !== 'detail'" class="primary" type="button" :disabled="formReadonly || (mode === 'edit' && !isDirty)" @click="save">{{ saving ? '保存中…' : '保存模板' }}</button>
+            <button v-if="mode !== 'detail'" class="primary" type="button" :disabled="formReadonly || (mode === 'edit' && !isDirty)" @click="save"><AppIcon name="save" :size="16" />{{ saving ? '保存中…' : '保存模板' }}</button>
           </div>
         </div>
 

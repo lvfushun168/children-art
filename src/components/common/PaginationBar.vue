@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
   page: { type: Number, default: 1 },
@@ -22,9 +23,9 @@ const go = (page) => {
   <div class="directory-pagination" v-if="total || loading">
     <span>共 {{ total }} 条</span>
     <div class="button-pair">
-      <button class="ghost" type="button" :disabled="!canPrev" @click="go(page - 1)">上一页</button>
+      <button class="ghost" type="button" :disabled="!canPrev" @click="go(page - 1)"><AppIcon name="back" :size="15" />上一页</button>
       <span class="directory-page-number">{{ page }} / {{ pageCount }}</span>
-      <button class="ghost" type="button" :disabled="!canNext" @click="go(page + 1)">下一页</button>
+      <button class="ghost" type="button" :disabled="!canNext" @click="go(page + 1)">下一页<AppIcon name="next" :size="15" /></button>
     </div>
   </div>
 </template>

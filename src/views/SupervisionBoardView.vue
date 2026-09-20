@@ -1,5 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import { sameId } from '../services/mappers'
 
@@ -133,7 +135,7 @@ const backToTodayList = () => {
 
 <template>
   <div v-if="state.toast" class="toast">{{ state.toast }}</div>
-  <button v-if="groupLabel && isListStage" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
+  <button v-if="groupLabel && isListStage" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
 
   <PageHead eyebrow="课后工作 / 管理员" title="教管看板" />
 
@@ -196,7 +198,7 @@ const backToTodayList = () => {
                   </span>
                 </div>
               </div>
-              <em>{{ lesson.status }} · {{ lesson.progress }}%</em>
+              <AppStatusTag :status="`${lesson.status} · ${lesson.progress}%`" />
             </div>
             <div class="supervision-review-state">
               <strong>{{ lesson.review ? `${lesson.review.score} 分` : lesson.reviewStatus }}</strong>
@@ -217,7 +219,7 @@ const backToTodayList = () => {
     </template>
 
     <template v-else>
-      <button class="back-link" type="button" @click="backToTodayList">← 返回今日跟进</button>
+      <button class="back-link" type="button" @click="backToTodayList"><AppIcon name="back" :size="16" />返回今日跟进</button>
       <section class="supervision-review-page">
         <aside class="supervision-review-panel">
           <template v-if="activeLesson">
@@ -226,7 +228,7 @@ const backToTodayList = () => {
                 <span>课次评分</span>
                 <strong>{{ activeLesson.teacher }} · {{ activeLesson.className }}</strong>
               </div>
-              <em>{{ activeLesson.status }}</em>
+              <AppStatusTag :status="activeLesson.status" />
             </div>
             <small>{{ activeLesson.date }} {{ activeLesson.time }} · {{ activeLesson.course }}</small>
             <div class="supervision-checkpoints review-checkpoints">
@@ -254,7 +256,7 @@ const backToTodayList = () => {
               </div>
             </div>
             <textarea v-model="scoreDraftFor(activeLesson).comment" rows="5" placeholder="评语" :disabled="activeLesson.status !== '已完成'"></textarea>
-            <button class="primary" type="button" :disabled="activeLesson.status !== '已完成'" @click="submitLessonReview(activeLesson)">保存课次评分</button>
+            <button class="primary" type="button" :disabled="activeLesson.status !== '已完成'" @click="submitLessonReview(activeLesson)"><AppIcon name="save" :size="16" />保存课次评分</button>
             <div v-if="activeLesson.review" class="review-history-note">
               <strong>{{ activeLesson.review.reviewer }} · {{ activeLesson.review.reviewedAt }}</strong>
               <span>{{ activeLesson.review.comment || '未填写评语' }}</span>

@@ -1,5 +1,7 @@
 <script setup>
 import { computed } from 'vue'
+import AppIcon from '../common/AppIcon.vue'
+import AppStatusTag from '../common/AppStatusTag.vue'
 
 const props = defineProps({
   lesson: { type: Object, default: null },
@@ -38,13 +40,13 @@ const lessonSource = computed(() => ({
           <span>课次详情</span>
           <strong>{{ lessonName }}</strong>
         </div>
-        <button class="ghost" type="button" :disabled="busy" @click="$emit('close')">关闭</button>
+        <button class="ghost" type="button" :disabled="busy" @click="$emit('close')"><AppIcon name="close" :size="16" />关闭</button>
       </div>
 
       <div class="lesson-action-content">
         <div class="lesson-action-summary">
           <strong>{{ lessonTime }}</strong>
-          <span class="schedule-status-tag" :class="statusClass">{{ lesson.status || '待处理' }}</span>
+          <AppStatusTag class="schedule-status-tag" :class="statusClass" :status="lesson.status || '待处理'" />
           <small>{{ lesson.date || lesson.dateValue || '日期待定' }} · {{ lessonSource }}</small>
         </div>
 
@@ -58,14 +60,17 @@ const lessonSource = computed(() => ({
 
         <div class="lesson-action-buttons">
           <button class="primary lesson-action-button" type="button" :disabled="busy" @click="$emit('enter')">
+            <AppIcon name="play" :size="16" />
             <strong>进入课后处理</strong>
             <small>打开本节课的交付工作台</small>
           </button>
           <button class="secondary lesson-action-button" type="button" :disabled="busy || !canEdit || isCompleted" @click="$emit('edit')">
+            <AppIcon name="edit" :size="16" />
             <strong>编辑课次</strong>
             <small>修改日期、时间、老师、课程和课题</small>
           </button>
           <button class="secondary lesson-action-button" type="button" :disabled="busy || !canEdit || isCompleted" @click="$emit('delete')">
+            <AppIcon name="delete" :size="16" />
             <strong>删除课次</strong>
             <small>仅限没有课后处理数据的未完成课次</small>
           </button>

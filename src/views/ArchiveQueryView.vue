@@ -1,5 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
 import ArchiveImagePreview from '../components/common/ArchiveImagePreview.vue'
@@ -557,7 +559,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
 </script>
 
 <template>
-  <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
+  <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
 
   <PageHead title="档案中心" />
 
@@ -613,7 +615,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span>归档记录</span>
           <strong>{{ workPage.total }} 条</strong>
         </div>
-        <button class="ghost" :disabled="!workRecords.length" @click="toggleAllVisible">
+        <button class="ghost" :disabled="!workRecords.length" @click="toggleAllVisible"><AppIcon name="check" :size="15" />
           {{ allVisibleSelected ? '取消全选' : '全选当前结果' }}
         </button>
       </div>
@@ -622,7 +624,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <strong>已选 {{ selectedRecordIds.length }} 件作品</strong>
         </span>
         <div class="archive-selection-actions">
-          <button class="primary" @click="sendSelectionToProduction">
+          <button class="primary" @click="sendSelectionToProduction"><AppIcon name="send" :size="16" />
             {{ singleStudentSelection ? `去制作中心为${singleStudentSelection.name}成册` : '去制作中心成册' }}
           </button>
         </div>
@@ -643,14 +645,14 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <small>{{ record.date }} {{ record.time }} · {{ record.className }} · {{ record.teacher }}</small>
           <small>{{ record.artworkCount || 0 }} 张作品<span v-if="record.highlight"> · {{ record.artworks?.filter((artwork) => artwork.highlight).length || 1 }} 个高光</span><span v-if="record.studentRecordCount"> · {{ record.studentRecordCount }} 个学生记录</span></small>
           <em v-if="record.sourceType === 'extraTask'">课外作品</em>
-          <em v-if="record.archiveStatus === 'CURRENT'" class="current-tag">进行中</em>
-          <em v-else class="formal-tag">正式档案</em>
-          <em v-if="record.highlight">高光作品</em>
-          <em v-if="record.framed" class="framed-tag">已装裱</em>
-          <em v-if="record.collectionIds?.length" class="collection-tag">已入选作品集</em>
+          <AppStatusTag v-if="record.archiveStatus === 'CURRENT'" :size="12" tone="pending" :status="'进行中'" />
+          <AppStatusTag v-else :size="12" tone="success" :status="'正式档案'" />
+          <AppStatusTag v-if="record.highlight" :size="12" tone="success" :status="'高光作品'" />
+          <AppStatusTag v-if="record.framed" :size="12" tone="success" :status="'已装裱'" />
+          <AppStatusTag v-if="record.collectionIds?.length" :size="12" tone="success" :status="'已入选作品集'" />
         </span>
       </article>
-      <div v-if="state.directoryErrors?.archiveRecords" class="notice-box error-box"><small>{{ state.directoryErrors.archiveRecords }}</small><button class="ghost" type="button" @click="loadStudentWorks(workPage.page)">重试</button></div>
+      <div v-if="state.directoryErrors?.archiveRecords" class="notice-box error-box"><small>{{ state.directoryErrors.archiveRecords }}</small><button class="ghost" type="button" @click="loadStudentWorks(workPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <div v-else-if="!workRecords.length && !state.directoryLoading?.archiveRecords" class="notice-box"><small>没有符合条件的学生作品档案。</small></div>
       <PaginationBar :page="workPage.page" :page-size="workPage.pageSize" :total="workPage.total" :loading="state.directoryLoading?.archiveRecords" @change="loadStudentWorks" />
     </section>
@@ -704,9 +706,11 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
             · {{ lesson.teacher }}
             <em v-if="lesson.teacherArchived" class="archived-reference">老师已归档</em>
             · {{ lesson.lessonType }}
-            <em :class="lesson.archiveStatus === 'CURRENT' ? 'current-tag' : 'formal-tag'">
-              {{ lesson.archiveStatus === 'CURRENT' ? '进行中' : '正式档案' }}
-            </em>
+            <AppStatusTag
+              :size="12"
+              :tone="lesson.archiveStatus === 'CURRENT' ? 'pending' : 'success'"
+              :status="lesson.archiveStatus === 'CURRENT' ? '进行中' : '正式档案'"
+            />
           </small>
         </span>
         <div>
@@ -717,7 +721,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <div v-if="!filteredLessonArchives.length" class="notice-box">
         <small>没有符合条件的课堂档案。</small>
       </div>
-      <div v-if="state.directoryErrors?.classroomArchives" class="notice-box error-box"><small>{{ state.directoryErrors.classroomArchives }}</small><button class="ghost" type="button" @click="loadLessonArchives(lessonPage.page)">重试</button></div>
+      <div v-if="state.directoryErrors?.classroomArchives" class="notice-box error-box"><small>{{ state.directoryErrors.classroomArchives }}</small><button class="ghost" type="button" @click="loadLessonArchives(lessonPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <PaginationBar :page="lessonPage.page" :page-size="lessonPage.pageSize" :total="lessonPage.total" :loading="state.directoryLoading?.classroomArchives" @change="loadLessonArchives" />
     </section>
 
@@ -769,14 +773,14 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <small>{{ effect.teacher }} · {{ effect.className }}<template v-if="effect.classType">（{{ effect.classType }}）</template></small>
         </span>
         <div>
-          <em>{{ effect.status }}</em>
+          <AppStatusTag :status="effect.status" />
           <small>{{ effect.imageCount ?? 0 }} 张图片</small>
         </div>
       </button>
       <div v-if="!filteredTeacherEffects.length" class="notice-box">
         <small>暂无符合条件的老师课效档案。</small>
       </div>
-      <div v-if="state.directoryErrors?.teacherArchives" class="notice-box error-box"><small>{{ state.directoryErrors.teacherArchives }}</small><button class="ghost" type="button" @click="loadTeacherEffects(effectPage.page)">重试</button></div>
+      <div v-if="state.directoryErrors?.teacherArchives" class="notice-box error-box"><small>{{ state.directoryErrors.teacherArchives }}</small><button class="ghost" type="button" @click="loadTeacherEffects(effectPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <PaginationBar :page="effectPage.page" :page-size="effectPage.pageSize" :total="effectPage.total" :loading="state.directoryLoading?.teacherArchives" @change="loadTeacherEffects" />
     </section>
 
@@ -790,8 +794,8 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <strong>{{ selected.title || `${selected.studentName} · ${selected.course}` }}</strong>
         </div>
         <div class="archive-drawer-actions">
-          <button v-if="!isEditingWork && canEditSelectedWork" class="primary" @click="startWorkEdit">编辑</button>
-          <button v-if="!isEditingWork" class="ghost" @click="closeWorkDrawer">关闭</button>
+          <button v-if="!isEditingWork && canEditSelectedWork" class="primary" @click="startWorkEdit"><AppIcon name="edit" :size="15" />编辑</button>
+          <button v-if="!isEditingWork" class="ghost" @click="closeWorkDrawer"><AppIcon name="close" :size="16" />关闭</button>
         </div>
       </header>
       <section class="archive-image-readonly">
@@ -1001,8 +1005,8 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <footer v-if="isEditingWork" class="archive-edit-actions">
         <p v-if="workEditError">{{ workEditError }}</p>
         <div>
-          <button class="ghost" @click="cancelWorkEdit">取消</button>
-          <button class="primary" @click="saveWorkEdit">保存修改</button>
+          <button class="ghost" @click="cancelWorkEdit"><AppIcon name="close" :size="15" />取消</button>
+          <button class="primary" @click="saveWorkEdit"><AppIcon name="save" :size="16" />保存修改</button>
         </div>
       </footer>
     </aside>
@@ -1015,7 +1019,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span>课堂完整档案</span>
           <strong>{{ selectedLesson.className }} · {{ selectedLesson.course }} · {{ selectedLesson.archiveStatus === 'CURRENT' ? '进行中' : '正式档案' }}</strong>
         </div>
-        <button class="ghost" @click="showLessonDrawer = false">关闭</button>
+        <button class="ghost" @click="showLessonDrawer = false"><AppIcon name="close" :size="16" />关闭</button>
       </header>
 
       <section class="archive-overview-grid">
@@ -1138,7 +1142,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span>课效长图详情</span>
           <strong>{{ selectedEffect.teacher }} · {{ selectedEffect.course }}</strong>
         </div>
-        <button class="ghost" @click="showEffectDrawer = false">关闭</button>
+        <button class="ghost" @click="showEffectDrawer = false"><AppIcon name="close" :size="16" />关闭</button>
       </header>
       <section class="teacher-effect-preview">
         <div>

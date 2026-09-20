@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import AdaptiveSelect from '../components/common/AdaptiveSelect.vue'
 import { identityModuleLabel, identityStatusClass, identityStatusLabel, identityStatusOptions } from '../data/identity'
@@ -128,7 +130,7 @@ onMounted(loadData)
 
 <template>
   <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">
-    ← 返回{{ groupLabel }}
+    <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
   <PageHead eyebrow="权限中心" title="角色管理" />
@@ -142,14 +144,14 @@ onMounted(loadData)
         </div>
         <div class="identity-list-head-actions">
           <small v-if="state.identityLoading.roles">正在加载…</small>
-          <button class="primary" type="button" @click="openRoleEditor()">新增角色</button>
+          <button class="primary" type="button" @click="openRoleEditor()"><AppIcon name="add" :size="15" />新增角色</button>
         </div>
       </div>
 
       <div v-if="state.identityLoading.roles" class="identity-empty">正在加载角色...</div>
       <div v-else-if="state.identityErrors.roles" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.roles }}</strong>
-        <button class="ghost" type="button" @click="loadData">重试</button>
+        <button class="ghost" type="button" @click="loadData"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="!state.identityRoles.length" class="identity-empty">
         <strong>暂无角色</strong>
@@ -164,7 +166,7 @@ onMounted(loadData)
             </div>
             <div class="identity-card-badges">
               <span v-if="role.system" class="identity-badge">系统角色</span>
-              <span class="identity-status" :class="identityStatusClass(role.status)">{{ identityStatusLabel(role.status) }}</span>
+              <AppStatusTag class="identity-status" :class="identityStatusClass(role.status)" :status="identityStatusLabel(role.status)" />
             </div>
           </header>
           <p>{{ role.description || '暂无角色说明' }}</p>
@@ -173,8 +175,8 @@ onMounted(loadData)
             <span><b>{{ permissionCountFor(role) }}</b> 项功能权限</span>
           </div>
           <footer class="identity-card-actions">
-            <button class="ghost" type="button" @click="openRoleEditor(role)">编辑角色</button>
-            <button class="secondary" type="button" @click="openPermissionDrawer(role)">配置权限</button>
+            <button class="ghost" type="button" @click="openRoleEditor(role)"><AppIcon name="edit" :size="15" />编辑角色</button>
+            <button class="secondary" type="button" @click="openPermissionDrawer(role)"><AppIcon name="permission" :size="15" />配置权限</button>
           </footer>
         </article>
       </div>
@@ -188,7 +190,7 @@ onMounted(loadData)
           <span>角色管理</span>
           <strong>{{ roleForm?.id ? '编辑角色' : '新增角色' }}</strong>
         </div>
-        <button class="icon-button" type="button" aria-label="关闭" @click="closeRoleEditor">×</button>
+        <button class="icon-button" type="button" aria-label="关闭" @click="closeRoleEditor"><AppIcon name="close" :size="17" /></button>
       </div>
       <form class="identity-form" @submit.prevent="saveRole">
         <label><span>角色名称</span><input v-model="roleForm.name" required /></label>
@@ -196,8 +198,8 @@ onMounted(loadData)
         <label><span>角色说明</span><textarea v-model="roleForm.description" rows="4" placeholder="说明这个角色可以做什么" /></label>
         <label v-if="roleForm.id"><span>状态</span><AdaptiveSelect v-model="roleForm.status" :options="identityStatusOptions" /></label>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeRoleEditor">取消</button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">保存角色</button>
+          <button class="ghost" type="button" @click="closeRoleEditor"><AppIcon name="close" :size="15" />取消</button>
+          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="save" :size="15" />保存角色</button>
         </div>
       </form>
     </aside>
@@ -210,7 +212,7 @@ onMounted(loadData)
           <span>功能权限</span>
           <strong>{{ selectedRole?.name }} · 配置权限</strong>
         </div>
-        <button class="icon-button" type="button" aria-label="关闭" @click="closePermissionDrawer">×</button>
+        <button class="icon-button" type="button" aria-label="关闭" @click="closePermissionDrawer"><AppIcon name="close" :size="17" /></button>
       </div>
       <div v-if="state.identityLoading.permissions" class="identity-empty">正在加载权限资源...</div>
       <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">{{ state.identityErrors.permissions }}</div>
@@ -223,6 +225,7 @@ onMounted(loadData)
               <b>{{ openedModules[group.module] ? '−' : '+' }}</b>
             </button>
             <button class="ghost identity-permission-select-all" type="button" @click="toggleGroup(group)">
+              <AppIcon :name="allSelectedFor(group) ? 'close' : 'check'" :size="15" />
               {{ allSelectedFor(group) ? '取消全选' : '全选' }}
             </button>
           </header>
@@ -239,7 +242,7 @@ onMounted(loadData)
       </div>
       <div class="drawer-actions">
         <span>已选 {{ selectedPermissionKeys.length }} 项</span>
-        <button class="primary" type="button" :disabled="Boolean(state.processingAction)" @click="savePermissions">保存权限</button>
+        <button class="primary" type="button" :disabled="Boolean(state.processingAction)" @click="savePermissions"><AppIcon name="save" :size="15" />保存权限</button>
       </div>
     </aside>
   </div>

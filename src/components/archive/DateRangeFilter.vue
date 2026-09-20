@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import AppIcon from '../common/AppIcon.vue'
 
 const props = defineProps({
   start: {
@@ -68,6 +69,6 @@ const clearRange = () => emitRange('', '')
         />
       </label>
     </div>
-    <button v-if="start || end" type="button" class="ghost archive-date-clear" @click="clearRange">清空</button>
+    <button v-if="start || end" type="button" class="ghost archive-date-clear" @click="clearRange"><AppIcon name="reset" :size="15" />清空</button>
   </section>
 </template>

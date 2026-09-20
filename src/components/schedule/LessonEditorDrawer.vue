@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { sameId } from '../../services/mappers'
 import DateTimeRangeField from '../common/DateTimeRangeField.vue'
+import AppIcon from '../common/AppIcon.vue'
 
 const props = defineProps({
   lesson: { type: Object, default: null },
@@ -102,7 +103,7 @@ const save = () => {
           <span>编辑课次</span>
           <strong>{{ lesson.className || '未配置班级' }}</strong>
         </div>
-        <button class="ghost" type="button" :disabled="saving" @click="$emit('close')">关闭</button>
+        <button class="ghost" type="button" :disabled="saving" @click="$emit('close')"><AppIcon name="close" :size="16" />关闭</button>
       </div>
 
       <form class="lesson-editor-form" @submit.prevent="save">
@@ -135,8 +136,9 @@ const save = () => {
         <p class="lesson-editor-readonly">班级和学生关系不可在这里修改；如需更换班级或学生，请删除后重新创建。</p>
         <p v-if="formError" class="lesson-form-error" role="alert">{{ formError }}</p>
         <div class="lesson-editor-actions">
-          <button class="ghost" type="button" :disabled="saving" @click="$emit('close')">取消</button>
+          <button class="ghost" type="button" :disabled="saving" @click="$emit('close')"><AppIcon name="close" :size="15" />取消</button>
           <button class="primary" type="submit" :disabled="saving">
+            <AppIcon name="save" :size="16" />
             {{ saving ? '正在保存…' : '保存课次' }}
           </button>
         </div>

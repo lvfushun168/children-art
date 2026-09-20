@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
+import AppIcon from '../components/common/AppIcon.vue'
 
 const props = defineProps({
   state: { type: Object, required: true },
@@ -236,8 +237,8 @@ const confirmImport = async () => {
 
 <template>
   <PageHead eyebrow="基础数据" title="数据导入">
-    <button v-if="mode === 'home'" class="primary" type="button" @click="startImport">选择文件</button>
-    <button v-else class="ghost" type="button" :disabled="isBusy" @click="exitImport">退出本次导入</button>
+    <button v-if="mode === 'home'" class="primary" type="button" @click="startImport"><AppIcon name="upload" :size="16" />选择文件</button>
+    <button v-else class="ghost" type="button" :disabled="isBusy" @click="exitImport"><AppIcon name="close" :size="16" />退出本次导入</button>
   </PageHead>
 
   <template v-if="mode === 'home'">
@@ -260,7 +261,7 @@ const confirmImport = async () => {
         <span>导入新的数据</span>
         <strong>选择 Excel 后系统会自动读取并生成预览</strong>
       </div>
-      <button class="primary" type="button" @click="startImport">选择文件</button>
+      <button class="primary" type="button" @click="startImport"><AppIcon name="upload" :size="16" />选择文件</button>
     </section>
 
     <details class="import-history panel">
@@ -302,8 +303,8 @@ const confirmImport = async () => {
         <strong>读取失败</strong>
         <span>{{ importError }}</span>
         <div class="import-error-actions">
-          <button class="secondary" type="button" @click="retryPreview">重试读取</button>
-          <button v-if="mappingFields.length" class="ghost" type="button" @click="showMapping = true">调整字段映射</button>
+          <button class="secondary" type="button" @click="retryPreview"><AppIcon name="retry" :size="15" />重试读取</button>
+          <button v-if="mappingFields.length" class="ghost" type="button" @click="showMapping = true"><AppIcon name="settings" :size="15" />调整字段映射</button>
         </div>
       </div>
 
@@ -315,7 +316,7 @@ const confirmImport = async () => {
             <AdaptiveSelect v-model="fieldMapping[field.key]" :options="[{ label: '自动识别', value: '' }, ...mappingOptions.filter((option) => option)]" />
           </label>
         </div>
-        <button class="primary" type="button" @click="retryPreview">按此映射重新读取</button>
+        <button class="primary" type="button" @click="retryPreview"><AppIcon name="retry" :size="16" />按此映射重新读取</button>
       </details>
     </section>
 
@@ -351,7 +352,7 @@ const confirmImport = async () => {
             <small v-if="isTeacherRow(row)" class="teacher-match-line">老师：{{ row.teacher }} · {{ teacherMatchLabel(row) }}</small>
             <template v-if="isTeacherRow(row) && row.teacherMatchStatus !== 'MATCHED'">
               <AdaptiveSelect v-model="teacherSelections[row.id]" :options="[{ label: '选择系统老师', value: null }, ...teacherOptions(row)]" />
-              <button class="ghost" type="button" :disabled="!selectedTeacherId(row)" @click="saveTeacherMapping(row)">选择并保存映射</button>
+              <button class="ghost" type="button" :disabled="!selectedTeacherId(row)" @click="saveTeacherMapping(row)"><AppIcon name="save" :size="15" />选择并保存映射</button>
             </template>
           </span>
           <span :class="{ 'import-topic-empty': row.type !== 'lesson' || !row.topic }">{{ row.type === 'lesson' ? (row.topic || '未填写') : '—' }}</span>
@@ -363,8 +364,8 @@ const confirmImport = async () => {
       <div v-if="mappingError" class="import-error" role="alert"><strong>老师映射保存失败</strong><span>{{ mappingError }}</span></div>
       <div v-if="importError" class="import-error" role="alert"><strong>确认失败</strong><span>{{ importError }}</span></div>
       <footer class="modal-actions">
-        <button class="ghost" type="button" @click="startImport">重新选择</button>
-        <button class="primary" type="button" :disabled="!confirmableRows.length" @click="confirmImport">确认导入 {{ confirmableRows.length }} 条</button>
+        <button class="ghost" type="button" @click="startImport"><AppIcon name="upload" :size="15" />重新选择</button>
+        <button class="primary" type="button" :disabled="!confirmableRows.length" @click="confirmImport"><AppIcon name="check" :size="16" />确认导入 {{ confirmableRows.length }} 条</button>
       </footer>
     </section>
 
@@ -374,8 +375,8 @@ const confirmImport = async () => {
       <p v-if="handledLessonCount">本批次已处理 {{ handledLessonCount }} 条课次，{{ warningRows.length }} 条问题数据已保留。</p>
       <p v-else>{{ confirmableRows.length }} 条{{ dataType === '学生名单' ? '资料' : '数据' }}已经处理，{{ warningRows.length }} 条问题数据已保留。</p>
       <div class="import-done-actions">
-        <button v-if="dataType !== '学生名单'" class="primary" type="button" @click="emit('open-schedule')">查看课表</button>
-        <button class="ghost" type="button" @click="mode = 'home'">返回数据导入</button>
+        <button v-if="dataType !== '学生名单'" class="primary" type="button" @click="emit('open-schedule')"><AppIcon name="calendar" :size="16" />查看课表</button>
+        <button class="ghost" type="button" @click="mode = 'home'"><AppIcon name="back" :size="16" />返回数据导入</button>
       </div>
     </section>
   </section>

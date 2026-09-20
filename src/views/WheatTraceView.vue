@@ -1,5 +1,7 @@
 <script setup>
 import { reactive } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 
 const props = defineProps({
@@ -32,13 +34,13 @@ const updateTrace = (trace, status) => {
           <small>{{ trace.source }} · {{ trace.note }}</small>
           <small v-if="trace.operator">最近操作：{{ trace.operator }} · {{ trace.processedAt }}</small>
         </div>
-        <em>{{ trace.status }}</em>
+        <AppStatusTag :status="trace.status" />
         <input v-model="reasons[trace.id]" placeholder="异常、无需处理或更正原因" />
         <div class="button-pair">
-          <button v-if="['待处理', '异常'].includes(trace.status)" class="secondary" @click="updateTrace(trace, '已人工处理')">标记已处理</button>
-          <button v-if="['待处理', '异常'].includes(trace.status)" class="ghost" @click="updateTrace(trace, '无需处理')">无需处理</button>
-          <button v-if="trace.status === '待处理'" class="ghost" @click="updateTrace(trace, '异常')">异常</button>
-          <button v-if="state.isAdmin && ['已人工处理', '无需处理'].includes(trace.status)" class="ghost" @click="updateTrace(trace, '待处理')">更正为待处理</button>
+          <button v-if="['待处理', '异常'].includes(trace.status)" class="secondary" @click="updateTrace(trace, '已人工处理')"><AppIcon name="check" :size="15" />标记已处理</button>
+          <button v-if="['待处理', '异常'].includes(trace.status)" class="ghost" @click="updateTrace(trace, '无需处理')"><AppIcon name="close" :size="15" />无需处理</button>
+          <button v-if="trace.status === '待处理'" class="ghost" @click="updateTrace(trace, '异常')"><AppIcon name="warning" :size="15" />异常</button>
+          <button v-if="state.isAdmin && ['已人工处理', '无需处理'].includes(trace.status)" class="ghost" @click="updateTrace(trace, '待处理')"><AppIcon name="retry" :size="15" />更正为待处理</button>
         </div>
       </div>
     </article>

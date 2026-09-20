@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import AdaptiveMultiSelect from '../components/common/AdaptiveMultiSelect.vue'
 import AdaptiveSelect from '../components/common/AdaptiveSelect.vue'
@@ -195,7 +197,7 @@ onMounted(loadPage)
 
 <template>
   <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">
-    ← 返回{{ groupLabel }}
+    <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
   <PageHead eyebrow="权限中心" title="账号管理" />
@@ -205,7 +207,7 @@ onMounted(loadPage)
       <form class="identity-filter-form" @submit.prevent="applyFilters">
         <input v-model="queryInput" placeholder="搜索姓名、手机号或账号" aria-label="搜索账号" />
         <AdaptiveSelect v-model="statusInput" placeholder="全部状态" :options="[{ value: '', label: '全部状态' }, ...identityStatusOptions]" />
-        <button class="secondary" type="submit">查询</button>
+        <button class="secondary" type="submit"><AppIcon name="search" :size="15" />查询</button>
       </form>
     </section>
 
@@ -217,14 +219,14 @@ onMounted(loadPage)
         </div>
         <div class="identity-list-head-actions">
           <small v-if="state.identityLoading.users">正在加载…</small>
-          <button class="primary" type="button" @click="openUserForm()">新增账号</button>
+          <button class="primary" type="button" @click="openUserForm()"><AppIcon name="add" :size="15" />新增账号</button>
         </div>
       </div>
 
       <div v-if="state.identityLoading.users" class="identity-empty">正在加载账号...</div>
       <div v-else-if="state.identityErrors.users" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.users }}</strong>
-        <button class="ghost" type="button" @click="loadUsers(state.identityUserPage.page)">重试</button>
+        <button class="ghost" type="button" @click="loadUsers(state.identityUserPage.page)"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="!state.identityUsers.length" class="identity-empty">
         <strong>暂无账号</strong>
@@ -238,7 +240,7 @@ onMounted(loadPage)
               <strong>{{ user.displayName }}</strong>
               <small>{{ user.username || user.phone }}</small>
             </div>
-            <span class="identity-status" :class="identityStatusClass(user.status)">{{ identityStatusLabel(user.status) }}</span>
+            <AppStatusTag class="identity-status" :class="identityStatusClass(user.status)" :status="identityStatusLabel(user.status)" />
           </header>
 
           <div class="identity-user-summary">
@@ -257,18 +259,18 @@ onMounted(loadPage)
           </div>
 
           <footer class="identity-card-actions">
-            <button class="ghost" type="button" @click="openUserForm(user)">编辑资料</button>
-            <button v-if="canAssignRoles" class="ghost" type="button" @click="openRoleDrawer(user)">配置角色</button>
-            <button v-if="canManageMemberships" class="ghost" type="button" @click="openMembershipDrawer(user)">数据范围</button>
-            <button class="ghost" type="button" @click="openPasswordDrawer(user)">重置密码</button>
+            <button class="ghost" type="button" @click="openUserForm(user)"><AppIcon name="edit" :size="15" />编辑资料</button>
+            <button v-if="canAssignRoles" class="ghost" type="button" @click="openRoleDrawer(user)"><AppIcon name="role" :size="15" />配置角色</button>
+            <button v-if="canManageMemberships" class="ghost" type="button" @click="openMembershipDrawer(user)"><AppIcon name="settings" :size="15" />数据范围</button>
+            <button class="ghost" type="button" @click="openPasswordDrawer(user)"><AppIcon name="password" :size="15" />重置密码</button>
           </footer>
         </article>
       </div>
 
       <div v-if="state.identityUserPage.total > pageSize" class="identity-pagination">
-        <button class="ghost" type="button" :disabled="state.identityUserPage.page <= 1" @click="loadUsers(state.identityUserPage.page - 1)">上一页</button>
+        <button class="ghost" type="button" :disabled="state.identityUserPage.page <= 1" @click="loadUsers(state.identityUserPage.page - 1)"><AppIcon name="back" :size="15" />上一页</button>
         <span>第 {{ state.identityUserPage.page }} / {{ totalPages }} 页</span>
-        <button class="ghost" type="button" :disabled="state.identityUserPage.page >= totalPages" @click="loadUsers(state.identityUserPage.page + 1)">下一页</button>
+        <button class="ghost" type="button" :disabled="state.identityUserPage.page >= totalPages" @click="loadUsers(state.identityUserPage.page + 1)">下一页<AppIcon name="next" :size="15" /></button>
       </div>
     </section>
   </section>
@@ -282,7 +284,7 @@ onMounted(loadPage)
             {{ drawer === 'user' ? (isEditing ? '编辑账号' : '新增账号') : drawer === 'roles' ? '配置角色' : drawer === 'memberships' ? '数据范围' : '重置密码' }}
           </strong>
         </div>
-        <button class="icon-button" type="button" aria-label="关闭" @click="closeDrawer">×</button>
+        <button class="icon-button" type="button" aria-label="关闭" @click="closeDrawer"><AppIcon name="close" :size="17" /></button>
       </div>
 
       <form v-if="drawer === 'user'" class="identity-form" @submit.prevent="saveUser">
@@ -298,8 +300,8 @@ onMounted(loadPage)
           <strong>{{ selectedUserCampusName }}</strong>
         </div>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeDrawer">取消</button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">保存</button>
+          <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="15" />取消</button>
+          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="save" :size="15" />保存</button>
         </div>
       </form>
 
@@ -307,8 +309,8 @@ onMounted(loadPage)
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>{{ selectedUser?.phone }}</span></div>
         <label><span>绑定角色</span><AdaptiveMultiSelect v-model="selectedRoleIds" :options="roleOptions" placeholder="请选择角色" /></label>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeDrawer">取消</button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">保存角色</button>
+          <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="15" />取消</button>
+          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="save" :size="15" />保存角色</button>
         </div>
       </form>
 
@@ -317,14 +319,14 @@ onMounted(loadPage)
         <div v-if="membershipLoading" class="identity-empty">正在读取数据范围...</div>
         <div v-else-if="state.identityErrors.memberships" class="identity-empty identity-error">
           <strong>{{ state.identityErrors.memberships }}</strong>
-          <button class="ghost" type="button" @click="openMembershipDrawer(selectedUser)">重试</button>
+          <button class="ghost" type="button" @click="openMembershipDrawer(selectedUser)"><AppIcon name="retry" :size="15" />重试</button>
         </div>
         <div v-else class="identity-check-grid">
           <AdaptiveSelect v-model="selectedCampusId" :options="campusOptions" placeholder="请选择校区" :disabled="isCurrentUser" />
         </div>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeDrawer">取消</button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction) || membershipLoading || isCurrentUser">保存范围</button>
+          <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="15" />取消</button>
+          <button class="primary" type="submit" :disabled="Boolean(state.processingAction) || membershipLoading || isCurrentUser"><AppIcon name="save" :size="15" />保存范围</button>
         </div>
       </form>
 
@@ -332,8 +334,8 @@ onMounted(loadPage)
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>{{ selectedUser?.phone }}</span></div>
         <label><span>新密码</span><input v-model="passwordForm.password" type="password" minlength="6" required /></label>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeDrawer">取消</button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">确认重置</button>
+          <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="15" />取消</button>
+          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="check" :size="15" />确认重置</button>
         </div>
       </form>
     </aside>

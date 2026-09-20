@@ -1,5 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import AppIcon from '../common/AppIcon.vue'
 
 defineProps({
   currentUser: {
@@ -77,7 +78,7 @@ onBeforeUnmount(() => {
         </button>
       </section>
 
-      <button class="ghost" @click="$emit('logout')">退出登录</button>
+      <button class="ghost" @click="$emit('logout')"><AppIcon name="logout" :size="15" />退出登录</button>
     </section>
   </div>
 </template>

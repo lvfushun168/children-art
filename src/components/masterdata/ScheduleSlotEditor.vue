@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import AppIcon from '../common/AppIcon.vue'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -45,7 +46,7 @@ const removeRow = (index) => {
         <strong>固定上课时段</strong>
         <small>一个班级可以配置多个每周时段，所有时段使用班级默认老师和课程。</small>
       </div>
-      <button class="ghost" type="button" :disabled="disabled" @click="addRow">＋添加时段</button>
+      <button class="ghost" type="button" :disabled="disabled" @click="addRow"><AppIcon name="add" :size="15" />添加时段</button>
     </div>
 
     <div v-if="!rows.length" class="schedule-slot-empty">
@@ -65,7 +66,7 @@ const removeRow = (index) => {
         <span>结束</span>
         <input :value="row.endTime || ''" type="time" :required="!row.id" :disabled="disabled" @input="updateRow(index, 'endTime', $event.target.value)" />
       </label>
-      <button class="danger-text" type="button" :disabled="disabled" @click="removeRow(index)">删除</button>
+      <button class="danger-text" type="button" :disabled="disabled" @click="removeRow(index)"><AppIcon name="delete" :size="14" />删除</button>
       <small v-if="row.id && !row.endTime" class="legacy-slot-note">历史数据未识别到结束时间，可先保留，之后补充。</small>
     </div>
 

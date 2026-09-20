@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import AdaptiveSelect from '../components/common/AdaptiveSelect.vue'
 import { identityStatusClass, identityStatusLabel } from '../data/identity'
@@ -91,11 +93,11 @@ onMounted(loadCampuses)
 
 <template>
   <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">
-    ← 返回{{ groupLabel }}
+    <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
   <PageHead eyebrow="运营配置" title="校区管理">
-    <button class="primary" type="button" :disabled="!canEdit" @click="openEditor()">新增校区</button>
+    <button class="primary" type="button" :disabled="!canEdit" @click="openEditor()"><AppIcon name="add" :size="15" />新增校区</button>
   </PageHead>
 
   <section class="identity-page campus-management-page">
@@ -103,7 +105,7 @@ onMounted(loadCampuses)
       <form class="identity-filter-form" @submit.prevent>
         <input v-model="query" placeholder="搜索校区名称、编码或联系方式" aria-label="搜索校区" />
         <AdaptiveSelect v-model="status" :options="statusOptions" />
-        <button class="secondary" type="button" @click="query = ''; status = ''">重置</button>
+        <button class="secondary" type="button" @click="query = ''; status = ''"><AppIcon name="reset" :size="15" />重置</button>
       </form>
     </section>
 
@@ -118,7 +120,7 @@ onMounted(loadCampuses)
       <div v-if="state.campusLoading" class="identity-empty">正在加载校区...</div>
       <div v-else-if="state.campusError" class="identity-empty identity-error">
         <strong>{{ state.campusError }}</strong>
-        <button class="ghost" type="button" @click="loadCampuses">重试</button>
+        <button class="ghost" type="button" @click="loadCampuses"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="!filteredCampuses.length" class="identity-empty">
         <strong>{{ state.campuses.length ? '没有符合条件的校区' : '暂无校区' }}</strong>
@@ -144,9 +146,9 @@ onMounted(loadCampuses)
               </td>
               <td>{{ campus.address || '—' }}</td>
               <td>{{ campus.contactPhone || '—' }}</td>
-              <td><span class="identity-status" :class="identityStatusClass(campus.status)">{{ identityStatusLabel(campus.status) }}</span></td>
+              <td><AppStatusTag class="identity-status" :class="identityStatusClass(campus.status)" :status="identityStatusLabel(campus.status)" /></td>
               <td>
-                <button class="ghost" type="button" :disabled="!canEdit" @click="openEditor(campus)">编辑</button>
+                <button class="ghost" type="button" :disabled="!canEdit" @click="openEditor(campus)"><AppIcon name="edit" :size="15" />编辑</button>
               </td>
             </tr>
           </tbody>
@@ -163,7 +165,7 @@ onMounted(loadCampuses)
           <span>机构校区</span>
           <strong>{{ isEditing ? '编辑校区' : '新增校区' }}</strong>
         </div>
-        <button class="icon-button" type="button" aria-label="关闭" @click="closeEditor">×</button>
+        <button class="icon-button" type="button" aria-label="关闭" @click="closeEditor"><AppIcon name="close" :size="17" /></button>
       </div>
 
       <form class="identity-form" @submit.prevent="saveCampus">
@@ -176,8 +178,9 @@ onMounted(loadCampuses)
         <label><span>联系电话</span><input v-model="campusForm.contactPhone" placeholder="选填" /></label>
         <label v-if="isEditing"><span>状态</span><AdaptiveSelect v-model="campusForm.status" :options="editorStatusOptions" /></label>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeEditor">取消</button>
+          <button class="ghost" type="button" @click="closeEditor"><AppIcon name="close" :size="15" />取消</button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">
+            <AppIcon name="save" :size="15" />
             {{ isEditing ? '保存修改' : '创建校区' }}
           </button>
         </div>

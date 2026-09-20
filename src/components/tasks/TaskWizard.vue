@@ -1,5 +1,7 @@
 <script setup>
 import { computed, nextTick, reactive, ref, watch } from 'vue'
+import AppIcon from '../common/AppIcon.vue'
+import AppStatusTag from '../common/AppStatusTag.vue'
 import TaskReport from './TaskReport.vue'
 import DeliveryPreview from './DeliveryPreview.vue'
 import StudentDeliveryBoard from './StudentDeliveryBoard.vue'
@@ -702,7 +704,7 @@ watch(homeworkEditorOpen, async (open) => {
               <span class="material-tab-label">{{ section.title }}</span>
               <span class="material-tab-meta">
                 <strong>{{ section.materials.length }}</strong>
-                <small :class="`is-${materialTabStatusKey(section)}`">{{ materialTabStatusLabel(section) }}</small>
+                <small :class="`is-${materialTabStatusKey(section)}`"><AppIcon :name="['ready', 'confirmed'].includes(materialTabStatusKey(section)) ? 'check' : 'pending'" :size="12" />{{ materialTabStatusLabel(section) }}</small>
               </span>
             </button>
           </nav>
@@ -723,7 +725,7 @@ watch(homeworkEditorOpen, async (open) => {
                   </div>
                   <div class="material-section-actions">
                     <label class="file-button material-upload-button">
-                      <span aria-hidden="true">＋</span>{{ activeMaterialSection.uploadLabel }}
+                      <AppIcon name="upload" :size="15" />{{ activeMaterialSection.uploadLabel }}
                       <input type="file" :accept="activeMaterialSection.accept || undefined" multiple @change="state.uploadLessonMaterial($event, activeMaterialSection.category)" />
                     </label>
                   </div>
@@ -763,7 +765,7 @@ watch(homeworkEditorOpen, async (open) => {
                   >{{ material.title || material.file?.originalFilename || '未命名课件' }}</button>
                   <small v-if="sameId(editingMaterialId, material.id) && materialNameSaving">正在保存名称…</small>
                 </div>
-                <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || '课件'}`" @click="state.removeLessonMaterial(material)">×</button>
+                <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || '课件'}`" @click="state.removeLessonMaterial(material)"><AppIcon name="delete" :size="15" /></button>
               </article>
             </div>
 
@@ -782,9 +784,9 @@ watch(homeworkEditorOpen, async (open) => {
                   </button>
                   <div v-else class="material-video-frame">
                     <ProtectedMedia tag="video" :file-id="material.fileId" :src="material.image" controls preload="metadata" :aria-label="material.title" />
-                    <button class="material-video-replace" type="button" @click="openMaterialReplace(material, activeMaterialSection.category)">替换</button>
+                    <button class="material-video-replace" type="button" @click="openMaterialReplace(material, activeMaterialSection.category)"><AppIcon name="upload" :size="14" />替换</button>
                   </div>
-                  <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || activeMaterialSection.title}`" @click="state.removeLessonMaterial(material)">×</button>
+                  <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || activeMaterialSection.title}`" @click="state.removeLessonMaterial(material)"><AppIcon name="delete" :size="15" /></button>
                 </div>
                 <div class="material-card-copy">
                   <div class="material-card-title">
@@ -822,6 +824,7 @@ watch(homeworkEditorOpen, async (open) => {
 
             <div v-if="activeMaterialSection.key === 'classroom' && !classroomMaterialCount" class="no-material-confirm">
               <button class="ghost" :class="{ selected: state.materialsConfirmedEmpty }" @click="state.confirmNoLessonMaterials">
+                <AppIcon name="check" :size="15" />
                 {{ state.materialsConfirmedEmpty ? '已确认本节无资料' : '本节无资料' }}
               </button>
             </div>
@@ -853,7 +856,7 @@ watch(homeworkEditorOpen, async (open) => {
               :title="state.shareDraftErrorFor?.() || ''"
               @click="shareDraftStatus() === 'ERROR' && retryShareDraft()"
             >{{ shareDraftStatusText() }}</span>
-            <button class="secondary" type="button" @click="showSharePreview = true">家长页预览</button>
+            <button class="secondary" type="button" @click="showSharePreview = true"><AppIcon name="view" :size="15" />家长页预览</button>
           </div>
         </div>
         <section class="parent-delivery-panel guided-homework-panel">
@@ -888,6 +891,7 @@ watch(homeworkEditorOpen, async (open) => {
                   :title="state.homework.content || '点击填写任务内容'"
                   @click="openHomeworkEditor('content')"
                 >
+                  <AppIcon :name="state.homework.content ? 'edit' : 'add'" :size="15" />
                   <span>{{ homeworkContentPreview }}</span>
                   <strong>{{ state.homework.content ? '编辑' : '填写' }}</strong>
                 </button>
@@ -914,6 +918,7 @@ watch(homeworkEditorOpen, async (open) => {
                   :title="state.homework.requirement || '点击填写完成方式或家长配合说明'"
                   @click="openHomeworkEditor('requirement')"
                 >
+                  <AppIcon :name="homeworkOptionalFieldEnabled.requirement && state.homework.requirement ? 'edit' : 'add'" :size="15" />
                   <span>{{ homeworkOptionalFieldEnabled.requirement && state.homework.requirement ? state.homework.requirement : '未设置完成方式或家长配合' }}</span>
                   <strong>{{ homeworkOptionalFieldEnabled.requirement ? (state.homework.requirement ? '编辑' : '填写') : '未设置' }}</strong>
                 </button>
@@ -963,7 +968,7 @@ watch(homeworkEditorOpen, async (open) => {
                 <span>配套学习资源（可选）</span>
                 <strong>{{ state.selectedExternalLinks.length ? `已选 ${state.selectedExternalLinks.length} 个资源` : '未关联学习资源' }}</strong>
               </div>
-              <button class="ghost" type="button" @click="openResourceDrawer">选择资源</button>
+              <button class="ghost" type="button" @click="openResourceDrawer"><AppIcon name="materials" :size="15" />选择资源</button>
             </div>
             <div class="selected-resource-chips">
               <button v-for="link in state.selectedExternalLinks" :key="link.id" type="button" class="resource-chip selected" @click="state.toggleHomeworkLink(link.id)">
@@ -982,7 +987,7 @@ watch(homeworkEditorOpen, async (open) => {
                 <span>延伸资源</span>
                 <strong>选择配套学习资源</strong>
               </div>
-              <button class="ghost" @click="showResourceDrawer = false">关闭</button>
+              <button class="ghost" @click="showResourceDrawer = false"><AppIcon name="close" :size="16" />关闭</button>
             </header>
             <section class="resource-picker-tools">
               <input v-model="resourceSearch" placeholder="搜索资源名称、平台或备注" />
@@ -1009,7 +1014,7 @@ watch(homeworkEditorOpen, async (open) => {
             </section>
             <footer class="drawer-actions">
               <span>已选 {{ state.selectedExternalLinks.length }} 个</span>
-              <button class="primary" @click="showResourceDrawer = false">确认选择</button>
+              <button class="primary" @click="showResourceDrawer = false"><AppIcon name="check" :size="16" />确认选择</button>
             </footer>
           </aside>
         </div>
@@ -1021,7 +1026,7 @@ watch(homeworkEditorOpen, async (open) => {
                 <span>家长展示页预览</span>
                 <strong>{{ state.activeStudent?.name || '未选择学生' }}</strong>
               </div>
-              <button class="ghost" @click="showSharePreview = false">关闭</button>
+              <button class="ghost" @click="showSharePreview = false"><AppIcon name="close" :size="16" />关闭</button>
             </header>
             <div class="student-tabs review-student-tabs">
               <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ selected: sameId(row.studentId, state.activeStudentId) }" @click="state.activeStudentId = row.studentId">
@@ -1059,7 +1064,7 @@ watch(homeworkEditorOpen, async (open) => {
                 <span>课后任务</span>
                 <strong>{{ homeworkEditorTitle }}</strong>
               </div>
-              <button class="ghost" type="button" @click="closeHomeworkEditor">关闭</button>
+              <button class="ghost" type="button" @click="closeHomeworkEditor"><AppIcon name="close" :size="16" />关闭</button>
             </header>
             <MarkdownEditor
               v-if="homeworkEditorField === 'content'"
@@ -1079,8 +1084,8 @@ watch(homeworkEditorOpen, async (open) => {
             <footer class="drawer-actions">
               <span>输入完成后保存</span>
               <div>
-                <button class="ghost" type="button" @click="closeHomeworkEditor">取消</button>
-                <button class="primary" type="button" @click="saveHomeworkEditor">保存</button>
+                <button class="ghost" type="button" @click="closeHomeworkEditor"><AppIcon name="close" :size="15" />取消</button>
+                <button class="primary" type="button" @click="saveHomeworkEditor"><AppIcon name="save" :size="16" />保存</button>
               </div>
             </footer>
           </section>
@@ -1146,22 +1151,22 @@ watch(homeworkEditorOpen, async (open) => {
                       <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
                       <small>{{ studentFor(row.studentId).parent }} · 展示页 V{{ state.sharePage.publishedVersion }}</small>
                     </div>
-                    <span class="credential-status">链接已生成</span>
-                    <button class="ghost" @click="state.manualCopyStudentLink(row)">{{ state.copiedStudentId === row.studentId ? '已复制' : '复制并记录人工发送' }}</button>
+                    <AppStatusTag class="credential-status" tone="success" status="链接已生成" />
+                    <button class="ghost" @click="state.manualCopyStudentLink(row)"><AppIcon name="copy" :size="15" />{{ state.copiedStudentId === row.studentId ? '已复制' : '复制并记录人工发送' }}</button>
                   </div>
                 </details>
               </div>
               <div class="archive-check-actions">
-                <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || (typeof state.isParentTouchResending === 'function' && state.isParentTouchResending(item.item))" @click="state.pushParentTouch">{{ parentTouchActionLabel(item) }}</button>
-                <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="cloudArchiveActionDisabled(item)" @click="state.pushArchiveItem(item.key)">{{ cloudArchiveActionLabel(item) }}</button>
+                <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || (typeof state.isParentTouchResending === 'function' && state.isParentTouchResending(item.item))" @click="state.pushParentTouch"><AppIcon name="send" :size="15" />{{ parentTouchActionLabel(item) }}</button>
+                <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="cloudArchiveActionDisabled(item)" @click="state.pushArchiveItem(item.key)"><AppIcon name="archive" :size="15" />{{ cloudArchiveActionLabel(item) }}</button>
                 <template v-if="item.key === 'teacherEffectArchive'">
-                  <button v-if="['PENDING', 'FAILED', 'SKIPPED'].includes(teacherEffectStatus) || !teacherEffect.id" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">{{ teacherEffectStatus === 'FAILED' ? '重新配置并生成' : '配置并生成课效图' }}</button>
-                  <button v-else-if="teacherEffectStatus === 'GENERATING'" class="secondary" disabled>生成中…</button>
-                  <button v-else-if="['GENERATED', 'CONFIRMED'].includes(teacherEffectStatus)" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer">重新生成</button>
-                  <button v-if="teacherEffectStatus === 'FAILED' && teacherEffect.id" class="ghost" :disabled="state.isProcessing" @click="state.retryTeacherEffect">重试任务</button>
-                  <span v-if="['CONFIRMED', 'SKIPPED'].includes(teacherEffectStatus)" class="status-pill">{{ item.item.status }}</span>
+                  <button v-if="['PENDING', 'FAILED', 'SKIPPED'].includes(teacherEffectStatus) || !teacherEffect.id" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer"><AppIcon name="settings" :size="15" />{{ teacherEffectStatus === 'FAILED' ? '重新配置并生成' : '配置并生成课效图' }}</button>
+                  <button v-else-if="teacherEffectStatus === 'GENERATING'" class="secondary" disabled><AppIcon name="pending" :size="15" />生成中…</button>
+                  <button v-else-if="['GENERATED', 'CONFIRMED'].includes(teacherEffectStatus)" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer"><AppIcon name="retry" :size="15" />重新生成</button>
+                  <button v-if="teacherEffectStatus === 'FAILED' && teacherEffect.id" class="ghost" :disabled="state.isProcessing" @click="state.retryTeacherEffect"><AppIcon name="retry" :size="15" />重试任务</button>
+                  <AppStatusTag v-if="['CONFIRMED', 'SKIPPED'].includes(teacherEffectStatus)" class="status-pill" :status="item.item.status" />
                 </template>
-                <button v-if="item.key === 'wheatTrace'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.generateWheatTraceTask">{{ state.isArchiveDone(item.item) ? item.item.status : item.action }}</button>
+                <button v-if="item.key === 'wheatTrace'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.generateWheatTraceTask"><AppIcon name="send" :size="15" />{{ state.isArchiveDone(item.item) ? item.item.status : item.action }}</button>
               </div>
             </article>
           </section>
@@ -1177,7 +1182,7 @@ watch(homeworkEditorOpen, async (open) => {
               <strong>{{ teacherEffectStatus === 'GENERATED' || teacherEffectStatus === 'CONFIRMED' ? '编辑并重新生成' : '配置并生成' }}</strong>
               <small>调整配置和图片顺序，预览内容即本次保存的长图</small>
             </div>
-            <button class="ghost" type="button" @click="closeTeacherEffectDrawer">关闭</button>
+            <button class="ghost" type="button" @click="closeTeacherEffectDrawer"><AppIcon name="close" :size="16" />关闭</button>
           </header>
 
           <section class="teacher-effect-drawer-body">
@@ -1222,9 +1227,9 @@ watch(homeworkEditorOpen, async (open) => {
                     <small>{{ source.meta }}</small>
                   </div>
                   <div class="teacher-effect-source-actions">
-                    <button class="icon-button" type="button" :disabled="index === 0" :aria-label="`将${source.title}上移`" @click="moveTeacherEffectSource(index, -1)">↑</button>
-                    <button class="icon-button" type="button" :disabled="index === selectedTeacherEffectSources.length - 1" :aria-label="`将${source.title}下移`" @click="moveTeacherEffectSource(index, 1)">↓</button>
-                    <button class="ghost" type="button" @click="toggleTeacherEffectSource(source.sourceAssetId)">移除</button>
+                    <button class="icon-button" type="button" :disabled="index === 0" :aria-label="`将${source.title}上移`" @click="moveTeacherEffectSource(index, -1)"><AppIcon name="move-up" :size="15" /></button>
+                    <button class="icon-button" type="button" :disabled="index === selectedTeacherEffectSources.length - 1" :aria-label="`将${source.title}下移`" @click="moveTeacherEffectSource(index, 1)"><AppIcon name="move-down" :size="15" /></button>
+                    <button class="ghost" type="button" @click="toggleTeacherEffectSource(source.sourceAssetId)"><AppIcon name="delete" :size="15" />移除</button>
                   </div>
                 </article>
               </div>
@@ -1245,7 +1250,7 @@ watch(homeworkEditorOpen, async (open) => {
                     <strong>{{ source.title }}</strong>
                     <small>{{ source.meta }}</small>
                   </div>
-                  <button class="secondary" type="button" :class="{ selected: teacherEffectSourceSelected(source.sourceAssetId) }" @click="toggleTeacherEffectSource(source.sourceAssetId)">加入</button>
+                  <button class="secondary" type="button" :class="{ selected: teacherEffectSourceSelected(source.sourceAssetId) }" @click="toggleTeacherEffectSource(source.sourceAssetId)"><AppIcon :name="teacherEffectSourceSelected(source.sourceAssetId) ? 'check' : 'add'" :size="15" />加入</button>
                 </article>
               </div>
               <small v-else class="empty-note">所有可用素材都已加入，或当前还没有符合条件的素材。</small>
@@ -1257,8 +1262,8 @@ watch(homeworkEditorOpen, async (open) => {
             <span v-else-if="teacherEffectPreviewState.status === 'loading'">{{ selectedTeacherEffectSources.length }} 张图片 · 正在更新预览</span>
             <span v-else>{{ selectedTeacherEffectSources.length }} 张图片 · 预览内容即保存版本</span>
             <div>
-              <button class="ghost" type="button" @click="closeTeacherEffectDrawer">取消</button>
-              <button class="primary" type="button" :disabled="state.isProcessing || teacherEffectSubmitting || !teacherEffectDraftValid || teacherEffectPreviewState.status !== 'ready'" @click="saveTeacherEffectAndGenerate">保存并生成</button>
+              <button class="ghost" type="button" @click="closeTeacherEffectDrawer"><AppIcon name="close" :size="15" />取消</button>
+              <button class="primary" type="button" :disabled="state.isProcessing || teacherEffectSubmitting || !teacherEffectDraftValid || teacherEffectPreviewState.status !== 'ready'" @click="saveTeacherEffectAndGenerate"><AppIcon name="save" :size="16" />保存并生成</button>
             </div>
           </footer>
         </aside>
@@ -1281,7 +1286,7 @@ watch(homeworkEditorOpen, async (open) => {
               <span>百度网盘归档</span>
               <strong id="cloud-provider-picker-title">选择同步账号</strong>
             </div>
-            <button class="ghost" type="button" @click="state.cancelCloudProviderPicker">关闭</button>
+            <button class="ghost" type="button" @click="state.cancelCloudProviderPicker"><AppIcon name="close" :size="16" />关闭</button>
           </header>
           <div class="cloud-provider-picker-list">
             <label
@@ -1295,13 +1300,13 @@ watch(homeworkEditorOpen, async (open) => {
                 <strong>{{ provider.name || '百度网盘账号' }}</strong>
                 <small>{{ provider.baiduDisplayName || '百度账号已授权' }}<template v-if="provider.baiduUid"> · UID {{ provider.baiduUid }}</template></small>
               </span>
-              <span class="status-pill success">已启用 · 已授权</span>
+              <AppStatusTag class="status-pill success" status="已启用 · 已授权" />
             </label>
           </div>
           <footer class="drawer-actions">
             <div>
-              <button class="ghost" type="button" @click="state.cancelCloudProviderPicker">取消</button>
-              <button class="primary" type="button" :disabled="!state.cloudProviderPicker.selectedProviderId" @click="state.resolveCloudProviderPicker(state.cloudProviderPicker.selectedProviderId)">确定同步</button>
+              <button class="ghost" type="button" @click="state.cancelCloudProviderPicker"><AppIcon name="close" :size="15" />取消</button>
+              <button class="primary" type="button" :disabled="!state.cloudProviderPicker.selectedProviderId" @click="state.resolveCloudProviderPicker(state.cloudProviderPicker.selectedProviderId)"><AppIcon name="send" :size="16" />确定同步</button>
             </div>
           </footer>
         </section>
@@ -1319,7 +1324,7 @@ watch(homeworkEditorOpen, async (open) => {
               <small v-else-if="state.archiveRunState.phase === 'success'">归档完成，页面即将更新。</small>
               <small v-else>{{ state.archiveRunState.errorMessage || '请根据失败项处理后再次检查。' }}</small>
             </div>
-            <button v-if="state.archiveRunState.phase !== 'running'" type="button" class="ghost" @click="state.closeArchiveRun">关闭</button>
+            <button v-if="state.archiveRunState.phase !== 'running'" type="button" class="ghost" @click="state.closeArchiveRun"><AppIcon name="close" :size="16" />关闭</button>
           </header>
 
           <div class="archive-run-progress-summary" aria-live="polite">
@@ -1344,16 +1349,16 @@ watch(homeworkEditorOpen, async (open) => {
           </ol>
 
           <footer v-if="state.archiveRunState.phase !== 'running'" class="archive-run-actions">
-            <button v-if="['blocked', 'error'].includes(state.archiveRunState.phase)" type="button" class="secondary" @click="state.returnToStudentDeliveryFromArchiveRun">返回第三步处理</button>
-            <button type="button" class="ghost" @click="state.closeArchiveRun">关闭</button>
+            <button v-if="['blocked', 'error'].includes(state.archiveRunState.phase)" type="button" class="secondary" @click="state.returnToStudentDeliveryFromArchiveRun"><AppIcon name="back" :size="15" />返回第三步处理</button>
+            <button type="button" class="ghost" @click="state.closeArchiveRun"><AppIcon name="close" :size="16" />关闭</button>
           </footer>
         </section>
       </div>
 
       <footer v-if="state.currentStep !== 2 || (!studentDeliveryDrawerOpen && !studentDeliveryMobileDetailOpen)" class="wizard-actions">
-        <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep">上一步</button>
-        <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.isProcessing" @click="state.nextStep">下一步</button>
-        <button v-else class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running'" @click="finishArchiveAndExit">完成归档交付</button>
+        <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep"><AppIcon name="back" :size="15" />上一步</button>
+        <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.isProcessing" @click="state.nextStep"><AppIcon name="next" :size="15" />下一步</button>
+        <button v-else class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running'" @click="finishArchiveAndExit"><AppIcon name="check" :size="16" />完成归档交付</button>
       </footer>
     </template>
   </section>

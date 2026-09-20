@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import PaginationBar from '../components/common/PaginationBar.vue'
 import ProtectedMedia from '../components/common/ProtectedMedia.vue'
@@ -326,7 +328,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
     type="button"
     @click="$emit('backToGroup')"
   >
-    ← 返回{{ groupLabel }}
+    <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
   <button
@@ -335,7 +337,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
     type="button"
     @click="returnToList"
   >
-    ← 返回列表
+    <AppIcon name="back" :size="16" />返回列表
   </button>
 
   <PageHead title="学生课外任务">
@@ -362,14 +364,14 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <div><span>任务列表</span><strong>{{ pageState.total }} 条记录</strong></div>
         <small v-if="state.directoryLoading?.extraTasks">正在加载…</small>
       </div>
-      <div v-if="state.directoryErrors?.extraTasks" class="notice-box error-box"><small>{{ state.directoryErrors.extraTasks }}</small><button class="ghost" type="button" @click="loadDirectory(pageState.page)">重试</button></div>
+      <div v-if="state.directoryErrors?.extraTasks" class="notice-box error-box"><small>{{ state.directoryErrors.extraTasks }}</small><button class="ghost" type="button" @click="loadDirectory(pageState.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <div v-else-if="!tasks.length && !state.directoryLoading?.extraTasks" class="notice-box"><small>暂无符合条件的课外任务。</small></div>
       <div v-else class="directory-table-wrap">
         <table class="directory-table">
           <thead><tr><th>任务标题</th><th>类型 / 负责人</th><th>关联课次</th><th>截止日期</th><th>作品数</th><th>状态</th><th>操作</th></tr></thead>
-          <tbody><tr v-for="task in tasks" :key="task.id" class="directory-table-row" :class="{ active: sameId(selected?.id, task.id) }" @click="selectTask(task)"><td><strong>{{ task.title }}</strong></td><td>{{ task.taskType }} · {{ task.owner || '未指定' }}</td><td>{{ task.relatedLessonDate || task.relatedLesson || '无归属课次' }}<small v-if="task.relatedClassName"> · {{ task.relatedClassName }}</small></td><td>{{ task.dueDate || '—' }}</td><td>{{ task.artworkCount || 0 }}<span v-if="task.highlightArtworkCount"> · 高光 {{ task.highlightArtworkCount }}</span></td><td><span class="status-tag">{{ task.status }}</span></td><td><button class="ghost" type="button" @click.stop="selectTask(task)">查看详情</button></td></tr></tbody>
+          <tbody><tr v-for="task in tasks" :key="task.id" class="directory-table-row" :class="{ active: sameId(selected?.id, task.id) }" @click="selectTask(task)"><td><strong>{{ task.title }}</strong></td><td>{{ task.taskType }} · {{ task.owner || '未指定' }}</td><td>{{ task.relatedLessonDate || task.relatedLesson || '无归属课次' }}<small v-if="task.relatedClassName"> · {{ task.relatedClassName }}</small></td><td>{{ task.dueDate || '—' }}</td><td>{{ task.artworkCount || 0 }}<span v-if="task.highlightArtworkCount"> · 高光 {{ task.highlightArtworkCount }}</span></td><td><AppStatusTag :status="task.status" /></td><td><button class="ghost" type="button" @click.stop="selectTask(task)"><AppIcon name="view" :size="15" />查看详情</button></td></tr></tbody>
         </table>
-        <div class="directory-mobile-cards"><button v-for="task in tasks" :key="task.id" class="directory-card" type="button" @click="selectTask(task)"><strong>{{ task.title }}</strong><span>{{ task.taskType }} · {{ task.owner || '未指定负责人' }}</span><small>{{ task.relatedLessonDate || task.relatedLesson || '无归属课次' }} · {{ task.artworkCount || 0 }} 件作品</small><em>{{ task.status }}</em></button></div>
+        <div class="directory-mobile-cards"><button v-for="task in tasks" :key="task.id" class="directory-card" type="button" @click="selectTask(task)"><strong>{{ task.title }}</strong><span>{{ task.taskType }} · {{ task.owner || '未指定负责人' }}</span><small>{{ task.relatedLessonDate || task.relatedLesson || '无归属课次' }} · {{ task.artworkCount || 0 }} 件作品</small><AppStatusTag :status="task.status" /></button></div>
         <PaginationBar :page="pageState.page" :page-size="pageState.pageSize" :total="pageState.total" :loading="state.directoryLoading?.extraTasks" @change="loadDirectory" />
       </div>
     </section>
@@ -382,16 +384,16 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <strong>{{ mode === 'new' ? '新增课外任务' : selected?.title }}</strong>
         </div>
         <div class="button-pair">
-          <button v-if="mode === 'detail'" class="ghost" type="button" @click="returnToList">关闭</button>
+          <button v-if="mode === 'detail'" class="ghost" type="button" @click="returnToList"><AppIcon name="close" :size="15" />关闭</button>
           <button v-if="mode === 'detail' && activeTab === 'task'" class="secondary" type="button" @click="startEdit">编辑任务</button>
-          <button v-if="mode !== 'detail'" class="ghost" type="button" @click="cancelEdit">取消</button>
-          <button v-if="mode !== 'detail'" class="primary" @click="save">保存</button>
-          <button v-if="mode === 'detail' && activeTab === 'works'" class="primary" @click="startNewWork">上传交付作品</button>
+          <button v-if="mode !== 'detail'" class="ghost" type="button" @click="cancelEdit"><AppIcon name="close" :size="15" />取消</button>
+          <button v-if="mode !== 'detail'" class="primary" @click="save"><AppIcon name="save" :size="16" />保存</button>
+          <button v-if="mode === 'detail' && activeTab === 'works'" class="primary" @click="startNewWork"><AppIcon name="upload" :size="16" />上传交付作品</button>
         </div>
       </div>
       <div v-if="detailError" class="notice-box error-box" role="alert">
         <small>{{ detailError }}</small>
-        <button v-if="selected" class="ghost" type="button" @click="selectTask(selected)">重试</button>
+        <button v-if="selected" class="ghost" type="button" @click="selectTask(selected)"><AppIcon name="retry" :size="15" />重试</button>
       </div>
 
       <div v-if="mode !== 'new'" class="student-tabs extra-task-tabs">
@@ -456,8 +458,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <div class="extra-task-editor-actions">
             <p v-if="workError">{{ workError }}</p>
             <div>
-              <button class="ghost" @click="cancelWorkEdit">取消</button>
-              <button class="primary" @click="saveWork">保存课外作品</button>
+              <button class="ghost" @click="cancelWorkEdit"><AppIcon name="close" :size="15" />取消</button>
+              <button class="primary" @click="saveWork"><AppIcon name="save" :size="16" />保存课外作品</button>
             </div>
           </div>
         </div>
@@ -477,7 +479,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
               </div>
               <footer>
                 <button class="secondary" @click="startEditWork(work)">编辑</button>
-                <button class="danger-text" @click="deleteWork(work)">删除</button>
+                <button class="danger-text" @click="deleteWork(work)"><AppIcon name="delete" :size="14" />删除</button>
               </footer>
             </article>
           </div>

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import TaskList from '../components/tasks/TaskList.vue'
 import TaskWizard from '../components/tasks/TaskWizard.vue'
@@ -50,7 +51,7 @@ const backFromWorkspace = () => {
 <template>
   <div v-if="state.toast" class="toast">{{ state.toast }}</div>
   <template v-if="!workspaceOpen">
-    <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')">← 返回{{ groupLabel }}</button>
+    <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
     <PageHead eyebrow="老师工作台" :title="`${state.currentUser?.name || '老师'}，今天辛苦了`" />
     <section v-if="workspaceLoading" class="notice-box" role="status" aria-live="polite">
       <strong>正在打开课后工作台</strong>
@@ -67,6 +68,7 @@ const backFromWorkspace = () => {
         <h2 v-else>今天的课后交付都完成了</h2>
       </div>
       <button v-if="nextTask" class="primary hero-action" @click="openTask(nextTask)">
+        <AppIcon name="play" :size="16" />
         {{ state.progressForTask(nextTask) ? '继续处理' : '开始处理' }}
         <small>{{ nextTask.time }} · {{ nextTask.className || state.classes.find((item) => sameId(item.id, nextTask.classId))?.name }}</small>
       </button>
@@ -93,7 +95,7 @@ const backFromWorkspace = () => {
 
   <template v-else>
     <div class="focus-breadcrumb">
-      <button class="back-link" @click="backFromWorkspace">← 返回{{ workspaceSource === 'schedule' ? '课表' : '今日课后' }}</button>
+      <button class="back-link" @click="backFromWorkspace"><AppIcon name="back" :size="16" />返回{{ workspaceSource === 'schedule' ? '课表' : '今日课后' }}</button>
     </div>
     <div class="focus-layout">
       <TaskWizard :state="state" @back="backFromWorkspace" @navigate="emit('navigate', $event)" />

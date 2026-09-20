@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
+import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import PaginationBar from '../components/common/PaginationBar.vue'
 import ScheduleSlotEditor from '../components/masterdata/ScheduleSlotEditor.vue'
@@ -779,7 +781,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
     type="button"
     @click="backToGroup"
   >
-    ← 返回{{ groupLabel }}
+    <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
   <button
@@ -788,13 +790,13 @@ onBeforeUnmount(() => cleanupMobileMedia())
     type="button"
     @click="returnToList"
   >
-    ← 返回列表
+    <AppIcon name="back" :size="16" />返回列表
   </button>
 
   <PageHead :eyebrow="config.eyebrow" :title="config.title">
     <div class="button-pair">
-      <button v-if="entity === 'classes' && selected?.id && selected?.status === '开班中' && selected?.scheduleSlots?.length" class="secondary" type="button" :disabled="!canGenerateLessons" @click="generationClass = selected; showGenerationDialog = true">生成固定课次</button>
-      <button class="primary" :disabled="archiveState !== 'ACTIVE' || !canEditMasterData" @click="startNew">{{ config.action }}</button>
+      <button v-if="entity === 'classes' && selected?.id && selected?.status === '开班中' && selected?.scheduleSlots?.length" class="secondary" type="button" :disabled="!canGenerateLessons" @click="generationClass = selected; showGenerationDialog = true"><AppIcon name="calendar" :size="15" />生成固定课次</button>
+      <button class="primary" :disabled="archiveState !== 'ACTIVE' || !canEditMasterData" @click="startNew"><AppIcon name="add" :size="15" />{{ config.action }}</button>
     </div>
   </PageHead>
 
@@ -826,8 +828,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <AdaptiveSelect v-model="courseInput" :options="courseFilterOptions" />
       </label>
       <div class="button-pair directory-toolbar-actions">
-        <button class="secondary" type="submit">查询</button>
-        <button class="ghost" type="button" @click="resetFilters">重置</button>
+        <button class="secondary" type="submit"><AppIcon name="search" :size="15" />查询</button>
+        <button class="ghost" type="button" @click="resetFilters"><AppIcon name="reset" :size="15" />重置</button>
       </div>
     </form>
 
@@ -841,7 +843,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
       </div>
       <div v-if="state.directoryErrors?.[entity]" class="notice-box error-box">
         <small>{{ state.directoryErrors[entity] }}</small>
-        <button class="ghost" type="button" @click="loadDirectory(directoryState.page)">重试</button>
+        <button class="ghost" type="button" @click="loadDirectory(directoryState.page)"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="!records.length && !state.directoryLoading?.[entity]" class="notice-box">
         <small>{{ config.empty }}，请调整筛选条件。</small>
@@ -878,8 +880,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
               </td>
               <td v-if="entity === 'classes'">{{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.studentCount || record.studentIds?.length || 0 }} 人</td>
               <td v-if="entity === 'courses'">{{ record.activeClassCount || 0 }} 个班 · {{ record.externalLinkCount || 0 }} 条外链</td>
-              <td><span class="status-tag">{{ record.archived ? '已归档' : record.status }}</span></td>
-              <td><button class="ghost" type="button" @click.stop="selectRecord(record)">{{ canEditMasterData && !record.archived ? '编辑' : '查看详情' }}</button></td>
+              <td><AppStatusTag :status="record.archived ? '已归档' : record.status" /></td>
+              <td><button class="ghost" type="button" @click.stop="selectRecord(record)"><AppIcon :name="canEditMasterData && !record.archived ? 'edit' : 'view'" :size="15" />{{ canEditMasterData && !record.archived ? '编辑' : '查看详情' }}</button></td>
             </tr>
           </tbody>
         </table>
@@ -891,7 +893,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <span v-if="entity === 'classes'">{{ record.teacherName || teacherName(record.teacherId) }} · {{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.studentCount || 0 }} 人</span>
             <span v-if="entity === 'courses'">{{ record.age || '未设置年龄段' }} · {{ record.activeClassCount || 0 }} 个使用班级</span>
             <span v-if="entity === 'externalLinks'">{{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.url }}</span>
-            <em>{{ record.archived ? '已归档' : record.status }}</em>
+            <AppStatusTag :status="record.archived ? '已归档' : record.status" />
           </button>
         </div>
         <PaginationBar :page="directoryState.page" :page-size="directoryState.pageSize" :total="directoryState.total" :loading="state.directoryLoading?.[entity]" @change="loadDirectory" />
@@ -906,12 +908,12 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <strong>{{ mode === 'new' ? config.action : selected?.name || selected?.title }}</strong>
         </div>
         <div class="button-pair">
-          <button v-if="showCloseAction" class="ghost" type="button" @click="returnToList">关闭</button>
-          <button v-if="mode === 'detail' && !selected?.archived && canEditMasterData" class="secondary" type="button" @click="startEdit">编辑</button>
-          <button v-if="mode === 'detail' && isArchivableEntity && selected?.archived && canEditMasterData" class="secondary" type="button" :disabled="detailLoading" @click="restoreSelected">恢复</button>
-          <button v-if="isArchivableEntity && selected && !selected.archived && canEditMasterData" class="danger-text" type="button" :disabled="detailLoading || saving" @click="archiveSelected">归档</button>
-          <button v-if="showMasterActions" class="ghost" type="button" @click="cancelEdit">取消</button>
-          <button v-if="showMasterActions" class="primary" type="button" :disabled="saving || detailLoading || (mode === 'edit' && !isDirty)" @click="save">{{ mode === 'new' ? '保存' : '保存修改' }}</button>
+          <button v-if="showCloseAction" class="ghost" type="button" @click="returnToList"><AppIcon name="close" :size="15" />关闭</button>
+          <button v-if="mode === 'detail' && !selected?.archived && canEditMasterData" class="secondary" type="button" @click="startEdit"><AppIcon name="edit" :size="15" />编辑</button>
+          <button v-if="mode === 'detail' && isArchivableEntity && selected?.archived && canEditMasterData" class="secondary" type="button" :disabled="detailLoading" @click="restoreSelected"><AppIcon name="retry" :size="15" />恢复</button>
+          <button v-if="isArchivableEntity && selected && !selected.archived && canEditMasterData" class="danger-text" type="button" :disabled="detailLoading || saving" @click="archiveSelected"><AppIcon name="archive" :size="15" />归档</button>
+          <button v-if="showMasterActions" class="ghost" type="button" @click="cancelEdit"><AppIcon name="close" :size="15" />取消</button>
+          <button v-if="showMasterActions" class="primary" type="button" :disabled="saving || detailLoading || (mode === 'edit' && !isDirty)" @click="save"><AppIcon name="save" :size="15" />{{ mode === 'new' ? '保存' : '保存修改' }}</button>
         </div>
       </div>
 
@@ -920,7 +922,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
       </section>
       <section v-if="detailError" class="notice-box error-box" role="alert">
         <small>{{ detailError }}</small>
-        <button v-if="selected" class="ghost" type="button" @click="loadRecordDetail(selected, { skipGuard: true })">重试</button>
+        <button v-if="selected" class="ghost" type="button" @click="loadRecordDetail(selected, { skipGuard: true })"><AppIcon name="retry" :size="15" />重试</button>
       </section>
       <section v-else-if="mode === 'detail' && selected && !selected.archived && !canEditMasterData" class="notice-box">
         <strong>当前为只读模式</strong>
@@ -992,8 +994,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
                 <strong>{{ wecomGroupStatusLabel(currentStudentWecomGroup) }}</strong>
               </div>
               <div class="button-pair">
-                <button v-if="currentStudentWecomGroup" class="ghost" type="button" :disabled="!canEditMasterData" @click="unbindStudentWecomGroup">解绑</button>
-                <button class="secondary" type="button" :disabled="!canEditMasterData || detailLoading" @click="openStudentWecomGroupDialog">配置家长群</button>
+                <button v-if="currentStudentWecomGroup" class="ghost" type="button" :disabled="!canEditMasterData" @click="unbindStudentWecomGroup"><AppIcon name="close" :size="15" />解绑</button>
+                <button class="secondary" type="button" :disabled="!canEditMasterData || detailLoading" @click="openStudentWecomGroupDialog"><AppIcon name="settings" :size="15" />配置家长群</button>
               </div>
             </div>
             <p v-if="currentStudentWecomGroup" class="settings-hint">
@@ -1035,7 +1037,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
                   <strong>{{ communicationSummary.pending }}</strong>
                 </article>
               </div>
-              <button class="primary" type="button" @click="startNewCommunicationRecord">新增记录</button>
+              <button class="primary" type="button" @click="startNewCommunicationRecord"><AppIcon name="add" :size="15" />新增记录</button>
             </div>
 
             <div class="communication-toolbar">
@@ -1059,8 +1061,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
                       <span>{{ record.contactRole }} · {{ record.contactMethod }} · {{ record.recordedAt }}</span>
                     </div>
                     <div class="button-pair">
-                      <button class="ghost" type="button" @click="editCommunicationRecord(record)">编辑</button>
-                      <button class="danger-text" type="button" @click="deleteCommunicationRecord(record)">删除</button>
+                      <button class="ghost" type="button" @click="editCommunicationRecord(record)"><AppIcon name="edit" :size="15" />编辑</button>
+                      <button class="danger-text" type="button" @click="deleteCommunicationRecord(record)"><AppIcon name="delete" :size="15" />删除</button>
                     </div>
                   </header>
                   <p>{{ record.content }}</p>
@@ -1076,7 +1078,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
           <section v-else class="communication-form-page">
             <div class="communication-form-head">
-              <button class="module-back-link" type="button" @click="returnToCommunicationList">← 返回沟通记录</button>
+              <button class="module-back-link" type="button" @click="returnToCommunicationList"><AppIcon name="back" :size="16" />返回沟通记录</button>
               <div>
                 <span>{{ communicationEditingId ? '编辑记录' : '新增记录' }}</span>
                 <strong>{{ selected?.name }} · 沟通记录</strong>
@@ -1097,8 +1099,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
                 <label class="wide">跟进事项<textarea v-model="communicationDraft.followUpAction" rows="4" placeholder="没有待跟进事项可留空" /></label>
               </div>
               <div class="button-pair">
-                <button class="ghost" type="button" @click="returnToCommunicationList">取消</button>
-                <button class="primary" type="button" @click="saveCommunicationRecord">{{ communicationEditingId ? '保存记录' : '新增记录' }}</button>
+                <button class="ghost" type="button" @click="returnToCommunicationList"><AppIcon name="close" :size="15" />取消</button>
+                <button class="primary" type="button" @click="saveCommunicationRecord"><AppIcon name="save" :size="15" />{{ communicationEditingId ? '保存记录' : '新增记录' }}</button>
               </div>
             </div>
           </section>
@@ -1191,7 +1193,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <span>学生管理 · 家长客户群</span>
           <strong>{{ selected?.name }} 的家长群</strong>
         </div>
-        <button class="ghost" type="button" :disabled="wecomGroupLoading" @click="closeStudentWecomGroupDialog">关闭</button>
+        <button class="ghost" type="button" :disabled="wecomGroupLoading" @click="closeStudentWecomGroupDialog"><AppIcon name="close" :size="16" />关闭</button>
       </div>
       <p class="settings-hint">每次打开都会实时查询企业微信客户群。请选择已有客户群，系统不会按群名自动匹配学生。</p>
       <label class="wide">搜索群名、群主或群 ID<input v-model="wecomGroupQuery" placeholder="输入关键字筛选" /></label>
@@ -1207,8 +1209,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
         </label>
       </div>
       <div class="button-pair">
-        <button class="ghost" type="button" @click="closeStudentWecomGroupDialog">取消</button>
-        <button class="primary" type="button" :disabled="!selectedWecomGroupId || !availableWecomGroups.some((group) => sameId(group.id, selectedWecomGroupId)) || wecomGroupLoading" @click="bindSelectedWecomGroup">绑定选中客户群</button>
+        <button class="ghost" type="button" @click="closeStudentWecomGroupDialog"><AppIcon name="close" :size="15" />取消</button>
+        <button class="primary" type="button" :disabled="!selectedWecomGroupId || !availableWecomGroups.some((group) => sameId(group.id, selectedWecomGroupId)) || wecomGroupLoading" @click="bindSelectedWecomGroup"><AppIcon name="link" :size="16" />绑定选中客户群</button>
       </div>
     </section>
   </div>

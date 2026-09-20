@@ -1,4 +1,6 @@
 <script setup>
+import AppIcon from '../common/AppIcon.vue'
+
 defineProps({
   activeGroupId: {
     type: String,
@@ -32,7 +34,7 @@ defineEmits(['select-group', 'open-todo-center'])
 <template>
   <aside class="nav-rail">
     <div class="brand">
-      <span class="brand-mark">课</span>
+      <span class="brand-mark"><AppIcon name="brand" :size="22" /></span>
       <div>
         <strong>课后交付系统</strong>
         <small>{{ school.name }} · {{ school.campus }}</small>
@@ -46,17 +48,19 @@ defineEmits(['select-group', 'open-todo-center'])
         type="button"
         class="nav-group-button"
         :class="{ active: activeGroupId === group.id }"
+        :title="group.description || group.label"
+        :aria-current="activeGroupId === group.id ? 'page' : undefined"
         @click="$emit('select-group', group.id)"
       >
-        <strong>{{ group.label }}</strong>
-        <small>{{ group.description }}</small>
+        <span class="nav-group-icon"><AppIcon :name="group.icon || 'brand'" :size="18" /></span>
+        <span class="nav-group-copy"><strong>{{ group.label }}</strong></span>
       </button>
     </nav>
 
-    <button class="nav-summary todo-entry" @click="$emit('open-todo-center')">
-      <span>待办中心</span>
+    <button type="button" class="nav-summary todo-entry" @click="$emit('open-todo-center')">
+      <span class="nav-summary-label"><AppIcon name="todo" :size="16" />待办中心</span>
       <strong>{{ todoCount }} 个待办</strong>
-      <small>{{ pendingCount }} 个课后交付 · {{ wheatPendingCount }} 个小麦消课</small>
+      <small>其中 {{ pendingCount }} 个课后交付 · {{ wheatPendingCount }} 个小麦消课</small>
     </button>
   </aside>
 </template>

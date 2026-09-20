@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import AppIcon from '../common/AppIcon.vue'
 import { sameId } from '../../services/mappers'
 
 const props = defineProps({
@@ -41,12 +42,12 @@ const pendingLessons = computed(() => lessonList.value.filter((task) => task.sta
 
 const categories = computed(() => {
   const values = [
-    { id: 'lessons', label: '课后交付', count: pendingLessons.value.length },
-    { id: 'wecom', label: '企微待处理', count: wecomTodos.value.length },
-    { id: 'wheat', label: '小麦消课', count: wheatTodos.value.length },
-    { id: 'cloud', label: '网盘异常', count: cloudTodos.value.length }
+    { id: 'lessons', label: '课后交付', icon: 'today-tasks', count: pendingLessons.value.length },
+    { id: 'wecom', label: '企微待处理', icon: 'send', count: wecomTodos.value.length },
+    { id: 'wheat', label: '小麦消课', icon: 'external-link', count: wheatTodos.value.length },
+    { id: 'cloud', label: '网盘异常', icon: 'file-archive', count: cloudTodos.value.length }
   ]
-  if (state.canQualityReview) values.push({ id: 'reviews', label: '待评分', count: reviewTodos.value.length })
+  if (state.canQualityReview) values.push({ id: 'reviews', label: '待评分', icon: 'supervision', count: reviewTodos.value.length })
   return values
 })
 
@@ -98,12 +99,15 @@ const openSupervision = () => {
   <div v-if="open" class="todo-backdrop" @click.self="$emit('close')">
     <aside class="todo-drawer">
       <header class="todo-drawer-head">
-        <div>
-          <span>待办中心</span>
-          <strong>{{ totalCount }} 个待办</strong>
-          <small>只显示需要当前用户采取动作的业务事项</small>
+        <div class="todo-drawer-title">
+          <span class="todo-drawer-icon"><AppIcon name="todo" :size="19" /></span>
+          <div class="todo-drawer-copy">
+            <span>待办中心</span>
+            <strong>{{ totalCount }} 个待办</strong>
+            <small>只显示需要当前用户采取动作的业务事项</small>
+          </div>
         </div>
-        <button type="button" class="ghost" @click="$emit('close')">关闭</button>
+        <button type="button" class="ghost todo-drawer-close" @click="$emit('close')"><AppIcon name="close" :size="16" />关闭</button>
       </header>
 
       <div class="todo-center-layout">
@@ -115,7 +119,10 @@ const openSupervision = () => {
             :class="{ active: activeCategory === category.id }"
             @click="activeCategory = category.id"
           >
-            <strong>{{ category.label }}</strong>
+            <span class="todo-category-label">
+              <span class="todo-category-icon"><AppIcon :name="category.icon" :size="17" /></span>
+              <strong>{{ category.label }}</strong>
+            </span>
             <b>{{ category.count }}</b>
           </button>
         </nav>

@@ -2213,6 +2213,12 @@ button {
   cursor: pointer;
 }
 
+.app-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: middle;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
@@ -2279,7 +2285,7 @@ button:not(:disabled):hover,
   place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--color-primary);
   color: var(--color-surface-warm);
   font-weight: 900;
@@ -2323,8 +2329,10 @@ label {
 
 .nav-group-button {
   display: grid;
-  gap: 4px;
-  min-height: 60px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
   padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -2333,19 +2341,40 @@ label {
   text-align: left;
 }
 
+.nav-group-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.nav-group-copy {
+  min-width: 0;
+}
+
+.nav-group-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .nav-group-button.active {
   border-color: var(--color-border-strong);
   background: var(--color-primary);
   color: var(--color-surface-warm);
 }
 
-.nav-group-button.active small {
-  color: color-mix(in srgb, var(--color-surface-warm) 76%, transparent);
+.nav-group-button.active .nav-group-icon {
+  background: color-mix(in srgb, var(--color-surface-warm) 18%, transparent);
+  color: var(--color-surface-warm);
 }
 
 .nav-summary {
   display: grid;
-  gap: 5px;
+  gap: 7px;
   margin-top: auto;
   padding: 13px;
   width: 100%;
@@ -2357,6 +2386,14 @@ label {
 
 .nav-summary strong {
   font-size: 24px;
+}
+
+.nav-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-primary);
+  font-weight: 800;
 }
 
 .todo-entry {
@@ -2405,16 +2442,43 @@ label {
   border-bottom: 1px solid var(--color-border-soft);
 }
 
-.todo-drawer-head div,
+.todo-drawer-head > div,
+.todo-drawer-copy,
 .todo-group,
-.todo-category-menu button span,
+.todo-category-label,
 .todo-row div,
 .todo-trace-row > div {
   display: grid;
   gap: 4px;
 }
 
-.todo-drawer-head span,
+.todo-drawer-title {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px !important;
+}
+
+.todo-drawer-icon,
+.todo-category-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.todo-drawer-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.todo-category-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.todo-drawer-copy > span,
 .todo-group .mini-head span {
   color: var(--color-muted);
 }
@@ -2429,6 +2493,12 @@ label {
 
 .todo-drawer-head strong {
   font-size: 24px;
+}
+
+.todo-drawer-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .todo-center-layout {
@@ -2460,6 +2530,13 @@ label {
   text-align: left;
 }
 
+.todo-category-label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
 .todo-category-menu button.active {
   background: var(--color-primary);
   color: var(--color-surface-warm);
@@ -2472,6 +2549,11 @@ label {
 
 .todo-category-menu button.active small {
   color: color-mix(in srgb, var(--color-surface-warm) 78%, transparent);
+}
+
+.todo-category-menu button.active .todo-category-icon {
+  background: color-mix(in srgb, var(--color-surface-warm) 18%, transparent);
+  color: var(--color-surface-warm);
 }
 
 .todo-category-menu b {
@@ -2757,30 +2839,35 @@ label {
 
 .module-entry-card {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-items: center;
-  min-height: 118px;
+  min-height: 104px;
   gap: 6px 14px;
-  padding: 18px;
+  padding: 16px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--color-surface);
   color: var(--color-heading);
   text-align: left;
   box-shadow: var(--shadow-panel);
 }
 
-.module-entry-card span {
+.module-entry-icon {
   grid-row: 1 / 3;
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 8px;
-  background: var(--color-primary);
-  color: var(--color-surface-warm);
-  font-weight: 900;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.module-entry-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
 }
 
 .module-entry-card strong {
@@ -12600,6 +12687,24 @@ textarea:focus,
   .module-entry-card {
     min-height: 88px;
     padding: 14px;
+  }
+
+  .module-entry-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .todo-backdrop {
+    padding: 0;
+  }
+
+  .todo-drawer {
+    width: 100%;
+    border-radius: 0;
+  }
+
+  .todo-category-menu {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .master-layout.mobile-detail-open {

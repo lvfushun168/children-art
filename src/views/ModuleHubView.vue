@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
 
 const props = defineProps({
@@ -35,15 +36,19 @@ const metaFor = (item) => item.description || props.group?.label || ''
 
     <div class="module-hub-grid">
       <button
-        v-for="(item, index) in entries"
+        v-for="item in entries"
         :key="item.id"
         type="button"
         class="module-entry-card"
         @click="$emit('open', item.id)"
       >
-        <span>{{ item.mark || String(index + 1).padStart(2, '0') }}</span>
-        <strong>{{ item.label }}</strong>
-        <small>{{ metaFor(item) }}</small>
+        <span class="module-entry-icon">
+          <AppIcon :name="item.icon || group?.icon || 'brand'" :size="24" />
+        </span>
+        <span class="module-entry-copy">
+          <strong>{{ item.label }}</strong>
+          <small>{{ metaFor(item) }}</small>
+        </span>
       </button>
     </div>
   </section>

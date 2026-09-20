@@ -97,7 +97,8 @@ const mobileGroupEntries = computed(() =>
     id: group.id,
     label: group.label,
     description: group.description,
-    mark: group.mark || group.label.slice(0, 1)
+    mark: group.mark || group.label.slice(0, 1),
+    icon: group.icon
   }))
 )
 

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, createVNode, defineAsyncComponent, nextTick, onBeforeUnmount, ref, render, watch } from 'vue'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import JSZip from 'jszip'
@@ -246,17 +246,33 @@ const loadOfficeScript = () => new Promise((resolve, reject) => {
 
 const normalizePptxForPreview = async (blob) => {
   const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+  let changed = false
   const presentationProperties = zip.file('ppt/presProps.xml')
-  if (!presentationProperties) return blob
+  if (presentationProperties) {
+    const xml = await presentationProperties.async('text')
+    const normalizedXml = xml.replace(/<p:showPr\b([^>]*)>/, (match, attributes) => {
+      const withoutTiming = attributes.replace(/\suseTimings\s*=\s*"[^"]*"/i, '')
+      return `<p:showPr${withoutTiming} useTimings="0">`
+    })
+    if (normalizedXml !== xml) {
+      zip.file('ppt/presProps.xml', normalizedXml)
+      changed = true
+    }
+  }
 
-  const xml = await presentationProperties.async('text')
-  const normalizedXml = xml.replace(/<p:showPr\b([^>]*)>/, (match, attributes) => {
-    const withoutTiming = attributes.replace(/\suseTimings\s*=\s*"[^"]*"/i, '')
-    return `<p:showPr${withoutTiming} useTimings="0">`
-  })
-  if (normalizedXml === xml) return blob
+  for (const fileName of Object.keys(zip.files)) {
+    if (!/^ppt\/slides\/slide\d+\.xml$/i.test(fileName)) continue
+    const slideFile = zip.file(fileName)
+    if (!slideFile) continue
+    const slideXml = await slideFile.async('text')
+    if (!/<a:audioFile\b/i.test(slideXml)) continue
+    const normalizedSlideXml = slideXml.replace(/<p:timing\b[^>]*\/>|<p:timing\b[^>]*>[\s\S]*?<\/p:timing>/i, '')
+    if (normalizedSlideXml === slideXml) continue
+    zip.file(fileName, normalizedSlideXml)
+    changed = true
+  }
 
-  zip.file('ppt/presProps.xml', normalizedXml)
+  if (!changed) return blob
   const normalizedBytes = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
   return new Blob([normalizedBytes], { type: blob.type || 'application/vnd.openxmlformats-officedocument.presentationml.presentation' })
 }
@@ -273,6 +289,175 @@ const pausePptxMedia = () => {
   })
 }
 
+const mountPptxIcon = (container, name, size) => {
+  const vnode = createVNode(AppIcon, { name, size, strokeWidth: 2 })
+  render(vnode, container)
+  return () => render(null, container)
+}
+
+const stopPptxAudioEvent = (event) => {
+  event.stopPropagation()
+}
+
+const decoratePptxAudio = (media) => {
+  const host = media.closest('.pptx-vue-media')
+  if (!host || host.querySelector('.courseware-pptx-audio-ui')) return () => {}
+
+  const previousHostPointerEvents = host.style.getPropertyValue('pointer-events')
+  const previousHostPointerEventsPriority = host.style.getPropertyPriority('pointer-events')
+  const previousMediaDisplay = media.style.display
+  const previousMediaPointerEvents = media.style.pointerEvents
+  const hadControlsAttribute = media.hasAttribute('controls')
+  const hadControlsListAttribute = media.hasAttribute('controlsList')
+  const previousControlsList = media.getAttribute('controlsList')
+
+  host.style.setProperty('pointer-events', 'auto', 'important')
+  host.classList.add('courseware-pptx-audio-host')
+  media.controls = false
+  media.removeAttribute('controls')
+  media.style.display = 'none'
+  media.style.pointerEvents = 'none'
+  media.setAttribute('aria-hidden', 'true')
+
+  const audioUi = document.createElement('div')
+  audioUi.className = 'courseware-pptx-audio-ui'
+  audioUi.setAttribute('role', 'group')
+  audioUi.setAttribute('aria-label', '音频播放控制')
+
+  const speakerButton = document.createElement('button')
+  speakerButton.type = 'button'
+  speakerButton.className = 'courseware-pptx-audio-button'
+  speakerButton.setAttribute('aria-label', '播放音频')
+  speakerButton.title = '播放音频'
+  const speakerIcon = document.createElement('span')
+  speakerIcon.className = 'courseware-pptx-audio-icon'
+  speakerButton.appendChild(speakerIcon)
+
+  const controls = document.createElement('div')
+  controls.className = 'courseware-pptx-audio-controls'
+
+  const playButton = document.createElement('button')
+  playButton.type = 'button'
+  playButton.className = 'courseware-pptx-audio-play'
+  playButton.setAttribute('aria-label', '播放音频')
+  playButton.title = '播放音频'
+  const playIcon = document.createElement('span')
+  playButton.appendChild(playIcon)
+
+  const progress = document.createElement('input')
+  progress.type = 'range'
+  progress.className = 'courseware-pptx-audio-progress'
+  progress.min = '0'
+  progress.max = '0'
+  progress.step = '0.01'
+  progress.value = '0'
+  progress.setAttribute('aria-label', '音频播放进度')
+
+  const volumeIcon = document.createElement('span')
+  volumeIcon.className = 'courseware-pptx-audio-volume-icon'
+  volumeIcon.setAttribute('aria-hidden', 'true')
+  const volume = document.createElement('input')
+  volume.type = 'range'
+  volume.className = 'courseware-pptx-audio-volume'
+  volume.min = '0'
+  volume.max = '1'
+  volume.step = '0.05'
+  volume.value = String(media.volume)
+  volume.setAttribute('aria-label', '音量')
+
+  controls.append(playButton, progress, volumeIcon, volume)
+  audioUi.append(speakerButton, controls)
+  host.appendChild(audioUi)
+
+  const cleanups = [
+    mountPptxIcon(speakerIcon, 'volume', 42),
+    mountPptxIcon(volumeIcon, 'volume', 15)
+  ]
+
+  const setPlayingIcon = (playing) => {
+    render(createVNode(AppIcon, { name: playing ? 'pause' : 'play', size: 16, strokeWidth: 2 }), playIcon)
+    playButton.setAttribute('aria-label', playing ? '暂停音频' : '播放音频')
+    playButton.title = playing ? '暂停音频' : '播放音频'
+    speakerButton.setAttribute('aria-label', playing ? '暂停音频' : '播放音频')
+    speakerButton.title = playing ? '暂停音频' : '播放音频'
+  }
+
+  const updateControls = () => {
+    const duration = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : 0
+    const currentTime = Number.isFinite(media.currentTime) ? media.currentTime : 0
+    progress.max = String(duration)
+    progress.value = String(Math.min(currentTime, duration || currentTime))
+    progress.disabled = duration <= 0
+    volume.value = String(Number.isFinite(media.volume) ? media.volume : 1)
+    setPlayingIcon(!media.paused && !media.ended)
+  }
+
+  const togglePlayback = async (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (media.paused || media.ended) {
+      if (media.ended) media.currentTime = 0
+      media.dataset.coursewareUserPlayback = 'true'
+      try {
+        await media.play()
+      } catch {
+        delete media.dataset.coursewareUserPlayback
+      }
+    } else {
+      media.pause()
+    }
+    updateControls()
+  }
+
+  const seekAudio = (event) => {
+    event.stopPropagation()
+    const nextTime = Number(event.currentTarget.value)
+    if (Number.isFinite(nextTime)) media.currentTime = nextTime
+  }
+
+  const changeVolume = (event) => {
+    event.stopPropagation()
+    const nextVolume = Number(event.currentTarget.value)
+    if (Number.isFinite(nextVolume)) media.volume = nextVolume
+  }
+
+  speakerButton.addEventListener('click', togglePlayback)
+  playButton.addEventListener('click', togglePlayback)
+  progress.addEventListener('input', seekAudio)
+  volume.addEventListener('input', changeVolume)
+  audioUi.addEventListener('pointerdown', stopPptxAudioEvent)
+  audioUi.addEventListener('click', stopPptxAudioEvent)
+  const mediaEvents = ['play', 'pause', 'ended', 'timeupdate', 'loadedmetadata', 'durationchange', 'volumechange']
+  mediaEvents.forEach((eventName) => media.addEventListener(eventName, updateControls))
+  updateControls()
+
+  cleanups.push(() => render(null, playIcon))
+  cleanups.push(() => {
+    speakerButton.removeEventListener('click', togglePlayback)
+    playButton.removeEventListener('click', togglePlayback)
+    progress.removeEventListener('input', seekAudio)
+    volume.removeEventListener('input', changeVolume)
+    audioUi.removeEventListener('pointerdown', stopPptxAudioEvent)
+    audioUi.removeEventListener('click', stopPptxAudioEvent)
+    mediaEvents.forEach((eventName) => media.removeEventListener(eventName, updateControls))
+  })
+  cleanups.push(() => audioUi.remove())
+
+  return () => {
+    cleanups.forEach((cleanup) => cleanup())
+    media.controls = hadControlsAttribute
+    if (hadControlsAttribute) media.setAttribute('controls', '')
+    if (hadControlsListAttribute) media.setAttribute('controlsList', previousControlsList || '')
+    else media.removeAttribute('controlsList')
+    media.style.display = previousMediaDisplay
+    media.style.pointerEvents = previousMediaPointerEvents
+    media.removeAttribute('aria-hidden')
+    host.classList.remove('courseware-pptx-audio-host')
+    host.style.removeProperty('pointer-events')
+    if (previousHostPointerEvents) host.style.setProperty('pointer-events', previousHostPointerEvents, previousHostPointerEventsPriority)
+  }
+}
+
 const refreshPptxMediaControls = async () => {
   await nextTick()
   pptxMediaControlCleanups.forEach((cleanup) => cleanup())
@@ -281,13 +466,14 @@ const refreshPptxMediaControls = async () => {
   if (!panel) return
 
   panel.querySelectorAll('video, audio').forEach((media) => {
-    media.controls = true
+    const isVideo = media instanceof HTMLVideoElement
+    if (isVideo) media.controls = true
     media.style.pointerEvents = 'auto'
     media.autoplay = false
     media.removeAttribute('autoplay')
     media.setAttribute('controlsList', 'nodownload noplaybackrate')
     media.setAttribute('disableRemotePlayback', '')
-    if (media instanceof HTMLVideoElement) {
+    if (isVideo) {
       media.disablePictureInPicture = true
       media.setAttribute('playsinline', '')
     }
@@ -312,11 +498,16 @@ const refreshPptxMediaControls = async () => {
         ['keydown', markUserPlayback, true]
       ]
       events.forEach(([eventName, handler, capture]) => media.addEventListener(eventName, handler, capture))
-      pptxMediaControlCleanups.push(() => {
+      const cleanupPlaybackGuard = () => {
         events.forEach(([eventName, handler, capture]) => media.removeEventListener(eventName, handler, capture))
         if (media.play === guardedPlay) media.play = originalPlay
         delete media.dataset.coursewareUserPlayback
-      })
+      }
+      pptxMediaControlCleanups.push(cleanupPlaybackGuard)
+    }
+
+    if (!isVideo) {
+      pptxMediaControlCleanups.push(decoratePptxAudio(media))
     }
   })
   pausePptxMedia()
@@ -615,6 +806,20 @@ document.addEventListener('fullscreenchange', syncOfficeFullscreen)
 :global(.courseware-pptx-presentation .pptx-vue-presentation-frame) { width: var(--courseware-pptx-frame-width) !important; height: var(--courseware-pptx-frame-height) !important; flex: 0 0 auto !important; }
 :global(.courseware-pptx-presentation .pptx-vue-stage) { transform: scale(var(--courseware-pptx-scale, 1)) !important; transform-origin: top left !important; }
 :global(.pptx-vue-ptb-btn--end) { display: none !important; }
+:global(.courseware-pptx-audio-host) { overflow: visible !important; z-index: 80 !important; }
+:global(.courseware-pptx-audio-ui) { position: absolute; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; overflow: visible; color: var(--color-text); pointer-events: auto; }
+:global(.courseware-pptx-audio-button) { display: inline-flex; align-items: center; justify-content: center; width: 54px; height: 54px; padding: 0; border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent); border-radius: 50%; background: color-mix(in srgb, var(--color-surface) 92%, transparent); color: var(--color-primary); box-shadow: var(--shadow-panel); cursor: pointer; }
+:global(.courseware-pptx-audio-button:hover), :global(.courseware-pptx-audio-button:focus-visible) { background: var(--color-primary-soft); color: var(--color-primary); }
+:global(.courseware-pptx-audio-icon) { display: inline-flex; align-items: center; justify-content: center; }
+:global(.courseware-pptx-audio-controls) { position: absolute; left: 50%; bottom: -42px; display: flex; align-items: center; gap: 7px; width: min(252px, 30vw); min-width: 220px; padding: 7px 9px; border: 1px solid var(--color-border); border-radius: 9px; background: color-mix(in srgb, var(--color-surface) 96%, transparent); box-shadow: var(--shadow-panel); opacity: 0; visibility: hidden; pointer-events: none; transform: translateX(-50%); transition: opacity 120ms ease, visibility 120ms ease; }
+:global(.courseware-pptx-audio-host:hover .courseware-pptx-audio-controls), :global(.courseware-pptx-audio-ui:focus-within .courseware-pptx-audio-controls) { opacity: 1; visibility: visible; pointer-events: auto; }
+:global(.courseware-pptx-audio-play) { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: var(--color-primary-soft); color: var(--color-primary); cursor: pointer; }
+:global(.courseware-pptx-audio-play:hover), :global(.courseware-pptx-audio-play:focus-visible) { background: var(--color-primary); color: var(--color-primary-contrast); }
+:global(.courseware-pptx-audio-progress), :global(.courseware-pptx-audio-volume) { min-width: 0; accent-color: var(--color-primary); cursor: pointer; }
+:global(.courseware-pptx-audio-progress) { flex: 1 1 auto; }
+:global(.courseware-pptx-audio-volume) { width: 54px; flex: 0 0 54px; }
+:global(.courseware-pptx-audio-volume-icon) { display: inline-flex; align-items: center; justify-content: center; color: var(--color-muted); }
+:global(.courseware-pptx-audio-controls input:disabled) { opacity: .45; cursor: not-allowed; }
 .office-preview:fullscreen { display: flex; min-height: 100vh; background: var(--color-surface); }
 .office-preview:fullscreen .office-host { flex: 1; }
 .office-preview:fullscreen .pptx-courseware-viewer { flex: 1; }

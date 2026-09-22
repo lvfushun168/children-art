@@ -30,6 +30,9 @@ import {
   mapCloudArchiveJob,
   mapCloudArchiveBatch,
   mapCampusMembership,
+  mapCoursewareFolder,
+  mapCoursewareItem,
+  mapCoursewarePreview,
   mapCourse,
   mapExternalLink,
   mapExtraArtwork,
@@ -73,7 +76,7 @@ import {
   feedbackIsConfirmed,
   saveAndConfirmFeedback
 } from '../services/feedbackWorkflow.js'
-import { sha256ForFile, uploadFile } from '../services/fileService'
+import { sha256ForFile, uploadCoursewareFile, uploadFile } from '../services/fileService'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import { markdownToPlainText } from '../services/markdown.js'
 import { copyTextToClipboard } from '../services/clipboard'
@@ -100,7 +103,6 @@ import {
   textField
 } from '../services/templateMappers'
 import {
-  FILE_VALIDATION_PROFILES,
   MATERIAL_CATEGORIES,
   apiAssetTypeForUpload,
   defaultMaterialVisible,
@@ -141,7 +143,7 @@ const totalFeedbackDraftHasUnsavedChanges = (state) => Boolean(state) && (
   Number(state.draftRevision || 0) !== Number(state.savedRevision || 0)
   || ['DIRTY', 'SAVING', 'ERROR'].includes(String(state.draftStatus || '').toUpperCase())
 )
-const PREPARATION_MATERIAL_LABELS = new Set(['范画', '步骤图', '课堂参考图', '课件'])
+const PREPARATION_MATERIAL_LABELS = new Set(['范画', '步骤图', '课堂参考图'])
 const displayDateFromValue = (value) => {
   if (!value) return ''
   const [, month, day] = value.split('-').map(Number)
@@ -287,6 +289,13 @@ export function useDeliveryWorkflow() {
   const pageLoading = reactive({})
   const pageLoaded = reactive({})
   const pageErrors = reactive({})
+  const coursewareFolders = reactive([])
+  const coursewareFolderChildren = reactive({})
+  const coursewareItems = reactive([])
+  const coursewareCurrentFolderId = ref(null)
+  const coursewareLoading = reactive({ folders: false, items: false, mutation: false })
+  const coursewareError = ref('')
+  const coursewarePreview = ref(null)
   const shellSummary = reactive({ pendingLessons: 0, wheatPending: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })
   const shellPages = reactive({
     lessons: { page: 1, pageSize: 20, total: 0 },
@@ -630,6 +639,14 @@ export function useDeliveryWorkflow() {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && permissions.includes('lesson.edit'))
   })
+  const canReadCourseware = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && (isAdmin.value || permissions.includes('courseware.read')))
+  })
+  const canManageCourseware = computed(() => {
+    const permissions = storedMe.value?.permissions || []
+    return Boolean(currentUser.value && (isAdmin.value || permissions.includes('courseware.manage')))
+  })
   const canQualityReview = computed(() => {
     const permissions = storedMe.value?.permissions || []
     return Boolean(currentUser.value && (isAdmin.value || permissions.includes('quality.review')))
@@ -674,6 +691,7 @@ export function useDeliveryWorkflow() {
       teachers: ['masterdata.read'],
       externalLinks: ['masterdata.read'],
       courses: ['masterdata.read'],
+      courseware: ['courseware.read'],
       archives: ['archive.read'],
       extraTasks: ['extra-task.read'],
       imports: ['import.create', 'import.preview', 'import.confirm'],
@@ -921,9 +939,7 @@ export function useDeliveryWorkflow() {
       }).map(toStudentWork))
       const materialItems = (workspace.materials || []).map((material) => ({
         ...material,
-        archiveRole: material.type === '课件'
-          ? '备课课件'
-          : isReferenceMaterialType(material.type) || isReferenceMaterialType(material.assetType)
+        archiveRole: isReferenceMaterialType(material.type) || isReferenceMaterialType(material.assetType)
             ? '范画'
             : ['课堂照片', '课堂视频'].includes(material.type) ? '课堂记录' : '范画'
       }))
@@ -950,8 +966,8 @@ export function useDeliveryWorkflow() {
           && Boolean(String(workspace.totalFeedback?.content || '').trim()))
           || Boolean(task.deliverySummary?.feedbackConfirmed || task.totalFeedbackReady),
         materials: materialItems,
-        referenceMaterials: materialItems.filter((item) => item.type !== '课件'),
-        coursewares: materialItems.filter((item) => item.type === '课件'),
+        referenceMaterials: materialItems,
+        coursewares: [],
         classroomMedia: materialItems.filter((item) => ['课堂照片', '课堂视频'].includes(item.type)),
         studentWorks,
         worksCount: studentWorks.reduce((total, item) => total + Number(item.artworkCount || 0), 0),
@@ -1334,7 +1350,7 @@ export function useDeliveryWorkflow() {
     referenceImages: referenceImageMaterials.value.length,
     classroomMedia: classroomMediaMaterials.value.length,
     referenceMaterials: referenceMaterials.value.length,
-    coursewares: coursewareMaterials.value.length,
+    coursewares: 0,
     classroomMaterials: materials.value.length,
     classroomMaterialsDone: materials.value.length || materialsConfirmedEmpty.value ? 1 : 0,
     artworks: referenceImageMaterials.value.length,
@@ -3912,7 +3928,9 @@ export function useDeliveryWorkflow() {
     const feedbackModule = value?.feedback || value?.m3?.feedback || {}
     const parentModule = value?.parentDelivery || value?.m3?.parentDelivery || {}
     const attendance = (value?.attendance || []).map(mapAttendance)
-    const assets = (assetsModule.classroomMaterials || assetsModule.assets || []).map(mapAsset)
+    const assets = (assetsModule.classroomMaterials || assetsModule.assets || [])
+      .map(mapAsset)
+      .filter((asset) => String(asset.assetType || '').toUpperCase() !== 'COURSEWARE')
     const preparationMemory = mapPreparationMemory(assetsModule.preparationMemory || {})
     const artworks = (assetsModule.artworks || []).map(mapArtwork)
     const feedbacks = (feedbackModule.feedbacks || []).map(mapFeedback)
@@ -4186,7 +4204,7 @@ export function useDeliveryWorkflow() {
   const preparationApplyReasonMessage = (reason) => ({
     NO_TOPIC: '当前课次缺少主题或班级信息，无法自动带入材料',
     NO_MATCH_SCOPE: '当前课次缺少主题或班级信息，无法自动带入材料',
-    HAS_PREPARATION_MATERIALS: '本课已有范画或课件，系统不会合并材料',
+    HAS_PREPARATION_MATERIALS: '本课已有范画，系统不会合并材料',
     MATERIALS_CONFIRMED_EMPTY: '本节已确认无资料，如需带入材料请先取消无资料确认',
     SUPPRESSED: '本课已暂不自动带入材料，可在空状态下手动重新带入',
     NOT_EDITABLE: '当前课次不可编辑，暂时不能带入材料',
@@ -5302,6 +5320,7 @@ export function useDeliveryWorkflow() {
           case 'students': await loadDirectoryPage('students', { page: 1, pageSize: 20, archiveState: masterArchiveState.students }); break
           case 'classes': await loadDirectoryPage('classes', { page: 1, pageSize: 20, archiveState: masterArchiveState.classes }); break
           case 'courses': await loadDirectoryPage('courses', { page: 1, pageSize: 20, archiveState: masterArchiveState.courses }); break
+          case 'courseware': await loadCoursewareFolders(null, { force }); break
           case 'externalLinks': await loadDirectoryPage('externalLinks', { page: 1, pageSize: 20 }); break
           case 'supervision': {
             const page = mapPage(await api.m6.supervision({ page: 1, pageSize: 20 }), mapSupervisionLesson)
@@ -5704,16 +5723,17 @@ export function useDeliveryWorkflow() {
 
   const remoteUploadLessonMaterialFiles = async (files, category = MATERIAL_CATEGORIES.REFERENCE, replacement = null) => {
     if (!files.length || !activeTask.value?.id) return false
+    if (category === MATERIAL_CATEGORIES.COURSEWARE) {
+      notify('课件已迁移至课件库，请从课件库上传')
+      return false
+    }
     const isReference = isReferenceMaterialType(category)
     const result = await runRemote(
       replacement ? '正在替换课堂素材...' : '正在上传课堂资料...',
       async () => {
         const items = []
         for (const file of files) {
-          const uploadOptions = category === MATERIAL_CATEGORIES.COURSEWARE
-            ? { validationProfile: FILE_VALIDATION_PROFILES.COURSEWARE }
-            : {}
-          const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-asset`, uploadOptions)
+          const uploaded = await uploadFile(file, `lesson-${activeTask.value.id}-asset`)
           items.push({
             fileId: String(uploaded.id),
             assetType: apiAssetTypeForUpload(category, file),
@@ -5767,6 +5787,149 @@ export function useDeliveryWorkflow() {
     if (!result) return false
     await refreshRemoteLesson(activeTask.value.id)
     return true
+  }
+
+  const coursewareFolderKey = (parentId) => parentId === null || parentId === undefined || parentId === ''
+    ? 'root' : String(parentId)
+
+  const loadCoursewareFolders = async (parentId = null, { force = false } = {}) => {
+    if (!isLoggedIn.value || !canReadCourseware.value) return []
+    const safeParentId = parentId === '' || parentId === undefined ? null : parentId
+    const key = coursewareFolderKey(safeParentId)
+    if (!force && Object.prototype.hasOwnProperty.call(coursewareFolderChildren, key)) {
+      if (sameId(coursewareCurrentFolderId.value, safeParentId)) {
+        replaceReactive(coursewareFolders, coursewareFolderChildren[key])
+      }
+      return coursewareFolderChildren[key]
+    }
+    coursewareLoading.folders = true
+    coursewareError.value = ''
+    try {
+      const values = await api.courseware.folders(safeParentId)
+      const mapped = (Array.isArray(values) ? values : []).map(mapCoursewareFolder)
+      coursewareFolderChildren[key] = mapped
+      if (sameId(coursewareCurrentFolderId.value, safeParentId)) replaceReactive(coursewareFolders, mapped)
+      return mapped
+    } catch (error) {
+      coursewareError.value = remoteErrorMessage(error, '课件目录加载失败')
+      throw error
+    } finally {
+      coursewareLoading.folders = false
+    }
+  }
+
+  const loadCoursewareItems = async (folderId = coursewareCurrentFolderId.value) => {
+    if (!isLoggedIn.value || !canReadCourseware.value) return []
+    const safeFolderId = folderId === '' || folderId === undefined ? null : folderId
+    coursewareCurrentFolderId.value = safeFolderId
+    coursewareLoading.items = true
+    coursewareError.value = ''
+    try {
+      const values = await api.courseware.items(safeFolderId)
+      replaceReactive(coursewareItems, (Array.isArray(values) ? values : []).map(mapCoursewareItem))
+      await loadCoursewareFolders(safeFolderId)
+      return coursewareItems
+    } catch (error) {
+      coursewareError.value = remoteErrorMessage(error, '课件列表加载失败')
+      throw error
+    } finally {
+      coursewareLoading.items = false
+    }
+  }
+
+  const openCoursewareFolder = async (folderId = null) => {
+    coursewareCurrentFolderId.value = folderId === '' || folderId === undefined ? null : folderId
+    await Promise.all([loadCoursewareFolders(coursewareCurrentFolderId.value), loadCoursewareItems(coursewareCurrentFolderId.value)])
+    return coursewareItems
+  }
+
+  const refreshCoursewareLocation = async (folderId = coursewareCurrentFolderId.value) => {
+    await Promise.all([
+      loadCoursewareFolders(folderId, { force: true }),
+      loadCoursewareItems(folderId)
+    ])
+    return coursewareItems
+  }
+
+  const remoteCreateCoursewareFolder = async (name, parentId = coursewareCurrentFolderId.value) => {
+    const value = await runRemote('正在创建课件目录...', () => api.courseware.createFolder({
+      name: String(name || '').trim(),
+      parentId: parentId === null || parentId === undefined ? undefined : String(parentId)
+    }), '课件目录已创建')
+    if (!value) return null
+    const folder = mapCoursewareFolder(value)
+    await loadCoursewareFolders(parentId, { force: true })
+    return folder
+  }
+
+  const remoteUpdateCoursewareFolder = async (folder, patch = {}) => {
+    if (!folder?.id) return null
+    const parentId = Object.prototype.hasOwnProperty.call(patch, 'parentId') ? patch.parentId : folder.parentId
+    const value = await runRemote('正在保存课件目录...', () => api.courseware.updateFolder(folder.id, {
+      parentId: parentId === null || parentId === undefined ? undefined : String(parentId),
+      moveToRoot: Boolean(patch.moveToRoot),
+      name: patch.name ?? folder.name,
+      version: folder.version
+    }), '课件目录已保存')
+    if (!value) return null
+    await loadCoursewareFolders(folder.parentId, { force: true })
+    await loadCoursewareFolders(parentId, { force: true })
+    return mapCoursewareFolder(value)
+  }
+
+  const remoteRemoveCoursewareFolder = async (folder) => {
+    if (!folder?.id) return false
+    const success = await runRemoteVoid('正在删除课件目录...', () => api.courseware.deleteFolder(folder.id, folder.version), '课件目录已删除')
+    if (!success) return false
+    await loadCoursewareFolders(folder.parentId, { force: true })
+    return true
+  }
+
+  const remoteUploadCourseware = async (file, folderId = coursewareCurrentFolderId.value, title = '') => {
+    if (!file) return null
+    const value = await runRemote('正在上传课件...', async () => {
+      const uploaded = await uploadCoursewareFile(file)
+      return api.courseware.createItem({
+        folderId: folderId === null || folderId === undefined ? undefined : String(folderId),
+        fileId: String(uploaded.id),
+        title: String(title || file.name || '').trim()
+      })
+    }, '课件已上传')
+    if (!value) return null
+    await loadCoursewareItems(folderId)
+    await loadCoursewareFolders(folderId, { force: true })
+    return mapCoursewareItem(value)
+  }
+
+  const remoteUpdateCourseware = async (item, patch = {}) => {
+    if (!item?.id) return null
+    const folderId = Object.prototype.hasOwnProperty.call(patch, 'folderId') ? patch.folderId : item.folderId
+    const value = await runRemote('正在保存课件...', () => api.courseware.updateItem(item.id, {
+      folderId: folderId === null || folderId === undefined ? undefined : String(folderId),
+      moveToRoot: Boolean(patch.moveToRoot),
+      title: patch.title ?? item.title,
+      version: item.version
+    }), '课件已保存')
+    if (!value) return null
+    await loadCoursewareItems(coursewareCurrentFolderId.value)
+    return mapCoursewareItem(value)
+  }
+
+  const remoteRemoveCourseware = async (item) => {
+    if (!item?.id) return false
+    const success = await runRemoteVoid('正在删除课件...', () => api.courseware.deleteItem(item.id, item.version), '课件已删除')
+    if (!success) return false
+    await loadCoursewareItems(coursewareCurrentFolderId.value)
+    await loadCoursewareFolders(coursewareCurrentFolderId.value, { force: true })
+    return true
+  }
+
+  const remotePreviewCourseware = async (item) => {
+    if (!item?.id) return null
+    const value = await runRemote('正在准备课件预览...', () => api.courseware.preview(item.id))
+    if (!value) return null
+    coursewarePreview.value = mapCoursewarePreview(value)
+    return coursewarePreview.value
   }
 
   const studentRecordsFor = (row) => Array.isArray(row?.studentRecords) ? row.studentRecords : []
@@ -9521,6 +9684,13 @@ export function useDeliveryWorkflow() {
     classroomMediaMaterials,
     referenceMaterials,
     coursewareMaterials,
+    coursewareFolders,
+    coursewareFolderChildren,
+    coursewareItems,
+    coursewareCurrentFolderId,
+    coursewareLoading,
+    coursewareError,
+    coursewarePreview,
     materialsConfirmedEmpty,
     homework,
     displayConfig,
@@ -9585,6 +9755,8 @@ export function useDeliveryWorkflow() {
     canManageIdentityMemberships,
     canEditMasterData,
     canEditLessons,
+    canReadCourseware,
+    canManageCourseware,
     canQualityReview,
     canQualityRead,
     canEditExtraTaskArtwork,
@@ -9704,6 +9876,17 @@ export function useDeliveryWorkflow() {
     uploadHomeworkImage: remoteUploadHomeworkImage,
     replaceLessonMaterial: remoteReplaceLessonMaterial,
     removeLessonMaterial: remoteRemoveLessonMaterial,
+    loadCoursewareFolders,
+    loadCoursewareItems,
+    openCoursewareFolder,
+    refreshCoursewareLocation,
+    createCoursewareFolder: remoteCreateCoursewareFolder,
+    updateCoursewareFolder: remoteUpdateCoursewareFolder,
+    removeCoursewareFolder: remoteRemoveCoursewareFolder,
+    uploadCourseware: remoteUploadCourseware,
+    updateCourseware: remoteUpdateCourseware,
+    removeCourseware: remoteRemoveCourseware,
+    previewCourseware: remotePreviewCourseware,
     uploadStudentRecord: remoteUploadStudentRecord,
     uploadStudentRecordFiles: remoteUploadStudentRecordFiles,
     replaceStudentRecord: remoteReplaceStudentRecord,

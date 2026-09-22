@@ -21,6 +21,7 @@ import {
   ExternalLink,
   FileArchive,
   FileText,
+  FolderInput,
   FolderOpen,
   Gauge,
   GraduationCap,
@@ -33,6 +34,8 @@ import {
   ListChecks,
   ListFilter,
   ListTodo,
+  Maximize2,
+  Minimize2,
   Mic,
   MoreHorizontal,
   PanelsTopLeft,
@@ -54,7 +57,9 @@ import {
   UsersRound,
   Video,
   WalletCards,
-  X
+  X,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-vue-next'
 
 const navigationIcons = {
@@ -62,6 +67,7 @@ const navigationIcons = {
   'after-class': ClipboardCheck,
   'basic-info': UsersRound,
   materials: FolderOpen,
+  courseware: FolderOpen,
   operations: Settings2,
   schedule: CalendarDays,
   'today-tasks': ListChecks,
@@ -113,8 +119,13 @@ const actionIcons = {
   voice: Mic,
   'move-up': ArrowUp,
   'move-down': ArrowDown,
+  move: FolderInput,
   expand: ChevronDown,
-  collapse: ChevronUp
+  collapse: ChevronUp,
+  'zoom-in': ZoomIn,
+  'zoom-out': ZoomOut,
+  fullscreen: Maximize2,
+  'fullscreen-exit': Minimize2
 }
 
 const statusIcons = {

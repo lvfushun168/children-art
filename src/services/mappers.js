@@ -310,6 +310,29 @@ export const mapAttendance = (value = {}) => ({
   version: Number(value.version || 0)
 })
 export const mapFile = (value = {}) => ({ ...value, id: safeUiId(value.id), sizeBytes: Number(value.sizeBytes || 0) })
+export const mapCoursewareFolder = (value = {}) => ({
+  ...value,
+  id: safeUiId(value.id),
+  parentId: safeUiId(value.parentId),
+  version: Number(value.version || 0),
+  childCount: Number(value.childCount || 0),
+  itemCount: Number(value.itemCount || 0)
+})
+export const mapCoursewareItem = (value = {}) => ({
+  ...value,
+  id: safeUiId(value.id),
+  folderId: safeUiId(value.folderId),
+  fileId: safeUiId(value.fileId),
+  version: Number(value.version || 0),
+  sizeBytes: Number(value.sizeBytes || 0),
+  previewMode: String(value.previewMode || '').toUpperCase()
+})
+export const mapCoursewarePreview = (value = {}) => ({
+  ...value,
+  item: mapCoursewareItem(value.item || {}),
+  expiresAt: value.expiresAt || '',
+  office: value.office || {}
+})
 export const mapAsset = (value = {}) => ({
   ...value,
   id: safeUiId(value.id),

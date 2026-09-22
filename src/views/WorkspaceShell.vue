@@ -9,6 +9,7 @@ import { navGroups } from '../data/navigation'
 import ArchiveQueryView from './ArchiveQueryView.vue'
 import AccountManagementView from './AccountManagementView.vue'
 import CampusManagementView from './CampusManagementView.vue'
+import CoursewareLibraryView from './CoursewareLibraryView.vue'
 import ImportCenterView from './ImportCenterView.vue'
 import ExtraTasksView from './ExtraTasksView.vue'
 import MasterDataView from './MasterDataView.vue'
@@ -87,7 +88,7 @@ const visibleNavIds = computed(() => filteredNavGroups.value.flatMap((group) => 
 const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
-const navIdsWithLocalBack = new Set(['schedule', 'tasks', 'supervision', 'production', 'archives', 'teachers', 'students', 'classes', 'courses', 'externalLinks', 'extraTasks', 'campuses', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
+const navIdsWithLocalBack = new Set(['schedule', 'tasks', 'supervision', 'production', 'archives', 'teachers', 'students', 'classes', 'courses', 'courseware', 'externalLinks', 'extraTasks', 'campuses', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
 const navIdsWithLocalToast = new Set(['tasks', 'supervision', 'production', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || routeMode.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
@@ -404,6 +405,8 @@ onBeforeRouteUpdate(async (to, from) => {
       <MasterDataView v-if="showActivePage && activeNav === 'classes'" :state="state" entity="classes" :group-label="activeGroup?.label" @back-to-group="returnToGroup" @open-import="openImportCenter('综合课表')" />
 
       <MasterDataView v-if="showActivePage && activeNav === 'courses'" :state="state" entity="courses" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
+
+      <CoursewareLibraryView v-if="showActivePage && activeNav === 'courseware'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
       <ImportCenterView v-if="showActivePage && activeNav === 'imports'" :state="state" :initial-type="activeImportType" @open-schedule="openNav('schedule')" />
 

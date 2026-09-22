@@ -129,21 +129,53 @@ export const uploadFile = async (file, purpose = 'lesson-asset', options = {}) =
   return mapFile(completed || { ...session, id: fileId, sizeBytes: file.size, sha256: digest, originalFilename: file.name, mediaType })
 }
 
-export const putUploadSessionContent = async (session, body, contentType = 'application/octet-stream') => {
+export const uploadCoursewareFile = async (file, options = {}) => {
+  if (!file) throw new Error('未选择文件')
+  const digest = options.sha256 || await sha256(file)
+  const mediaType = file.type || 'application/octet-stream'
+  const session = await api.courseware.createUploadSession({
+    originalFilename: file.name,
+    mediaType,
+    expectedSize: file.size,
+    expectedSha256: digest
+  })
+  await putUploadSessionContent(session, file, mediaType, 'courseware', api.courseware.uploadContent)
+  const completed = await api.courseware.completeUpload(
+    session.fileUploadSessionId || session.sessionId,
+    { sizeBytes: file.size, sha256: digest },
+    options.idempotencyKey || createIdempotencyKey('courseware-complete')
+  )
+  return mapFile(completed || {
+    ...session,
+    id: session.fileId || session.id,
+    sizeBytes: file.size,
+    sha256: digest,
+    originalFilename: file.name,
+    mediaType
+  })
+}
+
+export const putUploadSessionContent = async (
+  session,
+  body,
+  contentType = 'application/octet-stream',
+  scope = 'file-content',
+  uploadRequest = api.files.uploadContent
+) => {
   const uploadUrl = session?.uploadUrl || ''
   if (uploadUrl && /^https?:\/\//i.test(uploadUrl)) {
     const response = await fetch(uploadUrl, {
       method: 'PUT',
       headers: {
         'Content-Type': contentType || 'application/octet-stream',
-        'Idempotency-Key': createIdempotencyKey(`file-content:${session.sessionId || session.fileUploadSessionId || 'upload'}`)
+        'Idempotency-Key': createIdempotencyKey(`${scope}:${session.sessionId || session.fileUploadSessionId || 'upload'}`)
       },
       body
     })
     if (!response.ok) throw new Error(`文件上传失败（${response.status}）`)
     return response
   }
-  return api.files.uploadContent(session?.fileUploadSessionId || session?.sessionId, body, contentType)
+  return uploadRequest(session?.fileUploadSessionId || session?.sessionId, body, contentType)
 }
 
 export const loadProtectedBlobUrl = async (fileId, { variant = 'original' } = {}) => {

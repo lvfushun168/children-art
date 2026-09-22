@@ -103,6 +103,25 @@ export const api = {
     preview: (fileId) => request(`/files/${id(fileId)}/preview`, { responseType: 'blob' }),
     addReference: (fileId, body) => request(`/files/${id(fileId)}/references`, { method: 'POST', body })
   },
+  courseware: {
+    folders: (parentId) => request(`/courseware/folders${queryString({ parentId: id(parentId) })}`),
+    createFolder: (body) => request('/courseware/folders', { method: 'POST', body }),
+    updateFolder: (folderId, body) => request(`/courseware/folders/${id(folderId)}`, { method: 'PATCH', body }),
+    deleteFolder: (folderId, version) => request(`/courseware/folders/${id(folderId)}${queryString({ version })}`, { method: 'DELETE' }),
+    items: (folderId) => request(`/courseware/items${queryString({ folderId: id(folderId) })}`),
+    createItem: (body) => request('/courseware/items', { method: 'POST', body }),
+    updateItem: (itemId, body) => request(`/courseware/items/${id(itemId)}`, { method: 'PATCH', body }),
+    deleteItem: (itemId, version) => request(`/courseware/items/${id(itemId)}${queryString({ version })}`, { method: 'DELETE' }),
+    createUploadSession: (body) => request('/courseware/upload-sessions', { method: 'POST', body }),
+    uploadContent: (sessionId, body, contentType) => request(`/courseware/upload-sessions/${id(sessionId)}/content`, {
+      method: 'PUT', body, rawBody: true, headers: { 'Content-Type': contentType || 'application/octet-stream' }
+    }),
+    completeUpload: (sessionId, body, key) => request(`/courseware/upload-sessions/${id(sessionId)}/complete`, {
+      method: 'POST', body, idempotencyKey: key
+    }),
+    preview: (itemId) => request(`/courseware/items/${id(itemId)}/preview`),
+    previewContent: (itemId) => request(`/courseware/items/${id(itemId)}/preview-content`, { responseType: 'blob' })
+  },
   imports: {
     list: (params) => page('/imports', params),
     create: (body) => request('/imports', { method: 'POST', body }),

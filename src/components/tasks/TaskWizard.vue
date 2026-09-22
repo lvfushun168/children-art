@@ -198,17 +198,6 @@ const materialSections = computed(() => {
       empty: '尚未添加课堂记录',
       kind: 'media',
       materials: materials.filter((item) => ['课堂照片', '课堂视频'].includes(item.type))
-    },
-    {
-      key: 'courseware',
-      title: '课件',
-      description: '本节课的课件文件',
-      category: MATERIAL_CATEGORIES.COURSEWARE,
-      uploadLabel: '上传课件',
-      accept: '',
-      empty: '尚未上传课件',
-      kind: 'file',
-      materials: materials.filter((item) => item.type === '课件')
     }
   ]
 })
@@ -308,7 +297,6 @@ const handleMaterialTabKeydown = (event, currentKey) => {
 }
 const replaceAccept = computed(() => {
   if (replaceTarget.value?.category === MATERIAL_CATEGORIES.CLASSROOM) return 'image/*,video/*'
-  if (replaceTarget.value?.category === MATERIAL_CATEGORIES.COURSEWARE) return undefined
   return 'image/*'
 })
 const resourceFilterOptions = computed(() => [
@@ -683,6 +671,7 @@ watch(homeworkEditorOpen, async (open) => {
             <span>第 1 步</span>
             <strong>整理本节课的课堂素材</strong>
           </div>
+          <button v-if="state.canReadCourseware" class="ghost" type="button" @click="$emit('navigate', 'courseware')"><AppIcon name="courseware" :size="15" />打开课件库</button>
         </div>
 
         <section class="classroom-materials-board">
@@ -734,42 +723,7 @@ watch(homeworkEditorOpen, async (open) => {
               </div>
             </header>
 
-            <div v-if="activeMaterialSection.kind === 'file'" class="courseware-list material-file-list">
-              <label v-if="!activeMaterialSection.materials.length" class="material-add-tile material-add-tile--file">
-                <span class="material-add-icon" aria-hidden="true">＋</span>
-                <strong>{{ activeMaterialSection.uploadLabel }}</strong>
-                <small>点击选择文件</small>
-                <input type="file" :accept="activeMaterialSection.accept || undefined" multiple @change="state.uploadLessonMaterial($event, activeMaterialSection.category)" />
-              </label>
-              <article v-for="material in activeMaterialSection.materials" :key="material.id" class="courseware-file-card">
-                <span class="courseware-file-type">{{ material.fileExt ? material.fileExt.toUpperCase() : material.file?.extension?.toUpperCase() || '文件' }}</span>
-                <div>
-                  <input
-                    v-if="sameId(editingMaterialId, material.id)"
-                    :ref="setMaterialNameInput"
-                    v-model="materialNameDraft"
-                    class="material-name-input"
-                    maxlength="255"
-                    :disabled="materialNameSaving"
-                    @click.stop
-                    @keydown.enter.prevent="saveMaterialName(material)"
-                    @keydown.esc.prevent.stop="cancelMaterialNameEdit"
-                    @blur="saveMaterialName(material)"
-                  />
-                  <button
-                    v-else
-                    type="button"
-                    class="material-name-trigger"
-                    :title="material.title || material.file?.originalFilename || '未命名课件'"
-                    @click.stop="startMaterialNameEdit(material)"
-                  >{{ material.title || material.file?.originalFilename || '未命名课件' }}</button>
-                  <small v-if="sameId(editingMaterialId, material.id) && materialNameSaving">正在保存名称…</small>
-                </div>
-                <button class="material-remove-icon" type="button" :aria-label="`删除${material.title || '课件'}`" @click="state.removeLessonMaterial(material)"><AppIcon name="delete" :size="15" /></button>
-              </article>
-            </div>
-
-            <div v-else class="material-card-grid">
+            <div class="material-card-grid">
               <label v-if="!activeMaterialSection.materials.length" class="material-add-tile">
                 <span class="material-add-icon" aria-hidden="true">＋</span>
                 <strong>{{ activeMaterialSection.uploadLabel }}</strong>

@@ -33,6 +33,7 @@ export const navGroups = [
     icon: 'materials',
     items: [
       { id: 'courses', label: '课程资料', mark: '课', icon: 'course' },
+      { id: 'courseware', label: '课件库', mark: '件', icon: 'courseware', description: '按目录管理和预览课件' },
       { id: 'archives', label: '档案中心', mark: '档', icon: 'archive' },
       { id: 'extraTasks', label: '课外任务', mark: '外', icon: 'extra-task' }
     ]

@@ -513,28 +513,19 @@ watch(
   { immediate: true }
 )
 
-watch(() => props.state.currentStep, (step) => {
+watch(() => [props.state.currentStep, props.state.activeTask?.id], ([step]) => {
   if (step !== 2) {
     studentDeliveryDrawerOpen.value = false
     studentDeliveryMobileDetailOpen.value = false
   }
   if (step !== 4) showTeacherEffectDrawer.value = false
   if (step !== 3) homeworkEditorOpen.value = false
-  if (step === 4 && typeof props.state.ensureWecomConfiguration === 'function') {
-    void props.state.ensureWecomConfiguration({ force: true }).catch((error) => {
-      props.state.notify?.(error?.message || '企业微信配置加载失败，请稍后重试')
+  if (step === 4 && typeof props.state.loadParentSendChecklist === 'function') {
+    void props.state.loadParentSendChecklist().catch((error) => {
+      props.state.notify?.(error?.message || '微信发送清单加载失败，请稍后重试')
     })
   }
 }, { immediate: true })
-
-const parentTouchActionLabel = (item) => {
-  const status = item?.item?.status
-  if (typeof props.state.isParentTouchResending === 'function' && props.state.isParentTouchResending(item?.item)) return '重新发送中'
-  if (['人工发送', '已发送', '待老师确认发送'].includes(status)) return '重新发送'
-  if (status === '发送失败') return '重试发送'
-  if (status === '待绑定家长群') return '绑定后重新提交'
-  return item?.action || '创建企微通知'
-}
 
 const cloudArchiveActionLabel = (item) => {
   const batch = props.state.activeWorkspace?.cloudBatch
@@ -1098,20 +1089,23 @@ watch(homeworkEditorOpen, async (open) => {
                     <i :style="{ width: `${state.activeWorkspace.cloudBatch.percent || 0}%` }"></i>
                   </div>
                 </template>
-                <details v-if="item.key === 'parentTouch' && state.sharePage.publishedSnapshot" class="touch-fallback">
-                  <summary>学生访问凭证（可人工发送）</summary>
+                <div v-if="item.key === 'parentTouch' && state.activeTask?.status !== '已完成'" class="touch-fallback">
+                  <p>按顺序复制总课评、作品、课堂记录和个人课评；在微信发送后，再勾选对应学生。</p>
                   <div v-for="row in state.attendingRows" :key="`touch-${row.lessonId}-${row.studentId}`" class="touch-fallback-row">
                     <div>
                       <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
-                      <small>{{ studentFor(row.studentId).parent }} · 展示页 V{{ state.sharePage.publishedVersion }}</small>
+                      <small>{{ studentFor(row.studentId).parent }} · 当前工作台内容</small>
                     </div>
-                    <AppStatusTag class="credential-status" tone="success" status="链接已生成" />
-                    <button class="ghost" @click="state.manualCopyStudentLink(row)"><AppIcon name="copy" :size="15" />{{ state.copiedStudentId === row.studentId ? '已复制' : '复制并记录人工发送' }}</button>
+                    <button class="ghost" type="button" :disabled="state.isProcessing" @click="state.copyParentRichContent(row)"><AppIcon name="copy" :size="15" />复制图文</button>
+                    <label class="credential-status">
+                      <input type="checkbox" :checked="Boolean(state.parentSendCheckFor(row)?.checked)" :disabled="!sameId(state.parentSendChecklist?.lessonId, state.activeTask?.id) || state.isProcessing" @change="state.setParentSendCheck(row, $event.target.checked)" />
+                      已发送
+                    </label>
                   </div>
-                </details>
+                </div>
+                <small v-if="item.key === 'parentTouch' && state.activeTask?.status === '已完成'">历史已完成课次保留原触达记录。</small>
               </div>
               <div class="archive-check-actions">
-                <button v-if="item.key === 'parentTouch'" class="secondary" :disabled="state.isProcessing || (typeof state.isParentTouchResending === 'function' && state.isParentTouchResending(item.item))" @click="state.pushParentTouch"><AppIcon name="send" :size="15" />{{ parentTouchActionLabel(item) }}</button>
                 <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="cloudArchiveActionDisabled(item)" @click="state.pushArchiveItem(item.key)"><AppIcon name="archive" :size="15" />{{ cloudArchiveActionLabel(item) }}</button>
                 <template v-if="item.key === 'teacherEffectArchive'">
                   <button v-if="['PENDING', 'FAILED', 'SKIPPED'].includes(teacherEffectStatus) || !teacherEffect.id" class="secondary" :disabled="state.isProcessing" @click="openTeacherEffectDrawer"><AppIcon name="settings" :size="15" />{{ teacherEffectStatus === 'FAILED' ? '重新配置并生成' : '配置并生成课效图' }}</button>

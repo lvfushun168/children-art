@@ -199,6 +199,8 @@ export const api = {
   },
   parent: {
     draft: (lessonId) => request(`/lessons/${id(lessonId)}/share-page/draft`),
+    sendChecklist: (lessonId) => request(`/lessons/${id(lessonId)}/parent-send-checklist`),
+    setSendCheck: (lessonId, studentId, body) => request(`/lessons/${id(lessonId)}/parent-send-checklist/${id(studentId)}`, { method: 'PUT', body }),
     saveDraft: (lessonId, body, options = {}) => request(`/lessons/${id(lessonId)}/share-page/draft`, { ...options, method: 'PUT', body }),
     publish: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/share-page/publish`, { method: 'POST', body, idempotencyKey: key }),
     skip: (lessonId, body) => request(`/lessons/${id(lessonId)}/share-page/skip`, { method: 'POST', body }),

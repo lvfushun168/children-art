@@ -80,6 +80,7 @@ import { sha256ForFile, uploadCoursewareFile, uploadFile } from '../services/fil
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import { markdownToPlainText } from '../services/markdown.js'
 import { copyTextToClipboard } from '../services/clipboard'
+import { buildCurrentParentBlocks, copyParentRichContent } from '../services/richClipboard.js'
 import { mergeJobStream } from '../services/jobStream.js'
 import { loadAllPageItems } from '../utils/pagination'
 import {
@@ -281,6 +282,7 @@ export function useDeliveryWorkflow() {
   const selectedTaskSnapshot = ref(null)
   const copied = ref(false)
   const copiedStudentId = ref(null)
+  const parentSendChecklist = ref({ lessonId: null, students: [] })
   const isLoggedIn = ref(Boolean(getAccessToken() && storedMe.value))
   const currentUserId = ref(null)
   const loginForm = reactive({ phone: '', password: '' })
@@ -1451,17 +1453,20 @@ export function useDeliveryWorkflow() {
   const archiveChecklistItems = computed(() => [
     {
       key: 'parentTouch',
-      title: '家长展示页与企业微信通知',
-      meta: wecomConfigurationLoading.value
-        ? '正在读取企业微信配置…'
-        : !wecomConfigurationLoaded.value
-          ? (wecomConfigurationLoadError.value ? '企业微信配置读取失败' : '正在读取企业微信配置…')
-          : wecomEnabled.value
-            ? '发布展示页内容并创建企业微信通知任务'
-            : '企业微信未启用，请先完成配置',
-      action: '创建企微通知',
+      title: activeTask.value?.status === '已完成' ? '家长触达历史' : '逐学生微信图文交付',
+      meta: !sameId(parentSendChecklist.value.lessonId, activeTask.value?.id)
+        ? '进入第五步后读取发送清单'
+        : `已确认 ${parentSendChecklist.value.students.filter((student) => student.checked).length}/${attendingRows.value.length} 位到课学生`,
+      action: '逐人发送并勾选',
       required: true,
-      item: archiveChecklist.value.parentTouch
+      item: activeTask.value?.status === '已完成' ? archiveChecklist.value.parentTouch : {
+        ...archiveChecklist.value.parentTouch,
+        status: sameId(parentSendChecklist.value.lessonId, activeTask.value?.id)
+          && attendingRows.value.length > 0
+          && attendingRows.value.every((row) => parentSendCheckFor(row)?.checked)
+          ? '已发送' : '待发送',
+        dispatchStatus: ''
+      }
     },
     {
       key: 'studentCloudArchive',
@@ -7560,6 +7565,7 @@ export function useDeliveryWorkflow() {
     Object.assign(workspace.sharePage, mergeSharePageForWorkspace(workspace, page), { publishedSnapshot: page.publishedSnapshot || remoteShareDraftPayload() })
     workspace.studentDeliveries.forEach((row) => { row.shareReady = Boolean(page.accessLinks?.some((link) => sameId(link.studentId, row.studentId))) })
     await refreshRemoteLesson(activeTask.value.id)
+    await remoteLoadParentSendChecklist()
     return true
   }
 
@@ -7639,6 +7645,60 @@ export function useDeliveryWorkflow() {
     markStudentLinkCopied(row.studentId)
     notify('家长展示链接已复制')
     return true
+  }
+
+  const remoteLoadParentSendChecklist = async () => {
+    const lessonId = activeTask.value?.id
+    if (!lessonId) return null
+    const checklist = await api.parent.sendChecklist(lessonId)
+    if (!sameId(activeTask.value?.id, lessonId)) return null
+    parentSendChecklist.value = { ...checklist, lessonId }
+    return parentSendChecklist.value
+  }
+
+  const parentSendCheckFor = (row) => sameId(parentSendChecklist.value.lessonId, activeTask.value?.id)
+    ? parentSendChecklist.value.students?.find((item) => sameId(item.studentId, row?.studentId)) || null
+    : null
+
+  const remoteCopyParentRichContent = async (row) => {
+    const lessonId = activeTask.value?.id
+    if (!lessonId || !row?.studentId || !sameId(row.lessonId, lessonId)) return false
+    try {
+      const blocks = buildCurrentParentBlocks({ totalFeedback: totalFeedback.value, student: row,
+        materials: materials.value })
+      if (!blocks.length) throw new Error('当前学生没有可复制的图文')
+      await copyParentRichContent(() => ({ blocks }), (fileId) => api.files.content(fileId))
+      copiedStudentId.value = row.studentId
+      notify('图文已复制，请在微信粘贴检查并发送；发送后再勾选已发送')
+      return true
+    } catch (error) {
+      notify(remoteErrorMessage(error, '图文复制失败，请重试'))
+      return false
+    }
+  }
+
+  const remoteSetParentSendCheck = async (row, checked) => {
+    const lessonId = activeTask.value?.id
+    if (!lessonId || !row?.studentId) return false
+    try {
+      const checklist = sameId(parentSendChecklist.value.lessonId, lessonId)
+        ? parentSendChecklist.value : await remoteLoadParentSendChecklist()
+      const current = checklist?.students?.find((item) => sameId(item.studentId, row.studentId))
+      if (!current) throw new Error('发送清单未加载，请重试')
+      await api.parent.setSendCheck(lessonId, row.studentId, {
+        checked: Boolean(checked),
+        version: current.version
+      })
+      await remoteLoadParentSendChecklist()
+      notify(checked ? '已记录微信发送确认' : '已取消微信发送确认')
+      return true
+    } catch (error) {
+      await remoteLoadParentSendChecklist().catch(() => {})
+      notify(error?.status === 409 || error?.code === 'VERSION_CONFLICT'
+        ? '发送确认状态已变化，清单已刷新，请确认后重试'
+        : remoteErrorMessage(error, '发送确认保存失败，请重试'))
+      return false
+    }
   }
 
   const remotePushParentTouch = async () => {
@@ -8129,7 +8189,7 @@ export function useDeliveryWorkflow() {
     { key: 'lessonStatus', title: '课次状态' },
     { key: 'studentDelivery', title: '学生交付内容' },
     { key: 'deliveryConfirm', title: '作品与总课评' },
-    { key: 'parentTouch', title: '家长展示页与通知' },
+    { key: 'parentTouch', title: '微信图文发送清单' },
     { key: 'wheatTrace', title: '小麦消课待办' },
     { key: 'archiveExtras', title: '网盘或老师课效归档' },
     { key: 'completionCheck', title: '完成条件检查' },
@@ -8323,14 +8383,12 @@ export function useDeliveryWorkflow() {
     }
 
     const parentTouch = await runArchiveStep('parentTouch', async () => {
-      if (!(await remoteSaveShareDraft('归档前保存展示草稿'))) return { ok: false, detail: '家长展示草稿保存失败' }
-      const lessonTouchTasks = wecomSendTasks.filter((item) => sameId(item.lessonId, task.id))
-      const touchReady = attendingRows.value.every((row) => lessonTouchTasks.some((item) =>
-        sameId(item.studentId, row.studentId) && ['待绑定家长群', '待老师确认发送', '已发送', '人工发送', '发送失败', '已跳过'].includes(item.status)
-      ))
-      if (!touchReady && !(await remotePushParentTouch())) return { ok: false, detail: '家长展示页或通知任务未完成' }
-      return { ok: true, detail: '家长展示页与通知任务已准备' }
-    }, '家长展示页或通知任务未完成')
+      const checklist = await remoteLoadParentSendChecklist()
+      if (!checklist) return { ok: false, detail: '微信发送清单读取失败' }
+      const missing = attendingRows.value.filter((row) => !parentSendCheckFor(row)?.checked)
+      if (missing.length) return { ok: false, detail: `还有 ${missing.length} 位学生未确认微信发送` }
+      return { ok: true, detail: '所有到课学生均已确认微信发送' }
+    }, '仍有到课学生未确认微信发送')
     if (!parentTouch.ok) {
       stopArchiveRun('error', parentTouch.detail)
       return false
@@ -9843,6 +9901,11 @@ export function useDeliveryWorkflow() {
     isBaiduCloudBatch,
     isCloudOverwriteFailed,
     wecomSendTasks,
+    parentSendChecklist,
+    parentSendCheckFor,
+    loadParentSendChecklist: remoteLoadParentSendChecklist,
+    copyParentRichContent: remoteCopyParentRichContent,
+    setParentSendCheck: remoteSetParentSendCheck,
     wecomEnabled,
     wecomTaskFor,
     pushParentTouch: remotePushParentTouch,

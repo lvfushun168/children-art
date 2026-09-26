@@ -1097,9 +1097,10 @@ watch(homeworkEditorOpen, async (open) => {
                       <small>{{ studentFor(row.studentId).parent }} · 当前工作台内容</small>
                     </div>
                     <button class="ghost" type="button" :disabled="state.isProcessing" @click="state.copyParentRichContent(row)"><AppIcon name="copy" :size="15" />复制图文</button>
-                    <label class="credential-status">
+                    <label class="send-check-control" :class="{ 'is-checked': Boolean(state.parentSendCheckFor(row)?.checked) }">
                       <input type="checkbox" :checked="Boolean(state.parentSendCheckFor(row)?.checked)" :disabled="!sameId(state.parentSendChecklist?.lessonId, state.activeTask?.id) || state.isProcessing" @change="state.setParentSendCheck(row, $event.target.checked)" />
-                      已发送
+                      <span class="send-check-mark" aria-hidden="true">✓</span>
+                      <span>已发送</span>
                     </label>
                   </div>
                 </div>

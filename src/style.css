@@ -6806,7 +6806,7 @@ textarea:focus,
 
 .touch-fallback-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto auto auto;
+  grid-template-columns: minmax(120px, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   padding: 8px 0;
@@ -6823,17 +6823,77 @@ textarea:focus,
   min-width: 0;
 }
 
-.touch-fallback-row small,
-.credential-status {
+.touch-fallback-row small {
   color: var(--color-muted);
   font-size: 12px;
 }
 
-.credential-status {
-  padding: 4px 7px;
-  border-radius: 999px;
-  background: var(--color-surface-muted);
+.send-check-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 106px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--color-secondary-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 700;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.send-check-control:hover:not(:has(input:disabled)) {
+  background: var(--color-primary-soft);
+  border-color: var(--color-border-strong);
+}
+
+.send-check-control.is-checked {
+  background: var(--color-primary-soft);
+  border-color: var(--color-border-strong);
+}
+
+.send-check-control:focus-within {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.send-check-control:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.send-check-control input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.send-check-mark {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border: 2px solid var(--color-primary);
+  border-radius: 5px;
+  color: transparent;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.send-check-control.is-checked .send-check-mark {
+  background: var(--color-primary);
+  color: var(--color-surface);
 }
 
 .qr-code.mini {
@@ -13554,7 +13614,7 @@ textarea:focus,
     padding: 10px 0;
   }
 
-  .app-shell-mobile .touch-fallback-row .credential-status {
+  .app-shell-mobile .touch-fallback-row .send-check-control {
     justify-self: end;
   }
 

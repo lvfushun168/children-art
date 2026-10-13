@@ -408,7 +408,7 @@ onBeforeRouteUpdate(async (to, from) => {
 
       <CoursewareLibraryView v-if="showActivePage && activeNav === 'courseware'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 
-      <ImportCenterView v-if="showActivePage && activeNav === 'imports'" :state="state" :initial-type="activeImportType" @open-schedule="openNav('schedule')" />
+      <ImportCenterView v-if="showActivePage && activeNav === 'imports'" :state="state" :initial-type="activeImportType" @open-schedule="openNav('schedule')" @open-classes="openNav('classes')" />
 
       <CampusManagementView v-if="showActivePage && activeNav === 'campuses'" :state="state" :group-label="activeGroup?.label" @back-to-group="returnToGroup" />
 

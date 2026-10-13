@@ -3416,8 +3416,9 @@ export function useDeliveryWorkflow() {
       nickname: normalized.nickname || '',
       parent: normalized.parentName || normalized.parent || '',
       phone: normalized.parentPhone || normalized.phone || '',
-      status: value.status === 'READY' ? '可导入' : value.status === 'SKIPPED' ? '已跳过' : '需处理',
-      issue: value.reasonDetail || value.reasonCode || ''
+      statusCode: value.status || '',
+      status: value.status === 'READY' ? '可导入' : value.status === 'SKIPPED' ? '已跳过' : value.status === 'IMPORTED' ? '已导入' : '需处理',
+      issue: value.reasonCode === 'USER_SKIPPED' ? '确认导入时被跳过（原始原因未保留）' : value.reasonDetail || value.reasonCode || ''
     }
   }
 
@@ -9469,14 +9470,22 @@ export function useDeliveryWorkflow() {
       pendingImportMeta.mapping = mapping
       const preview = await api.imports.preview(batch.id, { version: pendingImportMeta.version, columnMapping: mapping })
       const batchResult = preview.batch || preview
-      const rowPage = await api.imports.rows(batch.id)
-      const rows = rowPage?.items || preview.rows || preview.previewRows || []
+      const rows = await api.imports.allRows(batch.id)
       replaceReactive(importBatches, [mapImportBatch(batchResult), ...importBatches.filter((item) => !sameId(item.id, batch.id))])
       replaceReactive(importPreviewRows, rows.map(mapImportRow))
       pendingImportMeta.version = Number(batchResult.version || pendingImportMeta.version)
       return preview
     }, '导入预览已生成', () => invalidateResource('imports'))
     return Boolean(result)
+  }
+
+  const remoteLoadImportBatchRows = async (batchId) => {
+    try {
+      return (await api.imports.allRows(batchId)).map(mapImportRow)
+    } catch (error) {
+      notify(remoteErrorMessage(error, '导入明细加载失败，请稍后重试'))
+      return null
+    }
   }
 
   const remoteApplyImportRows = async () => {
@@ -10055,6 +10064,7 @@ export function useDeliveryWorkflow() {
     stageImportFile: remoteStageImportFile,
     previewImport: remotePreviewImport,
     applyImportRows: remoteApplyImportRows,
+    loadImportBatchRows: remoteLoadImportBatchRows,
     loadCommunicationRecords: remoteLoadCommunicationRecords,
     updateSetting: remoteUpdateSetting,
     saveWecomConfiguration: remoteSaveWecomConfiguration,

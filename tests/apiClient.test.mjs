@@ -887,3 +887,21 @@ test('maps historical reference asset types to the unified 范画 label', () => 
   assert.equal(mapAsset({ assetType: 'DEMO_IMAGE' }).type, '范画')
   assert.equal(mapAsset({ assetType: 'STEP_IMAGE' }).type, '范画')
 })
+
+test('loads every import row across pages instead of only the default first page', async () => {
+  const urls = []
+  globalThis.fetch = async (url) => {
+    urls.push(url)
+    const pageNumber = Number(new URL(url, 'http://localhost').searchParams.get('page'))
+    const items = pageNumber === 1
+      ? Array.from({ length: 200 }, (_, index) => ({ id: String(index + 1) }))
+      : Array.from({ length: 69 }, (_, index) => ({ id: String(index + 201) }))
+    return response(200, { data: { items, page: pageNumber, pageSize: 200, total: 269 }, meta: {}, error: null })
+  }
+
+  const rows = await api.imports.allRows(54)
+
+  assert.equal(rows.length, 269)
+  assert.equal(urls.length, 2)
+  assert.ok(urls.every((url) => url.startsWith('/api/v1/imports/54/rows?') && url.includes('pageSize=200')))
+})

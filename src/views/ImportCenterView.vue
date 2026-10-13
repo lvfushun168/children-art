@@ -7,7 +7,7 @@ const props = defineProps({
   state: { type: Object, required: true },
   initialType: { type: String, default: '综合课表' }
 })
-const emit = defineEmits(['open-schedule'])
+const emit = defineEmits(['open-schedule', 'open-classes'])
 
 const mode = ref('home')
 const dataType = ref(props.initialType)
@@ -168,6 +168,64 @@ const saveTeacherMapping = async (row) => {
   if (saved) await readPreview()
 }
 
+const problemStatusCodes = ['INVALID', 'DUPLICATE', 'SKIPPED']
+const detailBatch = ref(null)
+const detailRows = ref([])
+const detailLoading = ref(false)
+const detailError = ref('')
+const detailShowAll = ref(false)
+const detailProblemRows = computed(() => detailRows.value.filter((row) => problemStatusCodes.includes(row.statusCode)))
+const detailVisibleRows = computed(() => detailShowAll.value ? detailRows.value : detailProblemRows.value)
+const reasonHints = {
+  CLASS_NOT_FOUND: '班级还没有建立。先到「班级」里创建与课表同名的班级，再重新导入这份文件。',
+  PARENT_CLASS_NOT_READY: '所属班级本身有问题，先处理班级行后再重新导入。',
+  MISSING_TEACHER: '课表里没有填写任课老师，补全后重新导入。',
+  TEACHER_NOT_FOUND: '系统里找不到这位老师。重新导入时在预览里选择系统老师并保存映射。',
+  TEACHER_AMBIGUOUS: '存在同名老师。重新导入时在预览里选择具体的系统老师并保存映射。',
+  TEACHER_ARCHIVED: '对应老师已归档。恢复老师或改选其他老师后重新导入。',
+  DUPLICATE_LESSON: '系统里已经有这节课，无需处理。',
+  DUPLICATE_CLASS: '系统里已经有这个班级，无需处理。',
+  DUPLICATE_STUDENT: '系统里已经有这位学生，无需处理。',
+  USER_SKIPPED: '确认导入时被跳过，原始原因没有保留。重新导入同一文件可以再次检查。'
+}
+const detailReasonGroups = computed(() => {
+  const groups = new Map()
+  for (const row of detailProblemRows.value) {
+    const key = row.reasonCode || 'UNKNOWN'
+    const group = groups.get(key) || { key, issue: row.issue || '原因未记录', hint: reasonHints[key] || '', count: 0 }
+    group.count += 1
+    groups.set(key, group)
+  }
+  return [...groups.values()].sort((left, right) => right.count - left.count)
+})
+const detailNeedsClasses = computed(() => detailReasonGroups.value.some((group) => group.key === 'CLASS_NOT_FOUND'))
+const canOpenDetail = (batch) => Number(batch.totalRows || 0) > 0
+
+const openBatchDetail = async (batch) => {
+  if (!batch || isBusy.value) return
+  detailBatch.value = batch
+  detailRows.value = []
+  detailError.value = ''
+  detailShowAll.value = false
+  detailLoading.value = true
+  mode.value = 'detail'
+  const loaded = await props.state.loadImportBatchRows(batch.id)
+  // 加载期间用户可能已经离开或切换了批次，此时丢弃结果。
+  if (mode.value !== 'detail' || detailBatch.value?.id !== batch.id) return
+  detailLoading.value = false
+  if (!loaded) {
+    detailError.value = props.state.toast || '导入明细加载失败，请稍后重试'
+    return
+  }
+  detailRows.value = loaded
+}
+
+const closeBatchDetail = () => {
+  detailBatch.value = null
+  detailRows.value = []
+  mode.value = 'home'
+}
+
 const resetSelection = () => {
   fileName.value = ''
   selectedFile.value = null
@@ -238,6 +296,7 @@ const confirmImport = async () => {
 <template>
   <PageHead eyebrow="基础数据" title="数据导入">
     <button v-if="mode === 'home'" class="primary" type="button" @click="startImport"><AppIcon name="upload" :size="16" />选择文件</button>
+    <button v-else-if="mode === 'detail'" class="ghost" type="button" @click="closeBatchDetail"><AppIcon name="back" :size="16" />返回数据导入</button>
     <button v-else class="ghost" type="button" :disabled="isBusy" @click="exitImport"><AppIcon name="close" :size="16" />退出本次导入</button>
   </PageHead>
 
@@ -250,7 +309,11 @@ const confirmImport = async () => {
         <p v-else-if="latestBatch.statusCode === 'PREVIEW_READY'">{{ latestBatch.time }} · 已生成预览，待确认写入 {{ latestBatch.readyRows }} 条</p>
         <p v-else>{{ latestBatch.time }} · {{ latestBatch.statusLabel || latestBatch.note || '尚无导入记录' }}</p>
       </div>
-      <div v-if="latestBatch.failed" class="import-attention">
+      <button v-if="latestBatch.failed && canOpenDetail(latestBatch)" class="import-attention" type="button" @click="openBatchDetail(latestBatch)">
+        <strong>{{ latestBatch.failed }} 条数据需要留意</strong>
+        <span>点击查看是哪几条、为什么</span>
+      </button>
+      <div v-else-if="latestBatch.failed" class="import-attention">
         <strong>{{ latestBatch.failed }} 条数据需要留意</strong>
       </div>
       <div v-else-if="latestBatch.statusCode === 'IMPORTED'" class="import-complete">✓ 已全部完成</div>
@@ -270,6 +333,8 @@ const confirmImport = async () => {
         <div><strong>{{ batch.source }}</strong><small>{{ batch.time }}</small></div>
         <span>{{ batch.statusLabel || batch.note }}</span>
         <small>已写入 {{ batch.importedRows }} · 可导入 {{ batch.readyRows }} · 需处理 {{ batch.failed }}</small>
+        <button v-if="canOpenDetail(batch)" class="ghost" type="button" @click="openBatchDetail(batch)">查看明细</button>
+        <span v-else></span>
       </article>
     </details>
   </template>
@@ -318,6 +383,55 @@ const confirmImport = async () => {
         </div>
         <button class="primary" type="button" @click="retryPreview"><AppIcon name="retry" :size="16" />按此映射重新读取</button>
       </details>
+    </section>
+
+    <section v-else-if="mode === 'detail'" class="import-focus-step">
+      <div class="import-step-copy">
+        <span>导入明细</span>
+        <h2>{{ detailBatch?.source }}</h2>
+        <p>{{ detailBatch?.time }} · {{ detailBatch?.statusLabel }} · 共 {{ detailBatch?.totalRows || 0 }} 行，已写入 {{ detailBatch?.importedRows || 0 }} 条</p>
+      </div>
+
+      <div v-if="detailLoading" class="import-empty-preview">正在加载导入明细…</div>
+      <div v-else-if="detailError" class="import-error" role="alert">
+        <strong>加载失败</strong>
+        <span>{{ detailError }}</span>
+        <div class="import-error-actions">
+          <button class="secondary" type="button" @click="openBatchDetail(detailBatch)"><AppIcon name="retry" :size="15" />重试</button>
+        </div>
+      </div>
+      <template v-else>
+        <div v-if="detailReasonGroups.length" class="notice-box import-detail-reasons">
+          <strong>{{ detailProblemRows.length }} 条数据没有写入，原因如下</strong>
+          <ul>
+            <li v-for="group in detailReasonGroups" :key="group.key">
+              <b>{{ group.issue }}（{{ group.count }} 条）</b>
+              <small v-if="group.hint">{{ group.hint }}</small>
+            </li>
+          </ul>
+          <div class="import-done-actions">
+            <button v-if="detailNeedsClasses" class="secondary" type="button" @click="emit('open-classes')"><AppIcon name="settings" :size="15" />去创建班级</button>
+            <button class="primary" type="button" @click="startImport"><AppIcon name="upload" :size="15" />重新导入</button>
+          </div>
+        </div>
+        <div v-else class="notice-box"><strong>这个批次没有需要处理的数据。</strong></div>
+
+        <div class="import-detail-filter">
+          <button type="button" :class="{ selected: !detailShowAll }" @click="detailShowAll = false">仅看需处理 {{ detailProblemRows.length }}</button>
+          <button type="button" :class="{ selected: detailShowAll }" @click="detailShowAll = true">全部 {{ detailRows.length }}</button>
+        </div>
+        <div class="preview-table">
+          <div class="preview-row head"><strong>名称</strong><strong>关联信息</strong><strong>本次课题</strong><strong>结果</strong><strong>说明</strong></div>
+          <div v-for="row in detailVisibleRows" :key="row.id" class="preview-row" :class="row.status">
+            <span>{{ row.name }}<small class="teacher-match-line">{{ row.sourceSheet }} 第 {{ row.rowNumber }} 行</small></span>
+            <span>{{ relationText(row) }}</span>
+            <span :class="{ 'import-topic-empty': row.type !== 'lesson' || !row.topic }">{{ row.type === 'lesson' ? (row.topic || '未填写') : '—' }}</span>
+            <span>{{ row.status }}</span>
+            <span>{{ row.issue || '已写入' }}</span>
+          </div>
+          <div v-if="!detailVisibleRows.length" class="import-empty-preview">没有可展示的数据。</div>
+        </div>
+      </template>
     </section>
 
     <section v-else-if="mode === 'processing'" class="import-processing import-focus-step" aria-live="polite">
@@ -383,6 +497,50 @@ const confirmImport = async () => {
 </template>
 
 <style scoped>
+button.import-attention {
+  border: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.import-attention:hover {
+  filter: brightness(0.97);
+}
+
+.import-detail-reasons ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding-left: 18px;
+}
+
+.import-detail-reasons li small {
+  display: block;
+  color: var(--color-muted);
+}
+
+.import-detail-filter {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 10px;
+}
+
+.import-detail-filter button {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.import-detail-filter button.selected {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
 .import-topic-empty {
   color: var(--color-muted);
   opacity: 0.72;

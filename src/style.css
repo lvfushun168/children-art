@@ -8227,8 +8227,9 @@ textarea:focus,
 
 .import-history-row {
   display: grid;
-  grid-template-columns: 1fr auto 1.5fr;
+  grid-template-columns: 1fr auto 1.5fr auto;
   gap: 16px;
+  align-items: center;
   padding: 13px 0;
   border-top: 1px solid var(--color-border-soft);
 }

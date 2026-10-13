@@ -128,6 +128,17 @@ export const api = {
     get: (batchId) => request(`/imports/${id(batchId)}`),
     preview: (batchId, body) => request(`/imports/${id(batchId)}/preview`, { method: 'POST', body }),
     rows: (batchId, params) => page(`/imports/${id(batchId)}/rows`, params),
+    // 后端单页最多 200 行；预览和历史详情都需要完整行集合，不能只取默认的第一页。
+    allRows: async (batchId, params = {}) => {
+      const pageSize = 200
+      const items = []
+      for (let current = 1; ; current += 1) {
+        const result = await page(`/imports/${id(batchId)}/rows`, { ...params, page: current, pageSize })
+        const batchItems = result?.items || []
+        items.push(...batchItems)
+        if (!batchItems.length || items.length >= Number(result?.total || 0)) return items
+      }
+    },
     confirm: (batchId, body, key) => request(`/imports/${id(batchId)}/confirm`, { method: 'POST', body, idempotencyKey: key })
   },
   lessons: {

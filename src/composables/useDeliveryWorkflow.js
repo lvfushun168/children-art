@@ -3929,6 +3929,7 @@ export function useDeliveryWorkflow() {
     const cloudJobs = (cloudArchiveModule.jobs || []).map(mapCloudArchiveJob)
     const cloudBatch = cloudArchiveModule.batch ? mapCloudArchiveBatch(cloudArchiveModule.batch) : workspace.cloudBatch
     const archiveVersions = (value?.archive?.versions || []).map(mapArchiveVersion)
+    const homeworkRecordMissing = parentModule.homework === null || parentModule.homework === undefined
     const draftDisplayConfig = {
       ...workspace.displayConfig,
       ...(currentDraft.displayConfig || draft.displayConfig || {})
@@ -4081,6 +4082,14 @@ export function useDeliveryWorkflow() {
       shareDraftState.error = ''
       shareDraftState.savedRevision = Number(shareDraftState.revision || 0)
       shareDraftState.savedSignature = shareDraftSignatureForWorkspace(workspace)
+    }
+    // 旧课次可能只有展示草稿快照，没有正式的 homework_tasks 记录；归档检查读取的是后者。
+    // 首次加载时补一次普通自动保存，让“未布置”也能明确落库，避免必须手动切换开关才能触发保存。
+    if (!preserveLocalShareDraft
+      && homeworkRecordMissing
+      && toApiLessonStatus(lesson.status) !== 'COMPLETED'
+      && sameId(activeTask.value?.id, lesson.id)) {
+      markShareDraftDirty(lesson.id)
     }
     const activeRow = rows.find((row) => sameId(row.studentId, workspace.activeStudentId)) || rows.find((row) => row.attendance === '到课')
     if (!activeRow?.artworks?.some((artwork) => sameId(artwork.artworkId, workspace.activeArtworkId))) {
@@ -8386,6 +8395,16 @@ export function useDeliveryWorkflow() {
     }
 
     const completionStep = await runArchiveStep('completionCheck', async () => {
+      // 归档检查依赖 homework_tasks。即使定时自动保存尚未到点，也要在检查前把当前状态落库。
+      const homeworkSaved = await saveShareDraftNow(activeWorkspace.value, task.id, {
+        reason: '归档前自动保存课后任务',
+        force: true,
+        silent: true,
+        notifyOnError: false
+      })
+      if (!homeworkSaved) {
+        return { ok: false, detail: `课后任务自动保存失败：${shareDraftFailureMessageFor(activeWorkspace.value)}` }
+      }
       const completion = await runRemote('正在检查完成条件...', () => api.lessons.completion(task.id))
       if (!completion) return { ok: false, detail: '完成条件检查请求失败' }
       if (!completion.passed) {

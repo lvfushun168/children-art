@@ -352,7 +352,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
         </label>
         <div class="button-pair directory-toolbar-actions">
           <button class="ghost" type="button" @click="resetFilters"><AppIcon name="reset" :size="15" />重置</button>
-          <button v-if="canWriteTemplates" class="primary" type="button" @click="startNew"><AppIcon name="add" :size="15" />新增{{ activeLabel }}</button>
         </div>
       </form>
 

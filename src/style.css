@@ -4390,8 +4390,7 @@ textarea:focus,
 }
 
 .supervision-tabs {
-  display: inline-grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  display: inline-flex;
   gap: 4px;
   justify-self: start;
   padding: 4px;
@@ -4401,6 +4400,7 @@ textarea:focus,
 }
 
 .supervision-tabs button {
+  min-width: 120px;
   min-height: 38px;
   padding: 0 14px;
   border-radius: 7px;

@@ -18,13 +18,14 @@ const props = defineProps({
 
 defineEmits(['backToGroup'])
 
+const activeTab = ref('today')
 const selectedDate = ref(props.state.latestLessonDate || '')
 const activeLessonId = ref(null)
-const todayStage = ref('list')
+const reviewStage = ref('list')
 const lessonDrafts = reactive({})
 
 const teacherOptions = computed(() => props.state.teachers.filter((teacher) => teacher.role !== '管理员'))
-const isListStage = computed(() => todayStage.value === 'list')
+const isListStage = computed(() => activeTab.value === 'today' || reviewStage.value === 'list')
 
 watch(() => props.state.latestLessonDate, (value) => {
   if (!selectedDate.value && value) selectedDate.value = value
@@ -32,7 +33,7 @@ watch(() => props.state.latestLessonDate, (value) => {
 
 watch(selectedDate, () => {
   activeLessonId.value = null
-  todayStage.value = 'list'
+  reviewStage.value = 'list'
 })
 
 const statusOrder = {
@@ -56,6 +57,19 @@ const todayLessons = computed(() =>
   props.state.supervisionLessonRecords
     .filter((lesson) => lesson.dateValue === selectedDate.value)
     .sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) || a.time.localeCompare(b.time))
+)
+
+const reviewLessons = computed(() =>
+  props.state.supervisionLessonRecords
+    .filter((lesson) => lesson.lessonId && lesson.status === '已完成')
+    .sort((a, b) => {
+      const pendingOrder = Number(a.review?.status === '已评分') - Number(b.review?.status === '已评分')
+      return pendingOrder || b.dateValue.localeCompare(a.dateValue) || b.time.localeCompare(a.time)
+    })
+)
+
+const pendingReviewLessons = computed(() =>
+  reviewLessons.value.filter((lesson) => lesson.review?.status !== '已评分')
 )
 
 const todayStats = computed(() => {
@@ -89,13 +103,13 @@ const teacherDayStats = computed(() =>
 )
 
 const activeLesson = computed(() =>
-  todayLessons.value.find((lesson) => sameId(lesson.lessonId, activeLessonId.value)) || null
+  reviewLessons.value.find((lesson) => sameId(lesson.lessonId, activeLessonId.value)) || null
 )
 
-watch(todayLessons, (lessons) => {
+watch(reviewLessons, (lessons) => {
   if (!lessons.some((lesson) => sameId(lesson.lessonId, activeLessonId.value))) {
     activeLessonId.value = null
-    todayStage.value = 'list'
+    reviewStage.value = 'list'
   }
 }, { immediate: true })
 
@@ -122,13 +136,20 @@ const setLessonScore = (lesson, score) => {
   scoreDraftFor(lesson).score = score
 }
 
-const openLessonReview = (lesson) => {
-  activeLessonId.value = lesson.lessonId
-  todayStage.value = 'review'
+const switchTab = (tab) => {
+  activeTab.value = tab
+  activeLessonId.value = null
+  reviewStage.value = 'list'
 }
 
-const backToTodayList = () => {
-  todayStage.value = 'list'
+const openReviewLesson = (lesson) => {
+  activeLessonId.value = lesson.lessonId
+  reviewStage.value = 'review'
+}
+
+const backToReviewList = () => {
+  activeLessonId.value = null
+  reviewStage.value = 'list'
 }
 
 </script>
@@ -141,10 +162,28 @@ const backToTodayList = () => {
 
   <section class="supervision-view">
     <div class="supervision-tabs" role="tablist" aria-label="教管看板维度">
-      <button class="active" type="button">今日跟进</button>
+      <button
+        :class="{ active: activeTab === 'today' }"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === 'today'"
+        @click="switchTab('today')"
+      >
+        今日跟进
+      </button>
+      <button
+        v-if="state.canQualityReview"
+        :class="{ active: activeTab === 'reviews' }"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === 'reviews'"
+        @click="switchTab('reviews')"
+      >
+        质量评分
+      </button>
     </div>
 
-    <template v-if="todayStage === 'list'">
+    <template v-if="activeTab === 'today'">
       <div class="supervision-toolbar">
         <label>
           日期
@@ -174,18 +213,27 @@ const backToTodayList = () => {
         </button>
       </section>
 
+    </template>
+
+    <template v-else-if="reviewStage === 'list'">
+      <div class="mini-head">
+        <div>
+          <span>课次质量评分</span>
+          <strong>{{ pendingReviewLessons.length }} 节待评分</strong>
+        </div>
+      </div>
       <section class="supervision-today-layout">
         <div class="supervision-lesson-list">
           <article
-            v-for="lesson in todayLessons"
+            v-for="lesson in reviewLessons"
             :key="lesson.id"
             class="supervision-lesson-row"
             :class="{ active: sameId(lesson.lessonId, activeLesson?.lessonId) }"
             role="button"
             tabindex="0"
-            @click="openLessonReview(lesson)"
-            @keydown.enter.prevent="openLessonReview(lesson)"
-            @keydown.space.prevent="openLessonReview(lesson)"
+            @click="openReviewLesson(lesson)"
+            @keydown.enter.prevent="openReviewLesson(lesson)"
+            @keydown.space.prevent="openReviewLesson(lesson)"
           >
             <div class="supervision-lesson-main">
               <span class="time">{{ lesson.time }}</span>
@@ -201,26 +249,20 @@ const backToTodayList = () => {
               <AppStatusTag :status="`${lesson.status} · ${lesson.progress}%`" />
             </div>
             <div class="supervision-review-state">
-              <strong>{{ lesson.review ? `${lesson.review.score} 分` : lesson.reviewStatus }}</strong>
+              <strong>{{ lesson.reviewStatus }}</strong>
               <small>{{ lesson.wheatStatus }} · {{ lesson.cloudArchiveStatus }}</small>
-              <button
-                v-if="state.canQualityReview"
-                class="secondary"
-                type="button"
-                :disabled="lesson.status !== '已完成'"
-                @click.stop="openLessonReview(lesson)"
-              >
+              <button class="secondary" type="button" @click.stop="openReviewLesson(lesson)">
                 {{ lesson.review ? '调整评分' : '评分' }}
               </button>
             </div>
           </article>
-          <small v-if="!todayLessons.length" class="empty-note">所选日期暂无课后工作</small>
+          <small v-if="!reviewLessons.length" class="empty-note">暂无已完成课次</small>
         </div>
       </section>
     </template>
 
     <template v-else>
-      <button class="back-link" type="button" @click="backToTodayList"><AppIcon name="back" :size="16" />返回今日跟进</button>
+      <button class="back-link" type="button" @click="backToReviewList"><AppIcon name="back" :size="16" />返回质量评分</button>
       <section class="supervision-review-page">
         <aside class="supervision-review-panel">
           <template v-if="activeLesson">
@@ -240,7 +282,7 @@ const backToTodayList = () => {
             <div class="star-score-control" :class="{ disabled: activeLesson.status !== '已完成' }">
               <div class="star-score-head">
                 <strong>{{ scoreDraftFor(activeLesson).score }} 分</strong>
-                <button class="ghost" type="button" :disabled="activeLesson.status !== '已完成'" @click="setLessonScore(activeLesson, 0)">0 分</button>
+                <button class="ghost" type="button" :disabled="activeLesson.status !== '已完成'" @click="setLessonScore(activeLesson, 0)">清零</button>
               </div>
               <div class="star-score-row" aria-label="课次评分">
                 <button

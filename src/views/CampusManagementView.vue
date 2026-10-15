@@ -117,14 +117,13 @@ onMounted(loadCampuses)
         </div>
       </div>
 
-      <div v-if="state.campusLoading" class="identity-empty">正在加载校区...</div>
+      <div v-if="state.campusLoading" class="identity-empty">加载中…</div>
       <div v-else-if="state.campusError" class="identity-empty identity-error">
         <strong>{{ state.campusError }}</strong>
         <button class="ghost" type="button" @click="loadCampuses"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="!filteredCampuses.length" class="identity-empty">
-        <strong>{{ state.campuses.length ? '没有符合条件的校区' : '暂无校区' }}</strong>
-        <span v-if="state.campuses.length">请调整关键词或状态筛选。</span>
+        <strong>{{ state.campuses.length ? '无匹配校区' : '暂无校区' }}</strong>
       </div>
 
       <div v-else class="directory-table-wrap">

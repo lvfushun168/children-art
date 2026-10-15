@@ -279,7 +279,7 @@ onMounted(async () => {
           </article>
         </div>
 
-        <div v-if="state.coursewareLoading?.items" class="loading-note">正在加载课件…</div>
+        <div v-if="state.coursewareLoading?.items" class="loading-note">加载中…</div>
         <div v-else-if="state.coursewareItems?.length" class="courseware-list">
           <article v-for="item in state.coursewareItems" :key="item.id" class="courseware-card">
             <div class="file-icon" :data-mode="item.previewMode">

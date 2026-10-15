@@ -104,8 +104,8 @@ const mappingFields = computed(() => {
 const mappingOptions = computed(() => [...new Set(['', ...columns.value, '学员姓名', '学生姓名', '姓名', '所在班级', '班级', '手机号', '手机号码', '年龄', '学号', '备注', '任课老师', '课程类别/课程资料', '课程主题', '内容', '本次课题', '学生姓名', '教室', '人数/容量'])])
 const processingTitle = computed(() => operation.value === 'confirm' ? '正在确认导入' : '正在上传并生成预览')
 const processingDetail = computed(() => operation.value === 'confirm'
-  ? '可导入的数据正在写入基础数据，异常数据不会被写入。'
-  : '系统正在读取文件、识别字段并检查重复项，预览完成前不会写入正式数据。')
+  ? '正在写入数据…'
+  : '正在读取并检查文件…')
 
 const relationText = (row) => {
   if (row.type === 'student') return [row.className, row.parent, row.phone].filter(Boolean).join(' · ') || '未填写关联信息'
@@ -307,7 +307,7 @@ const confirmImport = async () => {
         <h2>{{ latestBatch.source }}</h2>
         <p v-if="latestBatch.statusCode === 'IMPORTED'">{{ latestBatch.time }} · 已写入 {{ latestBatch.importedRows }} 条数据</p>
         <p v-else-if="latestBatch.statusCode === 'PREVIEW_READY'">{{ latestBatch.time }} · 已生成预览，待确认写入 {{ latestBatch.readyRows }} 条</p>
-        <p v-else>{{ latestBatch.time }} · {{ latestBatch.statusLabel || latestBatch.note || '尚无导入记录' }}</p>
+        <p v-else>{{ latestBatch.time }} · {{ latestBatch.statusLabel || latestBatch.note || '暂无导入记录' }}</p>
       </div>
       <button v-if="latestBatch.failed && canOpenDetail(latestBatch)" class="import-attention" type="button" @click="openBatchDetail(latestBatch)">
         <strong>{{ latestBatch.failed }} 条数据需要留意</strong>
@@ -392,7 +392,7 @@ const confirmImport = async () => {
         <p>{{ detailBatch?.time }} · {{ detailBatch?.statusLabel }} · 共 {{ detailBatch?.totalRows || 0 }} 行，已写入 {{ detailBatch?.importedRows || 0 }} 条</p>
       </div>
 
-      <div v-if="detailLoading" class="import-empty-preview">正在加载导入明细…</div>
+      <div v-if="detailLoading" class="import-empty-preview">加载中…</div>
       <div v-else-if="detailError" class="import-error" role="alert">
         <strong>加载失败</strong>
         <span>{{ detailError }}</span>
@@ -436,7 +436,6 @@ const confirmImport = async () => {
 
     <section v-else-if="mode === 'processing'" class="import-processing import-focus-step" aria-live="polite">
       <div class="import-processing-icon"><span></span></div>
-      <span>请稍候</span>
       <h2>{{ processingTitle }}</h2>
       <p>{{ processingDetail }}</p>
       <div class="import-processing-file">{{ fileName }}</div>

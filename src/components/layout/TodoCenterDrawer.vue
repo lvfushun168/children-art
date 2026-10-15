@@ -105,7 +105,6 @@ const openSupervision = () => {
           <div class="todo-drawer-copy">
             <span>待办中心</span>
             <strong>{{ totalCount }} 个待办</strong>
-            <small>只显示需要当前用户采取动作的业务事项</small>
           </div>
         </div>
         <button type="button" class="ghost todo-drawer-close" @click="$emit('close')"><AppIcon name="close" :size="16" />关闭</button>
@@ -138,7 +137,7 @@ const openSupervision = () => {
               </div>
               <AppStatusTag :status="`${task.status} · ${state.progressForTask(task)}%`" />
             </button>
-            <small v-if="!pendingLessons.length" class="empty-note">当前没有未完成的课后交付。</small>
+            <small v-if="!pendingLessons.length" class="empty-note">暂无未完成课次</small>
           </section>
 
           <section v-if="activeCategory === 'wecom'" class="todo-group">
@@ -163,7 +162,7 @@ const openSupervision = () => {
                 <button v-if="!['发送失败', '已发送', '人工发送'].includes(task.status)" type="button" class="ghost" @click="updateWecomTask(task, '已取消')"><AppIcon name="close" :size="15" />取消发送</button>
               </div>
             </article>
-            <small v-if="!wecomTodos.length" class="empty-note">暂无待确认的企微通知任务。</small>
+            <small v-if="!wecomTodos.length" class="empty-note">暂无企微待办</small>
           </section>
 
           <section v-if="activeCategory === 'wheat'" class="todo-group">
@@ -182,7 +181,7 @@ const openSupervision = () => {
                 <button v-if="trace.status === '待处理'" type="button" class="ghost" @click="updateTrace(trace, '异常')"><AppIcon name="warning" :size="15" />异常</button>
               </div>
             </article>
-            <small v-if="!wheatTodos.length" class="empty-note">暂无小麦消课待办。</small>
+            <small v-if="!wheatTodos.length" class="empty-note">暂无小麦消课待办</small>
           </section>
 
           <section v-if="activeCategory === 'cloud'" class="todo-group">
@@ -200,7 +199,7 @@ const openSupervision = () => {
                 <button v-if="job.retryable !== false" type="button" class="secondary" @click="retryCloud(job)"><AppIcon name="retry" :size="15" />重试同步</button>
               </div>
             </article>
-            <small v-if="!cloudTodos.length" class="empty-note">暂无网盘同步异常。</small>
+            <small v-if="!cloudTodos.length" class="empty-note">暂无网盘异常</small>
           </section>
 
           <section v-if="activeCategory === 'reviews'" class="todo-group">
@@ -212,7 +211,7 @@ const openSupervision = () => {
               </div>
               <AppStatusTag :status="review.status" />
             </article>
-            <small v-if="!reviewTodos.length" class="empty-note">暂无待评分课次。</small>
+            <small v-if="!reviewTodos.length" class="empty-note">暂无待评分课次</small>
           </section>
         </div>
       </div>

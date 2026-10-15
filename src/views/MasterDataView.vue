@@ -102,7 +102,7 @@ const config = computed(() => {
     students: { title: '学生管理', action: '新增学生', empty: '暂无学生' },
     classes: { title: '班级管理', action: '新增班级', empty: '暂无班级' },
     courses: { title: '课程资料', action: '新增课程', empty: '暂无课程' },
-    externalLinks: { title: '外部在线课程信息', action: '新增外部课程', empty: '暂无符合条件的外部课程链接' }
+    externalLinks: { title: '外部在线课程信息', action: '新增外部课程', empty: '暂无外部课程链接' }
   }
   return map[props.entity]
 })
@@ -796,7 +796,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
   <PageHead :eyebrow="config.eyebrow" :title="config.title">
     <div class="button-pair">
       <button v-if="entity === 'classes' && selected?.id && selected?.status === '开班中' && selected?.scheduleSlots?.length" class="secondary" type="button" :disabled="!canGenerateLessons" @click="generationClass = selected; showGenerationDialog = true"><AppIcon name="calendar" :size="15" />生成固定课次</button>
-      <button class="primary" :disabled="archiveState !== 'ACTIVE' || !canEditMasterData" @click="startNew"><AppIcon name="add" :size="15" />{{ config.action }}</button>
+      <button v-if="canEditMasterData" class="primary" :disabled="archiveState !== 'ACTIVE'" @click="startNew"><AppIcon name="add" :size="15" />{{ config.action }}</button>
     </div>
   </PageHead>
 
@@ -839,14 +839,14 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <span>{{ config.title }}</span>
           <strong>{{ directoryState.total }} 条记录</strong>
         </div>
-        <small v-if="state.directoryLoading?.[entity]">正在加载…</small>
+        <small v-if="state.directoryLoading?.[entity]">加载中…</small>
       </div>
       <div v-if="state.directoryErrors?.[entity]" class="notice-box error-box">
         <small>{{ state.directoryErrors[entity] }}</small>
         <button class="ghost" type="button" @click="loadDirectory(directoryState.page)"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="!records.length && !state.directoryLoading?.[entity]" class="notice-box">
-        <small>{{ config.empty }}，请调整筛选条件。</small>
+        <small>{{ config.empty }}</small>
       </div>
       <div v-else class="directory-table-wrap">
         <table class="directory-table">
@@ -918,15 +918,11 @@ onBeforeUnmount(() => cleanupMobileMedia())
       </div>
 
       <section v-if="detailLoading" class="notice-box">
-        <small>正在加载完整资料，请稍候…</small>
+        <small>加载中…</small>
       </section>
       <section v-if="detailError" class="notice-box error-box" role="alert">
         <small>{{ detailError }}</small>
         <button v-if="selected" class="ghost" type="button" @click="loadRecordDetail(selected, { skipGuard: true })"><AppIcon name="retry" :size="15" />重试</button>
-      </section>
-      <section v-else-if="mode === 'detail' && selected && !selected.archived && !canEditMasterData" class="notice-box">
-        <strong>当前为只读模式</strong>
-        <small>当前账号没有主数据编辑权限，如需修改请联系管理员。</small>
       </section>
 
       <section v-if="selected?.archived && mode === 'detail'" class="notice-box archive-notice">
@@ -994,8 +990,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
                 <strong>{{ wecomGroupStatusLabel(currentStudentWecomGroup) }}</strong>
               </div>
               <div class="button-pair">
-                <button v-if="currentStudentWecomGroup" class="ghost" type="button" :disabled="!canEditMasterData" @click="unbindStudentWecomGroup"><AppIcon name="close" :size="15" />解绑</button>
-                <button class="secondary" type="button" :disabled="!canEditMasterData || detailLoading" @click="openStudentWecomGroupDialog"><AppIcon name="settings" :size="15" />配置家长群</button>
+                <button v-if="currentStudentWecomGroup && canEditMasterData" class="ghost" type="button" @click="unbindStudentWecomGroup"><AppIcon name="close" :size="15" />解绑</button>
+                <button v-if="canEditMasterData" class="secondary" type="button" :disabled="detailLoading" @click="openStudentWecomGroupDialog"><AppIcon name="settings" :size="15" />配置家长群</button>
               </div>
             </div>
             <p v-if="currentStudentWecomGroup" class="settings-hint">
@@ -1197,8 +1193,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
       </div>
       <p class="settings-hint">每次打开都会实时查询企业微信客户群。请选择已有客户群，系统不会按群名自动匹配学生。</p>
       <label class="wide">搜索群名、群主或群 ID<input v-model="wecomGroupQuery" placeholder="输入关键字筛选" /></label>
-      <div v-if="wecomGroupLoading" class="notice-box">正在从企业微信同步客户群…</div>
-      <div v-else-if="!availableWecomGroups.length" class="notice-box">没有可绑定的正常客户群，请先确认企业微信权限和群状态。</div>
+      <div v-if="wecomGroupLoading" class="notice-box">加载中…</div>
+      <div v-else-if="!availableWecomGroups.length" class="notice-box">暂无可绑定的客户群，请检查企业微信权限和群状态</div>
       <div v-else class="wecom-group-picker">
         <label v-for="group in availableWecomGroups" :key="group.id" class="wecom-group-option">
           <input v-model="selectedWecomGroupId" type="radio" name="wecom-customer-group" :value="group.id" />

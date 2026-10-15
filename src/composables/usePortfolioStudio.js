@@ -412,12 +412,10 @@ export function usePortfolioStudio(context) {
   const removePortfolioProject = (project) => {
     service.removeProject(project)
     if (sameId(activePortfolioProjectId.value, project.id)) activePortfolioProjectId.value = null
-    notify(`已删除制作项目：${project.title}`)
   }
 
   const duplicatePortfolioProject = (project) => {
     const copy = service.duplicateProject(project)
-    notify(`已复制：${copy.title}`)
     return copy
   }
 
@@ -508,7 +506,6 @@ export function usePortfolioStudio(context) {
     project.status = portfolioReadyFor(project) ? '待导出' : '已生成'
     project.stage = 1
     service.touchProject(project)
-    notify(`已生成 ${pages.length} 页横向 A4 作品册`)
   }
 
   const buildPortfolioDeck = (project, records = null) => {
@@ -538,7 +535,6 @@ export function usePortfolioStudio(context) {
     project.status = '待导出'
     project.stage = 1
     service.touchProject(project)
-    notify(`已生成 ${project.deck.slides.length} 页 A4 横向作品册`)
     return project.deck
   }
 
@@ -563,7 +559,6 @@ export function usePortfolioStudio(context) {
       }).then((saved) => {
         const remoteTemplate = mapPortfolioTemplate(saved)
         portfolioTemplates.unshift(remoteTemplate)
-        notify(`已保存模板：${remoteTemplate.name}`)
         return remoteTemplate
       }).catch((error) => {
         notify(error?.message || '模板保存失败')
@@ -801,7 +796,6 @@ export function usePortfolioStudio(context) {
     project.summary = defaultSummary(project)
     project.teacherMessage = defaultTeacherMessage(project)
     service.touchProject(project)
-    notify('已根据作品档案生成作品册文案')
   }
 
   const sanitizeFilePart = (value) => String(value || '').replace(/[\\/:*?"<>|\s]+/g, '')
@@ -857,7 +851,7 @@ export function usePortfolioStudio(context) {
       const job = { ...exportRecord, id: fromApiId(exportRecord.id), fileName: exportRecord.fileName || result.fileName, fileUrl: exportRecord.downloadUrl || '', pageCount: exportRecord.pageCount || result.pageCount, exportedAt: exportRecord.exportedAt || new Date().toISOString(), status: '已导出' }
       exportJobs.unshift(job)
       project.status = '已导出'
-      notify(`PDF 已登记：${job.fileName}`)
+      notify('PDF 已导出')
       return job
     } catch (error) {
       notify(error?.message || '作品集导出登记失败')

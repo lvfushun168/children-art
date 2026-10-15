@@ -85,8 +85,8 @@ onMounted(async () => {
 <template>
   <main class="parent-h5">
     <section v-if="loading || !tokenValid" class="share-access-state">
-      <strong>{{ loading ? '正在加载展示页' : '链接无法访问' }}</strong>
-      <p>{{ loading ? '请稍候。' : (error || '分享链接未发布、访问密钥错误、已失效或已被机构关闭。') }}</p>
+      <strong>{{ loading ? '加载中…' : '链接无法访问' }}</strong>
+      <p v-if="!loading">{{ error || '分享链接未发布、访问密钥错误、已失效或已被机构关闭。' }}</p>
     </section>
 
     <template v-else>

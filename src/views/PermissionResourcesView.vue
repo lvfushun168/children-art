@@ -70,14 +70,13 @@ onMounted(loadResources)
         <input v-model="query" class="identity-resource-search" placeholder="搜索权限名称或权限键" aria-label="搜索权限资源" />
       </div>
 
-      <div v-if="state.identityLoading.permissions" class="identity-empty">正在加载权限资源...</div>
+      <div v-if="state.identityLoading.permissions" class="identity-empty">加载中…</div>
       <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.permissions }}</strong>
         <button class="ghost" type="button" @click="loadResources"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="!permissionGroups.length" class="identity-empty">
-        <strong>没有匹配的权限资源</strong>
-        <span>尝试更换搜索关键词。</span>
+        <strong>无匹配权限资源</strong>
       </div>
 
       <div v-else class="identity-resource-groups">

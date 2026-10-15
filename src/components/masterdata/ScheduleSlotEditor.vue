@@ -50,7 +50,7 @@ const removeRow = (index) => {
     </div>
 
     <div v-if="!rows.length" class="schedule-slot-empty">
-      暂无固定时段。筹备中的班级可以稍后配置；保存为“开班中”时至少需要一个时段。
+      暂无固定时段
     </div>
 
     <div v-for="(row, index) in rows" :key="row.id || `new-${index}`" class="schedule-slot-row">

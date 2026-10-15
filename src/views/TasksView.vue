@@ -54,12 +54,10 @@ const backFromWorkspace = () => {
     <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
     <PageHead eyebrow="老师工作台" :title="`${state.currentUser?.name || '老师'}，今天辛苦了`" />
     <section v-if="workspaceLoading" class="notice-box" role="status" aria-live="polite">
-      <strong>正在打开课后工作台</strong>
-      <small>正在确认课次状态，请稍候…</small>
+      <strong>加载中…</strong>
     </section>
     <section v-if="!state.isAdmin && !state.currentUser?.teacherLinked" class="notice-box" role="alert">
-      <strong>当前账号尚未关联老师档案</strong>
-      <small>请联系管理员在“基础信息 → 老师”中绑定已有账号，关联完成后才能看到本人课次。</small>
+      <strong>账号未关联老师档案，请联系管理员</strong>
     </section>
     <section class="today-hero">
       <div>

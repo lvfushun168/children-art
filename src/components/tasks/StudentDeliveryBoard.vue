@@ -109,18 +109,17 @@ const saveArtworkName = async () => {
   const originalTitle = String(row.artworkTitle || '').trim()
   const nextTitle = artworkNameDraft.value.trim()
   if (!nextTitle) {
-    props.state.notify('作品名称不能为空')
+    props.state.notify('名称不能为空')
     artworkNameDraft.value = originalTitle
     return false
   }
   if (nextTitle.length > 255) {
-    props.state.notify('作品名称不能超过 255 个字符')
     artworkNameDraft.value = originalTitle
     return false
   }
   if (nextTitle === originalTitle) return true
   if (typeof props.state.renameArtwork !== 'function') {
-    props.state.notify('作品名称保存功能暂不可用，请稍后重试')
+    props.state.notify('保存暂不可用，请稍后重试')
     artworkNameDraft.value = originalTitle
     return false
   }
@@ -384,7 +383,7 @@ const renameStudentRecord = async (event, row, record) => {
   const nextTitle = String(input.value || '').trim()
   if (!nextTitle) {
     input.value = originalTitle
-    props.state.notify('学生记录名称不能为空')
+    props.state.notify('名称不能为空')
     return
   }
   if (nextTitle === originalTitle) return
@@ -427,7 +426,7 @@ const closeArtwork = () => {
 const openAiPrompt = () => {
   if (!artworkItem.value) return
   if (!hasImage(imageAsset(artworkItem.value, 'original'))) {
-    props.state.notify('请先上传当前学生的原图')
+    props.state.notify('请先上传作品')
     return
   }
   aiPrompt.value = ''
@@ -515,12 +514,10 @@ const closeMobileSection = async () => {
 
 const updateImageTemplate = (index) => {
   props.state.selectedImageTemplate = Number(index)
-  props.state.notify(`已选择作品处理模板：${props.state.templates.image[index]?.name || '默认模板'}`)
 }
 
 const updateCommentTemplate = (index) => {
   props.state.selectedCommentTemplate = Number(index)
-  props.state.notify(`已选择课评模板：${props.state.templates.comment[index]?.name || '默认模板'}`)
 }
 
 const processAll = async () => {
@@ -533,15 +530,13 @@ const generateAll = async () => {
 
 const processCurrentImage = async (row) => {
   if (!row?.imageMatched) {
-    props.state.notify('请先上传当前学生的作品')
+    props.state.notify('请先上传作品')
     return
   }
   if (artworkJobActive(row)) return
   setActive(row)
   if (selectedImageTemplate.value && isClientCanvasTemplate(selectedImageTemplate.value)) {
-    if (String(selectedImageTemplate.value.templateKey || '').toLowerCase() === 'original') {
-      props.state.notify('已保留原图')
-    } else {
+    if (String(selectedImageTemplate.value.templateKey || '').toLowerCase() !== 'original') {
       await props.state.renderCurrentImage?.(row)
     }
     return
@@ -562,15 +557,14 @@ const removeOriginalArtwork = async (row) => {
   if (!row || !confirmDestructiveAction('移除后将删除这张作品及其处理结果，确定继续吗？')) return
   setActive(row)
   const remove = props.state.removeArtwork || props.state.removeStudentImage
-  const removed = await remove?.(row)
-  if (removed !== false) props.state.notify(`${studentFor(row.studentId).name}的作品已移除`)
+  await remove?.(row)
 }
 
 const removeProcessedArtwork = async (row) => {
   if (!row || !hasProcessedImage(row) || !confirmDestructiveAction('确定删除这张处理图吗？原图会保留。')) return
   setActive(row)
   const removed = await props.state.removeArtworkVersion?.(row)
-  if (removed !== false) props.state.notify('处理图已删除，请重新确认原图或重新处理')
+  if (removed !== false) props.state.notify('处理图已删除，请重新确认')
 }
 
 const regenerateComment = async (row) => {
@@ -581,7 +575,6 @@ const regenerateComment = async (row) => {
   const generated = await props.state.generateOne(row)
   if (generated) {
     props.state.pulseComment?.()
-    props.state.notify(`已重新生成${studentFor(row.studentId).name}的课评`)
   }
 }
 
@@ -807,7 +800,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!state.attendingRows.length">
-              <td colspan="7" class="student-delivery-empty-state">当前没有到课学生，请先在第 2 步确认出勤。</td>
+              <td colspan="7" class="student-delivery-empty-state">暂无到课学生，请先确认出勤</td>
             </tr>
           </tbody>
         </table>
@@ -853,7 +846,7 @@ onMounted(() => {
             </span>
             <span class="mobile-student-status"><AppStatusTag :status="statusFor(row)" :tone="statusClassFor(row) === 'done' ? 'success' : 'pending'" /><b>›</b></span>
           </button>
-          <div v-if="!state.attendingRows.length" class="student-delivery-empty-state">当前没有到课学生，请先在第 2 步确认出勤。</div>
+          <div v-if="!state.attendingRows.length" class="student-delivery-empty-state">暂无到课学生，请先确认出勤</div>
         </div>
       </template>
 
@@ -952,7 +945,7 @@ onMounted(() => {
                 </div>
               </article>
             </div>
-            <div v-else class="student-record-empty">还没有学生记录，可上传照片或视频。</div>
+            <div v-else class="student-record-empty">暂无学生记录</div>
             <label class="delivery-add-student-record mobile-student-record-upload" :for="`mobile-student-record-upload-${mobileStudent.studentId}`">
               选择文件
               <input
@@ -1117,7 +1110,7 @@ onMounted(() => {
         <label class="inline-check artwork-highlight-setting" for="artwork-highlight"><input id="artwork-highlight" name="artworkHighlight" type="checkbox" :checked="artworkItem.highlight" @change="state.toggleHighlight(artworkItem)" /><span>标记为本节高光作品</span></label>
         <textarea v-if="artworkItem.highlight" id="artwork-highlight-note" name="artworkHighlightNote" v-model="artworkItem.highlightNote" rows="3" maxlength="2000" placeholder="补充高光说明" @blur="state.saveArtworkHighlight?.(artworkItem)" />
         </template>
-        <div v-else class="drawer-empty-artwork">还没有作品，请使用上方“添加作品”一次选择一张或多张图片。</div>
+        <div v-else class="drawer-empty-artwork">暂无作品</div>
       </aside>
     </div>
 

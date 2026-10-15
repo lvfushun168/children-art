@@ -129,7 +129,7 @@ const goTemplateStep = () => {
     return
   }
   if (portfolioRecordsLoading.value) {
-    props.state.notify('正在加载该学生的全部作品，请稍候')
+    props.state.notify('加载中…')
     return
   }
   if (!selectedStudentRecords.value.length) {
@@ -156,7 +156,7 @@ const confirmCreate = async () => {
     return
   }
   if (portfolioRecordsLoading.value) {
-    props.state.notify('正在加载该学生的全部作品，请稍候')
+    props.state.notify('加载中…')
     return
   }
   if (!selectedStudentRecords.value.length) {
@@ -234,25 +234,24 @@ const copyRecordImage = async (record) => {
       const blob = await response.blob()
       if (blob.type.startsWith('image/')) {
         await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
-        props.state.notify(`已复制图片：${record.course}`)
+        props.state.notify('已复制')
         return
       }
     }
     await navigator.clipboard.writeText(source || record.artwork)
-    props.state.notify(`已复制图片链接：${record.course}`)
+    props.state.notify('已复制链接')
   } catch {
-    await copyText(record.artwork, `已复制图片链接：${record.course}`)
+    await copyText(record.artwork, '已复制链接')
   }
 }
 
 const copyRecordText = async (record) => {
   const text = record.feedback || record.highlightNote || record.description
-  await copyText(text, `已复制课评：${record.course}`)
+  await copyText(text, '已复制')
 }
 
 const dropRecordImage = async (record) => {
-  const ok = await workspaceRef.value?.insertImage?.(record)
-  if (ok) props.state.notify(`已放入作品：${record.course}`)
+  await workspaceRef.value?.insertImage?.(record)
 }
 
 const onRecordDragStart = (event, record) => {
@@ -291,7 +290,6 @@ const skipTemplateSave = () => {
   showTemplateSaveDialog.value = false
   leaveAfterTemplateDecision.value = false
   leaveWorkbench()
-  props.state.notify('已保留本次项目内容，模板不变')
 }
 
 const recordExport = async () => {
@@ -378,7 +376,7 @@ watch(
               <div>
                 <span>生成预估</span>
                 <strong>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</strong>
-                <small>{{ portfolioRecordsLoading ? '正在加载该学生的全部作品…' : createDraft.studentId ? '下一步选择模板' : '请选择学生' }}</small>
+                <small>{{ createDraft.studentId ? '下一步选择模板' : '请选择学生' }}</small>
               </div>
               <button class="primary" :disabled="portfolioRecordsLoading || !selectedStudentRecords.length" @click="goTemplateStep"><AppIcon name="next" :size="16" />下一步：选择模板</button>
             </section>
@@ -401,7 +399,7 @@ watch(
                 <em v-if="record.highlight">高光</em>
               </article>
               <div v-if="!selectedStudentRecords.length" class="notice-box">
-                <small v-if="portfolioRecordsLoading">正在加载该学生的全部作品…</small>
+                <small v-if="portfolioRecordsLoading">加载中…</small>
                 <small v-else-if="portfolioRecordsError">{{ portfolioRecordsError }}</small>
                 <small v-else-if="createDraft.studentId">该学生暂无可用作品。</small>
                 <small v-else>请选择学生后查看作品。</small>
@@ -443,9 +441,6 @@ watch(
                   </span>
                   <em>{{ item.slideCount || item.deck?.slides?.length || '自动' }} 页 · A4</em>
                 </button>
-                <div v-if="!filteredTemplates.length" class="notice-box">
-                  <small>暂无可用自定义模板，将使用系统默认模板。</small>
-                </div>
               </div>
             </div>
 
@@ -474,7 +469,7 @@ watch(
         </div>
         <div class="pc-editor-actions">
           <button class="ghost" @click="openTemplateSaveDialog(false)"><AppIcon name="save" :size="15" />保存为模板</button>
-          <button class="primary" :disabled="exporting" @click="recordExport"><AppIcon name="download" :size="16" />{{ exporting ? '正在导出...' : '导出作品册' }}</button>
+          <button class="primary" :disabled="exporting" @click="recordExport"><AppIcon name="download" :size="16" />{{ exporting ? '导出中…' : '导出作品册' }}</button>
         </div>
       </header>
 

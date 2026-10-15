@@ -233,12 +233,11 @@ const saveMaterialName = async (material) => {
   if (!material || !sameId(editingMaterialId.value, material.id) || materialNameSaving.value) return false
   const nextTitle = materialNameDraft.value.trim()
   if (!nextTitle) {
-    props.state.notify('素材名称不能为空')
+    props.state.notify('名称不能为空')
     materialNameDraft.value = String(material.title || material.file?.originalFilename || '')
     return false
   }
   if (nextTitle.length > 255) {
-    props.state.notify('素材名称不能超过 255 个字符')
     return false
   }
   if (nextTitle === String(material.title || '').trim()) {
@@ -246,7 +245,7 @@ const saveMaterialName = async (material) => {
     return true
   }
   if (typeof props.state.renameLessonMaterial !== 'function') {
-    props.state.notify('素材名称保存功能暂不可用，请稍后重试')
+    props.state.notify('保存暂不可用，请稍后重试')
     materialNameDraft.value = String(material.title || material.file?.originalFilename || '')
     editingMaterialId.value = null
     return false
@@ -427,11 +426,11 @@ const saveTeacherEffectAndGenerate = async () => {
     try {
       renderedImage = await teacherEffectPreviewRef.value?.renderBlob()
     } catch (error) {
-      props.state.notify(error?.message || '课效图预览尚未准备好，请稍候重试')
+      props.state.notify(error?.message || '预览未就绪，请稍后重试')
       return
     }
     if (!renderedImage) {
-      props.state.notify('课效图预览尚未准备好，请稍候重试')
+      props.state.notify('预览未就绪，请稍后重试')
       return
     }
     const result = await props.state.generateTeacherEffect({
@@ -569,7 +568,7 @@ watch(homeworkEditorOpen, async (open) => {
   <section class="wizard panel">
     <div v-if="state.isProcessing" class="processing-bar">
       <span></span>
-      <strong>{{ state.processingAction }}</strong>
+      <strong>处理中…</strong>
     </div>
     <header class="wizard-head">
       <div>
@@ -941,7 +940,7 @@ watch(homeworkEditorOpen, async (open) => {
               </div>
             </section>
             <section class="resource-drawer-list">
-              <small v-if="resourceLoading" class="empty-note">正在加载资源...</small>
+              <small v-if="resourceLoading" class="empty-note">加载中…</small>
               <template v-else>
                 <label v-for="link in filteredExternalResources" :key="link.id" class="resource-choice" :class="{ selected: state.homework.externalLinkIds.some((id) => sameId(id, link.id)) }">
                   <input
@@ -954,7 +953,7 @@ watch(homeworkEditorOpen, async (open) => {
                     <small>{{ link.platform }} · {{ link.note }}</small>
                   </span>
                 </label>
-                <small v-if="!filteredExternalResources.length" class="empty-note">没有找到符合条件的资源。</small>
+                <small v-if="!filteredExternalResources.length" class="empty-note">暂无资源</small>
               </template>
             </section>
             <footer class="drawer-actions">
@@ -1182,7 +1181,7 @@ watch(homeworkEditorOpen, async (open) => {
                   </div>
                 </article>
               </div>
-              <small v-else class="empty-note">还没有可生成的图片，请先确认学生作品或上传课堂图片。</small>
+              <small v-else class="empty-note">暂无可选图片</small>
             </section>
 
             <section class="teacher-effect-source-section">
@@ -1202,7 +1201,7 @@ watch(homeworkEditorOpen, async (open) => {
                   <button class="secondary" type="button" :class="{ selected: teacherEffectSourceSelected(source.sourceAssetId) }" @click="toggleTeacherEffectSource(source.sourceAssetId)"><AppIcon :name="teacherEffectSourceSelected(source.sourceAssetId) ? 'check' : 'add'" :size="15" />加入</button>
                 </article>
               </div>
-              <small v-else class="empty-note">所有可用素材都已加入，或当前还没有符合条件的素材。</small>
+              <small v-else class="empty-note">暂无可选素材</small>
             </section>
           </section>
 
@@ -1269,9 +1268,7 @@ watch(homeworkEditorOpen, async (open) => {
               <strong id="archive-run-title">
                 {{ state.archiveRunState.phase === 'success' ? '本节课已完成归档' : state.archiveRunState.phase === 'running' ? '正在检查归档条件' : '归档未完成' }}
               </strong>
-              <small v-if="state.archiveRunState.phase === 'running'">正在处理本节课内容，请稍候。</small>
-              <small v-else-if="state.archiveRunState.phase === 'success'">归档完成，页面即将更新。</small>
-              <small v-else>{{ state.archiveRunState.errorMessage || '请根据失败项处理后再次检查。' }}</small>
+              <small v-if="!['running', 'success'].includes(state.archiveRunState.phase)">{{ state.archiveRunState.errorMessage || '请根据失败项处理后再次检查。' }}</small>
             </div>
             <button v-if="state.archiveRunState.phase !== 'running'" type="button" class="ghost" @click="state.closeArchiveRun"><AppIcon name="close" :size="16" />关闭</button>
           </header>

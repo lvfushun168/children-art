@@ -652,7 +652,7 @@ document.addEventListener('fullscreenchange', syncOfficeFullscreen)
       <header class="preview-head">
         <div>
           <span>课件预览</span>
-          <strong>{{ preview?.item?.title || '正在准备…' }}</strong>
+          <strong>{{ preview?.item?.title || '加载中…' }}</strong>
         </div>
         <div class="preview-head-actions">
           <button
@@ -671,9 +671,9 @@ document.addEventListener('fullscreenchange', syncOfficeFullscreen)
       </header>
 
       <main class="preview-body">
-        <div v-if="loading" class="preview-state">正在准备预览，请稍候…</div>
+        <div v-if="loading" class="preview-state">加载中…</div>
         <template v-else-if="preview">
-          <div v-if="contentLoading" class="preview-state">正在加载课件内容…</div>
+          <div v-if="contentLoading" class="preview-state">加载中…</div>
           <div v-else-if="contentError" class="preview-error">
             <strong>{{ contentError }}</strong>
             <button type="button" class="primary" @click="loadPreview"><AppIcon name="retry" :size="15" />重新加载</button>
@@ -703,7 +703,7 @@ document.addEventListener('fullscreenchange', syncOfficeFullscreen)
           </video>
           <div v-else-if="mode === 'PDF'" class="pdf-preview">
             <div class="pdf-canvas-wrap"><canvas ref="pdfCanvas"></canvas></div>
-            <div v-if="pdfLoading" class="pdf-overlay preview-state">正在加载 PDF…</div>
+            <div v-if="pdfLoading" class="pdf-overlay preview-state">加载中…</div>
             <div v-else-if="pdfError" class="pdf-overlay preview-error">
               <strong>{{ pdfError }}</strong>
               <button type="button" class="primary" @click="loadPdf"><AppIcon name="retry" :size="15" />重新加载</button>
@@ -733,7 +733,7 @@ document.addEventListener('fullscreenchange', syncOfficeFullscreen)
               @active-slide-change="handlePptxSlideChange"
               @mode-change="handlePptxModeChange"
             />
-            <div v-if="pptxLoading" class="office-overlay preview-state">正在加载 PPTX 课件…</div>
+            <div v-if="pptxLoading" class="office-overlay preview-state">加载中…</div>
             <div v-else-if="pptxError" class="office-overlay preview-error">
               <strong>{{ pptxError }}</strong>
               <button type="button" class="primary" @click="loadPreview"><AppIcon name="retry" :size="15" />重新加载</button>
@@ -741,7 +741,7 @@ document.addEventListener('fullscreenchange', syncOfficeFullscreen)
           </div>
           <div v-else-if="mode === 'OFFICE'" ref="officePanel" class="office-preview">
             <div :id="officeContainerId" ref="officeHost" class="office-host"></div>
-            <div v-if="officeLoading" class="office-overlay preview-state">正在加载办公文件查看器…</div>
+            <div v-if="officeLoading" class="office-overlay preview-state">加载中…</div>
             <div v-else-if="officeError" class="office-overlay preview-error">
               <strong>{{ officeError }}</strong>
               <button type="button" class="primary" @click="emit('retry')"><AppIcon name="retry" :size="15" />重新加载</button>

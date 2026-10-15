@@ -204,6 +204,7 @@ const backToTodayList = () => {
               <strong>{{ lesson.review ? `${lesson.review.score} 分` : lesson.reviewStatus }}</strong>
               <small>{{ lesson.wheatStatus }} · {{ lesson.cloudArchiveStatus }}</small>
               <button
+                v-if="state.canQualityReview"
                 class="secondary"
                 type="button"
                 :disabled="lesson.status !== '已完成'"
@@ -213,7 +214,7 @@ const backToTodayList = () => {
               </button>
             </div>
           </article>
-          <small v-if="!todayLessons.length" class="empty-note">所选日期暂无课后工作。</small>
+          <small v-if="!todayLessons.length" class="empty-note">所选日期暂无课后工作</small>
         </div>
       </section>
     </template>
@@ -262,7 +263,7 @@ const backToTodayList = () => {
               <span>{{ activeLesson.review.comment || '未填写评语' }}</span>
             </div>
           </template>
-          <small v-else class="empty-note">暂无可评分课次。</small>
+          <small v-else class="empty-note">暂无可评分课次</small>
         </aside>
       </section>
     </template>

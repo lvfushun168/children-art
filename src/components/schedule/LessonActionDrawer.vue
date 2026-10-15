@@ -64,20 +64,18 @@ const lessonSource = computed(() => ({
             <strong>进入课后处理</strong>
             <small>打开本节课的交付工作台</small>
           </button>
-          <button class="secondary lesson-action-button" type="button" :disabled="busy || !canEdit || isCompleted" @click="$emit('edit')">
+          <button v-if="canEdit" class="secondary lesson-action-button" type="button" :disabled="busy || isCompleted" @click="$emit('edit')">
             <AppIcon name="edit" :size="16" />
             <strong>编辑课次</strong>
             <small>修改日期、时间、老师、课程和课题</small>
           </button>
-          <button class="secondary lesson-action-button" type="button" :disabled="busy || !canEdit || isCompleted" @click="$emit('delete')">
+          <button v-if="canEdit" class="secondary lesson-action-button" type="button" :disabled="busy || isCompleted" @click="$emit('delete')">
             <AppIcon name="delete" :size="16" />
             <strong>删除课次</strong>
-            <small>仅限没有课后处理数据的未完成课次</small>
           </button>
         </div>
 
         <p v-if="isCompleted" class="lesson-action-hint">已完成课次不可删除，如需调整请进入课后处理查看归档状态。</p>
-        <p v-else-if="!canEdit" class="lesson-action-hint">当前账号没有编辑课次的权限。</p>
         <p class="lesson-action-hint">班级和学生关系不在本表单中修改；如果创建时选错，请删除后重新创建。</p>
       </div>
     </aside>

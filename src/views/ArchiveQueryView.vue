@@ -653,7 +653,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </span>
       </article>
       <div v-if="state.directoryErrors?.archiveRecords" class="notice-box error-box"><small>{{ state.directoryErrors.archiveRecords }}</small><button class="ghost" type="button" @click="loadStudentWorks(workPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
-      <div v-else-if="!workRecords.length && !state.directoryLoading?.archiveRecords" class="notice-box"><small>没有符合条件的学生作品档案。</small></div>
+      <div v-else-if="!workRecords.length && !state.directoryLoading?.archiveRecords" class="notice-box"><small>暂无学生作品档案</small></div>
       <PaginationBar :page="workPage.page" :page-size="workPage.pageSize" :total="workPage.total" :loading="state.directoryLoading?.archiveRecords" @change="loadStudentWorks" />
     </section>
 
@@ -719,7 +719,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </div>
       </button>
       <div v-if="!filteredLessonArchives.length" class="notice-box">
-        <small>没有符合条件的课堂档案。</small>
+        <small>暂无课堂档案</small>
       </div>
       <div v-if="state.directoryErrors?.classroomArchives" class="notice-box error-box"><small>{{ state.directoryErrors.classroomArchives }}</small><button class="ghost" type="button" @click="loadLessonArchives(lessonPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <PaginationBar :page="lessonPage.page" :page-size="lessonPage.pageSize" :total="lessonPage.total" :loading="state.directoryLoading?.classroomArchives" @change="loadLessonArchives" />
@@ -778,7 +778,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </div>
       </button>
       <div v-if="!filteredTeacherEffects.length" class="notice-box">
-        <small>暂无符合条件的老师课效档案。</small>
+        <small>暂无老师课效档案</small>
       </div>
       <div v-if="state.directoryErrors?.teacherArchives" class="notice-box error-box"><small>{{ state.directoryErrors.teacherArchives }}</small><button class="ghost" type="button" @click="loadTeacherEffects(effectPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <PaginationBar :page="effectPage.page" :page-size="effectPage.pageSize" :total="effectPage.total" :loading="state.directoryLoading?.teacherArchives" @change="loadTeacherEffects" />
@@ -863,7 +863,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           </figure>
         </div>
         <div v-else class="notice-box">
-          <small>暂无学生记录。</small>
+          <small>暂无学生记录</small>
         </div>
         <small class="archive-image-readonly-caption">仅老师可见 · 不计入作品数量 · {{ selected.archiveStatus === 'CURRENT' ? '当前课次实时数据' : '正式归档快照' }}</small>
       </section>
@@ -894,7 +894,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span>高光信息（归档快照）</span>
           <article class="archive-block highlight">
             <strong>{{ workDraft.highlight ? '高光作品' : '非高光作品' }}</strong>
-            <p>{{ workDraft.highlightNote || '当前归档快照没有高光说明。' }}</p>
+            <p v-if="workDraft.highlightNote">{{ workDraft.highlightNote }}</p>
           </article>
         </section>
         <section v-if="selected.sourceType !== 'extraTask'" class="archive-detail-group archive-edit-section">
@@ -923,7 +923,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span>作品档案信息</span>
           <article class="archive-block">
             <strong>{{ selected.title || `${selected.studentName}的${selected.course}` }}</strong>
-            <p>{{ selected.description || '暂无作品说明。' }}</p>
+            <p v-if="selected.description">{{ selected.description }}</p>
             <div v-if="selected.tags?.length" class="archive-tag-list">
               <em v-for="tag in selected.tags" :key="tag">{{ tag }}</em>
             </div>
@@ -943,15 +943,14 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           </article>
           <article v-else class="archive-block">
             <strong>未装裱</strong>
-            <p>当前作品没有装裱记录。</p>
           </article>
         </section>
       </template>
       <section class="archive-detail-group">
         <span>本次交付内容 · 只读</span>
-        <article class="archive-block">
+        <article v-if="selected.totalFeedback || selected.feedback" class="archive-block">
           <strong>{{ selected.totalFeedback ? '总课评' : '课评' }}</strong>
-          <p>{{ selected.totalFeedback || selected.feedback || '暂无课评。' }}</p>
+          <p>{{ selected.totalFeedback || selected.feedback }}</p>
         </article>
         <article v-if="selected.totalFeedback && selected.personalFeedback" class="archive-block">
           <strong>学生补充课评</strong>
@@ -1092,7 +1091,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           </article>
         </div>
         <div v-else class="notice-box">
-          <small>这节课暂无课堂资料记录。</small>
+          <small>暂无课堂资料</small>
         </div>
         <div v-if="fileDownloadError" class="notice-box archive-download-error">
           <small>{{ fileDownloadError }}</small>
@@ -1179,10 +1178,10 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span>{{ selectedEffect.status }}</span>
         </div>
       </section>
-      <section class="archive-detail-group">
+      <section v-if="selectedEffect.cloudPath" class="archive-detail-group">
         <span>云盘路径</span>
         <article class="archive-block">
-          <p>{{ selectedEffect.cloudPath || '暂无云盘路径。' }}</p>
+          <p>{{ selectedEffect.cloudPath }}</p>
         </article>
       </section>
     </aside>

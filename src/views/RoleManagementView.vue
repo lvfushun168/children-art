@@ -143,12 +143,11 @@ onMounted(loadData)
           <strong>{{ state.identityRoles.length }} 个角色</strong>
         </div>
         <div class="identity-list-head-actions">
-          <small v-if="state.identityLoading.roles">正在加载…</small>
           <button class="primary" type="button" @click="openRoleEditor()"><AppIcon name="add" :size="15" />新增角色</button>
         </div>
       </div>
 
-      <div v-if="state.identityLoading.roles" class="identity-empty">正在加载角色...</div>
+      <div v-if="state.identityLoading.roles" class="identity-empty">加载中…</div>
       <div v-else-if="state.identityErrors.roles" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.roles }}</strong>
         <button class="ghost" type="button" @click="loadData"><AppIcon name="retry" :size="15" />重试</button>
@@ -214,7 +213,7 @@ onMounted(loadData)
         </div>
         <button class="icon-button" type="button" aria-label="关闭" @click="closePermissionDrawer"><AppIcon name="close" :size="17" /></button>
       </div>
-      <div v-if="state.identityLoading.permissions" class="identity-empty">正在加载权限资源...</div>
+      <div v-if="state.identityLoading.permissions" class="identity-empty">加载中…</div>
       <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">{{ state.identityErrors.permissions }}</div>
       <div v-else class="identity-permission-groups">
         <section v-for="group in permissionGroups" :key="group.module" class="identity-permission-group">

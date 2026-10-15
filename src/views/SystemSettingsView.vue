@@ -744,7 +744,7 @@ onBeforeUnmount(() => {
             </div>
             <button class="primary settings-baidu-add-button" type="button" :disabled="!canAddProvider" @click="addProvider"><AppIcon name="add" :size="15" />新增账号</button>
           </div>
-          <div v-if="!baiduProviders.length" class="notice-box">还没有百度网盘账号，点击“新增账号”开始配置。</div>
+          <div v-if="!baiduProviders.length" class="notice-box">暂无百度网盘账号</div>
           <div v-else class="directory-table-wrap">
             <table class="directory-table settings-baidu-account-table">
               <thead>

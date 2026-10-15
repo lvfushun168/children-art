@@ -241,12 +241,11 @@ onMounted(async () => {
         <button class="ghost" type="button" @click="reload"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="state.scheduleLoading" class="notice-box">
-        <small>正在加载课表，请稍候……</small>
+        <small>加载中…</small>
       </div>
       <div v-else class="schedule-calendar-state">
         <div v-if="!visibleLessons.length" class="notice-box">
           <strong>当前范围没有课次</strong>
-          <small>如果刚导入了月课表，请选择对应月份；“今日课后”只显示当天课次。</small>
         </div>
         <ScheduleCalendar
           :lessons="visibleLessons"

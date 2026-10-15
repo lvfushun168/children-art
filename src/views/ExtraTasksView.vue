@@ -362,10 +362,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
     <section v-show="!isMobileFlow || !mobileShowingDetail" class="panel directory-list-panel">
       <div class="section-head">
         <div><span>任务列表</span><strong>{{ pageState.total }} 条记录</strong></div>
-        <small v-if="state.directoryLoading?.extraTasks">正在加载…</small>
+        <small v-if="state.directoryLoading?.extraTasks">加载中…</small>
       </div>
       <div v-if="state.directoryErrors?.extraTasks" class="notice-box error-box"><small>{{ state.directoryErrors.extraTasks }}</small><button class="ghost" type="button" @click="loadDirectory(pageState.page)"><AppIcon name="retry" :size="15" />重试</button></div>
-      <div v-else-if="!tasks.length && !state.directoryLoading?.extraTasks" class="notice-box"><small>暂无符合条件的课外任务。</small></div>
+      <div v-else-if="!tasks.length && !state.directoryLoading?.extraTasks" class="notice-box"><small>暂无课外任务</small></div>
       <div v-else class="directory-table-wrap">
         <table class="directory-table">
           <thead><tr><th>任务标题</th><th>类型 / 负责人</th><th>关联课次</th><th>截止日期</th><th>作品数</th><th>状态</th><th>操作</th></tr></thead>
@@ -466,7 +466,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
         <template v-else>
           <div v-if="!selectedWorks.length" class="notice-box">
-            <small>暂无归档交付作品。</small>
+            <small>暂无归档交付作品</small>
           </div>
           <div v-else class="extra-task-work-grid">
             <article v-for="work in selectedWorks" :key="work.id" class="archive-block extra-task-work-card">
@@ -474,10 +474,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
               <div>
                 <span>{{ work.studentName }} · {{ work.date }}</span>
                 <strong>{{ work.title }}</strong>
-                <p>{{ work.description || '暂无作品说明。' }}</p>
+                <p v-if="work.description">{{ work.description }}</p>
                 <em v-if="work.highlight">高光作品</em>
               </div>
-              <footer>
+              <footer v-if="state.canEditArchiveRecord(work)">
                 <button class="secondary" @click="startEditWork(work)">编辑</button>
                 <button class="danger-text" @click="deleteWork(work)"><AppIcon name="delete" :size="14" />删除</button>
               </footer>

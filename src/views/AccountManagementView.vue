@@ -218,12 +218,11 @@ onMounted(loadPage)
           <strong>{{ state.identityUserPage.total || 0 }} 个账号</strong>
         </div>
         <div class="identity-list-head-actions">
-          <small v-if="state.identityLoading.users">正在加载…</small>
           <button class="primary" type="button" @click="openUserForm()"><AppIcon name="add" :size="15" />新增账号</button>
         </div>
       </div>
 
-      <div v-if="state.identityLoading.users" class="identity-empty">正在加载账号...</div>
+      <div v-if="state.identityLoading.users" class="identity-empty">加载中…</div>
       <div v-else-if="state.identityErrors.users" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.users }}</strong>
         <button class="ghost" type="button" @click="loadUsers(state.identityUserPage.page)"><AppIcon name="retry" :size="15" />重试</button>
@@ -316,7 +315,7 @@ onMounted(loadPage)
 
       <form v-else-if="drawer === 'memberships'" class="identity-form" @submit.prevent="saveMemberships">
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>所属校区</span></div>
-        <div v-if="membershipLoading" class="identity-empty">正在读取数据范围...</div>
+        <div v-if="membershipLoading" class="identity-empty">加载中…</div>
         <div v-else-if="state.identityErrors.memberships" class="identity-empty identity-error">
           <strong>{{ state.identityErrors.memberships }}</strong>
           <button class="ghost" type="button" @click="openMembershipDrawer(selectedUser)"><AppIcon name="retry" :size="15" />重试</button>

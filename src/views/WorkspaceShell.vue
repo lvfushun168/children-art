@@ -185,9 +185,9 @@ const flushTaskDraftsBeforeNavigation = async (lessonId) => {
         reason: '离开课次工作台前自动保存课后任务',
         notifyOnError: false
       })
-      if (!saved) state.notify?.('家长展示草稿保存失败，本次修改可能未保存')
+      if (!saved) state.notify?.('草稿保存失败，请重试')
     } catch {
-      state.notify?.('家长展示草稿保存失败，本次修改可能未保存')
+      state.notify?.('草稿保存失败，请重试')
       saved = false
     }
   }
@@ -195,11 +195,11 @@ const flushTaskDraftsBeforeNavigation = async (lessonId) => {
     try {
       const totalFeedbackSaved = await state.flushTotalFeedback()
       if (!totalFeedbackSaved) {
-        state.notify?.('总课评保存失败，本次修改可能未保存')
+        state.notify?.('总课评保存失败，请重试')
         saved = false
       }
     } catch {
-      state.notify?.('总课评保存失败，本次修改可能未保存')
+      state.notify?.('总课评保存失败，请重试')
       saved = false
     }
   }

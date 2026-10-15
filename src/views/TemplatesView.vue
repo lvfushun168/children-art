@@ -214,7 +214,7 @@ const selectTemplate = (item) => {
 
 const startNew = () => {
   if (!canWriteTemplates.value) {
-    props.state.notify?.('当前账号没有模板管理权限')
+    props.state.notify?.('无权限')
     return
   }
   if (!confirmDiscardChanges('放弃当前编辑并新建模板')) return
@@ -321,8 +321,8 @@ onBeforeUnmount(() => cleanupMobileMedia())
   </button>
 
   <PageHead title="模板配置">
-    <div class="button-pair">
-      <button class="primary" :disabled="!canWriteTemplates" @click="startNew"><AppIcon name="add" :size="15" />新增{{ activeLabel }}</button>
+    <div v-if="canWriteTemplates" class="button-pair">
+      <button class="primary" @click="startNew"><AppIcon name="add" :size="15" />新增{{ activeLabel }}</button>
     </div>
   </PageHead>
 
@@ -352,7 +352,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         </label>
         <div class="button-pair directory-toolbar-actions">
           <button class="ghost" type="button" @click="resetFilters"><AppIcon name="reset" :size="15" />重置</button>
-          <button class="primary" type="button" :disabled="!canWriteTemplates" @click="startNew"><AppIcon name="add" :size="15" />新增{{ activeLabel }}</button>
+          <button v-if="canWriteTemplates" class="primary" type="button" @click="startNew"><AppIcon name="add" :size="15" />新增{{ activeLabel }}</button>
         </div>
       </form>
 
@@ -362,13 +362,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <span>{{ activeLabel }}</span>
             <strong>{{ filteredList.length }} / {{ list.length }} 项</strong>
           </div>
-          <small v-if="!canWriteTemplates">当前为只读模式</small>
         </div>
 
-        <p v-if="!canWriteTemplates" class="template-readonly-hint">当前账号没有模板管理权限，模板可查看但不能新增、编辑或启停。</p>
-
         <div v-if="!filteredList.length" class="notice-box">
-          <small>{{ list.length ? '没有符合条件的模板。' : `暂无${activeLabel}。` }}</small>
+          <small>{{ list.length ? '无匹配模板' : `暂无${activeLabel}` }}</small>
         </div>
 
         <div v-else class="directory-table-wrap">
@@ -441,8 +438,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <button v-if="mode !== 'detail'" class="primary" type="button" :disabled="formReadonly || (mode === 'edit' && !isDirty)" @click="save"><AppIcon name="save" :size="16" />{{ saving ? '保存中…' : '保存模板' }}</button>
           </div>
         </div>
-
-        <p v-if="!canWriteTemplates" class="template-readonly-hint">当前账号没有模板管理权限，模板可查看但不能修改。</p>
 
         <form class="template-drawer-form" @submit.prevent="save">
           <fieldset :disabled="formReadonly">

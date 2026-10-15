@@ -720,7 +720,7 @@ watch(homeworkEditorOpen, async (open) => {
                 <small>点击选择文件</small>
                 <input type="file" :accept="activeMaterialSection.accept || undefined" multiple @change="state.uploadLessonMaterial($event, activeMaterialSection.category)" />
               </label>
-              <article v-for="material in activeMaterialSection.materials" :key="material.id" class="material-media-card" :class="{ hidden: !material.visible }">
+              <article v-for="material in activeMaterialSection.materials" :key="material.id" class="material-media-card" :class="{ 'material-card-hidden': !material.visible }">
                 <div class="material-visual">
                   <button v-if="material.type !== '课堂视频'" class="material-replace-trigger" type="button" @click="openMaterialReplace(material, activeMaterialSection.category)">
                     <ProtectedMedia :file-id="material.fileId" :src="material.image" :alt="material.title" />

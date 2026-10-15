@@ -1350,7 +1350,7 @@
   box-shadow: 0 4px 12px color-mix(in srgb, var(--color-heading) 4%, transparent);
 }
 
-.material-media-card.hidden {
+.material-media-card.material-card-hidden {
   opacity: 0.62;
 }
 

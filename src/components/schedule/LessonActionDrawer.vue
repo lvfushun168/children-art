@@ -62,7 +62,7 @@ const lessonSource = computed(() => ({
           <button class="primary lesson-action-button" type="button" :disabled="busy" @click="$emit('enter')">
             <AppIcon name="play" :size="16" />
             <strong>进入课后处理</strong>
-            <small>打开本节课的交付工作台</small>
+            <small>打开本节课的课后工作台</small>
           </button>
           <button v-if="canEdit" class="secondary lesson-action-button" type="button" :disabled="busy || isCompleted" @click="$emit('edit')">
             <AppIcon name="edit" :size="16" />

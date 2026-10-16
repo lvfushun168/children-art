@@ -876,7 +876,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <span><small>班级</small><strong>{{ selected.className }}</strong></span>
           <span><small>任课老师</small><strong>{{ selected.teacher }}</strong></span>
           <span><small>课次类型</small><strong>{{ selected.lessonType }}</strong></span>
-          <span><small>档案来源</small><strong>{{ selected.sourceType === 'extraTask' ? '课外任务交付作品' : '课堂作品' }}</strong></span>
+          <span><small>档案来源</small><strong>{{ selected.sourceType === 'extraTask' ? '课外任务作品' : '课堂作品' }}</strong></span>
           <span v-if="selected.sourceType === 'extraTask'"><small>关联任务</small><strong>{{ selected.extraTaskTitle }}</strong></span>
         </div>
       </section>
@@ -947,7 +947,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </section>
       </template>
       <section class="archive-detail-group">
-        <span>本次交付内容 · 只读</span>
+        <span>本节课内容 · 只读</span>
         <article v-if="selected.totalFeedback || selected.feedback" class="archive-block">
           <strong>{{ selected.totalFeedback ? '总课评' : '课评' }}</strong>
           <p>{{ selected.totalFeedback || selected.feedback }}</p>

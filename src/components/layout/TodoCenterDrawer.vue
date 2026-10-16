@@ -42,7 +42,7 @@ const pendingLessons = computed(() => lessonList.value.filter((task) => task.sta
 
 const categories = computed(() => {
   const values = [
-    { id: 'lessons', label: '课后交付', icon: 'today-tasks', count: pendingLessons.value.length },
+    { id: 'lessons', label: '待完成课次', icon: 'today-tasks', count: pendingLessons.value.length },
     { id: 'wecom', label: '待发给家长', icon: 'send', count: wecomTodos.value.length },
     { id: 'cloud', label: '网盘异常', icon: 'file-archive', count: cloudTodos.value.length }
   ]
@@ -122,7 +122,7 @@ const openSupervision = () => {
 
         <div class="todo-list-pane">
           <section v-if="activeCategory === 'lessons'" class="todo-group">
-            <div class="mini-head"><div><span>课后交付</span><strong>{{ pendingLessons.length }} 节未完成</strong></div></div>
+            <div class="mini-head"><div><span>待完成课次</span><strong>{{ pendingLessons.length }} 节未完成</strong></div></div>
             <button v-for="task in pendingLessons" :key="task.id" type="button" class="todo-row" @click="goTask(task)">
               <div>
                 <strong>{{ task.date || task.dateValue }} {{ task.time }} · {{ klassName(task) }}</strong>

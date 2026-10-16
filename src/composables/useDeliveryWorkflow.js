@@ -1369,7 +1369,7 @@ export function useDeliveryWorkflow() {
   const steps = computed(() => [
     { title: '课堂素材', done: counts.value.classroomMaterialsDone, total: 1 },
     { title: '课次与出勤', done: counts.value.attendanceConfirmed ? 1 : 0, total: 1 },
-    { title: '学生交付', done: counts.value.studentDeliveryCompleted, total: counts.value.attend },
+    { title: '学生作品与课评', done: counts.value.studentDeliveryCompleted, total: counts.value.attend },
     { title: '课后任务与家长页面', done: counts.value.homeworkReady, total: 1 },
     { title: '提交归档', done: counts.value.archived, total: counts.value.attend }
   ])
@@ -2479,7 +2479,7 @@ export function useDeliveryWorkflow() {
       return false
     }
     if (activeTask.value.status === '异常') {
-      notify('归档失败：请先恢复异常课次再完成交付')
+      notify('归档失败：请先恢复异常课次再完成归档')
       return false
     }
     if (activeTask.value.status !== '处理中') {
@@ -2509,7 +2509,7 @@ export function useDeliveryWorkflow() {
       activeTask.value.cloudArchiveStatus = cloudTargets.length ? '已同步' : '未选择网盘'
       activeTask.value.archiveVersion = (activeTask.value.archiveVersion || 0) + 1
       activeTask.value.status = '已完成'
-      addStatusLog('课次', activeTask.value.id, before, '已完成', '归档交付清单全部完成')
+      addStatusLog('课次', activeTask.value.id, before, '已完成', '归档清单全部完成')
       showReport.value = true
       reportPulse.value = true
       setTimeout(() => {
@@ -7486,7 +7486,7 @@ export function useDeliveryWorkflow() {
       return false
     }
     if (!(await flushStudentDrafts(activeTask.value?.id))) {
-      notify('发布失败：仍有学生交付草稿未保存，请重试')
+      notify('发布失败：仍有学生内容未保存，请重试')
       return false
     }
     const missing = attendingRows.value.filter((row) => !isDeliveryConfirmed(row))
@@ -7562,7 +7562,7 @@ export function useDeliveryWorkflow() {
 
   const remoteCopyExport = async () => {
     if (!remoteExportText.value) {
-      notify('当前课次没有可复制的交付内容')
+      notify('当前课次没有可复制的内容')
       return false
     }
     const copiedOk = await copyTextToClipboard(remoteExportText.value)
@@ -8124,7 +8124,7 @@ export function useDeliveryWorkflow() {
 
   const archiveRunDefinitions = [
     { key: 'lessonStatus', title: '课次状态' },
-    { key: 'studentDelivery', title: '学生交付内容' },
+    { key: 'studentDelivery', title: '学生作品与课评' },
     { key: 'deliveryConfirm', title: '作品与总课评' },
     { key: 'parentTouch', title: '发给家长' },
     { key: 'wheatTrace', title: '小麦消课确认' },
@@ -8237,7 +8237,7 @@ export function useDeliveryWorkflow() {
       for (const artwork of targets) {
         const candidate = artworkCandidateForDelivery(artwork)
         if (!candidate) {
-          failures.push({ studentName, reason: '作品没有可交付版本' })
+          failures.push({ studentName, reason: '作品还没有可用的图片' })
           continue
         }
         if (artwork.selectedVersionId && sameId(artwork.selectedVersionId, candidate.versionId)) continue
@@ -8295,18 +8295,18 @@ export function useDeliveryWorkflow() {
           .filter((row) => studentDraftStatusFor(row) === 'ERROR')
           .map((row) => ({ studentName: archiveRowName(row), reason: studentDraftErrorFor(row) || '自动保存失败' }))
         if (totalFeedbackDraftStatusFor() === 'ERROR') failures.push({ studentName: '本课次总课评', reason: totalFeedbackDraftErrorFor() || '总课评自动保存失败' })
-        return { ok: false, detail: '仍有交付内容未保存', failures }
+        return { ok: false, detail: '仍有内容未保存', failures }
       }
       const workspace = await refreshRemoteLesson(task.id, { force: true })
-      if (!workspace) return { ok: false, detail: '学生交付内容刷新失败，请重试' }
+      if (!workspace) return { ok: false, detail: '学生内容刷新失败，请重试' }
       const failures = attendingRows.value.flatMap((row) => studentDeliveryFailuresFor(row).map((reason) => ({
         studentName: archiveRowName(row),
         reason
       })))
       return failures.length
-        ? { ok: false, detail: `有 ${failures.length} 项学生交付内容未完成`, failures }
+        ? { ok: false, detail: `有 ${failures.length} 位学生的内容未完成`, failures }
         : { ok: true, detail: `已检查 ${attendingRows.value.length} 位到课学生` }
-    }, '学生交付内容未完成')
+    }, '学生内容未完成')
     if (!studentDelivery.ok) {
       stopArchiveRun('blocked', studentDelivery.detail)
       return false

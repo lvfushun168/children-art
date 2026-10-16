@@ -62,8 +62,8 @@ const backFromWorkspace = () => {
     <section class="today-hero">
       <div>
         <span>今日课后</span>
-        <h2 v-if="unfinishedTasks.length">还有 {{ unfinishedTasks.length }} 节课待交付</h2>
-        <h2 v-else>今天的课后交付都完成了</h2>
+        <h2 v-if="unfinishedTasks.length">还有 {{ unfinishedTasks.length }} 节课没做完</h2>
+        <h2 v-else>今天的课后工作都完成了</h2>
       </div>
       <button v-if="nextTask" class="primary hero-action" @click="openTask(nextTask)">
         <AppIcon name="play" :size="16" />
@@ -74,7 +74,7 @@ const backFromWorkspace = () => {
     <div class="today-summary">
       <article><strong>{{ todayTasks.length }}</strong><span>今日课次</span></article>
       <article><strong>{{ unfinishedTasks.length }}</strong><span>待完成</span></article>
-      <article><strong>{{ completedTasks.length }}</strong><span>已交付</span></article>
+      <article><strong>{{ completedTasks.length }}</strong><span>已完成</span></article>
     </div>
     <TaskList
       class="today-task-list"

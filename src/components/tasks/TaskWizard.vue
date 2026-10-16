@@ -1060,7 +1060,7 @@ watch(homeworkEditorOpen, async (open) => {
               <small>{{ state.archiveChecklistPending.join('、') }}</small>
             </div>
             <div v-else class="archive-result-status">
-              <strong>归档交付清单已就绪</strong>
+              <strong>可以完成归档了</strong>
             </div>
           </article>
 
@@ -1314,7 +1314,7 @@ watch(homeworkEditorOpen, async (open) => {
       <footer v-if="state.currentStep !== 2 || (!studentDeliveryDrawerOpen && !studentDeliveryMobileDetailOpen)" class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep"><AppIcon name="back" :size="15" />上一步</button>
         <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.isProcessing" @click="state.nextStep"><AppIcon name="next" :size="15" />下一步</button>
-        <button v-else class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running' || !state.archiveChecklistReady" :title="!state.archiveChecklistReady ? '请先在小麦完成消课，再返回当前页面确认' : undefined" @click="finishArchiveAndExit"><AppIcon name="check" :size="16" />完成归档交付</button>
+        <button v-else class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running' || !state.archiveChecklistReady" :title="!state.archiveChecklistReady ? '请先在小麦完成消课，再返回当前页面确认' : undefined" @click="finishArchiveAndExit"><AppIcon name="check" :size="16" />完成归档</button>
       </footer>
     </template>
   </section>

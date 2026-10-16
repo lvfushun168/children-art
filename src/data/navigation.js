@@ -2,7 +2,7 @@ export const navGroups = [
   {
     id: 'afterClass',
     label: '课后工作',
-    description: '今日课次与交付',
+    description: '今日课次与课后工作',
     mark: '课',
     icon: 'after-class',
     items: [

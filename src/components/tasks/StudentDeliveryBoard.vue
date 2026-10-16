@@ -862,12 +862,12 @@ onMounted(() => {
         </header>
 
         <template v-if="!mobileSection">
-          <nav class="mobile-student-section-list" aria-label="学生交付事项">
+          <nav class="mobile-student-section-list" aria-label="学生事项">
             <button type="button" class="mobile-student-section-row" @click="openMobileSection('artwork')">
               <span class="mobile-section-icon">作</span>
               <span class="mobile-section-copy">
                 <strong>作品</strong>
-                <small>{{ artworkStatusFor(mobileStudent) === '已准备' ? '已有可交付版本' : artworkStatusFor(mobileStudent) }}</small>
+                <small>{{ artworkStatusFor(mobileStudent) === '已准备' ? '已准备好' : artworkStatusFor(mobileStudent) }}</small>
               </span>
               <span class="mobile-section-status"><span>{{ artworkStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>

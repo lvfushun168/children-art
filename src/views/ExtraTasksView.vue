@@ -388,7 +388,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <button v-if="mode === 'detail' && activeTab === 'task'" class="secondary" type="button" @click="startEdit">编辑任务</button>
           <button v-if="mode !== 'detail'" class="ghost" type="button" @click="cancelEdit"><AppIcon name="close" :size="15" />取消</button>
           <button v-if="mode !== 'detail'" class="primary" @click="save"><AppIcon name="save" :size="16" />保存</button>
-          <button v-if="mode === 'detail' && activeTab === 'works'" class="primary" @click="startNewWork"><AppIcon name="upload" :size="16" />上传交付作品</button>
+          <button v-if="mode === 'detail' && activeTab === 'works'" class="primary" @click="startNewWork"><AppIcon name="upload" :size="16" />上传课外作品</button>
         </div>
       </div>
       <div v-if="detailError" class="notice-box error-box" role="alert">
@@ -398,7 +398,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
       <div v-if="mode !== 'new'" class="student-tabs extra-task-tabs">
         <button :class="{ selected: activeTab === 'task' }" @click="activeTab = 'task'">任务信息</button>
-        <button :class="{ selected: activeTab === 'works' }" @click="activeTab = 'works'">交付作品 {{ selectedWorks.length }}</button>
+        <button :class="{ selected: activeTab === 'works' }" @click="activeTab = 'works'">课外作品 {{ selectedWorks.length }}</button>
       </div>
 
       <div v-if="activeTab === 'task'" class="form-grid">
@@ -428,7 +428,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <div v-if="workMode !== 'list'" class="extra-task-work-editor">
           <div class="section-head">
             <div>
-              <span>{{ workMode === 'new' ? '新增交付作品' : '编辑交付作品' }}</span>
+              <span>{{ workMode === 'new' ? '新增课外作品' : '编辑课外作品' }}</span>
             </div>
           </div>
           <div class="form-grid">
@@ -436,7 +436,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
               学生
               <AdaptiveSelect v-model="workDraft.studentId" :options="studentOptions" />
             </label>
-            <label>交付日期<input v-model="workDraft.dateValue" type="date" /></label>
+            <label>提交日期<input v-model="workDraft.dateValue" type="date" /></label>
             <label class="wide file-button extra-task-file" :class="{ disabled: workMode === 'edit' }">
               选择作品图片
               <input type="file" accept="image/*" :disabled="workMode === 'edit'" @change="handleWorkImage" />
@@ -466,7 +466,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
 
         <template v-else>
           <div v-if="!selectedWorks.length" class="notice-box">
-            <small>暂无归档交付作品</small>
+            <small>暂无课外作品</small>
           </div>
           <div v-else class="extra-task-work-grid">
             <article v-for="work in selectedWorks" :key="work.id" class="archive-block extra-task-work-card">

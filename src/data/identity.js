@@ -12,7 +12,7 @@ export const identityModuleLabel = (module) => ({
   identity: '身份与权限',
   masterdata: '基础信息',
   import: '数据导入',
-  lesson: '课后交付',
+  lesson: '课次管理',
   artwork: '作品与素材',
   feedback: '课评与反馈',
   ai: 'AI 能力',

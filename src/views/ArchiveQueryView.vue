@@ -961,7 +961,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <p>{{ selected.homework }}</p>
         </article>
         <article class="archive-block">
-          <strong>家长展示页</strong>
+          <strong>家长页面</strong>
           <p>{{ selected.shareUrl }}</p>
         </article>
       </section>

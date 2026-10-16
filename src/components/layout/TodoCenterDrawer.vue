@@ -43,7 +43,7 @@ const pendingLessons = computed(() => lessonList.value.filter((task) => task.sta
 const categories = computed(() => {
   const values = [
     { id: 'lessons', label: '课后交付', icon: 'today-tasks', count: pendingLessons.value.length },
-    { id: 'wecom', label: '企微待处理', icon: 'send', count: wecomTodos.value.length },
+    { id: 'wecom', label: '待发给家长', icon: 'send', count: wecomTodos.value.length },
     { id: 'cloud', label: '网盘异常', icon: 'file-archive', count: cloudTodos.value.length }
   ]
   if (state.canQualityReview) values.push({ id: 'reviews', label: '待评分', icon: 'supervision', count: reviewTodos.value.length })
@@ -134,11 +134,11 @@ const openSupervision = () => {
           </section>
 
           <section v-if="activeCategory === 'wecom'" class="todo-group">
-            <div class="mini-head"><div><span>企微待处理</span><strong>{{ wecomTodos.length }} 条待处理</strong></div></div>
+            <div class="mini-head"><div><span>待发给家长</span><strong>{{ wecomTodos.length }} 条待处理</strong></div></div>
             <article v-for="task in wecomTodos" :key="`wecom-${task.id}`" class="todo-trace-row">
               <div>
                 <strong>{{ task.studentName }}（{{ task.targetName }}）</strong>
-                <small>{{ task.lesson }} · 展示页 V{{ task.shareVersion }}</small>
+                <small>{{ task.lesson }} · 家长页面 V{{ task.shareVersion }}</small>
                 <small v-if="task.wecomGroupName">家长群：{{ task.wecomGroupName }}</small>
                 <small v-else-if="task.status === '待绑定家长群'">请先在学生管理中绑定家长客户群</small>
                 <small v-if="task.failureReason">失败原因：{{ task.failureReason }}</small>
@@ -155,7 +155,7 @@ const openSupervision = () => {
                 <button v-if="!['发送失败', '已发送', '人工发送'].includes(task.status)" type="button" class="ghost" @click="updateWecomTask(task, '已取消')"><AppIcon name="close" :size="15" />取消发送</button>
               </div>
             </article>
-            <small v-if="!wecomTodos.length" class="empty-note">暂无企微待办</small>
+            <small v-if="!wecomTodos.length" class="empty-note">暂无待发送</small>
           </section>
 
           <section v-if="activeCategory === 'cloud'" class="todo-group">

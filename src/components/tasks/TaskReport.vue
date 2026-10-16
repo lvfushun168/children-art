@@ -32,7 +32,7 @@ defineEmits(['show-archives', 'show-students'])
         <strong>{{ counts.totalFeedbackReady ? '已确认' : '待填写' }}</strong>
       </article>
       <article>
-        <span>家长展示页</span>
+        <span>家长页面</span>
         <strong>{{ counts.shareReady }}/{{ counts.attend }}</strong>
       </article>
       <article>

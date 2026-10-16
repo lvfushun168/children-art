@@ -789,7 +789,7 @@ watch(homeworkEditorOpen, async (open) => {
         <div class="section-head">
           <div>
             <span>第 4 步</span>
-            <strong>课后任务与家长展示</strong>
+            <strong>课后任务与家长页面</strong>
           </div>
           <div class="section-actions">
             <span
@@ -799,7 +799,7 @@ watch(homeworkEditorOpen, async (open) => {
               :title="state.shareDraftErrorFor?.() || ''"
               @click="shareDraftStatus() === 'ERROR' && retryShareDraft()"
             >{{ shareDraftStatusText() }}</span>
-            <button class="secondary" type="button" @click="showSharePreview = true"><AppIcon name="view" :size="15" />家长页预览</button>
+            <button class="secondary" type="button" @click="showSharePreview = true"><AppIcon name="view" :size="15" />家长页面预览</button>
           </div>
         </div>
         <section class="parent-delivery-panel guided-homework-panel">
@@ -927,7 +927,7 @@ watch(homeworkEditorOpen, async (open) => {
           <aside class="library-drawer resource-drawer">
             <header class="drawer-head">
               <div>
-                <span>延伸资源</span>
+                <span>学习资源</span>
                 <strong>选择配套学习资源</strong>
               </div>
               <button class="ghost" @click="showResourceDrawer = false"><AppIcon name="close" :size="16" />关闭</button>
@@ -966,7 +966,7 @@ watch(homeworkEditorOpen, async (open) => {
           <aside class="library-drawer share-preview-drawer">
             <header class="drawer-head">
               <div>
-                <span>家长展示页预览</span>
+                <span>家长页面预览</span>
                 <strong>{{ state.activeStudent?.name || '未选择学生' }}</strong>
               </div>
               <button class="ghost" @click="showSharePreview = false"><AppIcon name="close" :size="16" />关闭</button>
@@ -1102,7 +1102,7 @@ watch(homeworkEditorOpen, async (open) => {
                     </label>
                   </div>
                 </div>
-                <small v-if="item.key === 'parentTouch' && state.activeTask?.status === '已完成'">历史已完成课次保留原触达记录。</small>
+                <small v-if="item.key === 'parentTouch' && state.activeTask?.status === '已完成'">历史已完成课次保留原发送记录。</small>
               </div>
               <div class="archive-check-actions">
                 <button v-if="item.key === 'studentCloudArchive'" class="secondary" :disabled="cloudArchiveActionDisabled(item)" @click="state.pushArchiveItem(item.key)"><AppIcon name="archive" :size="15" />{{ cloudArchiveActionLabel(item) }}</button>

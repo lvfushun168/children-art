@@ -1370,7 +1370,7 @@ export function useDeliveryWorkflow() {
     { title: '课堂素材', done: counts.value.classroomMaterialsDone, total: 1 },
     { title: '课次与出勤', done: counts.value.attendanceConfirmed ? 1 : 0, total: 1 },
     { title: '学生交付', done: counts.value.studentDeliveryCompleted, total: counts.value.attend },
-    { title: '课后任务与家长展示', done: counts.value.homeworkReady, total: 1 },
+    { title: '课后任务与家长页面', done: counts.value.homeworkReady, total: 1 },
     { title: '提交归档', done: counts.value.archived, total: counts.value.attend }
   ])
 
@@ -1460,7 +1460,7 @@ export function useDeliveryWorkflow() {
   const archiveChecklistItems = computed(() => [
     {
       key: 'parentTouch',
-      title: activeTask.value?.status === '已完成' ? '家长触达历史' : '逐学生微信图文交付',
+      title: activeTask.value?.status === '已完成' ? '家长发送记录' : '逐学生发给家长',
       meta: !sameId(parentSendChecklist.value.lessonId, activeTask.value?.id)
         ? '进入第五步后读取发送清单'
         : `已确认 ${parentSendChecklist.value.students.filter((student) => student.checked).length}/${attendingRows.value.length} 位到课学生`,
@@ -1566,7 +1566,7 @@ export function useDeliveryWorkflow() {
       .map((row, index) => {
         const student = students.find((item) => item.id === row.studentId)
         const link = studentShareUrlFor(row)
-        return `${index + 1}. ${student.name}\n作品文件：${fileNameFor(row)}\n展示页：${link}\n总课评：${totalFeedback.value?.content || '待填写'}${row.comment ? `\n学生补充课评：${row.comment}` : ''}`
+        return `${index + 1}. ${student.name}\n作品文件：${fileNameFor(row)}\n家长页面：${link}\n总课评：${totalFeedback.value?.content || '待填写'}${row.comment ? `\n学生补充课评：${row.comment}` : ''}`
       })
       .join('\n\n')
   )
@@ -2022,7 +2022,7 @@ export function useDeliveryWorkflow() {
       content: totalFeedback.value?.content || '',
       version: Number(totalFeedback.value?.version || 0)
     },
-    // 学生记录只属于老师内部档案，不能随家长展示草稿保存或参与展示版本内容。
+    // 学生记录只属于老师内部档案，不能随家长页面草稿保存或参与展示版本内容。
     studentDeliveries: sessionStudents.value.map(({ studentRecords, ...row }) => clone(row)),
     students: clone(students),
     materials: clone(materials.value),
@@ -2059,7 +2059,7 @@ export function useDeliveryWorkflow() {
     sharePage.value.draftVersion = Math.max(sharePage.value.draftVersion, sharePage.value.publishedVersion + 1)
     displayConfig.value.publicStatus = '草稿'
     persistSharePage(activeTask.value.id, sharePage.value)
-    addStatusLog('家长展示页', activeTask.value.id, before, '草稿', reason)
+    addStatusLog('家长页面', activeTask.value.id, before, '草稿', reason)
     notify('草稿已保存，家长仍看到上一发布版本')
     return true
   }
@@ -2083,11 +2083,11 @@ export function useDeliveryWorkflow() {
       sharePage.value.draftVersion = sharePage.value.publishedVersion
       displayConfig.value.publicStatus = '已发布'
       persistSharePage(activeTask.value.id, sharePage.value)
-      if (before !== '已发布') addStatusLog('家长展示页', activeTask.value.id, before, '已发布', '草稿内容与已发布版本一致，恢复原发布状态')
+      if (before !== '已发布') addStatusLog('家长页面', activeTask.value.id, before, '已发布', '草稿内容与已发布版本一致，恢复原发布状态')
       notify('无需重复操作')
       return false
     }
-    await runAction('正在发布家长展示页和二维码...', '', async () => {
+    await runAction('正在发布家长页面和二维码...', '', async () => {
       const before = sharePage.value.status
       attendingRows.value.forEach((row) => {
         ensureStudentToken(activeTask.value.id, row.studentId)
@@ -2107,10 +2107,10 @@ export function useDeliveryWorkflow() {
       persistSharePage(activeTask.value.id, sharePage.value)
       activeTask.value.shareGenerated = true
       displayConfig.value.publicStatus = '已发布'
-      addStatusLog('家长展示页', activeTask.value.id, before, '已发布', `发布 V${sharePage.value.publishedVersion}`)
+      addStatusLog('家长页面', activeTask.value.id, before, '已发布', `发布 V${sharePage.value.publishedVersion}`)
       pulsePreview()
     })
-    notify('家长展示页已发布')
+    notify('家长页面已发布')
     return true
   }
 
@@ -2133,8 +2133,8 @@ export function useDeliveryWorkflow() {
     sharePage.value.revokedReason = reason.trim()
     displayConfig.value.publicStatus = '已失效'
     persistSharePage(activeTask.value.id, sharePage.value)
-    addStatusLog('家长展示页', activeTask.value.id, before, '已失效', reason.trim())
-    notify('家长展示页已撤销，现有链接已失效')
+    addStatusLog('家长页面', activeTask.value.id, before, '已失效', reason.trim())
+    notify('家长页面已撤销，现有链接已失效')
     return true
   }
 
@@ -2349,7 +2349,7 @@ export function useDeliveryWorkflow() {
       status,
       dispatchStatus: dispatchWorking ? 'PENDING_CREATE' : dispatchFailed ? 'FAILED' : '',
       sentCount: sent + manual,
-      detail: `企微已发送 ${sent} · 人工发送 ${manual} · 待绑定 ${pendingBinding} · 待确认发送 ${pending}${failed ? ` · 初次发送失败 ${failed}（已进入待办中心，不阻断归档）` : ''}${dispatchWorking ? ` · 重新发送中 ${dispatchWorking}` : ''}${dispatchFailed ? ` · 最近发送失败 ${dispatchFailed}（可重新发送）` : ''}`,
+      detail: `企业微信已发送 ${sent} · 人工发送 ${manual} · 待绑定 ${pendingBinding} · 待确认发送 ${pending}${failed ? ` · 初次发送失败 ${failed}（已进入待办中心，不阻断归档）` : ''}${dispatchWorking ? ` · 重新发送中 ${dispatchWorking}` : ''}${dispatchFailed ? ` · 最近发送失败 ${dispatchFailed}（可重新发送）` : ''}`,
       updatedAt: nowText()
     })
   }
@@ -2380,7 +2380,7 @@ export function useDeliveryWorkflow() {
     setArchiveChecklistItem('parentTouch', { status: '创建中' })
     const nextStatus = '待老师确认发送'
     await runAction(
-      '正在创建企业微信家长通知任务...',
+      '正在创建企业微信发送任务...',
       '',
       async () => {
         attendingRows.value.forEach((row) => {
@@ -2405,20 +2405,20 @@ export function useDeliveryWorkflow() {
         })
         setArchiveChecklistItem('parentTouch', {
           status: nextStatus,
-          method: '企业微信家长通知',
+          method: '企业微信发送',
           sentCount: 0,
-          detail: `已创建 ${attendingRows.value.length} 个企微通知任务，等待负责人在企业微信客户端确认发送`
+          detail: `已创建 ${attendingRows.value.length} 个企业微信发送任务，等待负责人在企业微信客户端确认发送`
         })
         addStatusLog(
           '家长通知',
           activeTask.value.id,
           before,
           nextStatus,
-          `发布展示页 V${sharePage.value.publishedVersion} 并创建 ${attendingRows.value.length} 个企微通知任务`
+          `发布家长页面 V${sharePage.value.publishedVersion} 并创建 ${attendingRows.value.length} 个企业微信发送任务`
         )
       }
     )
-    notify(`已创建 ${attendingRows.value.length} 个企微通知任务`)
+    notify(`已创建 ${attendingRows.value.length} 个企业微信发送任务`)
     return true
   }
 
@@ -2739,7 +2739,7 @@ export function useDeliveryWorkflow() {
   const addExternalLink = (payload) => {
     const link = {
       id: nextId(externalLinks),
-      title: payload.title || '新外部课程',
+      title: payload.title || '新学习资源',
       url: payload.url || 'https://example.com/course',
       platform: payload.platform || '通用链接',
       note: payload.note || '',
@@ -4121,7 +4121,7 @@ export function useDeliveryWorkflow() {
         dispatchStatus: dispatchWorking ? 'PENDING_CREATE' : dispatchFailed ? 'FAILED' : '',
         sentCount: touchTasks.filter((task) => ['SENT', 'MANUALLY_COMPLETED'].includes(touchBusinessStatus(task))).length,
         detail: touchTasks.length
-          ? `已创建 ${touchTasks.length} 个家长通知任务${pendingBinding ? `，${pendingBinding} 个待绑定家长群` : ''}${dispatchWorking ? `，${dispatchWorking} 个正在重新发送` : ''}${dispatchFailed ? `，最近 ${dispatchFailed} 个发送失败，可重新发送` : ''}`
+          ? `已创建 ${touchTasks.length} 个发送任务${pendingBinding ? `，${pendingBinding} 个待绑定家长群` : ''}${dispatchWorking ? `，${dispatchWorking} 个正在重新发送` : ''}${dispatchFailed ? `，最近 ${dispatchFailed} 个发送失败，可重新发送` : ''}`
           : ''
       },
       studentCloudArchive: {
@@ -7279,7 +7279,7 @@ export function useDeliveryWorkflow() {
   }
 
   const shareDraftFailureMessageFor = (workspace) =>
-    workspace?.shareDraft?.error || '家长展示草稿自动保存失败，请重试'
+    workspace?.shareDraft?.error || '家长页面草稿自动保存失败，请重试'
 
   const markShareDraftDirty = (lessonId = activeTaskId.value) => {
     const workspace = shareDraftWorkspaceFor(lessonId)
@@ -7303,7 +7303,7 @@ export function useDeliveryWorkflow() {
   }
 
   const requestShareDraft = async (lessonId, payload, { silent = false, keepalive = false } = {}) => {
-    const label = '正在保存家长展示草稿...'
+    const label = '正在保存家长页面草稿...'
     const previousProcessingAction = processingAction.value
     if (!silent) processingAction.value = label
     try {
@@ -7346,7 +7346,7 @@ export function useDeliveryWorkflow() {
           const result = await requestShareDraft(lessonId, payload, { silent, keepalive })
           const pageValue = result?.page || result
           if (!pageValue || typeof pageValue !== 'object') {
-            throw new Error('保存家长展示草稿后未收到服务器版本')
+            throw new Error('保存家长页面草稿后未收到服务器版本')
           }
           const page = mapSharePage(pageValue)
           workspace.sharePage = mergeSharePageForWorkspace(workspace, page)
@@ -7363,7 +7363,7 @@ export function useDeliveryWorkflow() {
           forceSave = false
           if (revisionIsCurrent) {
             if (!silent) {
-              addStatusLog('家长展示页', lessonId, '已发布', '草稿', reason)
+              addStatusLog('家长页面', lessonId, '已发布', '草稿', reason)
             }
             return true
           }
@@ -7378,7 +7378,7 @@ export function useDeliveryWorkflow() {
             }
           }
           state.status = 'ERROR'
-          state.error = remoteErrorMessage(error, '家长展示草稿自动保存失败，请重试')
+          state.error = remoteErrorMessage(error, '家长页面草稿自动保存失败，请重试')
           if (notifyOnError) notify(shareDraftFailureMessageFor(workspace))
           return false
         }
@@ -7426,7 +7426,7 @@ export function useDeliveryWorkflow() {
   }
 
   const retryShareDraft = () => flushShareDraft(activeTaskId.value, {
-    reason: '重试保存家长展示草稿',
+    reason: '重试保存家长页面草稿',
     retryOnError: true,
     notifyOnError: true
   })
@@ -7491,11 +7491,11 @@ export function useDeliveryWorkflow() {
     if (!draftSaved) return false
     const pageState = ensureLessonWorkspace(activeTask.value).sharePage
     const result = await runRemote(
-      pageState.status === '已失效' ? '正在重新发布家长展示页...' : '正在发布家长展示页...',
+      pageState.status === '已失效' ? '正在重新发布家长页面...' : '正在发布家长页面...',
       () => pageState.status === '已失效'
         ? api.parent.republish(pageState.id, { reason: '更新展示内容后重新发布', version: pageState.version }, createIdempotencyKey(`share-republish:${activeTask.value.id}`))
         : api.parent.publish(activeTask.value.id, { version: pageState.version || 0 }, createIdempotencyKey(`share-publish:${activeTask.value.id}`)),
-      pageState.status === '已失效' ? '家长展示页已重新发布' : '家长展示页已发布'
+      pageState.status === '已失效' ? '家长页面已重新发布' : '家长页面已发布'
     )
     if (!result) return false
     const workspace = ensureLessonWorkspace(activeTask.value)
@@ -7514,7 +7514,7 @@ export function useDeliveryWorkflow() {
       notify('请填写撤销原因')
       return false
     }
-    const result = await runRemote('正在撤销家长展示页...', () => api.parent.revoke(page.id, { reason: reason.trim(), version: page.version }), '已撤销，现有链接已失效')
+    const result = await runRemote('正在撤销家长页面...', () => api.parent.revoke(page.id, { reason: reason.trim(), version: page.version }), '已撤销，现有链接已失效')
     if (!result) return false
     Object.assign(sharePage.value, mapSharePage(result))
     return true
@@ -7548,7 +7548,7 @@ export function useDeliveryWorkflow() {
       .map((row, index) => {
         const student = students.find((item) => sameId(item.id, row.studentId))
         const link = remoteStudentShareUrlFor(row)
-        return `${index + 1}. ${student?.name || row.studentName || '学生'}\n作品文件：${remoteFileNameFor(row)}\n展示页：${link || '待发布'}\n总课评：${totalFeedback.value?.content || '待填写'}${row.comment ? `\n学生补充课评：${row.comment}` : ''}`
+        return `${index + 1}. ${student?.name || row.studentName || '学生'}\n作品文件：${remoteFileNameFor(row)}\n家长页面：${link || '待发布'}\n总课评：${totalFeedback.value?.content || '待填写'}${row.comment ? `\n学生补充课评：${row.comment}` : ''}`
       })
       .join('\n\n')
   )
@@ -7572,12 +7572,12 @@ export function useDeliveryWorkflow() {
   const remoteCopyStudentLink = async (row) => {
     const link = remoteStudentShareUrlFor(row)
     if (!link) {
-      notify('当前学生还没有已发布的家长展示链接')
+      notify('当前学生还没有已发布的家长页面链接')
       return false
     }
     const copiedOk = await copyTextToClipboard(link)
     if (!copiedOk) {
-      notify('复制失败，请手动复制家长展示链接')
+      notify('复制失败，请手动复制家长页面链接')
       return false
     }
     markStudentLinkCopied(row.studentId)
@@ -7689,7 +7689,7 @@ export function useDeliveryWorkflow() {
     const initialFailures = lessonTasks.filter((task) => ['FAILED', 'CANCELED'].includes(touchBusinessStatus(task)))
     if (initialFailures.length) {
       for (const task of initialFailures) {
-        const retried = await runRemote('正在重试家长通知...', () => api.parent.retryTouch(task.id, { version: task.version }), '')
+        const retried = await runRemote('正在重试发送...', () => api.parent.retryTouch(task.id, { version: task.version }), '')
         if (!retried) return false
       }
     }
@@ -7718,7 +7718,7 @@ export function useDeliveryWorkflow() {
       ])
       return true
     }
-    const result = await runRemote('正在创建家长通知任务...', () => api.parent.touchTasks(lessonId, {
+    const result = await runRemote('正在创建发送任务...', () => api.parent.touchTasks(lessonId, {
       channel: 'WECOM',
       message: `${activeTask.value.date || ''} ${activeCourse.value.title || '本次课程'}课后展示已发布，请查看学生作品和课评`.trim(),
       sharePageVersion: sharePage.value.publishedVersion,
@@ -7744,7 +7744,7 @@ export function useDeliveryWorkflow() {
     const task = wecomTaskFor(lessonId, studentId)
     const link = remoteStudentShareUrlFor(row) || task?.shareUrl
     if (!link) {
-      notify('当前学生还没有已发布的家长展示链接')
+      notify('当前学生还没有已发布的家长页面链接')
       return false
     }
 
@@ -7784,7 +7784,7 @@ export function useDeliveryWorkflow() {
     if (!task?.id) return false
     const link = String(task.shareUrl || '').trim() || remoteStudentShareUrlFor({ studentId: task.studentId })
     if (!link) {
-      notify('当前学生还没有已发布的家长展示链接')
+      notify('当前学生还没有已发布的家长页面链接')
       return false
     }
     const copiedOk = await copyTextToClipboard(link)
@@ -7814,7 +7814,7 @@ export function useDeliveryWorkflow() {
     const action = manualConfirm ? api.parent.markSent : status === '人工发送' ? api.parent.fallbackManual : status === '已取消' ? api.parent.cancelTouch : null
     if (!action) return false
     const body = manualConfirm ? { version: task.version } : { reason: reason.trim() || '人工操作', version: task.version }
-    const result = await runRemote('正在更新家长通知...', () => action(task.id, body))
+    const result = await runRemote('正在更新发送状态...', () => action(task.id, body))
     if (!result) return false
     await Promise.all([
       refreshRemoteLesson(task.lessonId),
@@ -7840,7 +7840,7 @@ export function useDeliveryWorkflow() {
       ])
       return true
     }
-    const result = await runRemote('正在重试家长通知...', () => api.parent.retryTouch(task.id, { version: task.version }), '')
+    const result = await runRemote('正在重试发送...', () => api.parent.retryTouch(task.id, { version: task.version }), '')
     if (!result) return false
     await Promise.all([
       refreshRemoteLesson(task.lessonId),
@@ -8119,7 +8119,7 @@ export function useDeliveryWorkflow() {
     { key: 'lessonStatus', title: '课次状态' },
     { key: 'studentDelivery', title: '学生交付内容' },
     { key: 'deliveryConfirm', title: '作品与总课评' },
-    { key: 'parentTouch', title: '微信图文发送清单' },
+    { key: 'parentTouch', title: '发给家长' },
     { key: 'wheatTrace', title: '小麦消课确认' },
     { key: 'archiveExtras', title: '网盘或老师课效归档' },
     { key: 'completionCheck', title: '完成条件检查' },
@@ -8880,7 +8880,7 @@ export function useDeliveryWorkflow() {
 
   const remoteAddExternalLink = async (payload) => {
     const courseId = payload.courseId !== undefined ? payload.courseId : payload.courseIds?.[0]
-    const result = await runRemote('正在创建外部课程链接...', () => api.master.createExternalLink({ courseId: courseId ? String(courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined }), '', () => invalidateResource('externalLinks'))
+    const result = await runRemote('正在创建学习资源...', () => api.master.createExternalLink({ courseId: courseId ? String(courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined }), '', () => invalidateResource('externalLinks'))
     if (!result) return null
     const link = mapExternalLink(result)
     externalLinks.push(link)
@@ -8895,7 +8895,7 @@ export function useDeliveryWorkflow() {
       return null
     }
     const courseId = payload.courseId !== undefined ? payload.courseId : payload.courseIds?.[0]
-    const result = await runRemote('正在保存外部课程链接...', () => api.master.updateExternalLink(linkId, {
+    const result = await runRemote('正在保存学习资源...', () => api.master.updateExternalLink(linkId, {
       courseId: courseId ? String(courseId) : undefined, title: payload.title, url: payload.url, note: payload.note || undefined, status: apiEnabledStatus(payload.status), version: current?.version || 0
     }), '', () => invalidateResource('externalLinks'))
     if (!result) return null

@@ -102,7 +102,7 @@ const config = computed(() => {
     students: { title: '学生管理', action: '新增学生', empty: '暂无学生' },
     classes: { title: '班级管理', action: '新增班级', empty: '暂无班级' },
     courses: { title: '课程资料', action: '新增课程', empty: '暂无课程' },
-    externalLinks: { title: '外部在线课程信息', action: '新增外部课程', empty: '暂无外部课程链接' }
+    externalLinks: { title: '学习资源', action: '新增学习资源', empty: '暂无学习资源' }
   }
   return map[props.entity]
 })
@@ -126,7 +126,7 @@ const closeGenerationDialog = (result) => {
   showGenerationDialog.value = false
   props.state.notify?.(`新生成 ${result?.createdCount || 0} 节，已有 ${result?.existingCount || 0} 节，跳过 ${result?.skippedCount || 0} 节`)
 }
-const entityLabel = computed(() => ({ teachers: '老师', students: '学生', classes: '班级', courses: '课程', externalLinks: '外部课程链接' }[props.entity] || '记录'))
+const entityLabel = computed(() => ({ teachers: '老师', students: '学生', classes: '班级', courses: '课程', externalLinks: '学习资源' }[props.entity] || '记录'))
 const isArchivableEntity = computed(() => props.entity !== 'externalLinks')
 const draftSnapshot = (value) => JSON.stringify(value || {})
 const isDirty = computed(() => mode.value !== 'detail' && draftBaseline.value !== draftSnapshot(draft.value))
@@ -852,7 +852,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
         <table class="directory-table">
           <thead>
             <tr>
-              <th>{{ entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : entity === 'externalLinks' ? '外部课程链接' : '课程' }}</th>
+              <th>{{ entity === 'teachers' ? '老师' : entity === 'students' ? '学生' : entity === 'classes' ? '班级' : entity === 'externalLinks' ? '学习资源' : '课程' }}</th>
               <th v-if="entity === 'teachers'">职称</th>
               <th v-if="entity === 'students'">家长电话</th>
               <th v-if="entity === 'classes'">班型 / 老师</th>
@@ -879,7 +879,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
                 <small class="directory-subline">家长群：{{ wecomGroupSummary(record.wecomGroup) }}</small>
               </td>
               <td v-if="entity === 'classes'">{{ record.courseTitle || courseTitle(record.courseId) }} · {{ record.studentCount || record.studentIds?.length || 0 }} 人</td>
-              <td v-if="entity === 'courses'">{{ record.activeClassCount || 0 }} 个班 · {{ record.externalLinkCount || 0 }} 条外链</td>
+              <td v-if="entity === 'courses'">{{ record.activeClassCount || 0 }} 个班 · {{ record.externalLinkCount || 0 }} 条学习资源</td>
               <td><AppStatusTag :status="record.archived ? '已归档' : record.status" /></td>
               <td><button class="ghost" type="button" @click.stop="selectRecord(record)"><AppIcon :name="canEditMasterData && !record.archived ? 'edit' : 'view'" :size="15" />{{ canEditMasterData && !record.archived ? '编辑' : '查看详情' }}</button></td>
             </tr>

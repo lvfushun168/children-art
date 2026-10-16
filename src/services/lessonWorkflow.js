@@ -69,7 +69,7 @@ export const lessonArchiveGuard = (status) => {
 export const isLessonArchiveComplete = (status) => toApiLessonStatus(status) === 'COMPLETED'
 
 /**
- * 为已完成课次恢复家长触达展示状态。
+ * 为已完成课次恢复家长发送记录展示状态。
  *
  * 新流程使用逐学生发送确认记录，历史课次可能仍只有旧的通知任务记录。
  * 只有确认记录覆盖全部到课学生时才覆盖旧记录，避免影响历史数据回显。

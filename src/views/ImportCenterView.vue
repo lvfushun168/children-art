@@ -83,7 +83,7 @@ const mappingFields = computed(() => {
       { key: 'classNames', label: '所在班级' },
       { key: 'phone', label: '家长手机号' },
       { key: 'age', label: '年龄' },
-      { key: 'externalId', label: '学员编号' },
+      { key: 'externalId', label: '学号' },
       { key: 'note', label: '备注' }
     ]
   }

@@ -829,7 +829,7 @@ onMounted(() => {
           @input="handleTotalFeedbackInput"
           @blur="state.flushTotalFeedback?.()"
         />
-        <small>总课评独立于某个学生，内容会自动保存并作为新家长页面的主课评。</small>
+        <small>总课评独立于某个学生，内容会自动保存并作为家长页面的主课评。</small>
         <div class="mobile-student-editor-actions">
           <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? 'AI 正在生成…' : 'AI 润色' }}</button>
         </div>

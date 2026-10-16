@@ -22,7 +22,7 @@ export const navGroups = [
       { id: 'teachers', label: '老师', mark: '师', icon: 'teacher' },
       { id: 'students', label: '学生', mark: '生', icon: 'student' },
       { id: 'classes', label: '班级', mark: '班', icon: 'class' },
-      { id: 'externalLinks', label: '外链', mark: '链', icon: 'external-link' }
+      { id: 'externalLinks', label: '学习资源', mark: '链', icon: 'external-link' }
     ]
   },
   {

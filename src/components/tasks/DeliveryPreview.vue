@@ -151,7 +151,7 @@ const formatHomeworkDate = (value) => {
   <aside class="preview panel" :class="{ 'preview-pulse': previewPulse, 'comment-pulse': commentPulse }">
     <div class="section-head">
       <div>
-        <span>家长展示预览</span>
+        <span>家长页面预览</span>
         <strong>{{ activeStudent?.name || '未选择' }}</strong>
       </div>
       <button v-if="!reviewOnly" class="ghost" @click="$emit('copy-export')">{{ copied ? '已复制' : '复制链接' }}</button>
@@ -223,7 +223,7 @@ const formatHomeworkDate = (value) => {
         <div class="qr-code">{{ qrText }}</div>
         <div>
           <small>{{ parentShareUrl }}</small>
-          <a class="share-open-link" :href="parentShareUrl" target="_blank">打开家长 H5</a>
+          <a class="share-open-link" :href="parentShareUrl" target="_blank">打开家长页面</a>
         </div>
       </div>
       <small>{{ fileNameFor(activeSessionStudent) }}</small>

@@ -1,4 +1,5 @@
 <script setup>
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -202,7 +203,7 @@ onMounted(async () => {
 <template>
   <div class="schedule-page directory-page">
     <button v-if="groupLabel" class="module-back-link" type="button" @click="emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
-    <PageHead eyebrow="课后工作" title="课表 / 上课安排">
+    <PageHead title="课表 / 上课安排">
       <button class="primary" type="button" :disabled="!canGenerateLessons" @click="showGenerationDialog = true"><AppIcon name="add" :size="16" />创建固定排课</button>
     </PageHead>
 
@@ -241,7 +242,7 @@ onMounted(async () => {
         <button class="ghost" type="button" @click="reload"><AppIcon name="retry" :size="15" />重试</button>
       </div>
       <div v-else-if="state.scheduleLoading" class="notice-box">
-        <small>加载中…</small>
+        <small><LoadingSpinner /></small>
       </div>
       <div v-else class="schedule-calendar-state">
         <div v-if="!visibleLessons.length" class="notice-box">

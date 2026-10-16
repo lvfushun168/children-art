@@ -1,4 +1,8 @@
 <script setup>
+import HighlightMark from '../common/HighlightMark.vue'
+import RequiredMark from '../common/RequiredMark.vue'
+import SaveStatus from '../common/SaveStatus.vue'
+import DrawerHead from '../common/DrawerHead.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 import AppIcon from '../common/AppIcon.vue'
@@ -348,6 +352,11 @@ const statusFor = (row) => props.state.studentDeliveryStatusFor?.(row) || (
 )
 
 const statusClassFor = (row) => statusFor(row) === '已完成' ? 'done' : 'pending'
+const draftSaveState = (row) => {
+  const status = props.state.studentDraftStatusFor?.(row) || 'SAVED'
+  if (status === 'ERROR') return 'error'
+  return ['DIRTY', 'SAVING', 'CONFIRMING'].includes(status) ? 'saving' : 'saved'
+}
 const draftStatusTextFor = (row, field = '') => {
   const status = props.state.studentDraftStatusFor?.(row) || 'SAVED'
   if (field && !String(row?.[field] || '').trim() && status === 'SAVED') return ''
@@ -635,7 +644,7 @@ onMounted(() => {
       <span>学生作品 {{ state.counts.matched }}/{{ state.counts.attend }} 人</span>
       <span>作品 {{ state.counts.artworkCount }} 张</span>
       <span>课堂记录 {{ state.counts.records }}/{{ state.counts.attend }}</span>
-      <span>个人课评 {{ state.counts.comments }}/{{ state.counts.attend }}（选填）</span>
+      <span>个人课评 {{ state.counts.comments }}/{{ state.counts.attend }}</span>
       <span :class="state.counts.totalFeedbackReady ? 'ok-text' : 'missing-text'">总课评：{{ totalFeedbackStatus() }}</span>
     </div>
 
@@ -656,14 +665,14 @@ onMounted(() => {
           <tbody>
             <tr v-for="(row, rowIndex) in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" :class="{ 'delivery-row-done': statusFor(row) === '已完成' }">
               <td class="delivery-student-cell">
-                <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
-                <small>{{ studentFor(row.studentId).parent || '家长未填写' }}</small>
+                <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference" title="已归档" aria-label="已归档"><AppIcon name="archive" :size="13" /></em></strong>
+                <small v-if="studentFor(row.studentId).parent">{{ studentFor(row.studentId).parent }}</small>
               </td>
               <td class="delivery-artwork-cell">
                 <div v-if="workImages(row).length" class="delivery-thumb-strip">
                   <button v-for="(image, index) in workImages(row)" :key="`${image.artworkId || image.fileId || image.src}-${index}`" type="button" class="delivery-thumb" :class="{ 'delivery-thumb-highlight': image.highlight }" @click="openArtwork(row, artworkForImage(row, image))">
                     <ProtectedMedia :file-id="image.fileId" :src="image.src" :alt="`${studentFor(row.studentId).name}作品${index + 1}`" />
-                    <span v-if="image.highlight" class="delivery-highlight-badge">高光</span>
+                    <span v-if="image.highlight" class="delivery-highlight-badge" title="高光作品" aria-label="高光作品"><AppIcon name="highlight" :size="12" /></span>
                   </button>
                 </div>
                 <button v-else type="button" class="delivery-empty delivery-empty-action" @click="openArtwork(row)">尚未上传作品，点击上传</button>
@@ -680,7 +689,7 @@ onMounted(() => {
                 </label>
                 <div class="delivery-artwork-meta">
                   <span :class="row.imageMatched ? 'ok-text' : 'missing-text'">{{ row.imageMatched ? `已上传 ${row.artworkCount || workImages(row).length || 1} 张` : '待上传' }}</span>
-                  <span v-if="row.highlightCount" class="ok-text">{{ row.highlightCount }} 个高光</span>
+                  <span v-if="row.highlightCount" class="ok-text"><HighlightMark :size="12" /> {{ row.highlightCount }}</span>
                   <span v-if="row.imageMatched" class="delivery-artwork-version-status" :class="artworkVersionStatusClass(row)">{{ artworkVersionStatus(row) }}</span>
                   <span v-if="artworkProgress(row)" class="delivery-job-progress" :class="{ 'delivery-job-failed': artworkProgress(row).status === 'FAILED' }">{{ jobProgressLabel(artworkProgress(row)) }}</span>
                 </div>
@@ -740,7 +749,7 @@ onMounted(() => {
                 <small class="student-record-count">{{ studentRecordCountFor(row) }} 个文件</small>
               </td>
               <td class="delivery-record-cell">
-                <span class="delivery-field-status" :class="recordStatusFor(row) === '已保存' ? 'ok-text' : 'muted-text'">课堂记录（选填）：{{ recordStatusFor(row) === '待补' ? '未填写' : recordStatusFor(row) }}</span>
+                <span class="delivery-field-status muted-text">课堂记录</span>
                 <textarea
                   :id="`delivery-record-${rowIndex}`"
                   :name="`deliveryRecord-${row.studentId}`"
@@ -753,16 +762,16 @@ onMounted(() => {
                 />
                 <div class="delivery-cell-actions">
                   <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = row.studentId; state.simulateVoice()"><AppIcon name="voice" :size="15" />语音转文字</button>
-                  <span v-if="draftStatusTextFor(row, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(row)), error: state.studentDraftStatusFor?.(row) === 'ERROR' }" :title="state.studentDraftErrorFor?.(row) || ''" @click="state.studentDraftStatusFor?.(row) === 'ERROR' && retryDraft(row)">{{ draftStatusTextFor(row, 'record') }}</span>
+                  <SaveStatus v-if="draftStatusTextFor(row, 'record')" :status="draftSaveState(row)" @retry="retryDraft(row)" />
                 </div>
               </td>
               <td class="delivery-comment-cell">
-                <span class="delivery-comment-status" :class="commentStatusFor(row) === '已保存' ? 'ok-text' : 'muted-text'">个人课评（选填）：{{ commentStatusFor(row) === '待生成' ? '未填写' : commentStatusFor(row) }}</span>
+                <span class="delivery-comment-status muted-text">个人课评</span>
                 <p class="delivery-comment-preview">{{ row.comment?.trim() || '可补充只针对这名学生的课评。' }}</p>
                 <span v-if="feedbackProgress(row)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(row).status === 'FAILED' }">{{ jobProgressLabel(feedbackProgress(row)) }}</span>
                 <div class="delivery-cell-actions">
                   <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(row) || !row.record?.trim()" @click="openComment(row)">生成课评</button>
-                  <span v-if="draftStatusTextFor(row, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(row)), error: state.studentDraftStatusFor?.(row) === 'ERROR' }" :title="state.studentDraftErrorFor?.(row) || ''" @click="state.studentDraftStatusFor?.(row) === 'ERROR' && retryDraft(row)">{{ draftStatusTextFor(row, 'comment') }}</span>
+                  <SaveStatus v-if="draftStatusTextFor(row, 'comment')" :status="draftSaveState(row)" @retry="retryDraft(row)" />
                 </div>
               </td>
               <td class="delivery-status-cell">
@@ -794,8 +803,7 @@ onMounted(() => {
                     <div class="delivery-cell-actions delivery-total-feedback-actions">
                       <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? 'AI 正在生成…' : 'AI 润色' }}</button>
                     </div>
-                  <span v-if="totalFeedbackDraftStatus() === 'ERROR'" class="delivery-autosave-status error" @click="state.flushTotalFeedback?.()">{{ totalFeedbackDraftError() || '总课评自动保存失败，点击重试' }}</span>
-                  <span v-else-if="['DIRTY', 'SAVING'].includes(totalFeedbackDraftStatus())" class="delivery-autosave-status saving">总课评自动保存中</span>
+                  <SaveStatus v-if="['ERROR', 'DIRTY', 'SAVING'].includes(totalFeedbackDraftStatus())" :status="totalFeedbackDraftStatus() === 'ERROR' ? 'error' : 'saving'" :error-label="totalFeedbackDraftError() || '保存失败，点击重试'" saving-label="自动保存中" @retry="state.flushTotalFeedback?.()" />
                 </div>
               </td>
             </tr>
@@ -811,8 +819,7 @@ onMounted(() => {
       <section class="mobile-total-feedback-card">
         <header>
           <div>
-            <span>本节课</span>
-            <strong>总课评（必填）</strong>
+            <strong>总课评<RequiredMark /></strong>
           </div>
           <AppStatusTag class="delivery-status" :status="totalFeedbackStatus()" :tone="state.counts.totalFeedbackReady ? 'success' : 'pending'" />
         </header>
@@ -833,16 +840,16 @@ onMounted(() => {
         <div class="mobile-student-editor-actions">
           <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? 'AI 正在生成…' : 'AI 润色' }}</button>
         </div>
-        <span v-if="totalFeedbackDraftStatus() === 'ERROR'" class="delivery-autosave-status error" @click="state.flushTotalFeedback?.()">{{ totalFeedbackDraftError() || '总课评自动保存失败，点击重试' }}</span>
+        <SaveStatus v-if="['ERROR', 'DIRTY', 'SAVING'].includes(totalFeedbackDraftStatus())" :status="totalFeedbackDraftStatus() === 'ERROR' ? 'error' : 'saving'" :error-label="totalFeedbackDraftError() || '保存失败，点击重试'" saving-label="自动保存中" @retry="state.flushTotalFeedback?.()" />
       </section>
       <template v-if="!mobileStudent">
         <div class="student-delivery-mobile-list">
           <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" type="button" class="student-delivery-mobile-card" @click="openMobileStudent(row)">
             <span class="mobile-student-avatar">{{ studentFor(row.studentId).name.slice(0, 1) }}</span>
             <span class="mobile-student-copy">
-              <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference">（已归档）</em></strong>
-              <small>{{ studentFor(row.studentId).parent || '家长未填写' }}</small>
-              <span class="mobile-student-flags"><i :class="artworkStatusFor(row) === '已准备' ? 'done' : 'pending'">作品 {{ artworkStatusFor(row) }}</i><i>学生记录 {{ studentRecordCountFor(row) }}</i><i :class="recordStatusFor(row) === '已保存' ? 'done' : 'pending'">课堂记录 {{ recordStatusFor(row) === '待补' ? '选填' : recordStatusFor(row) }}</i><i :class="commentStatusFor(row) === '已保存' ? 'done' : 'pending'">个人课评 {{ commentStatusFor(row) === '待生成' ? '选填' : commentStatusFor(row) }}</i></span>
+              <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference" title="已归档" aria-label="已归档"><AppIcon name="archive" :size="13" /></em></strong>
+              <small v-if="studentFor(row.studentId).parent">{{ studentFor(row.studentId).parent }}</small>
+              <span class="mobile-student-flags"><i :class="artworkStatusFor(row) === '已准备' ? 'done' : 'pending'">作品 {{ artworkStatusFor(row) }}</i><i>学生记录 {{ studentRecordCountFor(row) }}</i><i :class="recordStatusFor(row) === '已保存' ? 'done' : 'pending'">课堂记录<template v-if="recordStatusFor(row) !== '待补'"> {{ recordStatusFor(row) }}</template></i><i :class="commentStatusFor(row) === '已保存' ? 'done' : 'pending'">个人课评<template v-if="commentStatusFor(row) !== '待生成'"> {{ commentStatusFor(row) }}</template></i></span>
             </span>
             <span class="mobile-student-status"><AppStatusTag :status="statusFor(row)" :tone="statusClassFor(row) === 'done' ? 'success' : 'pending'" /><b>›</b></span>
           </button>
@@ -856,7 +863,7 @@ onMounted(() => {
           <div>
             <span>第 {{ mobileStudentIndex + 1 }}/{{ state.attendingRows.length }} 位</span>
             <strong>{{ studentFor(mobileStudent.studentId).name }}</strong>
-            <small>{{ studentFor(mobileStudent.studentId).parent || '家长未填写' }}</small>
+            <small v-if="studentFor(mobileStudent.studentId).parent">{{ studentFor(mobileStudent.studentId).parent }}</small>
           </div>
           <AppStatusTag class="delivery-status" :status="statusFor(mobileStudent)" :tone="statusClassFor(mobileStudent) === 'done' ? 'success' : 'pending'" />
         </header>
@@ -884,8 +891,7 @@ onMounted(() => {
             <button type="button" class="mobile-student-section-row" @click="openMobileSection('record')">
               <span class="mobile-section-icon">记</span>
               <span class="mobile-section-copy">
-                <strong>课堂记录（选填）</strong>
-                <small>{{ recordStatusFor(mobileStudent) === '已保存' ? '已记录课堂表现' : '未填写也可以发布' }}</small>
+                <strong>课堂记录</strong>
               </span>
               <span class="mobile-section-status"><span>{{ recordStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
@@ -893,8 +899,7 @@ onMounted(() => {
             <button type="button" class="mobile-student-section-row" @click="openMobileSection('comment')">
               <span class="mobile-section-icon">评</span>
               <span class="mobile-section-copy">
-                <strong>个人课评（选填）</strong>
-                <small>{{ commentStatusFor(mobileStudent) === '已保存' ? '已填写学生补充课评' : '未填写也可以发布' }}</small>
+                <strong>个人课评</strong>
               </span>
               <span class="mobile-section-status"><span>{{ commentStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
@@ -966,7 +971,7 @@ onMounted(() => {
             <strong>{{ mobileSectionTitle }}</strong>
           </div>
           <article class="mobile-student-editor-card">
-            <header><strong>课堂记录（选填）</strong><span>{{ recordStatusFor(mobileStudent) === '待补' ? '未填写' : recordStatusFor(mobileStudent) }}</span></header>
+            <header><strong>课堂记录</strong></header>
             <textarea
               id="mobile-student-record"
               name="mobileStudentRecord"
@@ -979,7 +984,7 @@ onMounted(() => {
             />
             <div class="mobile-student-editor-actions">
               <button type="button" class="ghost" :disabled="state.isProcessing" @click="state.activeStudentId = mobileStudent.studentId; state.simulateVoice()"><AppIcon name="voice" :size="15" />语音转文字</button>
-              <span v-if="draftStatusTextFor(mobileStudent, 'record')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'record') }}</span>
+              <SaveStatus v-if="draftStatusTextFor(mobileStudent, 'record')" :status="draftSaveState(mobileStudent)" @retry="retryDraft(mobileStudent)" />
             </div>
           </article>
         </section>
@@ -990,7 +995,7 @@ onMounted(() => {
             <strong>{{ mobileSectionTitle }}</strong>
           </div>
           <article class="mobile-student-editor-card">
-            <header><strong>个人课评（选填）</strong><span>{{ commentStatusFor(mobileStudent) === '待生成' ? '未填写' : commentStatusFor(mobileStudent) }}</span></header>
+            <header><strong>个人课评</strong></header>
             <p class="mobile-comment-preview">{{ mobileStudent.comment?.trim() || '可补充只针对这名学生的课评。' }}</p>
             <textarea
               id="mobile-student-comment"
@@ -998,7 +1003,7 @@ onMounted(() => {
               aria-label="个人课评"
               v-model="mobileStudent.comment"
               rows="9"
-              placeholder="填写学生补充课评（选填）……"
+              placeholder="填写学生补充课评……"
               :readonly="state.isProcessing || feedbackJobActive(mobileStudent)"
               @input="markDraftDirty(mobileStudent)"
               @blur="flushDraft(mobileStudent)"
@@ -1006,7 +1011,7 @@ onMounted(() => {
             <div class="mobile-student-editor-actions">
               <small v-if="feedbackProgress(mobileStudent)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(mobileStudent).status === 'FAILED' }">{{ feedbackJobActive(mobileStudent) ? 'AI 正在生成' : jobProgressLabel(feedbackProgress(mobileStudent)) }}</small>
               <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)"><AppIcon name="retry" :size="15" />{{ feedbackJobActive(mobileStudent) ? '生成中…' : '重新生成' }}</button>
-              <span v-if="draftStatusTextFor(mobileStudent, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(mobileStudent)), error: state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' }" @click="state.studentDraftStatusFor?.(mobileStudent) === 'ERROR' && retryDraft(mobileStudent)">{{ draftStatusTextFor(mobileStudent, 'comment') }}</span>
+              <SaveStatus v-if="draftStatusTextFor(mobileStudent, 'comment')" :status="draftSaveState(mobileStudent)" @retry="retryDraft(mobileStudent)" />
             </div>
           </article>
         </section>
@@ -1021,14 +1026,7 @@ onMounted(() => {
 
     <div v-if="artworkRow" class="drawer-backdrop" @click.self="closeArtwork">
       <aside class="library-drawer artwork-process-drawer">
-        <header class="drawer-head">
-          <div>
-            <span>作品处理</span>
-            <strong>{{ studentFor(artworkRow.studentId).name }}</strong>
-            <small>{{ artworkItem ? (jobProgressLabel(artworkProgress(artworkItem)) || artworkItem.imageProcessStatus || '尚未处理') : '尚未上传作品' }}</small>
-          </div>
-          <button type="button" class="ghost" @click="closeArtwork"><AppIcon name="close" :size="16" />关闭</button>
-        </header>
+        <DrawerHead :title="`作品处理 · ${studentFor(artworkRow.studentId).name}`" :subtitle="artworkItem ? (jobProgressLabel(artworkProgress(artworkItem)) || artworkItem.imageProcessStatus || '尚未处理') : '尚未上传作品'" @close="closeArtwork" />
 
         <div v-if="artworkItems.length > 1" class="artwork-drawer-switcher">
           <button type="button" class="ghost" @click="switchArtwork(-1)">‹ 上一张</button>
@@ -1054,7 +1052,7 @@ onMounted(() => {
             @keydown.esc.prevent="cancelArtworkNameEdit"
             @blur="saveArtworkName"
           />
-          <small>{{ artworkNameSaving ? '正在保存作品名称…' : artworkItem?.artworkId ? '修改后按回车保存；名称会用于网盘归档。' : '上传作品后可编辑业务名称。' }}</small>
+          <small>{{ artworkItem?.artworkId ? '修改后按回车保存；名称会用于网盘归档。' : '上传作品后可编辑业务名称。' }}<SaveStatus v-if="artworkNameSaving" status="saving" saving-label="正在保存名称" /></small>
         </label>
 
         <label v-if="artworkItem" class="drawer-field">
@@ -1074,7 +1072,7 @@ onMounted(() => {
               <label class="artwork-media-upload" for="artwork-original-replace" :class="{ empty: !hasImage(imageAsset(artworkItem, 'original')) }" title="点击替换原图">
                 <ProtectedMedia v-if="hasImage(imageAsset(artworkItem, 'original'))" :file-id="imageAsset(artworkItem, 'original').fileId" :src="imageAsset(artworkItem, 'original').src" alt="作品原图" />
                 <span v-else class="delivery-empty">尚未上传原图，点击上传</span>
-                <span v-if="hasImage(imageAsset(artworkItem, 'original'))" class="artwork-media-hover-hint">点击替换原图</span>
+                <span v-if="hasImage(imageAsset(artworkItem, 'original'))" class="artwork-media-hover-hint" aria-hidden="true"><AppIcon name="upload" :size="18" /></span>
                 <input id="artwork-original-replace" name="artworkOriginalFile" type="file" accept="image/*" @change="replaceOriginalImage($event, artworkItem)" />
               </label>
               <button v-if="hasImage(imageAsset(artworkItem, 'original'))" type="button" class="artwork-remove-button" :disabled="state.isProcessing" title="移除作品" aria-label="移除作品" @click.stop="removeOriginalArtwork(artworkItem)">×</button>
@@ -1121,7 +1119,7 @@ onMounted(() => {
             <strong id="ai-image-prompt-title">AI 处理</strong>
             <small>{{ studentFor(artworkItem.studentId).name }} · {{ artworkItem.artworkTitle || '当前作品' }} · 输入处理要求生成处理图</small>
           </div>
-          <button type="button" class="ghost" :disabled="state.isProcessing" @click="closeAiPrompt"><AppIcon name="close" :size="16" />关闭</button>
+          <button type="button" class="ghost icon-only" :disabled="state.isProcessing" @click="closeAiPrompt" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
         </header>
 
 
@@ -1144,7 +1142,7 @@ onMounted(() => {
         </label>
 
         <footer class="modal-actions">
-          <button type="button" class="ghost" :disabled="state.isProcessing" @click="closeAiPrompt"><AppIcon name="close" :size="15" />取消</button>
+          <button type="button" class="ghost icon-only" :disabled="state.isProcessing" @click="closeAiPrompt" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button type="button" class="primary" :disabled="state.isProcessing || artworkJobActive(artworkItem)" @click="submitAiPrompt"><AppIcon name="play" :size="15" />{{ artworkJobActive(artworkItem) ? '处理中…' : '开始 AI 处理' }}</button>
         </footer>
       </section>
@@ -1152,14 +1150,7 @@ onMounted(() => {
 
     <div v-if="commentRow" class="drawer-backdrop" @click.self="closeComment">
       <aside class="library-drawer comment-review-drawer">
-        <header class="drawer-head">
-          <div>
-            <span>学生补充课评</span>
-            <strong>{{ studentFor(commentRow.studentId).name }}</strong>
-            <small>{{ feedbackJobActive(commentRow) ? 'AI 正在生成' : jobProgressLabel(feedbackProgress(commentRow)) || '可生成或编辑当前课评，编辑内容会自动保存。' }}</small>
-          </div>
-          <button type="button" class="ghost" @click="closeComment"><AppIcon name="close" :size="16" />关闭</button>
-        </header>
+        <DrawerHead :title="`${studentFor(commentRow.studentId).name} · 补充课评`" :subtitle="feedbackJobActive(commentRow) ? 'AI 正在生成' : jobProgressLabel(feedbackProgress(commentRow))" @close="closeComment" />
 
         <div class="comment-review-body">
           <section class="drawer-context-card">
@@ -1194,21 +1185,14 @@ onMounted(() => {
 
         <footer class="drawer-action-bar">
           <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(commentRow) || !commentRow.record?.trim()" @click="regenerateComment(commentRow)"><AppIcon name="retry" :size="15" />{{ feedbackJobActive(commentRow) ? '生成中…' : '重新生成' }}</button>
-          <span v-if="draftStatusTextFor(commentRow, 'comment')" class="delivery-autosave-status" :class="{ saving: ['DIRTY', 'SAVING', 'CONFIRMING'].includes(state.studentDraftStatusFor?.(commentRow)), error: state.studentDraftStatusFor?.(commentRow) === 'ERROR' }" @click="state.studentDraftStatusFor?.(commentRow) === 'ERROR' && retryDraft(commentRow)">{{ draftStatusTextFor(commentRow, 'comment') }}</span>
+          <SaveStatus v-if="draftStatusTextFor(commentRow, 'comment')" :status="draftSaveState(commentRow)" @retry="retryDraft(commentRow)" />
         </footer>
       </aside>
     </div>
 
     <div v-if="batchOpen" class="drawer-backdrop" @click.self="closeBatch">
       <aside class="library-drawer batch-operations-drawer">
-        <header class="drawer-head">
-          <div>
-            <span>批量操作</span>
-            <strong>一次处理多个学生</strong>
-            <small>批量处理当前课次的作品和课评内容。</small>
-          </div>
-          <button type="button" class="ghost" @click="closeBatch"><AppIcon name="close" :size="16" />关闭</button>
-        </header>
+        <DrawerHead title="批量操作" @close="closeBatch" />
 
         <div class="batch-operations-body">
           <section class="batch-operation-card">

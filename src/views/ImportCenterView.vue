@@ -1,4 +1,6 @@
 <script setup>
+import RequiredMark from '../components/common/RequiredMark.vue'
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import AppIcon from '../components/common/AppIcon.vue'
@@ -294,7 +296,7 @@ const confirmImport = async () => {
 </script>
 
 <template>
-  <PageHead eyebrow="基础数据" title="数据导入">
+  <PageHead title="数据导入">
     <button v-if="mode === 'home'" class="primary" type="button" @click="startImport"><AppIcon name="upload" :size="16" />选择文件</button>
     <button v-else-if="mode === 'detail'" class="ghost" type="button" @click="closeBatchDetail"><AppIcon name="back" :size="16" />返回数据导入</button>
     <button v-else class="ghost" type="button" :disabled="isBusy" @click="exitImport"><AppIcon name="close" :size="16" />退出本次导入</button>
@@ -321,8 +323,7 @@ const confirmImport = async () => {
 
     <section class="import-start-card panel">
       <div>
-        <span>导入新的数据</span>
-        <strong>选择 Excel 后系统会自动读取并生成预览</strong>
+        <strong>导入新的数据</strong>
       </div>
       <button class="primary" type="button" @click="startImport"><AppIcon name="upload" :size="16" />选择文件</button>
     </section>
@@ -342,7 +343,6 @@ const confirmImport = async () => {
   <section v-else class="import-workspace panel">
     <section v-if="mode === 'select'" class="import-focus-step">
       <div class="import-step-copy">
-        <span>数据导入</span>
         <h2>选择文件，系统会自动生成预览</h2>
       </div>
 
@@ -355,7 +355,7 @@ const confirmImport = async () => {
 
       <label class="upload-zone" :class="{ disabled: isBusy }">
         <strong>选择 Excel 文件</strong>
-        <span>支持 .xls、.xlsx；选中文件后自动开始读取</span>
+        <span>支持 .xls、.xlsx</span>
         <input type="file" accept=".xlsx,.xls" :disabled="isBusy" @click="$event.target.value = ''" @change="handleFile" />
       </label>
 
@@ -377,7 +377,7 @@ const confirmImport = async () => {
         <summary>字段映射</summary>
         <div class="mapping-grid">
           <label v-for="field in mappingFields" :key="field.key">
-            {{ field.label }}<em v-if="field.required">必填</em>
+            {{ field.label }}<RequiredMark v-if="field.required" />
             <AdaptiveSelect v-model="fieldMapping[field.key]" :options="[{ label: '自动识别', value: '' }, ...mappingOptions.filter((option) => option)]" />
           </label>
         </div>
@@ -392,7 +392,7 @@ const confirmImport = async () => {
         <p>{{ detailBatch?.time }} · {{ detailBatch?.statusLabel }} · 共 {{ detailBatch?.totalRows || 0 }} 行，已写入 {{ detailBatch?.importedRows || 0 }} 条</p>
       </div>
 
-      <div v-if="detailLoading" class="import-empty-preview">加载中…</div>
+      <div v-if="detailLoading" class="import-empty-preview"><LoadingSpinner /></div>
       <div v-else-if="detailError" class="import-error" role="alert">
         <strong>加载失败</strong>
         <span>{{ detailError }}</span>

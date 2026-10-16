@@ -95,7 +95,7 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
         <div>
           <h2 id="generation-title">固定排课</h2>
         </div>
-        <button class="ghost" type="button" @click="emit('close')"><AppIcon name="close" :size="16" />关闭</button>
+        <button class="ghost icon-only" type="button" @click="emit('close')" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
       </header>
 
       <div class="generation-form">
@@ -129,7 +129,7 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
       </div>
 
       <footer class="dialog-actions">
-        <button class="ghost" type="button" :disabled="loading" @click="emit('close')"><AppIcon name="close" :size="15" />取消</button>
+        <button class="ghost icon-only" type="button" :disabled="loading" @click="emit('close')" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
         <button class="secondary" type="button" :disabled="loading || !canSubmit" @click="loadPreview"><AppIcon name="view" :size="15" />{{ loading ? '处理中…' : '预览数量' }}</button>
         <button class="primary" type="button" :disabled="loading || !canSubmit" @click="generate"><AppIcon name="calendar" :size="16" />确认生成</button>
       </footer>

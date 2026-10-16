@@ -1,4 +1,6 @@
 <script setup>
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import HighlightMark from '../components/common/HighlightMark.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -574,12 +576,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
 
   <section v-if="activeTab === 'studentWorks'" class="archive-workspace-layout">
     <section class="archive-filter-bar panel">
-      <div class="section-head">
-        <div>
-          <span>学生作品档案</span>
-          <strong>{{ workPage.total }} 条记录</strong>
-        </div>
-      </div>
       <div class="archive-filter-fields student-work-filter-fields">
         <label>
           学生
@@ -612,7 +608,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
     <section class="archive-results panel">
       <div class="section-head">
         <div>
-          <span>归档记录</span>
           <strong>{{ workPage.total }} 条</strong>
         </div>
         <button class="ghost" :disabled="!workRecords.length" @click="toggleAllVisible"><AppIcon name="check" :size="15" />
@@ -643,11 +638,11 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>
           <strong>{{ record.title || `${record.studentName} · ${record.course}` }}</strong>
           <small>{{ record.date }} {{ record.time }} · {{ record.className }} · {{ record.teacher }}</small>
-          <small>{{ record.artworkCount || 0 }} 张作品<span v-if="record.highlight"> · {{ record.artworks?.filter((artwork) => artwork.highlight).length || 1 }} 个高光</span><span v-if="record.studentRecordCount"> · {{ record.studentRecordCount }} 个学生记录</span></small>
+          <small>{{ record.artworkCount || 0 }} 张作品<span v-if="record.highlight"> · <HighlightMark :size="12" /> {{ record.artworks?.filter((artwork) => artwork.highlight).length || 1 }}</span><span v-if="record.studentRecordCount"> · {{ record.studentRecordCount }} 个学生记录</span></small>
           <em v-if="record.sourceType === 'extraTask'">课外作品</em>
           <AppStatusTag v-if="record.archiveStatus === 'CURRENT'" :size="12" tone="pending" :status="'进行中'" />
           <AppStatusTag v-else :size="12" tone="success" :status="'正式档案'" />
-          <AppStatusTag v-if="record.highlight" :size="12" tone="success" :status="'高光作品'" />
+          <HighlightMark v-if="record.highlight" :size="14" />
           <AppStatusTag v-if="record.framed" :size="12" tone="success" :status="'已装裱'" />
           <AppStatusTag v-if="record.collectionIds?.length" :size="12" tone="success" :status="'已入选作品集'" />
         </span>
@@ -661,12 +656,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
 
   <section v-if="activeTab === 'lessons'" class="archive-workspace-layout lesson-archive-layout">
     <section class="archive-filter-bar panel">
-      <div class="section-head">
-        <div>
-          <span>课堂资料档案</span>
-          <strong>{{ lessonPage.total }} 节课</strong>
-        </div>
-      </div>
       <div class="archive-filter-fields compact-archive-filter-fields">
         <label>
           班级
@@ -685,12 +674,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
     </section>
 
     <section class="archive-results panel">
-      <div class="section-head">
-        <div>
-          <span>课堂记录（上传后立即可查，提交归档后转为正式档案）</span>
-          <strong>{{ lessonPage.total }} 节</strong>
-        </div>
-      </div>
       <button
         v-for="lesson in filteredLessonArchives"
         :key="lesson.id"
@@ -702,9 +685,9 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
           <strong>{{ lesson.date }} {{ lesson.time }} · {{ lesson.course }}</strong>
           <small>
             {{ lesson.className }}<template v-if="lesson.classType">（{{ lesson.classType }}）</template>
-            <em v-if="lesson.classArchived" class="archived-reference">班级已归档</em>
+            <em v-if="lesson.classArchived" class="archived-reference" title="班级已归档" aria-label="班级已归档"><AppIcon name="archive" :size="13" /></em>
             · {{ lesson.teacher }}
-            <em v-if="lesson.teacherArchived" class="archived-reference">老师已归档</em>
+            <em v-if="lesson.teacherArchived" class="archived-reference" title="老师已归档" aria-label="老师已归档"><AppIcon name="archive" :size="13" /></em>
             · {{ lesson.lessonType }}
             <AppStatusTag
               :size="12"
@@ -715,7 +698,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         </span>
         <div>
           <em>{{ lesson.materialCount ?? lesson.materials?.length ?? 0 }} 份资料</em>
-          <small>{{ lesson.worksCount }} 件作品 · {{ lesson.highlights }} 个高光</small>
+          <small>{{ lesson.worksCount }} 件作品<template v-if="lesson.highlights"> · <HighlightMark :size="12" /> {{ lesson.highlights }}</template></small>
         </div>
       </button>
       <div v-if="!filteredLessonArchives.length" class="notice-box">
@@ -729,12 +712,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
 
   <section v-if="activeTab === 'teacherEffects'" class="archive-workspace-layout teacher-effect-layout">
     <section class="archive-filter-bar panel">
-      <div class="section-head">
-        <div>
-          <span>老师课效档案</span>
-          <strong>{{ effectPage.total }} 张长图</strong>
-        </div>
-      </div>
       <div class="archive-filter-fields compact-archive-filter-fields">
         <label>
           老师
@@ -755,12 +732,6 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
     </section>
 
     <section class="archive-results panel">
-      <div class="section-head">
-        <div>
-          <span>课效长图</span>
-          <strong>{{ effectPage.total }} 条</strong>
-        </div>
-      </div>
       <button
         v-for="effect in filteredTeacherEffects"
         :key="effect.id"
@@ -790,12 +761,11 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
     <aside ref="workDrawerElement" class="archive-drawer" role="dialog" aria-modal="true" aria-label="作品归档详情">
       <header class="archive-drawer-head">
         <div>
-          <span>{{ isEditingWork ? '编辑作品档案' : '作品归档详情' }} · {{ selected.archiveStatus === 'CURRENT' ? '进行中' : '正式档案' }}</span>
           <strong>{{ selected.title || `${selected.studentName} · ${selected.course}` }}</strong>
         </div>
         <div class="archive-drawer-actions">
           <button v-if="!isEditingWork && canEditSelectedWork" class="primary" @click="startWorkEdit"><AppIcon name="edit" :size="15" />编辑</button>
-          <button v-if="!isEditingWork" class="ghost" @click="closeWorkDrawer"><AppIcon name="close" :size="16" />关闭</button>
+          <button v-if="!isEditingWork" class="ghost icon-only" @click="closeWorkDrawer" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
         </div>
       </header>
       <section class="archive-image-readonly">
@@ -809,12 +779,12 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
               @click="previewSelectedArtwork(artwork, index)"
             >
               <ProtectedMedia class="archive-main-image" :file-id="artwork.fileId" :src="artwork.image" :alt="artwork.title || selected.studentName" :observer-root="workDrawerElement" root-margin="80px" />
-              <span class="archive-image-hint">点击查看原图</span>
+              <span class="archive-image-hint" aria-hidden="true"><AppIcon name="zoom-in" :size="18" /></span>
             </button>
             <div v-else class="file-tile archive-main-image-empty">暂无原图</div>
             <figcaption>
               <strong>{{ artwork.title || `作品${index + 1}` }}</strong>
-              <span v-if="artwork.highlight" class="archive-highlight-label">高光</span>
+              <span v-if="artwork.highlight" class="archive-highlight-label" title="高光作品" aria-label="高光作品"><AppIcon name="highlight" :size="12" /></span>
               <button v-if="artwork.fileId" class="archive-download-link" type="button" :disabled="Boolean(downloadingFileId)" @click.stop="downloadArtwork(artwork, `${selected.studentName || '学生'}作品`, index)">
                 {{ downloadingFileId === String(artwork.fileId) ? '下载中…' : '下载' }}
               </button>
@@ -837,7 +807,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
               @click="previewStudentRecord(record, index)"
             >
               <ProtectedMedia class="archive-main-image" :file-id="record.fileId" :src="record.image" :alt="record.title || selected.studentName" :observer-root="workDrawerElement" root-margin="80px" />
-              <span class="archive-image-hint">查看原图</span>
+              <span class="archive-image-hint" aria-hidden="true"><AppIcon name="zoom-in" :size="18" /></span>
             </button>
             <ProtectedMedia
               v-else-if="isVideoAsset(record) && record.fileId"
@@ -1004,7 +974,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
       <footer v-if="isEditingWork" class="archive-edit-actions">
         <p v-if="workEditError">{{ workEditError }}</p>
         <div>
-          <button class="ghost" @click="cancelWorkEdit"><AppIcon name="close" :size="15" />取消</button>
+          <button class="ghost icon-only" @click="cancelWorkEdit" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button class="primary" @click="saveWorkEdit"><AppIcon name="save" :size="16" />保存修改</button>
         </div>
       </footer>
@@ -1015,10 +985,9 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
     <aside ref="lessonDrawerElement" class="archive-drawer lesson-archive-detail" role="dialog" aria-modal="true" aria-label="课堂完整档案">
       <header class="archive-drawer-head">
         <div>
-          <span>课堂完整档案</span>
           <strong>{{ selectedLesson.className }} · {{ selectedLesson.course }} · {{ selectedLesson.archiveStatus === 'CURRENT' ? '进行中' : '正式档案' }}</strong>
         </div>
-        <button class="ghost" @click="showLessonDrawer = false"><AppIcon name="close" :size="16" />关闭</button>
+        <button class="ghost icon-only" @click="showLessonDrawer = false" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
       </header>
 
       <section class="archive-overview-grid">
@@ -1032,8 +1001,8 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
         <span>课次信息</span>
         <div class="archive-meta">
           <span>{{ selectedLesson.date }} {{ selectedLesson.time || '未记录时间' }}</span>
-          <span>{{ selectedLesson.teacher }}<em v-if="selectedLesson.teacherArchived" class="archived-reference">（已归档）</em></span>
-          <span>{{ selectedLesson.className }}<template v-if="selectedLesson.classType">（{{ selectedLesson.classType }}）</template><em v-if="selectedLesson.classArchived" class="archived-reference">（已归档）</em></span>
+          <span>{{ selectedLesson.teacher }}<em v-if="selectedLesson.teacherArchived" class="archived-reference" title="已归档" aria-label="已归档"><AppIcon name="archive" :size="13" /></em></span>
+          <span>{{ selectedLesson.className }}<template v-if="selectedLesson.classType">（{{ selectedLesson.classType }}）</template><em v-if="selectedLesson.classArchived" class="archived-reference" title="已归档" aria-label="已归档"><AppIcon name="archive" :size="13" /></em></span>
           <span>{{ selectedLesson.lessonType }}</span>
         </div>
       </section>
@@ -1057,7 +1026,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
               @click="previewLessonAsset(asset)"
             >
               <ProtectedMedia :file-id="asset.fileId" :src="asset.image" :alt="asset.title" :observer-root="lessonDrawerElement" root-margin="80px" />
-              <span class="archive-image-hint">查看原图</span>
+              <span class="archive-image-hint" aria-hidden="true"><AppIcon name="zoom-in" :size="18" /></span>
             </button>
             <ProtectedMedia
               v-else-if="isVideoAsset(asset) && asset.fileId"
@@ -1079,7 +1048,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
               @click="downloadLessonAsset(asset)"
             >
               <strong>{{ assetFileLabel(asset) }}</strong>
-              <small>{{ downloadingFileId === String(asset.fileId) ? '下载中…' : '点击下载' }}</small>
+              <small><LoadingSpinner v-if="downloadingFileId === String(asset.fileId)" :size="14" /><AppIcon v-else name="download" :size="14" /></small>
             </button>
             <div v-else class="file-tile archive-file-tile">
               <strong>{{ assetFileLabel(asset) }}</strong>
@@ -1112,12 +1081,12 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
                   @click="previewLessonWork(work, artwork, index)"
                 >
                   <ProtectedMedia :file-id="artwork.fileId" :src="artwork.image" :alt="artwork.title || work.studentName" :observer-root="lessonDrawerElement" root-margin="80px" />
-                  <span class="archive-image-hint">查看原图</span>
+                  <span class="archive-image-hint" aria-hidden="true"><AppIcon name="zoom-in" :size="18" /></span>
                 </button>
                 <div v-else class="file-tile">缺图</div>
                 <figcaption>
                   <span>{{ artwork.title || `作品${index + 1}` }}</span>
-                  <em v-if="artwork.highlight">高光</em>
+                  <HighlightMark v-if="artwork.highlight" :size="13" />
                   <button v-if="artwork.fileId" class="archive-download-link" type="button" :disabled="Boolean(downloadingFileId)" @click.stop="downloadLessonWork(work, artwork, index)">
                     {{ downloadingFileId === String(artwork.fileId) ? '下载中…' : '下载' }}
                   </button>
@@ -1127,7 +1096,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
             <div v-else class="file-tile">缺图</div>
             <strong>{{ work.studentName }}</strong>
             <small>{{ work.course || selectedLesson.course }}</small>
-            <em v-if="work.highlight">{{ work.artworkCount }} 张作品 · {{ work.artworks.filter((artwork) => artwork.highlight).length }} 个高光</em>
+            <em v-if="work.highlight">{{ work.artworkCount }} 张作品 · <HighlightMark :size="12" /> {{ work.artworks.filter((artwork) => artwork.highlight).length }}</em>
           </article>
         </div>
       </section>
@@ -1138,10 +1107,9 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
     <aside ref="effectDrawerElement" class="archive-drawer" role="dialog" aria-modal="true" aria-label="课效长图详情">
       <header class="archive-drawer-head">
         <div>
-          <span>课效长图详情</span>
           <strong>{{ selectedEffect.teacher }} · {{ selectedEffect.course }}</strong>
         </div>
-        <button class="ghost" @click="showEffectDrawer = false"><AppIcon name="close" :size="16" />关闭</button>
+        <button class="ghost icon-only" @click="showEffectDrawer = false" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
       </header>
       <section class="teacher-effect-preview">
         <div>
@@ -1162,7 +1130,7 @@ const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
             :observer-root="effectDrawerElement"
             root-margin="80px"
           />
-          <span class="archive-image-hint">点击查看原图</span>
+          <span class="archive-image-hint" aria-hidden="true"><AppIcon name="zoom-in" :size="18" /></span>
         </button>
         <div v-else class="file-tile">
           <strong>{{ selectedEffect.status || '待生成' }}</strong>

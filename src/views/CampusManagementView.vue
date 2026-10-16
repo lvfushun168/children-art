@@ -1,4 +1,6 @@
 <script setup>
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import DrawerHead from '../components/common/DrawerHead.vue'
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -96,7 +98,7 @@ onMounted(loadCampuses)
     <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
-  <PageHead eyebrow="运营配置" title="校区管理">
+  <PageHead title="校区管理">
     <button class="primary" type="button" :disabled="!canEdit" @click="openEditor()"><AppIcon name="add" :size="15" />新增校区</button>
   </PageHead>
 
@@ -117,7 +119,7 @@ onMounted(loadCampuses)
         </div>
       </div>
 
-      <div v-if="state.campusLoading" class="identity-empty">加载中…</div>
+      <div v-if="state.campusLoading" class="identity-empty"><LoadingSpinner /></div>
       <div v-else-if="state.campusError" class="identity-empty identity-error">
         <strong>{{ state.campusError }}</strong>
         <button class="ghost" type="button" @click="loadCampuses"><AppIcon name="retry" :size="15" />重试</button>
@@ -147,7 +149,7 @@ onMounted(loadCampuses)
               <td>{{ campus.contactPhone || '—' }}</td>
               <td><AppStatusTag class="identity-status" :class="identityStatusClass(campus.status)" :status="identityStatusLabel(campus.status)" /></td>
               <td>
-                <button class="ghost" type="button" :disabled="!canEdit" @click="openEditor(campus)"><AppIcon name="edit" :size="15" />编辑</button>
+                <button class="ghost icon-only" type="button" :disabled="!canEdit" title="编辑" aria-label="编辑" @click="openEditor(campus)"><AppIcon name="edit" :size="15" /></button>
               </td>
             </tr>
           </tbody>
@@ -159,13 +161,7 @@ onMounted(loadCampuses)
 
   <div v-if="editorOpen" class="drawer-backdrop" @click.self="closeEditor">
     <aside class="library-drawer identity-drawer campus-editor-drawer">
-      <div class="drawer-head">
-        <div>
-          <span>机构校区</span>
-          <strong>{{ isEditing ? '编辑校区' : '新增校区' }}</strong>
-        </div>
-        <button class="icon-button" type="button" aria-label="关闭" @click="closeEditor"><AppIcon name="close" :size="17" /></button>
-      </div>
+      <DrawerHead :title="isEditing ? '编辑校区' : '新增校区'" @close="closeEditor" />
 
       <form class="identity-form" @submit.prevent="saveCampus">
         <label>
@@ -173,11 +169,11 @@ onMounted(loadCampuses)
           <input v-model="campusForm.code" required :disabled="isEditing" placeholder="例如：university-town" />
         </label>
         <label><span>校区名称</span><input v-model="campusForm.name" required placeholder="例如：大学城校区" /></label>
-        <label><span>地址</span><input v-model="campusForm.address" placeholder="选填" /></label>
-        <label><span>联系电话</span><input v-model="campusForm.contactPhone" placeholder="选填" /></label>
+        <label><span>地址</span><input v-model="campusForm.address" /></label>
+        <label><span>联系电话</span><input v-model="campusForm.contactPhone" /></label>
         <label v-if="isEditing"><span>状态</span><AdaptiveSelect v-model="campusForm.status" :options="editorStatusOptions" /></label>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeEditor"><AppIcon name="close" :size="15" />取消</button>
+          <button class="ghost icon-only" type="button" @click="closeEditor" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">
             <AppIcon name="save" :size="15" />
             {{ isEditing ? '保存修改' : '创建校区' }}

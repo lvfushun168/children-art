@@ -158,7 +158,7 @@ const backToReviewList = () => {
   <div v-if="state.toast" class="toast">{{ state.toast }}</div>
   <button v-if="groupLabel && isListStage" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
 
-  <PageHead eyebrow="课后工作 / 管理员" title="教管看板" />
+  <PageHead title="教管看板" />
 
   <section class="supervision-view">
     <div class="supervision-tabs" role="tablist" aria-label="教管看板维度">
@@ -218,7 +218,6 @@ const backToReviewList = () => {
     <template v-else-if="reviewStage === 'list'">
       <div class="mini-head">
         <div>
-          <span>课次质量评分</span>
           <strong>{{ pendingReviewLessons.length }} 节待评分</strong>
         </div>
       </div>
@@ -268,7 +267,6 @@ const backToReviewList = () => {
           <template v-if="activeLesson">
             <div class="mini-head">
               <div>
-                <span>课次评分</span>
                 <strong>{{ activeLesson.teacher }} · {{ activeLesson.className }}</strong>
               </div>
               <AppStatusTag :status="activeLesson.status" />

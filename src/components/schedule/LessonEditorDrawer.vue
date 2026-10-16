@@ -1,4 +1,5 @@
 <script setup>
+import DrawerHead from '../common/DrawerHead.vue'
 import { computed, ref, watch } from 'vue'
 import { sameId } from '../../services/mappers'
 import DateTimeRangeField from '../common/DateTimeRangeField.vue'
@@ -98,13 +99,7 @@ const save = () => {
 <template>
   <div v-if="lesson" class="drawer-backdrop lesson-editor-drawer-backdrop" @click.self="$emit('close')">
     <aside class="library-drawer lesson-editor-drawer" role="dialog" aria-modal="true" aria-label="编辑课次">
-      <div class="drawer-head">
-        <div>
-          <span>编辑课次</span>
-          <strong>{{ lesson.className || '未配置班级' }}</strong>
-        </div>
-        <button class="ghost" type="button" :disabled="saving" @click="$emit('close')"><AppIcon name="close" :size="16" />关闭</button>
-      </div>
+      <DrawerHead title="编辑课次" :subtitle="lesson.className || '未配置班级'" :close-disabled="saving" @close="$emit('close')" />
 
       <form class="lesson-editor-form" @submit.prevent="save">
         <DateTimeRangeField
@@ -136,7 +131,7 @@ const save = () => {
         <p class="lesson-editor-readonly">班级和学生关系不可在这里修改；如需更换班级或学生，请删除后重新创建。</p>
         <p v-if="formError" class="lesson-form-error" role="alert">{{ formError }}</p>
         <div class="lesson-editor-actions">
-          <button class="ghost" type="button" :disabled="saving" @click="$emit('close')"><AppIcon name="close" :size="15" />取消</button>
+          <button class="ghost icon-only" type="button" :disabled="saving" @click="$emit('close')" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button class="primary" type="submit" :disabled="saving">
             <AppIcon name="save" :size="16" />
             {{ saving ? '正在保存…' : '保存课次' }}

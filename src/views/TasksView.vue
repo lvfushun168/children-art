@@ -1,4 +1,5 @@
 <script setup>
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -52,9 +53,9 @@ const backFromWorkspace = () => {
   <div v-if="state.toast" class="toast">{{ state.toast }}</div>
   <template v-if="!workspaceOpen">
     <button v-if="groupLabel" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
-    <PageHead eyebrow="老师工作台" :title="`${state.currentUser?.name || '老师'}，今天辛苦了`" />
+    <PageHead :title="`${state.currentUser?.name || '老师'}，今天辛苦了`" />
     <section v-if="workspaceLoading" class="notice-box" role="status" aria-live="polite">
-      <strong>加载中…</strong>
+      <strong><LoadingSpinner /></strong>
     </section>
     <section v-if="!state.isAdmin && !state.currentUser?.teacherLinked" class="notice-box" role="alert">
       <strong>账号未关联老师档案，请联系管理员</strong>
@@ -73,7 +74,6 @@ const backFromWorkspace = () => {
     </section>
     <div class="today-summary">
       <article><strong>{{ todayTasks.length }}</strong><span>今日课次</span></article>
-      <article><strong>{{ unfinishedTasks.length }}</strong><span>待完成</span></article>
       <article><strong>{{ completedTasks.length }}</strong><span>已完成</span></article>
     </div>
     <TaskList

@@ -395,7 +395,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
                   <small>{{ secondarySummaryFor(item) }}</small>
                 </td>
                 <td><AppStatusTag class="template-status-tag" :class="{ disabled: uiStatus(item.status) === '停用' }" :status="uiStatus(item.status)" /></td>
-                <td><button class="ghost" type="button" @click.stop="selectTemplate(item)"><AppIcon :name="canWriteTemplates ? 'edit' : 'view'" :size="15" />{{ canWriteTemplates ? '编辑' : '查看详情' }}</button></td>
+                <td><button class="ghost icon-only" type="button" :title="canWriteTemplates ? '编辑' : '查看详情'" :aria-label="canWriteTemplates ? '编辑' : '查看详情'" @click.stop="selectTemplate(item)"><AppIcon :name="canWriteTemplates ? 'edit' : 'view'" :size="15" /></button></td>
               </tr>
             </tbody>
           </table>
@@ -422,11 +422,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <section class="panel directory-drawer template-config-drawer" role="dialog" aria-modal="true">
         <div class="section-head">
           <div>
-            <span>{{ mode === 'new' ? '新增' : mode === 'edit' ? '编辑' : '详情' }}</span>
             <strong>{{ mode === 'new' ? `新增${activeLabel}` : selected?.name || activeLabel }}</strong>
           </div>
           <div class="button-pair">
-            <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="16" />关闭</button>
+            <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
             <button v-if="mode === 'detail' && canWriteTemplates" class="secondary" type="button" @click="startEdit">编辑</button>
             <button v-if="mode !== 'detail'" class="primary" type="button" :disabled="formReadonly || (mode === 'edit' && !isDirty)" @click="save"><AppIcon name="save" :size="16" />{{ saving ? '保存中…' : '保存模板' }}</button>
           </div>
@@ -457,7 +456,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
               <details class="template-form-details">
                 <summary>AI 生成配置 <small>{{ draft.model || '默认模型' }}</small></summary>
                 <div class="form-grid">
-                  <label>指定模型（可选）<input v-model="draft.model" placeholder="留空使用系统 AI 配置中的文本模型" /></label>
+                  <label>指定模型<input v-model="draft.model" placeholder="留空使用系统 AI 配置中的文本模型" /></label>
                   <label>Temperature<input v-model.number="draft.temperature" type="number" min="0" max="2" step="0.1" /></label>
                   <label>Max Tokens<input v-model.number="draft.maxTokens" type="number" min="1" max="100000" /></label>
                   <label class="wide">System Prompt<textarea v-model="draft.systemPrompt" rows="6" /></label>

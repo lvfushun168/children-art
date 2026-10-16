@@ -96,11 +96,10 @@ const openSupervision = () => {
         <div class="todo-drawer-title">
           <span class="todo-drawer-icon"><AppIcon name="todo" :size="19" /></span>
           <div class="todo-drawer-copy">
-            <span>待办中心</span>
-            <strong>{{ totalCount }} 个待办</strong>
+            <strong>待办中心</strong>
           </div>
         </div>
-        <button type="button" class="ghost todo-drawer-close" @click="$emit('close')"><AppIcon name="close" :size="16" />关闭</button>
+        <button type="button" class="ghost todo-drawer-close icon-only" @click="$emit('close')" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
       </header>
 
       <div class="todo-center-layout">
@@ -122,7 +121,6 @@ const openSupervision = () => {
 
         <div class="todo-list-pane">
           <section v-if="activeCategory === 'lessons'" class="todo-group">
-            <div class="mini-head"><div><span>待完成课次</span><strong>{{ pendingLessons.length }} 节未完成</strong></div></div>
             <button v-for="task in pendingLessons" :key="task.id" type="button" class="todo-row" @click="goTask(task)">
               <div>
                 <strong>{{ task.date || task.dateValue }} {{ task.time }} · {{ klassName(task) }}</strong>
@@ -134,7 +132,6 @@ const openSupervision = () => {
           </section>
 
           <section v-if="activeCategory === 'wecom'" class="todo-group">
-            <div class="mini-head"><div><span>待发给家长</span><strong>{{ wecomTodos.length }} 条待处理</strong></div></div>
             <article v-for="task in wecomTodos" :key="`wecom-${task.id}`" class="todo-trace-row">
               <div>
                 <strong>{{ task.studentName }}（{{ task.targetName }}）</strong>
@@ -145,7 +142,7 @@ const openSupervision = () => {
                 <small v-if="['已发送', '人工发送'].includes(task.status) && task.wecomDispatchStatusCode === 'FAILED'">最近一次发送失败，可重新发送</small>
               </div>
               <AppStatusTag :status="task.status" />
-              <input v-model="reasons[`wecom-${task.id}`]" placeholder="取消发送原因（必填）" />
+              <input v-model="reasons[`wecom-${task.id}`]" placeholder="取消发送原因 *" />
               <div class="button-pair">
                 <button v-if="task.status === '待老师确认发送'" type="button" class="secondary" @click="updateWecomTask(task, '已发送')"><AppIcon name="check" :size="15" />人工确认已发送</button>
                 <button v-if="typeof state.canResendWecomTask === 'function' && state.canResendWecomTask(task)" type="button" class="secondary" @click="state.retryWecomSendTask(task)"><AppIcon name="retry" :size="15" />重新发送</button>
@@ -159,7 +156,6 @@ const openSupervision = () => {
           </section>
 
           <section v-if="activeCategory === 'cloud'" class="todo-group">
-            <div class="mini-head"><div><span>网盘异常</span><strong>{{ cloudTodos.length }} 条同步失败</strong></div></div>
             <article v-for="job in cloudTodos" :key="`cloud-${job.id}`" class="todo-trace-row">
               <div>
                 <strong>{{ job.targetFilename || job.targetPath || '网盘文件' }}</strong>
@@ -176,7 +172,7 @@ const openSupervision = () => {
           </section>
 
           <section v-if="activeCategory === 'reviews'" class="todo-group">
-            <div class="mini-head"><div><span>待评分</span><strong>{{ reviewTodos.length }} 节待评分</strong></div><button type="button" class="ghost" @click="openSupervision"><AppIcon name="view" :size="15" />去教管看板</button></div>
+            <div class="mini-head"><button type="button" class="ghost" @click="openSupervision"><AppIcon name="view" :size="15" />去教管看板</button></div>
             <article v-for="review in reviewTodos" :key="`review-${review.id}`" class="todo-row static">
               <div>
                 <strong>{{ review.date || review.dateValue }}<span v-if="review.time"> {{ review.time }}</span> · {{ review.className || klassName(review) }}</strong>

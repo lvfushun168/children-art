@@ -15302,3 +15302,139 @@ textarea:focus,
     font-size: 14px;
   }
 }
+
+/* ===== 共用小组件：加载转圈、保存状态、必填标记、抽屉头 ===== */
+.loading-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+}
+
+.loading-spinner .app-icon,
+.save-status.is-saving .app-icon {
+  animation: spin 0.9s linear infinite;
+}
+
+.loading-spinner.is-block {
+  display: flex;
+  padding: 18px 0;
+}
+
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  vertical-align: middle;
+}
+
+.save-status.is-saved {
+  color: var(--color-status-success-text, var(--color-primary));
+}
+
+.save-status.is-error {
+  color: var(--color-danger);
+  cursor: pointer;
+}
+
+.required-star {
+  margin-left: 2px;
+  color: var(--color-danger);
+  font-weight: 800;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.icon-button:not(:disabled):hover {
+  background: var(--color-surface-muted);
+  color: var(--color-heading);
+}
+
+.drawer-head > .drawer-head-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.highlight-mark {
+  display: inline-flex;
+  align-items: center;
+  color: #d9960b;
+}
+
+.highlight-mark .app-icon {
+  fill: currentColor;
+}
+
+.icon-only {
+  width: 38px;
+  min-width: 38px;
+  padding: 0 !important;
+}
+
+.save-status + .save-status,
+small .save-status {
+  margin-left: 6px;
+}
+
+.hint-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  justify-self: start;
+  color: var(--color-muted);
+  cursor: help;
+}
+
+.hint-tip::after {
+  content: attr(data-hint);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  display: none;
+  width: max-content;
+  max-width: min(320px, 70vw);
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-warm);
+  color: var(--color-heading);
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-heading) 18%, transparent);
+  white-space: normal;
+}
+
+.hint-tip:hover::after,
+.hint-tip:focus::after {
+  display: block;
+}
+
+.archived-reference {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.archive-image-hint .app-icon,
+.artwork-media-hover-hint .app-icon {
+  display: block;
+}

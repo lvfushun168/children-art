@@ -1,4 +1,5 @@
 <script setup>
+import DrawerHead from '../common/DrawerHead.vue'
 import { computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import AppStatusTag from '../common/AppStatusTag.vue'
@@ -35,13 +36,7 @@ const lessonSource = computed(() => ({
 <template>
   <div v-if="lesson" class="drawer-backdrop lesson-action-drawer-backdrop" @click.self="$emit('close')">
     <aside class="library-drawer lesson-action-drawer" role="dialog" aria-modal="true" aria-label="课次操作">
-      <div class="drawer-head">
-        <div>
-          <span>课次详情</span>
-          <strong>{{ lessonName }}</strong>
-        </div>
-        <button class="ghost" type="button" :disabled="busy" @click="$emit('close')"><AppIcon name="close" :size="16" />关闭</button>
-      </div>
+      <DrawerHead :title="lessonName" :close-disabled="busy" @close="$emit('close')" />
 
       <div class="lesson-action-content">
         <div class="lesson-action-summary">
@@ -62,12 +57,10 @@ const lessonSource = computed(() => ({
           <button class="primary lesson-action-button" type="button" :disabled="busy" @click="$emit('enter')">
             <AppIcon name="play" :size="16" />
             <strong>进入课后处理</strong>
-            <small>打开本节课的课后工作台</small>
           </button>
           <button v-if="canEdit" class="secondary lesson-action-button" type="button" :disabled="busy || isCompleted" @click="$emit('edit')">
             <AppIcon name="edit" :size="16" />
             <strong>编辑课次</strong>
-            <small>修改日期、时间、老师、课程和课题</small>
           </button>
           <button v-if="canEdit" class="secondary lesson-action-button" type="button" :disabled="busy || isCompleted" @click="$emit('delete')">
             <AppIcon name="delete" :size="16" />
@@ -76,7 +69,6 @@ const lessonSource = computed(() => ({
         </div>
 
         <p v-if="isCompleted" class="lesson-action-hint">已完成课次不可删除，如需调整请进入课后处理查看归档状态。</p>
-        <p class="lesson-action-hint">班级和学生关系不在本表单中修改；如果创建时选错，请删除后重新创建。</p>
       </div>
     </aside>
   </div>

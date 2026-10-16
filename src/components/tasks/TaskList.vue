@@ -192,14 +192,14 @@ const saveLesson = () => {
       <span>
         <strong>
           {{ task.className || classes.find((item) => sameId(item.id, task.classId))?.name || '未配置班级' }}
-          <em v-if="task.classArchived" class="archived-reference">已归档</em>
+          <em v-if="task.classArchived" class="archived-reference" title="已归档" aria-label="已归档"><AppIcon name="archive" :size="13" /></em>
         </strong>
         <small>
           {{ task.courseTitle || courses.find((item) => sameId(item.id, task.courseId))?.title || '待配置课程' }}
           <em v-if="task.topic"> · 课题：{{ task.topic }}</em>
-          <em v-if="task.courseArchived" class="archived-reference">已归档</em>
+          <em v-if="task.courseArchived" class="archived-reference" title="已归档" aria-label="已归档"><AppIcon name="archive" :size="13" /></em>
           · {{ task.teacher }}
-          <em v-if="task.teacherArchived" class="archived-reference">已归档</em>
+          <em v-if="task.teacherArchived" class="archived-reference" title="已归档" aria-label="已归档"><AppIcon name="archive" :size="13" /></em>
           · {{ task.lessonType }}
         </small>
         <i class="mini-progress"><b :style="{ width: `${progressForTask(task)}%` }"></b></i>
@@ -220,11 +220,10 @@ const saveLesson = () => {
       >
         <div class="section-head">
           <div>
-            <span>新增课次 / 手动补录</span>
             <strong>{{ isTemporary ? '创建临时课' : '补录班级课次' }}</strong>
           </div>
           <div class="button-pair lesson-drawer-actions">
-            <button class="ghost" type="button" @click="showLessonDialog = false"><AppIcon name="close" :size="16" />关闭</button>
+            <button class="ghost icon-only" type="button" @click="showLessonDialog = false" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
             <button class="primary" type="button" :disabled="isSubmitting" @click="saveLesson">
               <AppIcon name="save" :size="16" />
               {{ isSubmitting ? '正在创建…' : isTemporary ? '创建临时课' : '创建课后待办' }}

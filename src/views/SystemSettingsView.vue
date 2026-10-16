@@ -1,4 +1,5 @@
 <script setup>
+import HintTip from '../components/common/HintTip.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -709,7 +710,7 @@ onBeforeUnmount(() => {
     <AppIcon name="back" :size="16" />返回配置列表
   </button>
 
-  <PageHead eyebrow="后台配置" title="系统配置">
+  <PageHead title="系统配置">
     <button v-if="(!isMobileFlow || mobileStage === 'detail') && !isCloudCategory" class="primary" :disabled="!canSave" @click="saveCurrent"><AppIcon name="save" :size="16" />保存当前配置</button>
   </PageHead>
 
@@ -730,7 +731,6 @@ onBeforeUnmount(() => {
     <section v-show="!isMobileFlow || mobileStage === 'detail'" class="panel settings-detail-panel">
       <div class="section-head">
         <div>
-          <span>配置详情</span>
           <strong>{{ draft.name || '请选择配置项' }}</strong>
         </div>
       </div>
@@ -739,7 +739,6 @@ onBeforeUnmount(() => {
         <section v-if="isCloudCategory" class="master-list panel directory-list-panel">
           <div class="section-head settings-baidu-account-toolbar">
             <div>
-              <span>百度网盘账号</span>
               <strong>{{ baiduProviders.length }} 个账号</strong>
             </div>
             <button class="primary settings-baidu-add-button" type="button" :disabled="!canAddProvider" @click="addProvider"><AppIcon name="add" :size="15" />新增账号</button>
@@ -806,7 +805,6 @@ onBeforeUnmount(() => {
         <section v-if="isWecomCategory" class="master-form-section wecom-settings-section">
           <div class="section-head">
             <div>
-              <span>企业微信客户群</span>
               <strong>{{ wecomDraft.id ? '已配置' : '尚未配置' }}</strong>
             </div>
             <AppStatusTag class="status-pill" :class="{ success: wecomDraft.status === 'ENABLED', warning: wecomDraft.status !== 'ENABLED' }" :status="wecomDraft.status === 'ENABLED' ? '已启用' : '未启用'" />
@@ -867,7 +865,7 @@ onBeforeUnmount(() => {
               <label class="inline-check ai-toggle"><input v-model="provider.config.watermark" type="checkbox" /> <span>启用图片水印</span></label>
               <label class="inline-check ai-toggle"><input v-model="provider.config.thinkingMode" type="checkbox" /> <span>启用图片思考模式</span></label>
             </div>
-            <p class="settings-hint">文本和图片可以共用一个密钥，但允许使用不同协议和接口地址。图片协议选 WAN_NATIVE 时支持把学生原图作为输入进行图生图。</p>
+            <HintTip text="文本和图片可以共用一个密钥，但允许使用不同协议和接口地址。图片协议选 WAN_NATIVE 时支持把学生原图作为输入进行图生图。" />
             <div class="cloud-provider-actions">
               <label class="inline-check"><input v-model="provider.enabled" type="checkbox" /> <span>启用该 AI</span></label>
               <button class="ghost" type="button" @click="testProvider(provider)"><AppIcon name="link" :size="15" />测试连接</button>
@@ -899,14 +897,13 @@ onBeforeUnmount(() => {
     <section v-if="baiduDrawerProvider" class="panel directory-drawer template-config-drawer" role="dialog" aria-modal="true">
       <div class="section-head">
         <div>
-          <span>{{ baiduDrawerMode === 'new' ? '新增' : '编辑' }}</span>
           <strong>{{ baiduDrawerMode === 'new' ? '新增百度网盘账号' : baiduDrawerProvider.name || '百度网盘账号' }}</strong>
           <small class="template-drawer-meta">
             {{ baiduAccountIdentityLabel(baiduDrawerProvider) }}<template v-if="baiduDrawerProvider.baiduUid"> · UID {{ baiduDrawerProvider.baiduUid }}</template>
           </small>
         </div>
         <div class="button-pair">
-          <button class="ghost" type="button" @click="closeBaiduProviderDrawer"><AppIcon name="close" :size="16" />关闭</button>
+          <button class="ghost icon-only" type="button" @click="closeBaiduProviderDrawer" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
           <button class="primary" type="button" :disabled="!String(baiduDrawerProvider.name || '').trim()" @click="saveBaiduProvider">
             <AppIcon name="save" :size="16" />
             {{ baiduDrawerMode === 'new' ? '保存账号' : '保存修改' }}
@@ -989,9 +986,9 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </div>
-              <p class="settings-hint">使用花括号变量组成目录层级，保存后由该百度账号的归档任务按当前校区、课次和资料信息渲染。</p>
+              <HintTip text="使用花括号变量组成目录层级，保存后由该百度账号的归档任务按当前校区、课次和资料信息渲染。" />
               <p class="archive-rule-preview">目录预览：<code>{{ archiveRulePreview }}</code></p>
-              <p class="settings-hint">文件名模板不填写扩展名；文件扩展名由系统根据源文件自动追加。留空时新归档优先使用素材或作品名称，未填写时沿用源文件名。</p>
+              <HintTip text="文件名模板不填写扩展名；文件扩展名由系统根据源文件自动追加。留空时新归档优先使用素材或作品名称，未填写时沿用源文件名。" />
               <p class="archive-rule-preview">文件名预览：<code>{{ archiveFilenamePreview }}</code></p>
             </div>
           </div>

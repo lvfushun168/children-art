@@ -22,7 +22,7 @@ defineProps({
 </script>
 
 <template>
-  <PageHead :eyebrow="eyebrow" :title="title">
+  <PageHead :title="title">
     <button v-if="actionLabel" class="primary">{{ actionLabel }}</button>
   </PageHead>
 

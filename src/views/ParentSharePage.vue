@@ -1,4 +1,6 @@
 <script setup>
+import HighlightMark from '../components/common/HighlightMark.vue'
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../services/api'
 import MarkdownContent from '../components/common/MarkdownContent.vue'
@@ -85,7 +87,7 @@ onMounted(async () => {
 <template>
   <main class="parent-h5">
     <section v-if="loading || !tokenValid" class="share-access-state">
-      <strong>{{ loading ? '加载中…' : '链接无法访问' }}</strong>
+      <strong><LoadingSpinner v-if="loading" :size="22" /><template v-else>链接无法访问</template></strong>
       <p v-if="!loading">{{ error || '分享链接未发布、访问密钥错误、已失效或已被机构关闭。' }}</p>
     </section>
 
@@ -95,10 +97,10 @@ onMounted(async () => {
           <span>课</span>
           <div>
             <strong>课后成果</strong>
-            <small>{{ lesson.className || '' }} · 课堂展示</small>
+            <small>{{ lesson.className || '' }}</small>
           </div>
         </div>
-        <small>已发布 · {{ publishedAt }}</small>
+        <small>{{ publishedAt }}</small>
       </header>
 
       <section class="parent-hero">
@@ -119,7 +121,7 @@ onMounted(async () => {
               decoding="async"
             />
             <span v-else class="parent-artwork-placeholder">暂无预览</span>
-            <figcaption>{{ artwork.title }}<small v-if="artwork.highlight"> · 高光作品</small></figcaption>
+            <figcaption>{{ artwork.title }}<HighlightMark v-if="artwork.highlight" :size="13" /></figcaption>
           </figure>
         </div>
         <article class="parent-section">

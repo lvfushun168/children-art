@@ -1,4 +1,6 @@
 <script setup>
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import DrawerHead from '../components/common/DrawerHead.vue'
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -200,7 +202,7 @@ onMounted(loadPage)
     <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
-  <PageHead eyebrow="权限中心" title="账号管理" />
+  <PageHead title="账号管理" />
 
   <section class="identity-page">
     <section class="panel identity-toolbar">
@@ -222,7 +224,7 @@ onMounted(loadPage)
         </div>
       </div>
 
-      <div v-if="state.identityLoading.users" class="identity-empty">加载中…</div>
+      <div v-if="state.identityLoading.users" class="identity-empty"><LoadingSpinner /></div>
       <div v-else-if="state.identityErrors.users" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.users }}</strong>
         <button class="ghost" type="button" @click="loadUsers(state.identityUserPage.page)"><AppIcon name="retry" :size="15" />重试</button>
@@ -276,20 +278,12 @@ onMounted(loadPage)
 
   <div v-if="drawer" class="drawer-backdrop" @click.self="closeDrawer">
     <aside class="library-drawer identity-drawer">
-      <div class="drawer-head">
-        <div>
-          <span>账号管理</span>
-          <strong>
-            {{ drawer === 'user' ? (isEditing ? '编辑账号' : '新增账号') : drawer === 'roles' ? '配置角色' : drawer === 'memberships' ? '数据范围' : '重置密码' }}
-          </strong>
-        </div>
-        <button class="icon-button" type="button" aria-label="关闭" @click="closeDrawer"><AppIcon name="close" :size="17" /></button>
-      </div>
+      <DrawerHead :title="drawer === 'user' ? (isEditing ? '编辑账号' : '新增账号') : drawer === 'roles' ? '配置角色' : drawer === 'memberships' ? '数据范围' : '重置密码'" @close="closeDrawer" />
 
       <form v-if="drawer === 'user'" class="identity-form" @submit.prevent="saveUser">
         <label><span>姓名</span><input v-model="userForm.displayName" required /></label>
         <label><span>手机号</span><input v-model="userForm.phone" required /></label>
-        <label><span>登录账号（可选）</span><input v-model="userForm.username" placeholder="默认使用手机号登录" :disabled="isEditing" /></label>
+        <label><span>登录账号</span><input v-model="userForm.username" placeholder="默认使用手机号登录" :disabled="isEditing" /></label>
         <label v-if="!isEditing"><span>初始密码</span><input v-model="userForm.password" type="password" minlength="6" required /></label>
         <label v-if="isEditing"><span>账号状态</span><AdaptiveSelect v-model="userForm.status" :options="identityStatusOptions" /></label>
         <label><span>角色</span><AdaptiveMultiSelect v-model="userForm.roleIds" :options="roleOptions" placeholder="请选择角色" :disabled="!canAssignRoles" /></label>
@@ -299,7 +293,7 @@ onMounted(loadPage)
           <strong>{{ selectedUserCampusName }}</strong>
         </div>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="15" />取消</button>
+          <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="save" :size="15" />保存</button>
         </div>
       </form>
@@ -308,14 +302,14 @@ onMounted(loadPage)
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>{{ selectedUser?.phone }}</span></div>
         <label><span>绑定角色</span><AdaptiveMultiSelect v-model="selectedRoleIds" :options="roleOptions" placeholder="请选择角色" /></label>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="15" />取消</button>
+          <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="save" :size="15" />保存角色</button>
         </div>
       </form>
 
       <form v-else-if="drawer === 'memberships'" class="identity-form" @submit.prevent="saveMemberships">
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>所属校区</span></div>
-        <div v-if="membershipLoading" class="identity-empty">加载中…</div>
+        <div v-if="membershipLoading" class="identity-empty"><LoadingSpinner /></div>
         <div v-else-if="state.identityErrors.memberships" class="identity-empty identity-error">
           <strong>{{ state.identityErrors.memberships }}</strong>
           <button class="ghost" type="button" @click="openMembershipDrawer(selectedUser)"><AppIcon name="retry" :size="15" />重试</button>
@@ -324,7 +318,7 @@ onMounted(loadPage)
           <AdaptiveSelect v-model="selectedCampusId" :options="campusOptions" placeholder="请选择校区" :disabled="isCurrentUser" />
         </div>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="15" />取消</button>
+          <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction) || membershipLoading || isCurrentUser"><AppIcon name="save" :size="15" />保存范围</button>
         </div>
       </form>
@@ -333,7 +327,7 @@ onMounted(loadPage)
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>{{ selectedUser?.phone }}</span></div>
         <label><span>新密码</span><input v-model="passwordForm.password" type="password" minlength="6" required /></label>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="15" />取消</button>
+          <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="check" :size="15" />确认重置</button>
         </div>
       </form>

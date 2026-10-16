@@ -1,4 +1,5 @@
 <script setup>
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -51,26 +52,19 @@ onMounted(loadResources)
     <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
-  <PageHead eyebrow="权限中心" title="权限资源" />
+  <PageHead title="权限资源" />
 
   <section class="identity-page">
-    <section class="panel identity-intro-panel">
-      <div>
-        <span>系统资源目录</span>
-        <strong>菜单、按钮和操作权限</strong>
-      </div>
-    </section>
 
     <section class="panel identity-list-panel">
       <div class="section-head identity-resource-head">
         <div>
-          <span>权限资源目录</span>
           <strong>{{ state.identityPermissions.length }} 项资源</strong>
         </div>
         <input v-model="query" class="identity-resource-search" placeholder="搜索权限名称或权限键" aria-label="搜索权限资源" />
       </div>
 
-      <div v-if="state.identityLoading.permissions" class="identity-empty">加载中…</div>
+      <div v-if="state.identityLoading.permissions" class="identity-empty"><LoadingSpinner /></div>
       <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.permissions }}</strong>
         <button class="ghost" type="button" @click="loadResources"><AppIcon name="retry" :size="15" />重试</button>

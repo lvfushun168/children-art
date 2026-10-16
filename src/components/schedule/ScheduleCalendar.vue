@@ -235,10 +235,8 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
         <section v-if="expandedDate" class="schedule-day-detail" aria-live="polite">
           <div class="schedule-day-detail-head">
             <div>
-              <span>当天课次</span>
               <strong>{{ selectedDateLabel }}</strong>
             </div>
-            <small>{{ selectedLessons.length }} 节</small>
           </div>
           <div v-if="!selectedLessons.length" class="schedule-day-empty">当天没有课次</div>
           <div v-else class="schedule-day-detail-list">
@@ -375,10 +373,8 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
       <section class="schedule-mobile-day-detail" aria-live="polite">
         <div class="schedule-day-detail-head">
           <div>
-            <span>当天课次</span>
             <strong>{{ selectedDateLabel }}</strong>
           </div>
-          <small>{{ selectedLessons.length }} 节</small>
         </div>
         <div v-if="!selectedLessons.length" class="schedule-day-empty">当天没有课次</div>
         <div v-else class="schedule-day-detail-list">

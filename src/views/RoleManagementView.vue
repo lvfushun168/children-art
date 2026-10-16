@@ -1,4 +1,6 @@
 <script setup>
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import DrawerHead from '../components/common/DrawerHead.vue'
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -133,7 +135,7 @@ onMounted(loadData)
     <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
-  <PageHead eyebrow="权限中心" title="角色管理" />
+  <PageHead title="角色管理" />
 
   <section class="identity-page">
     <section class="panel identity-list-panel">
@@ -147,7 +149,7 @@ onMounted(loadData)
         </div>
       </div>
 
-      <div v-if="state.identityLoading.roles" class="identity-empty">加载中…</div>
+      <div v-if="state.identityLoading.roles" class="identity-empty"><LoadingSpinner /></div>
       <div v-else-if="state.identityErrors.roles" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.roles }}</strong>
         <button class="ghost" type="button" @click="loadData"><AppIcon name="retry" :size="15" />重试</button>
@@ -184,20 +186,14 @@ onMounted(loadData)
 
   <div v-if="editorOpen" class="drawer-backdrop" @click.self="closeRoleEditor">
     <aside class="library-drawer identity-drawer">
-      <div class="drawer-head">
-        <div>
-          <span>角色管理</span>
-          <strong>{{ roleForm?.id ? '编辑角色' : '新增角色' }}</strong>
-        </div>
-        <button class="icon-button" type="button" aria-label="关闭" @click="closeRoleEditor"><AppIcon name="close" :size="17" /></button>
-      </div>
+      <DrawerHead :title="roleForm?.id ? '编辑角色' : '新增角色'" @close="closeRoleEditor" />
       <form class="identity-form" @submit.prevent="saveRole">
         <label><span>角色名称</span><input v-model="roleForm.name" required /></label>
         <label><span>角色键</span><input v-model="roleForm.roleKey" required :disabled="roleForm.id || roleForm.system" pattern="[a-z][a-z0-9_.-]{1,99}" placeholder="例如：academic_admin" /></label>
         <label><span>角色说明</span><textarea v-model="roleForm.description" rows="4" placeholder="说明这个角色可以做什么" /></label>
         <label v-if="roleForm.id"><span>状态</span><AdaptiveSelect v-model="roleForm.status" :options="identityStatusOptions" /></label>
         <div class="drawer-actions">
-          <button class="ghost" type="button" @click="closeRoleEditor"><AppIcon name="close" :size="15" />取消</button>
+          <button class="ghost icon-only" type="button" @click="closeRoleEditor" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="save" :size="15" />保存角色</button>
         </div>
       </form>
@@ -206,14 +202,8 @@ onMounted(loadData)
 
   <div v-if="permissionDrawerOpen" class="drawer-backdrop" @click.self="closePermissionDrawer">
     <aside class="library-drawer identity-drawer identity-permission-drawer">
-      <div class="drawer-head">
-        <div>
-          <span>功能权限</span>
-          <strong>{{ selectedRole?.name }} · 配置权限</strong>
-        </div>
-        <button class="icon-button" type="button" aria-label="关闭" @click="closePermissionDrawer"><AppIcon name="close" :size="17" /></button>
-      </div>
-      <div v-if="state.identityLoading.permissions" class="identity-empty">加载中…</div>
+      <DrawerHead :title="`${selectedRole?.name} · 配置权限`" @close="closePermissionDrawer" />
+      <div v-if="state.identityLoading.permissions" class="identity-empty"><LoadingSpinner /></div>
       <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">{{ state.identityErrors.permissions }}</div>
       <div v-else class="identity-permission-groups">
         <section v-for="group in permissionGroups" :key="group.module" class="identity-permission-group">

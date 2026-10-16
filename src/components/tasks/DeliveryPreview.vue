@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '../common/AppIcon.vue'
 import { computed } from 'vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 import MarkdownContent from '../common/MarkdownContent.vue'
@@ -151,7 +152,6 @@ const formatHomeworkDate = (value) => {
   <aside class="preview panel" :class="{ 'preview-pulse': previewPulse, 'comment-pulse': commentPulse }">
     <div class="section-head">
       <div>
-        <span>家长页面预览</span>
         <strong>{{ activeStudent?.name || '未选择' }}</strong>
       </div>
       <button v-if="!reviewOnly" class="ghost" @click="$emit('copy-export')">{{ copied ? '已复制' : '复制链接' }}</button>
@@ -176,7 +176,7 @@ const formatHomeworkDate = (value) => {
               :src="artworkImage(artwork)"
               :alt="`${activeStudent.name}${artworkTitle(artwork, index)}`"
             />
-            <span v-if="displayConfig.showHighlight && artwork.highlight" class="preview-artwork-badge">高光作品</span>
+            <span v-if="displayConfig.showHighlight && artwork.highlight" class="preview-artwork-badge" title="高光作品" aria-label="高光作品"><AppIcon name="highlight" :size="12" /></span>
           </div>
           <div class="preview-artwork-meta">
             <strong>{{ artworkTitle(artwork, index) }}</strong>

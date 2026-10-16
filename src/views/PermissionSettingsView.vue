@@ -39,7 +39,7 @@ const saveTeacher = async (teacher) => {
     <AppIcon name="back" :size="16" />返回{{ groupLabel }}
   </button>
 
-  <PageHead eyebrow="后台配置" title="权限配置" />
+  <PageHead title="权限配置" />
 
   <section class="permission-settings-layout">
     <section class="panel permission-settings-panel">

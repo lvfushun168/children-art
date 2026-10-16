@@ -1,4 +1,6 @@
 <script setup>
+import HighlightMark from '../components/common/HighlightMark.vue'
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -362,14 +364,14 @@ onBeforeUnmount(() => cleanupMobileMedia())
     <section v-show="!isMobileFlow || !mobileShowingDetail" class="panel directory-list-panel">
       <div class="section-head">
         <div><span>任务列表</span><strong>{{ pageState.total }} 条记录</strong></div>
-        <small v-if="state.directoryLoading?.extraTasks">加载中…</small>
+        <small v-if="state.directoryLoading?.extraTasks"><LoadingSpinner /></small>
       </div>
       <div v-if="state.directoryErrors?.extraTasks" class="notice-box error-box"><small>{{ state.directoryErrors.extraTasks }}</small><button class="ghost" type="button" @click="loadDirectory(pageState.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <div v-else-if="!tasks.length && !state.directoryLoading?.extraTasks" class="notice-box"><small>暂无课外任务</small></div>
       <div v-else class="directory-table-wrap">
         <table class="directory-table">
           <thead><tr><th>任务标题</th><th>类型 / 负责人</th><th>关联课次</th><th>截止日期</th><th>作品数</th><th>状态</th><th>操作</th></tr></thead>
-          <tbody><tr v-for="task in tasks" :key="task.id" class="directory-table-row" :class="{ active: sameId(selected?.id, task.id) }" @click="selectTask(task)"><td><strong>{{ task.title }}</strong></td><td>{{ task.taskType }} · {{ task.owner || '未指定' }}</td><td>{{ task.relatedLessonDate || task.relatedLesson || '无归属课次' }}<small v-if="task.relatedClassName"> · {{ task.relatedClassName }}</small></td><td>{{ task.dueDate || '—' }}</td><td>{{ task.artworkCount || 0 }}<span v-if="task.highlightArtworkCount"> · 高光 {{ task.highlightArtworkCount }}</span></td><td><AppStatusTag :status="task.status" /></td><td><button class="ghost" type="button" @click.stop="selectTask(task)"><AppIcon name="view" :size="15" />查看详情</button></td></tr></tbody>
+          <tbody><tr v-for="task in tasks" :key="task.id" class="directory-table-row" :class="{ active: sameId(selected?.id, task.id) }" @click="selectTask(task)"><td><strong>{{ task.title }}</strong></td><td>{{ task.taskType }} · {{ task.owner || '未指定' }}</td><td>{{ task.relatedLessonDate || task.relatedLesson || '无归属课次' }}<small v-if="task.relatedClassName"> · {{ task.relatedClassName }}</small></td><td>{{ task.dueDate || '—' }}</td><td>{{ task.artworkCount || 0 }}<span v-if="task.highlightArtworkCount"> · <HighlightMark :size="12" /> {{ task.highlightArtworkCount }}</span></td><td><AppStatusTag :status="task.status" /></td><td><button class="ghost" type="button" @click.stop="selectTask(task)"><AppIcon name="view" :size="15" />查看详情</button></td></tr></tbody>
         </table>
         <div class="directory-mobile-cards"><button v-for="task in tasks" :key="task.id" class="directory-card" type="button" @click="selectTask(task)"><strong>{{ task.title }}</strong><span>{{ task.taskType }} · {{ task.owner || '未指定负责人' }}</span><small>{{ task.relatedLessonDate || task.relatedLesson || '无归属课次' }} · {{ task.artworkCount || 0 }} 件作品</small><AppStatusTag :status="task.status" /></button></div>
         <PaginationBar :page="pageState.page" :page-size="pageState.pageSize" :total="pageState.total" :loading="state.directoryLoading?.extraTasks" @change="loadDirectory" />
@@ -380,13 +382,12 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <section class="panel directory-drawer">
       <div class="section-head">
         <div>
-          <span>{{ mode === 'new' ? '新增' : mode === 'edit' ? '编辑' : '详情' }}</span>
           <strong>{{ mode === 'new' ? '新增课外任务' : selected?.title }}</strong>
         </div>
         <div class="button-pair">
-          <button v-if="mode === 'detail'" class="ghost" type="button" @click="returnToList"><AppIcon name="close" :size="15" />关闭</button>
+          <button v-if="mode === 'detail'" class="ghost icon-only" type="button" @click="returnToList" aria-label="关闭" title="关闭"><AppIcon name="close" :size="15" /></button>
           <button v-if="mode === 'detail' && activeTab === 'task'" class="secondary" type="button" @click="startEdit">编辑任务</button>
-          <button v-if="mode !== 'detail'" class="ghost" type="button" @click="cancelEdit"><AppIcon name="close" :size="15" />取消</button>
+          <button v-if="mode !== 'detail'" class="ghost icon-only" type="button" @click="cancelEdit" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
           <button v-if="mode !== 'detail'" class="primary" @click="save"><AppIcon name="save" :size="16" />保存</button>
           <button v-if="mode === 'detail' && activeTab === 'works'" class="primary" @click="startNewWork"><AppIcon name="upload" :size="16" />上传课外作品</button>
         </div>
@@ -458,7 +459,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <div class="extra-task-editor-actions">
             <p v-if="workError">{{ workError }}</p>
             <div>
-              <button class="ghost" @click="cancelWorkEdit"><AppIcon name="close" :size="15" />取消</button>
+              <button class="ghost icon-only" @click="cancelWorkEdit" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
               <button class="primary" @click="saveWork"><AppIcon name="save" :size="16" />保存课外作品</button>
             </div>
           </div>
@@ -475,7 +476,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
                 <span>{{ work.studentName }} · {{ work.date }}</span>
                 <strong>{{ work.title }}</strong>
                 <p v-if="work.description">{{ work.description }}</p>
-                <em v-if="work.highlight">高光作品</em>
+                <HighlightMark v-if="work.highlight" :size="13" />
               </div>
               <footer v-if="state.canEditArchiveRecord(work)">
                 <button class="secondary" @click="startEditWork(work)">编辑</button>

@@ -1,4 +1,5 @@
 <script setup>
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AdaptiveSelect from '../components/common/AdaptiveSelect.vue'
@@ -217,7 +218,7 @@ onMounted(async () => {
 <template>
   <section class="courseware-page">
     <button class="module-back-link" type="button" @click="emit('back-to-group')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
-    <PageHead eyebrow="素材档案" title="课件库" />
+    <PageHead title="课件库" />
 
     <div v-if="state.coursewareError" class="courseware-error">
       <span>{{ state.coursewareError }}</span>
@@ -272,14 +273,14 @@ onMounted(async () => {
             <button class="folder-open" type="button" @click="selectFolder(folder)"><span class="folder-card-icon"><AppIcon name="courseware" :size="19" /></span><strong>{{ folder.name }}</strong></button>
             <small>{{ Number(folder.childCount || 0) }} 个子目录 · {{ Number(folder.itemCount || 0) }} 个课件</small>
             <div v-if="state.canManageCourseware" class="card-actions">
-              <button type="button" @click="openFolderNameDialog(folder)"><AppIcon name="edit" :size="13" />重命名</button>
-              <button type="button" @click="moveFolder(folder)"><AppIcon name="move" :size="13" />移动</button>
-              <button type="button" @click="deleteFolder(folder)"><AppIcon name="delete" :size="13" />删除</button>
+              <button type="button" @click="openFolderNameDialog(folder)" title="重命名" aria-label="重命名"><AppIcon name="edit" :size="14" /></button>
+              <button type="button" @click="moveFolder(folder)" title="移动" aria-label="移动"><AppIcon name="move" :size="14" /></button>
+              <button type="button" @click="deleteFolder(folder)" title="删除" aria-label="删除"><AppIcon name="delete" :size="14" /></button>
             </div>
           </article>
         </div>
 
-        <div v-if="state.coursewareLoading?.items" class="loading-note">加载中…</div>
+        <div v-if="state.coursewareLoading?.items" class="loading-note"><LoadingSpinner /></div>
         <div v-else-if="state.coursewareItems?.length" class="courseware-list">
           <article v-for="item in state.coursewareItems" :key="item.id" class="courseware-card">
             <div class="file-icon" :data-mode="item.previewMode">
@@ -292,9 +293,9 @@ onMounted(async () => {
             </div>
             <button class="preview-button" type="button" @click="previewItem(item)"><AppIcon name="view" :size="16" />预览</button>
             <div v-if="state.canManageCourseware" class="card-actions">
-              <button type="button" @click="renameItem(item)"><AppIcon name="edit" :size="13" />重命名</button>
-              <button type="button" @click="moveItem(item)"><AppIcon name="move" :size="13" />移动</button>
-              <button type="button" @click="deleteItem(item)"><AppIcon name="delete" :size="13" />删除</button>
+              <button type="button" @click="renameItem(item)" title="重命名" aria-label="重命名"><AppIcon name="edit" :size="14" /></button>
+              <button type="button" @click="moveItem(item)" title="移动" aria-label="移动"><AppIcon name="move" :size="14" /></button>
+              <button type="button" @click="deleteItem(item)" title="删除" aria-label="删除"><AppIcon name="delete" :size="14" /></button>
             </div>
           </article>
         </div>
@@ -308,7 +309,6 @@ onMounted(async () => {
       <section class="courseware-action-dialog" role="dialog" aria-modal="true" :aria-label="actionDialogTitle" @keydown.esc="closeActionDialog">
         <header class="courseware-dialog-head">
           <div>
-            <span>课件库</span>
             <strong>{{ actionDialogTitle }}</strong>
           </div>
           <button class="courseware-dialog-close" type="button" aria-label="关闭" :disabled="actionDialogBusy" @click="closeActionDialog"><AppIcon name="close" :size="17" /></button>
@@ -321,7 +321,7 @@ onMounted(async () => {
           </label>
           <p v-if="actionDialogError" class="courseware-dialog-error" role="alert">{{ actionDialogError }}</p>
           <footer class="courseware-dialog-actions">
-            <button class="ghost" type="button" :disabled="actionDialogBusy" @click="closeActionDialog"><AppIcon name="close" :size="15" />取消</button>
+            <button class="ghost icon-only" type="button" :disabled="actionDialogBusy" @click="closeActionDialog" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
             <button class="primary" type="submit" :disabled="actionDialogBusy"><AppIcon name="save" :size="15" />{{ actionDialogSubmitLabel }}</button>
           </footer>
         </form>
@@ -333,7 +333,7 @@ onMounted(async () => {
           </label>
           <p v-if="actionDialogError" class="courseware-dialog-error" role="alert">{{ actionDialogError }}</p>
           <footer class="courseware-dialog-actions">
-            <button class="ghost" type="button" :disabled="actionDialogBusy" @click="closeActionDialog"><AppIcon name="close" :size="15" />取消</button>
+            <button class="ghost icon-only" type="button" :disabled="actionDialogBusy" @click="closeActionDialog" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
             <button class="primary" type="submit" :disabled="actionDialogBusy"><AppIcon name="save" :size="15" />{{ actionDialogSubmitLabel }}</button>
           </footer>
         </form>
@@ -341,7 +341,7 @@ onMounted(async () => {
         <div v-else class="courseware-dialog-confirm">
           <p>确定删除“{{ actionDialog.target?.name || actionDialog.target?.title }}”吗？</p>
           <footer class="courseware-dialog-actions">
-            <button class="ghost" type="button" :disabled="actionDialogBusy" @click="closeActionDialog"><AppIcon name="close" :size="15" />取消</button>
+            <button class="ghost icon-only" type="button" :disabled="actionDialogBusy" @click="closeActionDialog" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
             <button class="courseware-danger-button" type="button" :disabled="actionDialogBusy" @click="submitActionDialog"><AppIcon name="delete" :size="15" />{{ actionDialogSubmitLabel }}</button>
           </footer>
         </div>

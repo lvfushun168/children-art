@@ -56,7 +56,6 @@ defineEmits(['select-group', 'open-todo-center'])
     <button type="button" class="nav-summary todo-entry" @click="$emit('open-todo-center')">
       <span class="nav-summary-label"><AppIcon name="todo" :size="16" />待办中心</span>
       <strong>{{ todoCount }} 个待办</strong>
-      <small>其中 {{ pendingCount }} 节课待完成</small>
     </button>
   </aside>
 </template>

@@ -1,4 +1,6 @@
 <script setup>
+import HighlightMark from '../components/common/HighlightMark.vue'
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -342,13 +344,12 @@ watch(
   <template v-if="!project">
     <button v-if="groupLabel && setupStep === 'student'" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
     <button v-else-if="setupStep === 'template'" class="module-back-link" type="button" @click="setupStep = 'student'"><AppIcon name="back" :size="16" />返回上一步</button>
-    <PageHead eyebrow="课后工作 · 学期作品册" title="制作中心" />
+    <PageHead title="制作中心" />
 
     <section class="pc-create-shell">
       <section class="panel pc-create-main">
         <div class="section-head">
           <div>
-            <span>{{ setupStep === 'student' ? '新建作品册' : '选择模板' }}</span>
             <strong>{{ setupStep === 'student' ? '先选择学生和作品范围' : '可选择模板，也可以直接使用系统默认模板' }}</strong>
           </div>
         </div>
@@ -376,19 +377,12 @@ watch(
               <div>
                 <span>生成预估</span>
                 <strong>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</strong>
-                <small>{{ createDraft.studentId ? '下一步选择模板' : '请选择学生' }}</small>
               </div>
               <button class="primary" :disabled="portfolioRecordsLoading || !selectedStudentRecords.length" @click="goTemplateStep"><AppIcon name="next" :size="16" />下一步：选择模板</button>
             </section>
           </section>
 
           <section class="pc-record-preview panel">
-            <div class="mini-head">
-              <div>
-                <span>本次作品</span>
-                <strong>{{ selectedStudentRecords.length }} 幅</strong>
-              </div>
-            </div>
             <div class="pc-record-list">
               <article v-for="record in selectedStudentRecords" :key="record.id" class="pc-record-row">
                 <ProtectedMedia :file-id="record.fileId" :src="record.artwork" :alt="record.course" />
@@ -396,10 +390,10 @@ watch(
                   <strong>{{ record.course }}</strong>
                   <small>{{ record.date }} · {{ record.className }}</small>
                 </div>
-                <em v-if="record.highlight">高光</em>
+                <HighlightMark v-if="record.highlight" :size="13" />
               </article>
               <div v-if="!selectedStudentRecords.length" class="notice-box">
-                <small v-if="portfolioRecordsLoading">加载中…</small>
+                <small v-if="portfolioRecordsLoading"><LoadingSpinner /></small>
                 <small v-else-if="portfolioRecordsError">{{ portfolioRecordsError }}</small>
                 <small v-else-if="createDraft.studentId">该学生暂无可用作品。</small>
                 <small v-else>请选择学生后查看作品。</small>
@@ -414,14 +408,12 @@ watch(
               <div>
                 <span>已选条件</span>
                 <strong>{{ selectedStudentRecords[0]?.studentName || '学生' }} · {{ createDraft.termLabel }}</strong>
-                <small>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</small>
               </div>
             </div>
 
             <div class="pc-template-picker">
               <div class="mini-head">
                 <div>
-                  <span>模板库</span>
                   <strong>{{ filteredTemplates.length }} / {{ state.portfolioTemplates.length }} 个模板</strong>
                 </div>
               </div>
@@ -448,7 +440,6 @@ watch(
               <div>
                 <span>将使用模板</span>
                 <strong>{{ selectedTemplate?.name || '系统默认模板' }}</strong>
-                <small>{{ selectedStudentRecords.length }} 幅作品 · 约 {{ estimatedSlides }} 页</small>
               </div>
               <button class="primary" :disabled="portfolioRecordsLoading || !selectedStudentRecords.length" @click="confirmCreate"><AppIcon name="play" :size="16" />进入 PPT 工作台</button>
             </section>
@@ -509,7 +500,7 @@ watch(
               <div>
                 <strong>{{ record.course }}</strong>
                 <small>{{ record.date }} · {{ record.className }}</small>
-                <em v-if="record.highlight">高光作品</em>
+                <HighlightMark v-if="record.highlight" :size="13" />
               </div>
               <div class="button-pair">
                 <button class="ghost" @click="copyRecordImage(record)"><AppIcon name="copy" :size="15" />复制图片</button>
@@ -537,7 +528,7 @@ watch(
           <span>{{ leaveAfterTemplateDecision ? '离开工作台' : '保存模板' }}</span>
           <strong>{{ leaveAfterTemplateDecision ? '是否把本次排版保存成新模板？' : '为本次排版命名' }}</strong>
         </div>
-        <button class="ghost" @click="showTemplateSaveDialog = false"><AppIcon name="close" :size="16" />关闭</button>
+        <button class="ghost icon-only" @click="showTemplateSaveDialog = false" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
       </div>
       <label>
         模板名称
@@ -545,7 +536,7 @@ watch(
       </label>
       <div class="modal-actions">
         <button v-if="leaveAfterTemplateDecision" class="ghost" @click="skipTemplateSave"><AppIcon name="back" :size="15" />不保存，返回模板选择</button>
-        <button v-else class="ghost" @click="showTemplateSaveDialog = false"><AppIcon name="close" :size="15" />取消</button>
+        <button v-else class="ghost icon-only" @click="showTemplateSaveDialog = false" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
         <button class="primary" :disabled="!templateName.trim()" @click="saveAsTemplate"><AppIcon name="save" :size="16" />保存模板</button>
       </div>
     </section>

@@ -12,10 +12,6 @@ const props = defineProps({
     type: String,
     default: ''
   },
-  eyebrow: {
-    type: String,
-    default: ''
-  },
   items: {
     type: Array,
     default: null
@@ -25,14 +21,13 @@ const props = defineProps({
 defineEmits(['open'])
 
 const displayTitle = computed(() => props.title || props.group?.label || '')
-const displayEyebrow = computed(() => props.eyebrow || props.group?.description || '')
 const entries = computed(() => props.items || props.group?.items || [])
-const metaFor = (item) => item.description || props.group?.label || ''
+const metaFor = (item) => item.description || ''
 </script>
 
 <template>
   <section class="module-hub-view">
-    <PageHead :eyebrow="displayEyebrow" :title="displayTitle" />
+    <PageHead :title="displayTitle" />
 
     <div class="module-hub-grid">
       <button
@@ -47,7 +42,7 @@ const metaFor = (item) => item.description || props.group?.label || ''
         </span>
         <span class="module-entry-copy">
           <strong>{{ item.label }}</strong>
-          <small>{{ metaFor(item) }}</small>
+          <small v-if="metaFor(item)">{{ metaFor(item) }}</small>
         </span>
       </button>
     </div>

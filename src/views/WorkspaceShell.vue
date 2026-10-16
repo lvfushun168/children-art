@@ -359,7 +359,6 @@ onBeforeRouteUpdate(async (to, from) => {
       <ModuleHubView
         v-if="isMobileApp && routeMode === 'home'"
         title="课后交付系统"
-        eyebrow="选择要进入的工作模块"
         :items="mobileGroupEntries"
         @open="openGroup"
       />

@@ -34,11 +34,10 @@ onBeforeUnmount(() => {
     <section class="archive-image-preview-modal" role="dialog" aria-modal="true" :aria-label="title || '原图预览'">
       <header class="archive-image-preview-head">
         <div>
-          <span>原图预览</span>
           <strong>{{ title || alt || '图片预览' }}</strong>
           <small v-if="caption">{{ caption }}</small>
         </div>
-        <button class="ghost" type="button" aria-label="关闭原图预览" @click="close"><AppIcon name="close" :size="16" />关闭</button>
+        <button class="ghost icon-only" type="button" aria-label="关闭" title="关闭" @click="close"><AppIcon name="close" :size="16" /></button>
       </header>
 
       <div class="archive-image-preview-stage">

@@ -21,7 +21,7 @@ defineEmits(['show-archives', 'show-students'])
 
 <template>
   <section class="report-view" :class="{ pulse: reportPulse }">
-    <div class="success-badge">本节课交付已闭环</div>
+    <div class="success-badge">本节课已全部完成</div>
     <div class="report-grid">
       <article>
         <span>作品已上传</span>

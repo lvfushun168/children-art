@@ -398,7 +398,7 @@ export function useDeliveryWorkflow() {
 
   const createArchiveChecklist = () => ({
     parentTouch: { status: '待创建', detail: '', method: '', sentCount: 0, dispatchStatus: '', updatedAt: '' },
-    studentCloudArchive: { status: '待推送', detail: '', syncAttemptStatus: '', updatedAt: '' },
+    studentCloudArchive: { status: '待上传', detail: '', syncAttemptStatus: '', updatedAt: '' },
     teacherEffectArchive: { status: '待生成', detail: '', title: '', imageCount: 0, updatedAt: '' },
     wheatTrace: {
       status: '待确认',
@@ -986,7 +986,7 @@ export function useDeliveryWorkflow() {
         archivedCount: studentWorks.filter((item) => item.archived).length,
         highlights: studentWorks.reduce((total, item) => total + (item.artworks || []).filter((artwork) => artwork.highlight).length, 0),
         wheatStatus: trace?.status || task.wheatStatus || '待确认',
-        cloudArchiveStatus: task.cloudArchiveStatus || '待推送',
+        cloudArchiveStatus: task.cloudArchiveStatus || '待上传',
         teacherEffect: workspace.archiveChecklist?.teacherEffectArchive || createArchiveChecklist().teacherEffectArchive,
         studentArchive: workspace.archiveChecklist?.studentCloudArchive || createArchiveChecklist().studentCloudArchive,
         archiveVersions: workspace.archiveVersions || [],
@@ -1422,7 +1422,7 @@ export function useDeliveryWorkflow() {
 
   const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工发送', '发送失败']
   const archiveRecordedStatuses = [...archiveDoneStatuses, '待绑定家长群']
-  const archiveWorkingStatuses = ['推送中', '生成中', '创建中']
+  const archiveWorkingStatuses = ['上传中', '生成中', '创建中']
   const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
   const isArchiveRecorded = (item) => archiveRecordedStatuses.includes(item.status)
   const touchDispatchStatus = (task) => String(task?.wecomDispatchStatusCode || task?.wecomDispatchStatus
@@ -1485,7 +1485,7 @@ export function useDeliveryWorkflow() {
       key: 'studentCloudArchive',
       title: '学生作品与照片百度归档',
       meta: studentArchivePathPreview.value,
-      action: '推送',
+      action: '上传到网盘',
       required: false,
       item: archiveChecklist.value.studentCloudArchive
     },
@@ -1615,7 +1615,7 @@ export function useDeliveryWorkflow() {
     }
     const rule = rules[action]
     if (!rule || !rule.from.includes(before)) {
-      notify(`操作未执行：课次当前为“${before}”，不满足状态前置条件`)
+      notify(`当前状态是“${before}”，不能执行这个操作`)
       return false
     }
     if (rule.admin && !isAdmin.value) {
@@ -2052,7 +2052,7 @@ export function useDeliveryWorkflow() {
   const saveShareDraft = (reason = '调整展示内容') => {
     const before = sharePage.value.status
     if (before === '草稿') {
-      notify('草稿无变化，无需重复保存')
+      notify('内容没有变化')
       return false
     }
     sharePage.value.status = '草稿'
@@ -2060,7 +2060,7 @@ export function useDeliveryWorkflow() {
     displayConfig.value.publicStatus = '草稿'
     persistSharePage(activeTask.value.id, sharePage.value)
     addStatusLog('家长页面', activeTask.value.id, before, '草稿', reason)
-    notify('草稿已保存，家长仍看到上一发布版本')
+    notify('已保存，发布后家长才会看到新内容')
     return true
   }
 
@@ -2240,7 +2240,7 @@ export function useDeliveryWorkflow() {
       highlights: counts.value.highlights,
       teacher: activeTask.value.teacher,
       wheatStatus,
-      cloudArchiveStatus: activeTask.value.cloudArchiveStatus || '待推送'
+      cloudArchiveStatus: activeTask.value.cloudArchiveStatus || '待上传'
     }
     if (summary) Object.assign(summary, summaryPayload)
     else archives.unshift({ id: Date.now() + 1, ...summaryPayload })
@@ -2301,8 +2301,8 @@ export function useDeliveryWorkflow() {
     const labels = {
       studentCloudArchive: '学生作品与照片'
     }
-    setArchiveChecklistItem(key, { status: '推送中' })
-    await runAction(`正在推送${labels[key]}到百度网盘...`, `${labels[key]}已同步到百度网盘`, async () => {
+    setArchiveChecklistItem(key, { status: '上传中' })
+    await runAction(`正在上传${labels[key]}到百度网盘...`, `${labels[key]}已同步到百度网盘`, async () => {
       activeTask.value.cloudArchiveStatus = '已同步'
       setArchiveChecklistItem(key, { status: '已同步', detail: studentArchivePathPreview.value })
     })
@@ -2496,7 +2496,7 @@ export function useDeliveryWorkflow() {
     }
     const cloudTargets = archiveTargets.value.filter((target) => target.id.startsWith('cloud:') && selectedArchiveTargets.value.includes(target.id))
     const targetLabel = cloudTargets.length ? `，并同步 ${cloudTargets.map((target) => target.label).join('、')}` : ''
-    await runAction(`正在完成本节归档交付...`, `本节课已完成归档交付${targetLabel}`, async () => {
+    await runAction(`正在完成本节归档...`, `本节课已完成归档${targetLabel}`, async () => {
       const before = activeTask.value.status
       const trace = wheatTraces.find((item) => sameId(item.lessonId, activeTask.value.id))
       if (!trace || trace.status !== '已确认') {
@@ -2987,20 +2987,27 @@ export function useDeliveryWorkflow() {
     target.splice(0, target.length, ...(Array.isArray(values) ? values : []))
   }
 
+  const friendlyBackendMessage = (message) => {
+    const text = String(message || '')
+    if (/幂等|Idempotency|命令仍在处理中/.test(text)) return '该操作正在处理中，请稍候'
+    if (/ID 格式错误|ID 不能为空/.test(text)) return '数据有误，请刷新页面后重试'
+    return text
+  }
+
   const remoteErrorMessage = (error, fallback = '操作失败，请稍后重试') => {
     if (error?.status === 401 || error?.code === 'TOKEN_EXPIRED') return '登录状态已失效，请重新登录'
-    if (error?.status === 404 || error?.code === 'RESOURCE_NOT_FOUND') return '服务端找不到对应资源，请刷新后重试'
+    if (error?.status === 404 || error?.code === 'RESOURCE_NOT_FOUND') return '找不到对应内容，请刷新后重试'
     if (error?.code === 'INVALID_STATE_TRANSITION' && String(error?.message || '').includes('命令仍在处理中')) {
       return '该操作已在处理中，页面已刷新，请稍候'
     }
-    if (error?.code === 'INVALID_STATE_TRANSITION') return error.message || '当前状态不允许执行该操作'
-    if (error?.code === 'DUPLICATE_RESOURCE') return error.message || '资源已存在'
+    if (error?.code === 'INVALID_STATE_TRANSITION') return friendlyBackendMessage(error.message) || '当前状态不允许执行该操作'
+    if (error?.code === 'DUPLICATE_RESOURCE') return friendlyBackendMessage(error.message) || '资源已存在'
     if (error?.status === 409 || ['VERSION_CONFLICT', 'INVALID_STATE_TRANSITION', 'DUPLICATE_RESOURCE', 'IDEMPOTENCY_KEY_REUSED', 'STALE_JOB_ATTEMPT'].includes(error?.code)) return '数据已被其他人更新或操作重复，页面已刷新，请确认后重试'
     if (error?.code === 'PERMISSION_DENIED' || error?.status === 403) return '当前账号没有执行此操作的权限'
-    if (error?.status === 422 || error?.code === 'TRANSITION_PRECONDITION_FAILED' || error?.code === 'LESSON_COMPLETION_BLOCKED') return error.message || '当前前置条件未满足'
+    if (error?.status === 422 || error?.code === 'TRANSITION_PRECONDITION_FAILED' || error?.code === 'LESSON_COMPLETION_BLOCKED') return friendlyBackendMessage(error.message) || '暂时不能完成这个操作'
     if (error?.status === 413) return '文件超过系统允许的大小'
     if (error?.status === 415) return error?.message || '文件格式不受支持'
-    return error?.message || fallback
+    return friendlyBackendMessage(error?.message) || fallback
   }
 
   const runRemote = async (label, action, success = '', onConflict = null) => {
@@ -3762,17 +3769,17 @@ export function useDeliveryWorkflow() {
   })
 
   const statusForArchiveItem = (value) => ({
-    DRAFT: '待配置', PENDING: '待配置', QUEUED: '创建中', CREATING: '创建中', RUNNING: '推送中', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SUCCEEDED: '已同步', SYNCED: '已同步', COMPLETED: '已归档', SKIPPED: '已跳过', FAILED: '生成失败', CANCELED: '已取消'
+    DRAFT: '待配置', PENDING: '待配置', QUEUED: '创建中', CREATING: '创建中', RUNNING: '上传中', GENERATING: '生成中', GENERATED: '已生成', CONFIRMED: '已确认', SUCCEEDED: '已同步', SYNCED: '已同步', COMPLETED: '已归档', SKIPPED: '已跳过', FAILED: '生成失败', CANCELED: '已取消'
   }[value] || value || '待处理')
   const cloudBatchDetail = (batch) => {
     if (!batch) return ''
     const status = String(batch.status || '').toUpperCase()
     const attempt = String(batch.syncAttemptStatus || '').toUpperCase()
     if (status === 'SUCCEEDED' && attempt === 'FAILED') {
-      return `覆盖同步失败：${batch.failureSummary || `${batch.failedFiles || 0} 个文件失败`}（可再次覆盖）`
+      return `上传失败：${batch.failureSummary || `${batch.failedFiles || 0} 个文件失败`}（可重新上传）`
     }
     if (status === 'SUCCEEDED' && ['QUEUED', 'RUNNING'].includes(attempt)) {
-      return `覆盖同步中 · ${batch.percent || 0}% · ${batch.currentFilename || '准备中'}`
+      return `重新上传中 · ${batch.percent || 0}% · ${batch.currentFilename || '准备中'}`
     }
     if (status === 'SUCCEEDED') return `${batch.completedFiles || 0} 个文件 · ${batch.percent || 0}%`
     return batch.failureSummary || `${batch.failedFiles || 0} 个文件失败`
@@ -4345,9 +4352,9 @@ export function useDeliveryWorkflow() {
         status: '已同步',
         syncAttemptStatus: attempt,
         detail: attempt === 'FAILED'
-          ? `覆盖同步失败：${payload.failureSummary || `${payload.failedFiles || 0} 个文件失败`}（可再次覆盖）`
+          ? `上传失败：${payload.failureSummary || `${payload.failedFiles || 0} 个文件失败`}（可重新上传）`
           : ['QUEUED', 'RUNNING'].includes(attempt)
-            ? `覆盖同步中 · ${payload.percent || 0}% · ${payload.currentFilename || '准备中'}`
+            ? `重新上传中 · ${payload.percent || 0}% · ${payload.currentFilename || '准备中'}`
             : `${payload.completedFiles || 0} 个文件 · ${payload.percent || 0}%`
       }
     } else if (['FAILED', 'PARTIAL_FAILED'].includes(status)) {
@@ -4360,7 +4367,7 @@ export function useDeliveryWorkflow() {
     } else if (['QUEUED', 'RUNNING'].includes(status)) {
       workspace.archiveChecklist.studentCloudArchive = {
         ...workspace.archiveChecklist.studentCloudArchive,
-        status: '推送中',
+        status: '上传中',
         syncAttemptStatus: attempt,
         detail: `${payload.percent || 0}% · ${payload.currentFilename || '准备中'}`
       }
@@ -4425,7 +4432,7 @@ export function useDeliveryWorkflow() {
     const workspace = ensureLessonWorkspace(tasks.find((task) => sameId(task.id, lessonId)) || { id: lessonId })
     const current = workspace.cloudBatch
     if (current?.batchId && ['FAILED', 'PARTIAL_FAILED'].includes(String(current.status).toUpperCase())) {
-      const retried = await runRemote('正在重试百度网盘归档批次...', () => api.m5.retryCloudBatch(current.batchId,
+      const retried = await runRemote('正在重试网盘归档...', () => api.m5.retryCloudBatch(current.batchId,
         createIdempotencyKey(`cloud-archive-batch-retry:${current.batchId}`)), '')
       if (!retried) return null
       applyCloudBatchProgress(lessonId, retried)
@@ -4440,7 +4447,7 @@ export function useDeliveryWorkflow() {
       ? providerConfigId
       : await requestCloudProvider(lessonId)
     if (!selectedProviderConfigId) return null
-    const result = await runRemote('正在创建百度网盘归档批次...', () => api.m5.cloudArchiveBatch(lessonId, {
+    const result = await runRemote('正在创建网盘归档...', () => api.m5.cloudArchiveBatch(lessonId, {
       providerConfigId: selectedProviderConfigId,
       includeTeacherEffect: false,
       items: []
@@ -6392,7 +6399,7 @@ export function useDeliveryWorkflow() {
   const remoteProcessCurrentImageWithPrompt = async (prompt, target = activeArtworkId.value || activeStudentId.value) => {
     const safePrompt = String(prompt || '').trim()
     if (!safePrompt) {
-      notify('请输入 AI 处理提示词')
+      notify('请输入处理要求')
       return false
     }
     const row = artworkForTarget(target)
@@ -7855,10 +7862,10 @@ export function useDeliveryWorkflow() {
     if (['SYNCED', 'SKIPPED'].includes(String(job.statusCode || '').toUpperCase())
       && String(job.syncAttemptStatus || '').toUpperCase() === 'FAILED') {
       if (!isBaiduProvider(providerForId(job.providerConfigId))) {
-        notify('当前归档任务不是百度网盘，不能覆盖同步')
+        notify('当前归档任务不是百度网盘，不能重新上传')
         return false
       }
-      const result = await runRemote('正在再次覆盖百度网盘文件...', () => api.m5.resyncCloud(job.id,
+      const result = await runRemote('正在重新上传到百度网盘...', () => api.m5.resyncCloud(job.id,
         { version: job.version }, createIdempotencyKey(`cloud-archive-resync:${job.id}`)), '')
       if (!result) return false
       await Promise.all([
@@ -7943,10 +7950,10 @@ export function useDeliveryWorkflow() {
     if (current?.batchId && isBaiduCloudBatch(current) && current.status === 'SUCCEEDED'
       && !cloudBatchIsWorking(current)) {
       const result = await runRemote(
-        isCloudOverwriteFailed(current) ? '正在再次覆盖百度网盘文件...' : '正在覆盖同步百度网盘文件...',
+        isCloudOverwriteFailed(current) ? '正在重新上传到百度网盘...' : '正在重新上传到百度网盘...',
         () => api.m5.resyncCloudBatch(current.batchId, { version: current.version },
           createIdempotencyKey(`cloud-archive-batch-resync:${current.batchId}`)),
-        isCloudOverwriteFailed(current) ? '百度网盘覆盖同步已重新提交' : '百度网盘覆盖同步已提交'
+        isCloudOverwriteFailed(current) ? '已重新提交上传' : '已提交重新上传'
       )
       if (!result) return false
       applyCloudBatchProgress(activeTask.value.id, result)
@@ -7966,7 +7973,7 @@ export function useDeliveryWorkflow() {
       return true
     }
     if (current?.batchId && ['FAILED', 'PARTIAL_FAILED'].includes(String(current.status).toUpperCase())) {
-      const retried = await runRemote('正在重试百度网盘归档批次...', () => api.m5.retryCloudBatch(current.batchId,
+      const retried = await runRemote('正在重试网盘归档...', () => api.m5.retryCloudBatch(current.batchId,
         createIdempotencyKey(`cloud-archive-batch-retry:${current.batchId}`)), '')
       if (!retried) return false
       applyCloudBatchProgress(activeTask.value.id, retried)
@@ -8122,8 +8129,8 @@ export function useDeliveryWorkflow() {
     { key: 'parentTouch', title: '发给家长' },
     { key: 'wheatTrace', title: '小麦消课确认' },
     { key: 'archiveExtras', title: '网盘或老师课效归档' },
-    { key: 'completionCheck', title: '完成条件检查' },
-    { key: 'archiveCommit', title: '归档提交' }
+    { key: 'completionCheck', title: '检查是否可完成' },
+    { key: 'archiveCommit', title: '完成归档' }
   ]
 
   const resetArchiveRun = () => {
@@ -8352,7 +8359,7 @@ export function useDeliveryWorkflow() {
       }
       const providerConfigId = cloudTarget ? String(cloudTarget).replace(/^cloud:/, '') : null
       const cloudBatch = await ensureCloudArchiveBatch(task.id, { waitForCompletion: false, providerConfigId })
-      if (!cloudBatch) return { ok: false, detail: '网盘归档批次未创建' }
+      if (!cloudBatch) return { ok: false, detail: '网盘归档未能开始' }
       selectCloudArchiveProvider(cloudBatch.providerConfigId)
       if (!cloudBatchTerminal(cloudBatch)) {
         const watcher = watchCloudArchiveBatch(cloudBatch.batchId || cloudBatch.id, task.id)
@@ -8379,16 +8386,16 @@ export function useDeliveryWorkflow() {
       if (!homeworkSaved) {
         return { ok: false, detail: `课后任务自动保存失败：${shareDraftFailureMessageFor(activeWorkspace.value)}` }
       }
-      const completion = await runRemote('正在检查完成条件...', () => api.lessons.completion(task.id))
-      if (!completion) return { ok: false, detail: '完成条件检查请求失败' }
+      const completion = await runRemote('正在检查...', () => api.lessons.completion(task.id))
+      if (!completion) return { ok: false, detail: '检查失败，请重试' }
       if (!completion.passed) {
         const failures = (completion.items || [])
           .filter((item) => item.blocking && !item.passed)
           .map((item) => ({ studentName: '归档检查', reason: item.message }))
-        return { ok: false, detail: failures.map((item) => item.reason).join('、') || '完成条件检查未通过', failures, completion }
+        return { ok: false, detail: failures.map((item) => item.reason).join('、') || '暂不能完成，请先处理未完成项', failures, completion }
       }
-      return { ok: true, value: completion, detail: '完成条件检查已通过' }
-    }, '完成条件检查未通过')
+      return { ok: true, value: completion, detail: '检查通过' }
+    }, '暂不能完成，请先处理未完成项')
     if (!completionStep.ok) {
       stopArchiveRun('blocked', completionStep.detail)
       return false
@@ -8397,12 +8404,12 @@ export function useDeliveryWorkflow() {
     const commit = await runArchiveStep('archiveCommit', async () => {
       const completion = completionStep.value
       const result = await runRemote(
-        '正在完成本节归档交付...',
+        '正在完成本节归档...',
         () => api.lessons.archiveCommit(task.id, { version: completion.lessonVersion ?? task.version }, createIdempotencyKey(`archive-commit:${task.id}`)),
         ''
       )
-      return result ? { ok: true, detail: '本节课已完成归档交付' } : { ok: false, detail: '归档提交失败，请重试' }
-    }, '归档提交失败，请重试')
+      return result ? { ok: true, detail: '本节课已完成归档' } : { ok: false, detail: '完成归档失败，请重试' }
+    }, '完成归档失败，请重试')
     if (!commit.ok) {
       stopArchiveRun('error', commit.detail)
       return false

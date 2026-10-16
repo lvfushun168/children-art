@@ -197,8 +197,8 @@ defineExpose({ renderBlob, rendererVersion: RENDERER_VERSION, status, outputHeig
   <section class="teacher-effect-live-preview">
     <header>
       <div>
-        <span>本次版本预览</span>
-        <small v-if="status === 'ready'">预览内容即保存后的 PNG</small>
+        <span>预览</span>
+        <small v-if="status === 'ready'">预览内容即保存后的长图</small>
         <small v-else-if="status === 'loading'">更新预览中…</small>
         <small v-else-if="status === 'error'">{{ error }}</small>
         <small v-else>选择图片后生成预览</small>

@@ -344,7 +344,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
       <form class="directory-toolbar panel" @submit.prevent>
         <label class="directory-search">
           <span>关键词</span>
-          <input v-model="queryInput" placeholder="模板名称、模板标识或模型" />
+          <input v-model="queryInput" placeholder="模板名称或模型" />
         </label>
         <label>
           <span>状态</span>
@@ -372,9 +372,7 @@ onBeforeUnmount(() => cleanupMobileMedia())
             <thead>
               <tr>
                 <th>模板名称</th>
-                <th>模板标识</th>
                 <th>主要配置</th>
-                <th>版本</th>
                 <th>状态</th>
                 <th>操作</th>
               </tr>
@@ -392,12 +390,10 @@ onBeforeUnmount(() => cleanupMobileMedia())
                   <small v-if="activeType === 'comment'">{{ item.model || '默认模型' }}</small>
                   <small v-else>{{ item.renderer === 'AI_ASYNC' ? 'AI 异步处理' : '前端画布处理' }}</small>
                 </td>
-                <td class="template-key-cell">{{ item.templateKey || '—' }}</td>
                 <td>
                   <span>{{ summaryFor(item) }}</span>
                   <small>{{ secondarySummaryFor(item) }}</small>
                 </td>
-                <td>v{{ item.templateVersion || 1 }}</td>
                 <td><AppStatusTag class="template-status-tag" :class="{ disabled: uiStatus(item.status) === '停用' }" :status="uiStatus(item.status)" /></td>
                 <td><button class="ghost" type="button" @click.stop="selectTemplate(item)"><AppIcon :name="canWriteTemplates ? 'edit' : 'view'" :size="15" />{{ canWriteTemplates ? '编辑' : '查看详情' }}</button></td>
               </tr>
@@ -415,7 +411,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
             >
               <strong>{{ item.name }}</strong>
               <span>{{ summaryFor(item) }} · {{ secondarySummaryFor(item) }}</span>
-              <small>{{ item.templateKey || '保存后生成模板标识' }} · v{{ item.templateVersion || 1 }}</small>
               <AppStatusTag :status="uiStatus(item.status)" />
             </button>
           </div>
@@ -429,7 +424,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
           <div>
             <span>{{ mode === 'new' ? '新增' : mode === 'edit' ? '编辑' : '详情' }}</span>
             <strong>{{ mode === 'new' ? `新增${activeLabel}` : selected?.name || activeLabel }}</strong>
-            <small v-if="mode !== 'new'" class="template-drawer-meta">{{ selected?.templateKey || '未生成标识' }} · v{{ selected?.templateVersion || 1 }}</small>
           </div>
           <div class="button-pair">
             <button class="ghost" type="button" @click="closeDrawer"><AppIcon name="close" :size="16" />关闭</button>
@@ -448,7 +442,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
                   <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
                   <label>语气风格<input v-model="draft.tone" /></label>
                   <label>字数范围<input v-model="draft.length" /></label>
-                  <label class="wide">模板标识<input :value="draft.templateKey || '保存时自动生成'" disabled /></label>
                 </div>
               </section>
 
@@ -479,7 +472,6 @@ onBeforeUnmount(() => cleanupMobileMedia())
                 <div class="form-grid">
                   <label>模板名称<input v-model="draft.name" /></label>
                   <label>状态<AdaptiveSelect v-model="draft.status" :options="['启用', '停用']" /></label>
-                  <label class="wide">模板标识<input :value="draft.templateKey || '保存时自动生成'" disabled /></label>
                 </div>
               </section>
 

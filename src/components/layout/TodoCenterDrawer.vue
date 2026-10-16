@@ -138,7 +138,7 @@ const openSupervision = () => {
             <article v-for="task in wecomTodos" :key="`wecom-${task.id}`" class="todo-trace-row">
               <div>
                 <strong>{{ task.studentName }}（{{ task.targetName }}）</strong>
-                <small>{{ task.lesson }} · 家长页面 V{{ task.shareVersion }}</small>
+                <small>{{ task.lesson }}</small>
                 <small v-if="task.wecomGroupName">家长群：{{ task.wecomGroupName }}</small>
                 <small v-else-if="task.status === '待绑定家长群'">请先在学生管理中绑定家长客户群</small>
                 <small v-if="task.failureReason">失败原因：{{ task.failureReason }}</small>
@@ -162,10 +162,9 @@ const openSupervision = () => {
             <div class="mini-head"><div><span>网盘异常</span><strong>{{ cloudTodos.length }} 条同步失败</strong></div></div>
             <article v-for="job in cloudTodos" :key="`cloud-${job.id}`" class="todo-trace-row">
               <div>
-                <strong>{{ job.targetFilename || job.targetPath || '网盘归档任务' }}</strong>
+                <strong>{{ job.targetFilename || job.targetPath || '网盘文件' }}</strong>
                 <small v-if="lessonForCloudJob(job)">{{ lessonForCloudJob(job).date }} {{ lessonForCloudJob(job).time }} · {{ klassName(lessonForCloudJob(job)) }}</small>
                 <small v-if="job.failureReason">失败原因：{{ job.failureReason }}</small>
-                <small v-if="job.failureCode">错误码：{{ job.failureCode }}</small>
               </div>
               <AppStatusTag status="同步失败" />
               <div class="button-pair">

@@ -443,7 +443,7 @@ const closeAiPrompt = () => {
 const submitAiPrompt = async () => {
   const prompt = aiPrompt.value.trim()
   if (!prompt) {
-    aiPromptError.value = '请输入 AI 处理提示词'
+    aiPromptError.value = '请输入处理要求'
     return
   }
   if (!artworkItem.value) return
@@ -1054,7 +1054,7 @@ onMounted(() => {
             @keydown.esc.prevent="cancelArtworkNameEdit"
             @blur="saveArtworkName"
           />
-          <small>{{ artworkNameSaving ? '正在保存作品名称…' : artworkItem?.artworkId ? '失焦或回车保存，Esc 取消；名称会用于新建网盘归档。' : '上传作品后可编辑业务名称。' }}</small>
+          <small>{{ artworkNameSaving ? '正在保存作品名称…' : artworkItem?.artworkId ? '修改后按回车保存；名称会用于网盘归档。' : '上传作品后可编辑业务名称。' }}</small>
         </label>
 
         <label v-if="artworkItem" class="drawer-field">
@@ -1087,9 +1087,9 @@ onMounted(() => {
                 type="button"
                 class="artwork-ai-entry"
                 :disabled="state.isProcessing || artworkJobActive(artworkItem) || !hasImage(imageAsset(artworkItem, 'original'))"
-                title="输入提示词，生成 AI 处理图"
+                title="输入处理要求，生成 AI 处理图"
                 @click.stop="openAiPrompt"
-              >AI处理✨</button>
+              >AI 处理</button>
               <ProtectedMedia v-if="showPersistedProcessedImage(artworkItem)" :file-id="imageAsset(artworkItem, 'processed').fileId" :src="imageAsset(artworkItem, 'processed').src" alt="作品处理图" />
               <img v-else-if="artworkPreviewUrl" :src="artworkPreviewUrl" alt="作品处理预览" class="artwork-live-preview" />
               <span v-else-if="artworkPreviewLoading" class="delivery-empty">正在生成实时预览…</span>
@@ -1118,15 +1118,15 @@ onMounted(() => {
       <section class="ai-image-prompt-modal" role="dialog" aria-modal="true" aria-labelledby="ai-image-prompt-title">
         <header class="modal-head">
           <div>
-            <strong id="ai-image-prompt-title">AI处理✨</strong>
-            <small>{{ studentFor(artworkItem.studentId).name }} · {{ artworkItem.artworkTitle || '当前作品' }} · 输入提示词生成处理图</small>
+            <strong id="ai-image-prompt-title">AI 处理</strong>
+            <small>{{ studentFor(artworkItem.studentId).name }} · {{ artworkItem.artworkTitle || '当前作品' }} · 输入处理要求生成处理图</small>
           </div>
           <button type="button" class="ghost" :disabled="state.isProcessing" @click="closeAiPrompt"><AppIcon name="close" :size="16" />关闭</button>
         </header>
 
 
         <label class="drawer-field" for="ai-image-prompt">
-          <span>处理提示词</span>
+          <span>处理要求</span>
           <textarea
             id="ai-image-prompt"
             name="aiImagePrompt"
@@ -1140,7 +1140,7 @@ onMounted(() => {
             @keydown.meta.enter.prevent="submitAiPrompt"
           />
           <small v-if="aiPromptError" class="missing-text">{{ aiPromptError }}</small>
-          <small v-else>提示：Ctrl/⌘ + Enter 可直接提交。</small>
+          <small v-else>提示：按 Ctrl/⌘ + 回车键可直接提交。</small>
         </label>
 
         <footer class="modal-actions">

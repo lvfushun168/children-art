@@ -356,7 +356,7 @@ const teacherEffectSourceOptions = computed(() => {
       fileId: source.fileId,
       image: source.downloadUrl || '',
       title: `已选素材 ${source.sourceAssetId}`,
-      meta: source.sourceType === 'ARTWORK' ? '学生作品 · 当前版本' : '课堂资料 · 当前版本'
+      meta: source.sourceType === 'ARTWORK' ? '学生作品' : '课堂资料'
     })
   })
   return [...new Map(sourceOptions.map((source) => [source.sourceAssetId, source])).values()]
@@ -531,14 +531,14 @@ const cloudArchiveActionLabel = (item) => {
   const attempt = String(batch?.syncAttemptStatus || '').toUpperCase()
   const isBaidu = typeof props.state.isBaiduCloudBatch === 'function' && props.state.isBaiduCloudBatch(batch)
   if (isBaidu && batch?.status === 'SUCCEEDED') {
-    if (['QUEUED', 'RUNNING'].includes(attempt)) return '覆盖同步中'
-    if (attempt === 'FAILED') return '再次覆盖'
-    return '覆盖同步'
+    if (['QUEUED', 'RUNNING'].includes(attempt)) return '重新上传中'
+    if (attempt === 'FAILED') return '重新上传'
+    return '重新上传'
   }
   if (batch?.status === 'SUCCEEDED') return '已同步'
   if (batch?.status === 'FAILED' || batch?.status === 'PARTIAL_FAILED') return '重试同步'
-  if (item?.item?.status === '推送中') return '上传中…'
-  return item?.action || '推送'
+  if (item?.item?.status === '上传中') return '上传中…'
+  return item?.action || '上传到网盘'
 }
 
 const cloudArchiveActionDisabled = (item) => {
@@ -614,7 +614,7 @@ watch(homeworkEditorOpen, async (open) => {
         </div>
         <div v-if="state.activeTask.status === '异常'" class="lesson-warning">
           <strong>这节课的信息需要确认</strong>
-          <span>{{ state.activeTask.exceptionType || '数据异常' }} · {{ state.activeTask.exceptionReason || '未填写原因' }}</span>
+          <span>{{ state.activeTask.exceptionReason || state.activeTask.exceptionType || '请联系管理员确认' }}</span>
         </div>
         <div class="attendance-summary">
           <div>
@@ -1218,7 +1218,7 @@ watch(homeworkEditorOpen, async (open) => {
           <footer class="drawer-actions teacher-effect-drawer-actions">
             <span v-if="teacherEffectValidationMessage" class="teacher-effect-validation-error">{{ teacherEffectValidationMessage }}</span>
             <span v-else-if="teacherEffectPreviewState.status === 'loading'">{{ selectedTeacherEffectSources.length }} 张图片 · 正在更新预览</span>
-            <span v-else>{{ selectedTeacherEffectSources.length }} 张图片 · 预览内容即保存版本</span>
+            <span v-else>{{ selectedTeacherEffectSources.length }} 张图片 · 预览内容即保存的长图</span>
             <div>
               <button class="ghost" type="button" @click="closeTeacherEffectDrawer"><AppIcon name="close" :size="15" />取消</button>
               <button class="primary" type="button" :disabled="state.isProcessing || teacherEffectSubmitting || !teacherEffectDraftValid || teacherEffectPreviewState.status !== 'ready'" @click="saveTeacherEffectAndGenerate"><AppIcon name="save" :size="16" />保存并生成</button>

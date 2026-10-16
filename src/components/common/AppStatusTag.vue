@@ -28,9 +28,9 @@ const includesAny = (words) => words.some((word) => statusText.value.includes(wo
 const statusTone = computed(() => {
   if (props.tone) return props.tone
   if (includesAny(['失败', '异常', '错误', '退回', '失效'])) return 'danger'
-  if (includesAny(['已完成', '已发送', '人工发送', '已人工处理', '已归档', '正式档案', '已装裱', '已入选', '进行中', '已启用', '已授权', '已准备', '已发布', '已评分', '成功'])) return 'success'
+  if (includesAny(['已完成', '已发送', '人工发送', '已确认', '已归档', '正式档案', '已装裱', '已入选', '进行中', '已启用', '已授权', '已准备', '已发布', '已评分', '成功'])) return 'success'
   if (includesAny(['处理中', '生成中', '同步中', '待'])) return 'pending'
-  if (includesAny(['停用', '取消', '无需处理'])) return 'warning'
+  if (includesAny(['停用', '取消'])) return 'warning'
   return 'muted'
 })
 

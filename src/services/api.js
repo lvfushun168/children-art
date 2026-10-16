@@ -250,13 +250,12 @@ export const api = {
   },
   todo: {
     list: (params) => page('/todos', params),
-    wheatTraces: (params) => page('/wheat-traces', params),
     complete: (todoId, body) => request(`/todos/${id(todoId)}/complete`, { method: 'POST', body }),
     cancel: (todoId, body) => request(`/todos/${id(todoId)}/cancel`, { method: 'POST', body }),
     wheat: (lessonId) => request(`/lessons/${id(lessonId)}/wheat-trace`),
-    createWheat: (lessonId, key) => request(`/lessons/${id(lessonId)}/wheat-trace`, { method: 'POST', idempotencyKey: key }),
+    confirmWheat: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/wheat-trace/confirm`, { method: 'POST', body, idempotencyKey: key }),
+    recordWheatException: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/wheat-trace/exception`, { method: 'POST', body, idempotencyKey: key }),
     getWheat: (wheatId) => request(`/wheat-traces/${id(wheatId)}`),
-    transitionWheat: (wheatId, body) => request(`/wheat-traces/${id(wheatId)}/transition`, { method: 'POST', body })
   },
   m5: {
     teacherEffect: (lessonId) => request(`/lessons/${id(lessonId)}/teacher-effect`),

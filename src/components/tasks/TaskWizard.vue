@@ -33,6 +33,7 @@ const teacherEffectPreviewState = ref({ status: 'idle', error: '', width: 0, hei
 const teacherEffectSubmitting = ref(false)
 const studentDeliveryDrawerOpen = ref(false)
 const studentDeliveryMobileDetailOpen = ref(false)
+const wheatExceptionReason = ref('')
 const resourceSearch = ref('')
 const resourceFilter = ref('全部')
 const resourceLoading = ref(false)
@@ -108,6 +109,10 @@ const shareDraftStatusText = () => {
 }
 const retryShareDraft = () => props.state.retryShareDraft?.()
 const goToStep = (index) => props.state.goToStep?.(index) ?? (props.state.currentStep = index)
+const recordWheatException = async () => {
+  const saved = await props.state.recordWheatException?.(wheatExceptionReason.value)
+  if (saved) wheatExceptionReason.value = ''
+}
 const homeworkEditorTitle = computed(() => homeworkEditorField.value === 'content' ? '编辑任务内容' : '编辑完成方式 / 家长配合')
 const homeworkEditorPlaceholder = computed(() => homeworkEditorField.value === 'content'
   ? '例如：回家观察一种暖色系物品，说一说它的颜色和形状。'
@@ -587,7 +592,6 @@ watch(homeworkEditorOpen, async (open) => {
       :active-task="state.activeTask"
       @show-archives="$emit('navigate', 'archives')"
       @show-students="$emit('navigate', 'students')"
-      @show-wheat="$emit('navigate', 'wheat')"
     />
 
     <template v-else>
@@ -1114,7 +1118,22 @@ watch(homeworkEditorOpen, async (open) => {
                   <button v-if="teacherEffectStatus === 'FAILED' && teacherEffect.id" class="ghost" :disabled="state.isProcessing" @click="state.retryTeacherEffect"><AppIcon name="retry" :size="15" />重试任务</button>
                   <AppStatusTag v-if="['CONFIRMED', 'SKIPPED'].includes(teacherEffectStatus)" class="status-pill" :status="item.item.status" />
                 </template>
-                <button v-if="item.key === 'wheatTrace'" class="secondary" :disabled="state.isProcessing || state.isArchiveDone(item.item)" @click="state.generateWheatTraceTask"><AppIcon name="send" :size="15" />{{ state.isArchiveDone(item.item) ? item.item.status : item.action }}</button>
+                <div v-if="item.key === 'wheatTrace'" class="wheat-confirm-actions">
+                  <label class="send-check-control" :class="{ 'is-checked': item.item.status === '已确认' }">
+                    <input
+                      type="checkbox"
+                      :checked="item.item.status === '已确认'"
+                      :disabled="state.isProcessing || item.item.status === '已确认'"
+                      @change="state.confirmWheatTrace"
+                    />
+                    <span class="send-check-mark" aria-hidden="true">✓</span>
+                    <span>我已在小麦完成本节课消课</span>
+                  </label>
+                  <template v-if="item.item.status !== '已确认'">
+                    <input v-model="wheatExceptionReason" class="wheat-exception-input" type="text" placeholder="遇到无法消课时填写异常原因" />
+                    <button class="ghost" type="button" :disabled="state.isProcessing || !wheatExceptionReason.trim()" @click="recordWheatException">记录异常</button>
+                  </template>
+                </div>
               </div>
             </article>
           </section>
@@ -1304,7 +1323,7 @@ watch(homeworkEditorOpen, async (open) => {
       <footer v-if="state.currentStep !== 2 || (!studentDeliveryDrawerOpen && !studentDeliveryMobileDetailOpen)" class="wizard-actions">
         <button class="ghost" :disabled="state.currentStep === 0" @click="state.prevStep"><AppIcon name="back" :size="15" />上一步</button>
         <button v-if="state.currentStep < state.steps.length - 1" class="primary" :disabled="state.isProcessing" @click="state.nextStep"><AppIcon name="next" :size="15" />下一步</button>
-        <button v-else class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running'" @click="finishArchiveAndExit"><AppIcon name="check" :size="16" />完成归档交付</button>
+        <button v-else class="primary" :disabled="state.isProcessing || state.archiveRunState?.phase === 'running' || !state.archiveChecklistReady" :title="!state.archiveChecklistReady ? '请先在小麦完成消课，再返回当前页面确认' : undefined" @click="finishArchiveAndExit"><AppIcon name="check" :size="16" />完成归档交付</button>
       </footer>
     </template>
   </section>

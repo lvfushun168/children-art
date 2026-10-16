@@ -107,13 +107,12 @@ const mobileGroupEntries = computed(() =>
 const listValue = (value) => Array.isArray(value) ? value : Array.isArray(value?.value) ? value.value : []
 const inboxLessons = computed(() => listValue(state.visibleInboxLessons))
 const pendingCount = computed(() => inboxLessons.value.filter((task) => task.status !== '已完成').length)
-const wheatPendingCount = computed(() => listValue(state.wheatTraces).filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)).length)
 const wecomPendingCount = computed(() => listValue(state.wecomSendTasks).filter((task) => ['待绑定家长群', '待老师确认发送', '发送失败'].includes(task.status)).length)
 const cloudIssueCount = computed(() => listValue(state.cloudArchiveTodos).filter((job) => job.statusCode === 'FAILED' || job.status === '同步失败').length)
 const reviewPendingCount = computed(() => state.canQualityReview
   ? listValue(state.pendingReviewQueue).filter((review) => ['待评分', '已退回'].includes(review.status)).length
   : 0)
-const todoCount = computed(() => pendingCount.value + wecomPendingCount.value + wheatPendingCount.value + cloudIssueCount.value + reviewPendingCount.value)
+const todoCount = computed(() => pendingCount.value + wecomPendingCount.value + cloudIssueCount.value + reviewPendingCount.value)
 
 const openGroup = (groupId) => {
   productionHandoff.value = null
@@ -153,10 +152,6 @@ const openImportCenter = (type = '综合课表') => {
 }
 
 const handleNavigate = (target) => {
-  if (target === 'wheat') {
-    showTodoCenter.value = true
-    return
-  }
   openNav(target)
 }
 
@@ -330,7 +325,6 @@ onBeforeRouteUpdate(async (to, from) => {
       :nav-groups="filteredNavGroups"
       :pending-count="pendingCount"
       :todo-count="todoCount"
-      :wheat-pending-count="wheatPendingCount"
       :school="state.school"
       @select-group="openGroup"
       @open-todo-center="showTodoCenter = true"

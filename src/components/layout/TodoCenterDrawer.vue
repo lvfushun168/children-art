@@ -29,7 +29,6 @@ const listValue = (value) => {
 
 const stateList = (key) => listValue(state[key])
 const lessonList = computed(() => stateList('visibleInboxLessons'))
-const wheatTodos = computed(() => stateList('wheatTraces').filter((trace) => !['已人工处理', '无需处理'].includes(trace.status)))
 const wecomTodos = computed(() => stateList('wecomSendTasks').filter((task) => {
   if (['待绑定家长群', '待老师确认发送', '发送失败'].includes(task.status)) return true
   return ['已发送', '人工发送'].includes(task.status)
@@ -45,7 +44,6 @@ const categories = computed(() => {
   const values = [
     { id: 'lessons', label: '课后交付', icon: 'today-tasks', count: pendingLessons.value.length },
     { id: 'wecom', label: '企微待处理', icon: 'send', count: wecomTodos.value.length },
-    { id: 'wheat', label: '小麦消课', icon: 'external-link', count: wheatTodos.value.length },
     { id: 'cloud', label: '网盘异常', icon: 'file-archive', count: cloudTodos.value.length }
   ]
   if (state.canQualityReview) values.push({ id: 'reviews', label: '待评分', icon: 'supervision', count: reviewTodos.value.length })
@@ -72,11 +70,6 @@ const courseName = (task) => task.course
   || '未命名课程'
 
 const lessonForCloudJob = (job) => lessonForId(job.lessonId)
-
-const updateTrace = (trace, status) => {
-  const reason = reasons[`wheat-${trace.id}`] || ''
-  if (state.markTrace(trace, status, reason)) reasons[`wheat-${trace.id}`] = ''
-}
 
 const updateWecomTask = (task, status) => {
   const reason = reasons[`wecom-${task.id}`] || ''
@@ -163,25 +156,6 @@ const openSupervision = () => {
               </div>
             </article>
             <small v-if="!wecomTodos.length" class="empty-note">暂无企微待办</small>
-          </section>
-
-          <section v-if="activeCategory === 'wheat'" class="todo-group">
-            <div class="mini-head"><div><span>小麦消课</span><strong>{{ wheatTodos.length }} 条待处理</strong></div></div>
-            <small class="todo-guidance">请前往小麦助教完成消课，完成后返回本系统确认。</small>
-            <article v-for="trace in wheatTodos" :key="trace.id" class="todo-trace-row">
-              <div>
-                <strong>{{ trace.lesson }}</strong>
-                <small>{{ trace.course }} · {{ trace.teacher }} · {{ trace.note }}</small>
-              </div>
-              <AppStatusTag :status="trace.status" />
-              <input v-model="reasons[`wheat-${trace.id}`]" placeholder="异常、无需处理或更正原因" />
-              <div class="button-pair">
-                <button type="button" class="secondary" @click="updateTrace(trace, '已人工处理')"><AppIcon name="check" :size="15" />标记已处理</button>
-                <button type="button" class="ghost" @click="updateTrace(trace, '无需处理')"><AppIcon name="close" :size="15" />无需处理</button>
-                <button v-if="trace.status === '待处理'" type="button" class="ghost" @click="updateTrace(trace, '异常')"><AppIcon name="warning" :size="15" />异常</button>
-              </div>
-            </article>
-            <small v-if="!wheatTodos.length" class="empty-note">暂无小麦消课待办</small>
           </section>
 
           <section v-if="activeCategory === 'cloud'" class="todo-group">

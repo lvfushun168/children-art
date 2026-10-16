@@ -67,7 +67,6 @@ import {
   toApiAttendanceStatus,
   toApiLessonStatus,
   toApiLessonType,
-  toApiWheatCommand
 } from '../services/mappers'
 import { isLessonArchiveComplete, lessonArchiveGuard, studentDeliveryReadiness } from '../services/lessonWorkflow.js'
 import {
@@ -298,10 +297,9 @@ export function useDeliveryWorkflow() {
   const coursewareLoading = reactive({ folders: false, items: false, mutation: false })
   const coursewareError = ref('')
   const coursewarePreview = ref(null)
-  const shellSummary = reactive({ pendingLessons: 0, wheatPending: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })
+  const shellSummary = reactive({ pendingLessons: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })
   const shellPages = reactive({
     lessons: { page: 1, pageSize: 20, total: 0 },
-    wheatTraces: { page: 1, pageSize: 20, total: 0 },
     todos: { page: 1, pageSize: 20, total: 0 }
   })
   // Every server-backed list keeps its own page contract even when the first
@@ -397,7 +395,13 @@ export function useDeliveryWorkflow() {
     parentTouch: { status: '待创建', detail: '', method: '', sentCount: 0, dispatchStatus: '', updatedAt: '' },
     studentCloudArchive: { status: '待推送', detail: '', syncAttemptStatus: '', updatedAt: '' },
     teacherEffectArchive: { status: '待生成', detail: '', title: '', imageCount: 0, updatedAt: '' },
-    wheatTrace: { status: '待生成', detail: '', traceId: null, updatedAt: '' }
+    wheatTrace: {
+      status: '待确认',
+      detail: '请先在小麦完成本节课消课，再返回当前页面确认',
+      traceId: null,
+      version: 0,
+      updatedAt: ''
+    }
   })
 
   const createLessonWorkspace = (task, useInitialSeed = false) => {
@@ -716,7 +720,7 @@ export function useDeliveryWorkflow() {
       scheduleLessons.find((lesson) => sameId(lesson.id, activeTaskId.value)) ||
       (sameId(selectedTaskSnapshot.value?.id, activeTaskId.value) ? selectedTaskSnapshot.value : null)
     return selected || visibleTasks.value[0] || {
-      id: null, classId: null, className: '', courseId: null, courseTitle: '', topic: '', teacherId: null, teacher: '', date: '', dateValue: '', time: '', lessonType: '其他', status: '待处理', version: 0, wheatStatus: '未生成'
+      id: null, classId: null, className: '', courseId: null, courseTitle: '', topic: '', teacherId: null, teacher: '', date: '', dateValue: '', time: '', lessonType: '其他', status: '待处理', version: 0, wheatStatus: '待确认'
     }
   })
   const activeClass = computed(() => classes.find((item) => sameId(item.id, activeTask.value?.classId)) || { id: activeTask.value?.classId || null, name: activeTask.value?.className || '未选择班级', studentIds: [], time: '' })
@@ -845,9 +849,9 @@ export function useDeliveryWorkflow() {
     })),
     {
       id: 'wheat',
-      label: '小麦消课待办',
+      label: '小麦消课确认',
       required: true,
-      status: activeTask.value?.wheatStatus || '未生成'
+      status: activeTask.value?.wheatStatus || '待确认'
     }
   ])
   const archiveFilter = reactive({
@@ -976,7 +980,7 @@ export function useDeliveryWorkflow() {
         shareReadyCount: studentWorks.filter((item) => item.shareReady).length,
         archivedCount: studentWorks.filter((item) => item.archived).length,
         highlights: studentWorks.reduce((total, item) => total + (item.artworks || []).filter((artwork) => artwork.highlight).length, 0),
-        wheatStatus: trace?.status || task.wheatStatus || '未生成',
+        wheatStatus: trace?.status || task.wheatStatus || '待确认',
         cloudArchiveStatus: task.cloudArchiveStatus || '待推送',
         teacherEffect: workspace.archiveChecklist?.teacherEffectArchive || createArchiveChecklist().teacherEffectArchive,
         studentArchive: workspace.archiveChecklist?.studentCloudArchive || createArchiveChecklist().studentCloudArchive,
@@ -1039,7 +1043,7 @@ export function useDeliveryWorkflow() {
           shareReadyCount: relatedWorks.filter((record) => record.shareUrl).length,
           archivedCount: archive.works || relatedWorks.length,
           highlights: archive.highlights || relatedWorks.reduce((total, record) => total + (record.artworks || []).filter((artwork) => artwork.highlight).length, 0),
-          wheatStatus: archive.wheatStatus || '已人工处理',
+          wheatStatus: archive.wheatStatus || '已确认',
           cloudArchiveStatus: archive.cloudArchiveStatus || '历史归档',
           teacherEffect: {
             status: '已归档',
@@ -1411,7 +1415,7 @@ export function useDeliveryWorkflow() {
     return warnings
   })
 
-  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工发送', '发送失败', '已人工处理', '无需处理']
+  const archiveDoneStatuses = ['已同步', '已上传', '已归档', '已生成', '已确认', '已跳过', '待老师确认发送', '已发送', '人工发送', '发送失败']
   const archiveRecordedStatuses = [...archiveDoneStatuses, '待绑定家长群']
   const archiveWorkingStatuses = ['推送中', '生成中', '创建中']
   const isArchiveDone = (item) => archiveDoneStatuses.includes(item.status)
@@ -1484,9 +1488,11 @@ export function useDeliveryWorkflow() {
     },
     {
       key: 'wheatTrace',
-      title: '小麦消课待办',
-      meta: archiveChecklist.value.wheatTrace.traceId ? `待办 #${archiveChecklist.value.wheatTrace.traceId}` : '',
-      action: '生成待办',
+      title: '小麦消课确认',
+      meta: archiveChecklist.value.wheatTrace.status === '已确认'
+        ? '已记录本节课小麦消课结果'
+        : '请先在小麦完成本节课消课，再返回当前页面确认',
+      action: '确认已完成',
       required: true,
       item: archiveChecklist.value.wheatTrace
     }
@@ -2134,23 +2140,84 @@ export function useDeliveryWorkflow() {
     )
   }
 
-  const ensureWheatTrace = () => {
-    const lesson = `${activeTask.value.date} ${activeTask.value.time} · ${activeClass.value.name}`
-    const exists = wheatTraces.find((item) => item.lessonId === activeTask.value.id || item.lesson === lesson)
-    if (exists) return exists
-    const trace = {
-      id: Date.now(),
-      lessonId: activeTask.value.id,
-      lesson,
-      course: activeCourse.value.title,
-      teacher: activeTask.value.teacher,
-      type: activeTask.value.lessonType,
-      status: '待处理',
-      source: '课后归档生成',
-      note: '请前往小麦助教完成消课，完成后返回本系统确认'
+  const currentWheatLessonLabel = () => `${activeTask.value.date} ${activeTask.value.time} · ${activeClass.value.name}`
+
+  const confirmWheatTrace = () => {
+    const lesson = currentWheatLessonLabel()
+    let trace = wheatTraces.find((item) => sameId(item.lessonId, activeTask.value.id) || item.lesson === lesson)
+    if (!trace) {
+      trace = {
+        id: Date.now(),
+        lessonId: activeTask.value.id,
+        lesson,
+        course: activeCourse.value.title,
+        teacher: activeTask.value.teacher,
+        type: activeTask.value.lessonType,
+        status: '已确认',
+        source: '归档第五步确认',
+        note: '已在小麦完成本节课消课',
+        processedAt: nowText()
+      }
+      wheatTraces.unshift(trace)
+    } else {
+      Object.assign(trace, {
+        lessonId: activeTask.value.id,
+        lesson,
+        status: '已确认',
+        note: '已在小麦完成本节课消课',
+        processedAt: nowText()
+      })
     }
-    wheatTraces.unshift(trace)
+    activeTask.value.wheatStatus = '已确认'
+    setArchiveChecklistItem('wheatTrace', {
+      status: '已确认',
+      traceId: trace.id,
+      version: Number(trace.version || 0),
+      detail: '已在小麦完成本节课消课'
+    })
     return trace
+  }
+
+  const recordWheatException = (reason = '') => {
+    const detail = String(reason || '').trim()
+    if (!detail) {
+      notify('请填写小麦消课异常原因')
+      return null
+    }
+    const lesson = currentWheatLessonLabel()
+    let trace = wheatTraces.find((item) => sameId(item.lessonId, activeTask.value.id) || item.lesson === lesson)
+    if (!trace) {
+      trace = {
+        id: Date.now(),
+        lessonId: activeTask.value.id,
+        lesson,
+        course: activeCourse.value.title,
+        teacher: activeTask.value.teacher,
+        type: activeTask.value.lessonType,
+        status: '异常',
+        source: '归档第五步确认',
+        note: detail,
+        processedAt: nowText()
+      }
+      wheatTraces.unshift(trace)
+    } else {
+      Object.assign(trace, { status: '异常', note: detail, processedAt: nowText() })
+    }
+    activeTask.value.wheatStatus = '异常'
+    setArchiveChecklistItem('wheatTrace', { status: '异常', traceId: trace.id, detail })
+    return trace
+  }
+
+  const confirmWheatTraceTask = async () => {
+    if (archiveActionBlocked()) return false
+    if (archiveChecklist.value.wheatTrace.status === '已确认') {
+      notify('无需重复操作')
+      return false
+    }
+    await runAction('正在确认小麦消课...', '已确认在小麦完成本节课消课', async () => {
+      confirmWheatTrace()
+    })
+    return true
   }
 
   const setArchiveChecklistItem = (key, patch) => {
@@ -2179,7 +2246,7 @@ export function useDeliveryWorkflow() {
     attendingRows.value.forEach((row) => {
       if (row.shareReady) row.archived = true
     })
-    const wheatStatus = trace?.status || activeTask.value.wheatStatus || '未生成'
+    const wheatStatus = trace?.status || activeTask.value.wheatStatus || '待确认'
     const summary = archives.find((item) => item.lessonId === activeTask.value.id)
     const summaryPayload = {
       lessonId: activeTask.value.id,
@@ -2274,21 +2341,6 @@ export function useDeliveryWorkflow() {
           ? `${title} · ${counts.value.matched} 张图片 · 已同步 ${teacherEffectPathPreview.value}`
           : `${title} · ${counts.value.matched} 张图片 · 已保存到老师归档中心，未启用网盘`
       })
-    })
-    return true
-  }
-
-  const generateWheatTraceTask = async () => {
-    if (archiveActionBlocked()) return false
-    if (isArchiveDone(archiveChecklist.value.wheatTrace)) {
-      notify('无需重复操作')
-      return false
-    }
-    setArchiveChecklistItem('wheatTrace', { status: '生成中' })
-    await runAction('正在生成小麦消课待办...', '小麦消课待办已生成', async () => {
-      const trace = ensureWheatTrace()
-      activeTask.value.wheatStatus = trace.status
-      setArchiveChecklistItem('wheatTrace', { status: '已生成', traceId: trace.id, detail: '请前往小麦助教完成消课，完成后返回本系统确认' })
     })
     return true
   }
@@ -2465,8 +2517,12 @@ export function useDeliveryWorkflow() {
     const targetLabel = cloudTargets.length ? `，并同步 ${cloudTargets.map((target) => target.label).join('、')}` : ''
     await runAction(`正在完成本节归档交付...`, `本节课已完成归档交付${targetLabel}`, async () => {
       const before = activeTask.value.status
-      const trace = ensureWheatTrace()
-      activeTask.value.wheatStatus = trace.status
+      const trace = wheatTraces.find((item) => sameId(item.lessonId, activeTask.value.id))
+      if (!trace || trace.status !== '已确认') {
+        notify('归档失败：请先在小麦完成消课，再返回当前页面确认')
+        return
+      }
+      activeTask.value.wheatStatus = '已确认'
       activeTask.value.archived = true
       activeTask.value.archiveTargets = selectedArchiveTargets.value
       activeTask.value.cloudArchiveStatus = cloudTargets.length ? '已同步' : '未选择网盘'
@@ -2534,30 +2590,29 @@ export function useDeliveryWorkflow() {
   }
 
   const markTrace = (trace, status, reason = '') => {
+    if (!trace || !['已确认', '异常'].includes(status)) {
+      notify('小麦消课只能确认完成或记录异常')
+      return false
+    }
     const before = trace.status
     if (before === status) {
       notify('无需重复操作')
       return false
     }
-    const isCorrection = ['已人工处理', '无需处理'].includes(before)
-    if ((status === '异常' || status === '无需处理' || isCorrection) && !reason?.trim()) {
-      notify(isCorrection ? '更正已完成的消课状态必须填写更正原因' : '该状态变更必须填写说明')
-      return false
-    }
-    if (isCorrection && !isAdmin.value) {
-      notify('无权限')
+    if (status === '异常' && !reason?.trim()) {
+      notify('记录小麦消课异常必须填写原因')
       return false
     }
     trace.status = status
-    trace.note = reason?.trim() || (status === '已人工处理' ? '已在小麦助教完成消课' : trace.note)
-    trace.lastReason = reason?.trim() || '人工确认已处理'
+    trace.note = reason?.trim() || '已在小麦完成本节课消课'
+    trace.lastReason = reason?.trim() || '已确认在小麦完成本节课消课'
     trace.operator = currentUser.value?.name
     trace.processedAt = nowText()
     const lesson = `${activeTask.value.date} ${activeTask.value.time} · ${activeClass.value.name}`
     if (trace.lesson === lesson) activeTask.value.wheatStatus = status
     // Keep the audit object type stable for historical records; only change
     // the user-facing label of this workflow.
-    addStatusLog('小麦留痕', trace.id, before, status, trace.lastReason, '小麦消课页', trace.lessonId || null)
+    addStatusLog('小麦消课确认', trace.id, before, status, trace.lastReason, '归档第五步', trace.lessonId || null)
     return true
   }
 
@@ -2575,7 +2630,7 @@ export function useDeliveryWorkflow() {
       teacher: teacher?.name || klass?.teacher || '待配置',
       lessonType: payload.lessonType || '收费课',
       status: payload.status || '待处理',
-      wheatStatus: '未生成',
+      wheatStatus: '待确认',
       importedFrom: payload.importedFrom || '手动补录',
       shareGenerated: false,
       archived: false
@@ -2884,7 +2939,7 @@ export function useDeliveryWorkflow() {
       updatedAt: nowText(),
       shareUrl: existing?.shareUrl || '',
       collectionIds: existing?.collectionIds || [],
-      wheatStatus: '无需处理',
+      wheatStatus: '非课次',
       storageTarget: '系统作品档案',
       sourceType: 'extraTask',
       archiveCategory: '课外作品',
@@ -4122,7 +4177,13 @@ export function useDeliveryWorkflow() {
         detail: cloudBatch ? cloudBatchDetail(cloudBatch) : workspace.archiveChecklist.studentCloudArchive.detail || ''
       },
       teacherEffectArchive: { ...workspace.archiveChecklist.teacherEffectArchive, status: statusForArchiveItem(teacherEffect.status), title: teacherEffect.title || '', imageCount: teacherEffect.sources?.length || 0, detail: teacherEffect.failureReason || '' },
-      wheatTrace: { ...workspace.archiveChecklist.wheatTrace, status: wheat.status === '已人工处理' || wheat.status === '无需处理' ? wheat.status : wheat.id ? '已生成' : '待生成', traceId: wheat.id || null, detail: wheat.note || '' }
+      wheatTrace: {
+        ...workspace.archiveChecklist.wheatTrace,
+        status: wheat.status === '已确认' ? '已确认' : wheat.status === '异常' ? '异常' : '待确认',
+        traceId: wheat.id || null,
+        version: Number(wheat.version || 0),
+        detail: wheat.note || '请先在小麦完成本节课消课，再返回当前页面确认'
+      }
     })
     replaceReactive(wheatTraces, [...wheatTraces.filter((item) => !sameId(item.lessonId, lesson.id)), wheat.id ? { ...wheat, lesson: `${lesson.date} ${lesson.time} · ${lesson.className}`, course: lesson.courseTitle, teacher: lesson.teacher } : null].filter(Boolean))
     const otherTouchTasks = wecomSendTasks.filter((item) => !sameId(item.lessonId, lesson.id))
@@ -4744,19 +4805,6 @@ export function useDeliveryWorkflow() {
     if (campus) Object.assign(school, { campus: campus.name, address: campus.address || '' })
   }
 
-  const mapWheatListItem = (value = {}) => {
-    const wheat = mapWheat(value.wheat?.wheat || value.wheat || value)
-    const todo = value.todo || value.wheat?.todo
-    const lesson = value.lesson || {}
-    return wheat.id ? {
-      ...wheat,
-      todo: todo ? mapTodo(todo) : null,
-      lesson: lesson.className ? `${lesson.className}${lesson.courseTitle ? ` · ${lesson.courseTitle}` : ''}` : '',
-      course: lesson.courseTitle || '',
-      teacher: lesson.teacherName || ''
-    } : null
-  }
-
   const lessonForInboxId = (lessonId) => [...inboxLessons, ...tasks, ...scheduleLessons]
     .find((lesson) => sameId(lesson.id, lessonId)) || null
 
@@ -5128,26 +5176,6 @@ export function useDeliveryWorkflow() {
     return page
   }
 
-  const refreshWheatTraces = async () => {
-    if (!isLoggedIn.value) return null
-    const scope = currentTodoScope()
-    if (!scope) {
-      const emptyPage = { page: 1, pageSize: 200, total: 0, items: [] }
-      replaceReactive(wheatTraces)
-      updatePageMeta(shellPages.wheatTraces, emptyPage)
-      updateListPageMeta('wheatTraces', emptyPage)
-      return emptyPage
-    }
-    const result = await loadAllPageItems(api.todo.wheatTraces, mapWheatListItem,
-      { ...scope, status: ['PENDING', 'EXCEPTION'] })
-    const items = result.items.filter(Boolean)
-    replaceReactive(wheatTraces, items)
-    const page = { page: 1, pageSize: 200, total: result.total, items }
-    updatePageMeta(shellPages.wheatTraces, page)
-    updateListPageMeta('wheatTraces', page)
-    return page
-  }
-
   const refreshTodos = async () => {
     if (!isLoggedIn.value) return null
     const page = mapPage(await api.todo.list({ status: 'OPEN', page: 1, pageSize: 20 }), mapTodo)
@@ -5183,7 +5211,6 @@ export function useDeliveryWorkflow() {
       // context and must also cover lessons outside today's page.
       await Promise.allSettled([refreshInboxLessons()])
       await Promise.allSettled([
-        refreshWheatTraces(),
         refreshCloudArchiveTodos(),
         refreshWecomSendTasks(),
         refreshPendingReviewQueue()
@@ -5368,7 +5395,6 @@ export function useDeliveryWorkflow() {
         if (!Object.keys(scheduleMeta.filters || {}).length) return null
         return loadScheduleLessons({ ...scheduleMeta.filters, page: scheduleMeta.page, pageSize: scheduleMeta.pageSize }, { force, allPages: Boolean(scheduleMeta.allPages) })
       }
-      case 'wheat-traces': return refreshWheatTraces()
       case 'cloud-archive-todos': return refreshCloudArchiveTodos()
       case 'touch-tasks': return refreshWecomSendTasks()
       case 'pending-reviews': return refreshPendingReviewQueue()
@@ -5519,9 +5545,8 @@ export function useDeliveryWorkflow() {
     Object.assign(scheduleMeta, { page: 1, pageSize: 200, total: 0, filters: {}, allPages: false })
     scheduleError.value = ''
     schedulePromises.clear()
-    Object.assign(shellSummary, { pendingLessons: 0, wheatPending: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })
+    Object.assign(shellSummary, { pendingLessons: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })
     Object.assign(shellPages.lessons, { page: 1, pageSize: 20, total: 0 })
-    Object.assign(shellPages.wheatTraces, { page: 1, pageSize: 20, total: 0 })
     Object.assign(shellPages.todos, { page: 1, pageSize: 20, total: 0 })
     activeTaskId.value = null
   }
@@ -7900,31 +7925,56 @@ export function useDeliveryWorkflow() {
     return true
   }
 
-  const remoteGenerateWheatTraceTask = async () => {
+  const remoteConfirmWheatTrace = async () => {
     if (!activeTask.value?.id) return false
-    const result = await runRemote('正在创建小麦消课待办...', () => api.todo.createWheat(activeTask.value.id, createIdempotencyKey(`wheat:${activeTask.value.id}`)), '')
+    const current = activeWorkspace.value.archiveChecklist?.wheatTrace || {}
+    if (current.status === '已确认') {
+      notify('无需重复操作')
+      return false
+    }
+    const result = await runRemote('正在确认小麦消课...', () => api.todo.confirmWheat(
+      activeTask.value.id,
+      { version: Number(current.version || 0) },
+      createIdempotencyKey(`wheat-confirm:${activeTask.value.id}`)
+    ), '')
     if (!result) return false
     await Promise.all([
       invalidateResource('lesson.workspace', { lessonId: activeTask.value.id }),
-      invalidateResource('wheat-traces'),
+      invalidateResource('workbench.summary')
+    ])
+    return true
+  }
+
+  const remoteRecordWheatException = async (reason = '', exceptionType = 'OTHER') => {
+    if (!activeTask.value?.id) return false
+    const detail = String(reason || '').trim()
+    if (!detail) {
+      notify('请填写小麦消课异常原因')
+      return false
+    }
+    const current = activeWorkspace.value.archiveChecklist?.wheatTrace || {}
+    const result = await runRemote('正在记录小麦消课异常...', () => api.todo.recordWheatException(
+      activeTask.value.id,
+      {
+        version: Number(current.version || 0),
+        exceptionType: String(exceptionType || 'OTHER').trim() || 'OTHER',
+        reason: detail
+      },
+      createIdempotencyKey(`wheat-exception:${activeTask.value.id}`)
+    ), '')
+    if (!result) return false
+    await Promise.all([
+      invalidateResource('lesson.workspace', { lessonId: activeTask.value.id }),
       invalidateResource('workbench.summary')
     ])
     return true
   }
 
   const remoteMarkTrace = async (trace, status, reason = '') => {
-    if (!trace?.id) return false
-    const command = toApiWheatCommand(status)
-    const result = await runRemote('正在更新小麦消课状态...', () => api.todo.transitionWheat(trace.id, {
-      command, reason: reason.trim() || undefined, version: trace.version, exceptionType: status === '异常' ? 'OTHER' : undefined
-    }))
-    if (!result) return false
-    await Promise.all([
-      invalidateResource('lesson.workspace', { lessonId: trace.lessonId }),
-      invalidateResource('wheat-traces'),
-      invalidateResource('workbench.summary')
-    ])
-    return true
+    if (status === '已确认') return remoteConfirmWheatTrace()
+    if (status === '异常') return remoteRecordWheatException(reason)
+    notify('小麦消课只能在当前归档页面确认完成或记录异常')
+    return false
   }
 
   const remoteCompleteTodo = async (todo) => {
@@ -8145,7 +8195,7 @@ export function useDeliveryWorkflow() {
     { key: 'studentDelivery', title: '学生交付内容' },
     { key: 'deliveryConfirm', title: '作品与总课评' },
     { key: 'parentTouch', title: '微信图文发送清单' },
-    { key: 'wheatTrace', title: '小麦消课待办' },
+    { key: 'wheatTrace', title: '小麦消课确认' },
     { key: 'archiveExtras', title: '网盘或老师课效归档' },
     { key: 'completionCheck', title: '完成条件检查' },
     { key: 'archiveCommit', title: '归档提交' }
@@ -8349,12 +8399,11 @@ export function useDeliveryWorkflow() {
     }
 
     const wheatStep = await runArchiveStep('wheatTrace', async () => {
-      const lessonWheat = wheatTraces.find((item) => sameId(item.lessonId, task.id))
-      if (lessonWheat?.id) return { ok: true, detail: '小麦消课待办已存在' }
-      return (await remoteGenerateWheatTraceTask())
-        ? { ok: true, detail: '小麦消课待办已创建' }
-        : { ok: false, detail: '小麦消课待办创建失败' }
-    }, '小麦消课待办未完成')
+      const wheat = activeWorkspace.value.archiveChecklist?.wheatTrace
+      return wheat?.status === '已确认'
+        ? { ok: true, detail: '已确认在小麦完成本节课消课' }
+        : { ok: false, detail: '请先在小麦完成消课，再返回当前页面确认' }
+    }, '请先在小麦完成消课，再返回当前页面确认')
     if (!wheatStep.ok) {
       stopArchiveRun('error', wheatStep.detail)
       return false
@@ -8587,7 +8636,6 @@ export function useDeliveryWorkflow() {
       invalidateResource('lessons.today'),
       invalidateResource('lessons.schedule'),
       invalidateResource('inbox-lessons'),
-      invalidateResource('wheat-traces'),
       invalidateResource('todos'),
       invalidateResource('touch-tasks'),
       invalidateResource('cloud-archive-todos'),
@@ -9964,7 +10012,8 @@ export function useDeliveryWorkflow() {
     confirmTeacherEffect: remoteConfirmTeacherEffect,
     retryTeacherEffect: remoteRetryTeacherEffect,
     skipTeacherEffect: remoteSkipTeacherEffect,
-    generateWheatTraceTask: remoteGenerateWheatTraceTask,
+    confirmWheatTrace: remoteConfirmWheatTrace,
+    recordWheatException: remoteRecordWheatException,
     archiveAll: remoteArchiveAll,
     copyExport: remoteCopyExport,
     copyStudentLink: remoteCopyStudentLink,

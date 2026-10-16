@@ -59,13 +59,6 @@ export const toApiAttendanceStatus = (value) => attendanceReverse[value] || valu
 export const toApiAssetType = (value) => assetTypeReverse[value] || value
 export const isStudentRecordAssetType = (value) => ['STUDENT_RECORD_PHOTO', 'STUDENT_RECORD_VIDEO'].includes(String(value || '').toUpperCase())
 export const isStudentRecordVideoAsset = (value) => String(value?.assetType || value || '').toUpperCase() === 'STUDENT_RECORD_VIDEO'
-export const toApiWheatCommand = (value) => ({
-  '已人工处理': 'MARK_MANUALLY_COMPLETED',
-  '无需处理': 'MARK_NOT_REQUIRED',
-  '异常': 'MARK_EXCEPTION',
-  '待处理': 'CORRECT_TO_PENDING'
-}[value] || value)
-
 export const mapCampus = (value = {}) => ({ ...value, id: safeUiId(value.id), organizationId: safeUiId(value.organizationId), version: Number(value.version || 0) })
 export const mapIdentityPermission = (value = {}) => {
   const source = typeof value === 'string' ? { permissionKey: value } : (value || {})
@@ -284,7 +277,6 @@ export const mapLesson = (value = {}) => ({
     ...value.wheat,
     id: safeUiId(value.wheat.id),
     status: value.wheat.status || '',
-    todoStatus: value.wheat.todoStatus || '',
     version: Number(value.wheat.version || 0)
   } : null,
   deliverySummary: value.deliverySummary ? {
@@ -769,12 +761,11 @@ export const mapWheat = (value = {}) => {
     ...source,
     id: safeUiId(source.id),
     lessonId: safeUiId(source.lessonId),
-    status: ({ PENDING: '待处理', MANUALLY_COMPLETED: '已人工处理', NOT_REQUIRED: '无需处理', EXCEPTION: '异常' }[source.status] || source.status || '待处理'),
+    status: ({ PENDING: '待确认', MANUALLY_COMPLETED: '已确认', NOT_REQUIRED: '待确认', EXCEPTION: '异常' }[source.status] || source.status || '待确认'),
     note: source.note === '请回到小麦助教人工处理本节课完成状态'
       ? '请前往小麦助教完成消课，完成后返回本系统确认'
       : source.note || '',
-    version: Number(source.version || 0),
-    todo: value.todo ? mapTodo(value.todo) : null
+    version: Number(source.version || 0)
   }
 }
 

@@ -352,7 +352,7 @@ export const tasks = [
     lessonType: '收费课',
     status: '处理中',
     totalFeedback: '本节课围绕向日葵完成了色彩和形态练习，孩子们愿意大胆尝试颜色，画面整体保持了轻松、有趣的表达。',
-    wheatStatus: '未生成',
+    wheatStatus: '待确认',
     importedFrom: '小麦课表复制',
     shareGenerated: false,
     archived: false
@@ -383,7 +383,7 @@ export const tasks = [
     teacher: '林老师',
     lessonType: '免费课',
     status: '待处理',
-    wheatStatus: '未生成',
+    wheatStatus: '待确认',
     importedFrom: '小麦 Excel 导入',
     shareGenerated: false,
     archived: false
@@ -398,7 +398,7 @@ export const tasks = [
     teacher: '林老师',
     lessonType: '收费课',
     status: '已完成',
-    wheatStatus: '待处理',
+    wheatStatus: '已确认',
     importedFrom: '小麦课表复制',
     shareGenerated: true,
     archived: true,
@@ -414,7 +414,7 @@ export const tasks = [
     teacher: '林老师',
     lessonType: '收费课',
     status: '处理中',
-    wheatStatus: '未生成',
+    wheatStatus: '待确认',
     importedFrom: '小麦 Excel 导入',
     shareGenerated: false,
     archived: false
@@ -429,7 +429,7 @@ export const tasks = [
     teacher: '周老师',
     lessonType: '体验课',
     status: '待处理',
-    wheatStatus: '未生成',
+    wheatStatus: '待确认',
     importedFrom: '手动补录',
     shareGenerated: false,
     archived: false
@@ -444,7 +444,7 @@ export const tasks = [
     teacher: '周老师',
     lessonType: '免费课',
     status: '异常',
-    wheatStatus: '未生成',
+    wheatStatus: '待确认',
     importedFrom: '临时班级补录',
     shareGenerated: false,
     archived: false,
@@ -641,7 +641,7 @@ export const archives = [
     comments: 8,
     highlights: 2,
     teacher: '林老师',
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 2,
@@ -653,7 +653,7 @@ export const archives = [
     comments: 6,
     highlights: 1,
     teacher: '林老师',
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   }
 ]
 
@@ -692,7 +692,7 @@ export const archiveRecords = [
     updatedAt: '2026/6/20 18:30:00',
     shareUrl: 'https://share.xinghe-art.local/student-archive-1',
     collectionIds: [1],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 2,
@@ -727,7 +727,7 @@ export const archiveRecords = [
     updatedAt: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-2',
     collectionIds: [],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 3,
@@ -762,7 +762,7 @@ export const archiveRecords = [
     updatedAt: '2026/6/24 15:12:00',
     shareUrl: 'https://share.xinghe-art.local/student-archive-3',
     collectionIds: [2],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 4,
@@ -832,7 +832,7 @@ export const archiveRecords = [
     updatedAt: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-5',
     collectionIds: [],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 6,
@@ -867,7 +867,7 @@ export const archiveRecords = [
     updatedAt: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-6',
     collectionIds: [],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 7,
@@ -902,7 +902,7 @@ export const archiveRecords = [
     updatedAt: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-7',
     collectionIds: [],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 8,
@@ -937,7 +937,7 @@ export const archiveRecords = [
     updatedAt: '2026/6/2 19:20:00',
     shareUrl: 'https://share.xinghe-art.local/student-archive-8',
     collectionIds: [],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 9,
@@ -972,7 +972,7 @@ export const archiveRecords = [
     updatedAt: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-9',
     collectionIds: [],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 10,
@@ -1007,7 +1007,7 @@ export const archiveRecords = [
     updatedAt: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-10',
     collectionIds: [],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 11,
@@ -1042,7 +1042,7 @@ export const archiveRecords = [
     updatedAt: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-11',
     collectionIds: [],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 12,
@@ -1077,7 +1077,7 @@ export const archiveRecords = [
     updatedAt: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-12',
     collectionIds: [],
-    wheatStatus: '已人工处理'
+    wheatStatus: '已确认'
   },
   {
     id: 13,
@@ -1113,7 +1113,7 @@ export const archiveRecords = [
     updatedAt: '2026/6/24 20:10:00',
     shareUrl: '',
     collectionIds: [],
-    wheatStatus: '无需处理',
+    wheatStatus: '非课次',
     storageTarget: '系统作品档案',
     sourceType: 'extraTask',
     archiveCategory: '课外作品',
@@ -1194,9 +1194,9 @@ export const wheatTraces = [
     course: '老街房子',
     teacher: '林老师',
     type: '收费课',
-    status: '已人工处理',
-    source: '课后归档生成',
-    note: '已在小麦助教完成消课'
+    status: '已确认',
+    source: '归档第五步确认',
+    note: '已在小麦完成本节课消课'
   },
   {
     id: 2,
@@ -1205,7 +1205,7 @@ export const wheatTraces = [
     teacher: '周老师',
     type: '体验课',
     status: '异常',
-    source: '课后归档生成',
+    source: '归档第五步确认',
     note: '小麦课次名称不一致，待教务确认'
   }
 ]

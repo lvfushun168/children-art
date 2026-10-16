@@ -119,7 +119,7 @@ const checkpointsFor = (lesson) => [
   { label: '课评', done: lesson.status === '已完成' || lesson.totalFeedbackReady || Boolean(String(lesson.totalFeedback || '').trim()) },
   { label: '展示', done: lesson.status === '已完成' || lesson.shareReadyCount > 0 },
   { label: '归档', done: lesson.status === '已完成' || lesson.archivedCount > 0 },
-  { label: '小麦', done: ['已人工处理', '无需处理'].includes(lesson.wheatStatus) }
+  { label: '小麦消课确认', done: lesson.wheatStatus === '已确认' }
 ]
 
 const submitLessonReview = (lesson) => {

@@ -592,11 +592,10 @@ test('maps archive, todo and teacher archive DTOs without losing string IDs', ()
   assert.equal(mapTeacherArchive({ teacherEffectId: '12', status: 'GENERATING' }).status, '生成中')
 })
 
-test('maps paged wheat list items with direct wheat, todo and lesson modules', () => {
+test('maps wheat confirmation records without a generic todo association', () => {
   const wheat = mapWheat({ id: '21', lessonId: '22', status: 'PENDING', version: 3 })
-  const todo = mapTodo({ id: '23', lessonId: '22', todoType: 'WHEAT_TRACE', status: 'OPEN' })
   assert.equal(wheat.lessonId, 22)
-  assert.equal(todo.id, 23)
+  assert.equal(wheat.status, '待确认')
 })
 
 test('maps supervision and quality review enums', () => {
@@ -721,23 +720,29 @@ test('uses the total feedback endpoints and preserves version fields', async () 
   assert.deepEqual(JSON.parse(calls[2].options.body), { templateId: '3' })
 })
 
-test('defaults paged requests to twenty rows and repeats wheat status filters', async () => {
+test('uses versioned idempotent wheat confirmation endpoints', async () => {
   assert.equal(pageParams().pageSize, 20)
   assert.equal(new URLSearchParams(queryString({ status: ['PENDING', 'EXCEPTION'] }).slice(1)).getAll('status').length, 2)
-  let calledUrl = ''
-  globalThis.fetch = async (url) => {
-    calledUrl = url
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options })
     return response(200, { data: { items: [], page: 1, pageSize: 20, total: 0 }, meta: {}, error: null })
   }
 
-  await api.todo.wheatTraces({ status: ['PENDING', 'EXCEPTION'] })
+  await api.todo.confirmWheat('12', { version: 3 }, 'wheat-confirm-test')
+  await api.todo.recordWheatException('12', { version: 4, exceptionType: 'OTHER', reason: '小麦课次名称不一致' }, 'wheat-exception-test')
 
-  const parsed = new URL(calledUrl, 'http://localhost')
-  assert.equal(parsed.searchParams.get('pageSize'), '20')
-  assert.deepEqual(parsed.searchParams.getAll('status'), ['PENDING', 'EXCEPTION'])
+  assert.deepEqual(calls.map((call) => call.url), [
+    '/api/v1/lessons/12/wheat-trace/confirm',
+    '/api/v1/lessons/12/wheat-trace/exception'
+  ])
+  assert.equal(calls[0].options.headers['Idempotency-Key'], 'wheat-confirm-test')
+  assert.equal(calls[1].options.headers['Idempotency-Key'], 'wheat-exception-test')
+  assert.deepEqual(JSON.parse(calls[0].options.body), { version: 3 })
+  assert.deepEqual(JSON.parse(calls[1].options.body), { version: 4, exceptionType: 'OTHER', reason: '小麦课次名称不一致' })
 
   await api.jobs.list({ ids: ['job-1', 'job-2'] })
-  const jobsUrl = new URL(calledUrl, 'http://localhost')
+  const jobsUrl = new URL(calls.at(-1).url, 'http://localhost')
   assert.deepEqual(jobsUrl.searchParams.getAll('ids'), ['job-1', 'job-2'])
 })
 

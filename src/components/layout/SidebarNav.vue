@@ -18,10 +18,6 @@ defineProps({
     type: Number,
     required: true
   },
-  wheatPendingCount: {
-    type: Number,
-    required: true
-  },
   school: {
     type: Object,
     required: true
@@ -60,7 +56,7 @@ defineEmits(['select-group', 'open-todo-center'])
     <button type="button" class="nav-summary todo-entry" @click="$emit('open-todo-center')">
       <span class="nav-summary-label"><AppIcon name="todo" :size="16" />待办中心</span>
       <strong>{{ todoCount }} 个待办</strong>
-      <small>其中 {{ pendingCount }} 个课后交付 · {{ wheatPendingCount }} 个小麦消课</small>
+      <small>其中 {{ pendingCount }} 个课后交付</small>
     </button>
   </aside>
 </template>

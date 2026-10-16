@@ -1,4 +1,4 @@
-import { toApiLessonStatus } from './mappers.js'
+import { sameId, toApiLessonStatus } from './mappers.js'
 
 const lessonStatusLabel = {
   PENDING: '待处理',
@@ -67,6 +67,36 @@ export const lessonArchiveGuard = (status) => {
 }
 
 export const isLessonArchiveComplete = (status) => toApiLessonStatus(status) === 'COMPLETED'
+
+/**
+ * 为已完成课次恢复家长触达展示状态。
+ *
+ * 新流程使用逐学生发送确认记录，历史课次可能仍只有旧的通知任务记录。
+ * 只有确认记录覆盖全部到课学生时才覆盖旧记录，避免影响历史数据回显。
+ */
+export const parentTouchHistoryFor = ({
+  fallbackItem = {},
+  lessonId,
+  checklistLessonId,
+  checklistStudents = [],
+  attendingStudentIds = []
+} = {}) => {
+  if (!sameId(lessonId, checklistLessonId)) return fallbackItem
+  const attendingIds = (Array.isArray(attendingStudentIds) ? attendingStudentIds : [])
+    .filter((studentId) => studentId !== null && studentId !== undefined)
+  if (!attendingIds.length) return fallbackItem
+  const checkedIds = new Set((Array.isArray(checklistStudents) ? checklistStudents : [])
+    .filter((student) => student?.checked)
+    .map((student) => String(student.studentId ?? '')))
+  if (!attendingIds.every((studentId) => checkedIds.has(String(studentId)))) return fallbackItem
+  const confirmedCount = attendingIds.length
+  return {
+    ...fallbackItem,
+    status: '已发送',
+    sentCount: confirmedCount,
+    detail: `已确认 ${confirmedCount}/${confirmedCount} 位到课学生`
+  }
+}
 
 export const finishArchiveAndExit = async ({ archive, close, exit }) => {
   const finished = await archive()

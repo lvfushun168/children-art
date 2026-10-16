@@ -68,7 +68,12 @@ import {
   toApiLessonStatus,
   toApiLessonType,
 } from '../services/mappers'
-import { isLessonArchiveComplete, lessonArchiveGuard, studentDeliveryReadiness } from '../services/lessonWorkflow.js'
+import {
+  isLessonArchiveComplete,
+  lessonArchiveGuard,
+  parentTouchHistoryFor,
+  studentDeliveryReadiness
+} from '../services/lessonWorkflow.js'
 import {
   feedbackConfirmationPayloadFor,
   feedbackContentFor,
@@ -1461,7 +1466,13 @@ export function useDeliveryWorkflow() {
         : `已确认 ${parentSendChecklist.value.students.filter((student) => student.checked).length}/${attendingRows.value.length} 位到课学生`,
       action: '逐人发送并勾选',
       required: true,
-      item: activeTask.value?.status === '已完成' ? archiveChecklist.value.parentTouch : {
+      item: activeTask.value?.status === '已完成' ? parentTouchHistoryFor({
+        fallbackItem: archiveChecklist.value.parentTouch,
+        lessonId: activeTask.value.id,
+        checklistLessonId: parentSendChecklist.value.lessonId,
+        checklistStudents: parentSendChecklist.value.students,
+        attendingStudentIds: attendingRows.value.map((row) => row.studentId)
+      }) : {
         ...archiveChecklist.value.parentTouch,
         status: sameId(parentSendChecklist.value.lessonId, activeTask.value?.id)
           && attendingRows.value.length > 0
@@ -3039,6 +3050,7 @@ export function useDeliveryWorkflow() {
     if (error?.code === 'INVALID_STATE_TRANSITION' && String(error?.message || '').includes('命令仍在处理中')) {
       return '该操作已在处理中，页面已刷新，请稍候'
     }
+    if (error?.code === 'INVALID_STATE_TRANSITION') return error.message || '当前状态不允许执行该操作'
     if (error?.code === 'DUPLICATE_RESOURCE') return error.message || '资源已存在'
     if (error?.status === 409 || ['VERSION_CONFLICT', 'INVALID_STATE_TRANSITION', 'DUPLICATE_RESOURCE', 'IDEMPOTENCY_KEY_REUSED', 'STALE_JOB_ATTEMPT'].includes(error?.code)) return '数据已被其他人更新或操作重复，页面已刷新，请确认后重试'
     if (error?.code === 'PERMISSION_DENIED' || error?.status === 403) return '当前账号没有执行此操作的权限'

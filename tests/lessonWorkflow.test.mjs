@@ -5,6 +5,7 @@ import {
   finishArchiveAndExit,
   isLessonArchiveComplete,
   lessonArchiveGuard,
+  parentTouchHistoryFor,
   studentDeliveryReadiness
 } from '../src/services/lessonWorkflow.js'
 
@@ -124,4 +125,37 @@ test('reports a feedback generation failure even before content exists', () => {
     ready: false,
     failures: ['课评生成失败']
   })
+})
+
+test('uses the send checklist when a completed lesson has no old notification tasks', () => {
+  const result = parentTouchHistoryFor({
+    fallbackItem: { status: '待创建', sentCount: 0, detail: '' },
+    lessonId: 17,
+    checklistLessonId: 17,
+    checklistStudents: [
+      { studentId: 101, checked: true },
+      { studentId: 102, checked: true }
+    ],
+    attendingStudentIds: [101, 102]
+  })
+
+  assert.deepEqual(result, {
+    status: '已发送',
+    sentCount: 2,
+    detail: '已确认 2/2 位到课学生'
+  })
+})
+
+test('keeps the legacy notification-task status when the checklist is incomplete', () => {
+  const fallback = { status: '待创建', sentCount: 0, detail: '' }
+
+  const result = parentTouchHistoryFor({
+    fallbackItem: fallback,
+    lessonId: 17,
+    checklistLessonId: 17,
+    checklistStudents: [{ studentId: 101, checked: true }, { studentId: 102, checked: false }],
+    attendingStudentIds: [101, 102]
+  })
+
+  assert.strictEqual(result, fallback)
 })

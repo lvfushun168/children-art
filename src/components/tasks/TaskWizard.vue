@@ -33,7 +33,6 @@ const teacherEffectPreviewState = ref({ status: 'idle', error: '', width: 0, hei
 const teacherEffectSubmitting = ref(false)
 const studentDeliveryDrawerOpen = ref(false)
 const studentDeliveryMobileDetailOpen = ref(false)
-const wheatExceptionReason = ref('')
 const resourceSearch = ref('')
 const resourceFilter = ref('全部')
 const resourceLoading = ref(false)
@@ -109,10 +108,6 @@ const shareDraftStatusText = () => {
 }
 const retryShareDraft = () => props.state.retryShareDraft?.()
 const goToStep = (index) => props.state.goToStep?.(index) ?? (props.state.currentStep = index)
-const recordWheatException = async () => {
-  const saved = await props.state.recordWheatException?.(wheatExceptionReason.value)
-  if (saved) wheatExceptionReason.value = ''
-}
 const homeworkEditorTitle = computed(() => homeworkEditorField.value === 'content' ? '编辑任务内容' : '编辑完成方式 / 家长配合')
 const homeworkEditorPlaceholder = computed(() => homeworkEditorField.value === 'content'
   ? '例如：回家观察一种暖色系物品，说一说它的颜色和形状。'
@@ -1129,10 +1124,6 @@ watch(homeworkEditorOpen, async (open) => {
                     <span class="send-check-mark" aria-hidden="true">✓</span>
                     <span>我已在小麦完成本节课消课</span>
                   </label>
-                  <template v-if="item.item.status !== '已确认'">
-                    <input v-model="wheatExceptionReason" class="wheat-exception-input" type="text" placeholder="遇到无法消课时填写异常原因" />
-                    <button class="ghost" type="button" :disabled="state.isProcessing || !wheatExceptionReason.trim()" @click="recordWheatException">记录异常</button>
-                  </template>
                 </div>
               </div>
             </article>

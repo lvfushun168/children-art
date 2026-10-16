@@ -254,7 +254,6 @@ export const api = {
     cancel: (todoId, body) => request(`/todos/${id(todoId)}/cancel`, { method: 'POST', body }),
     wheat: (lessonId) => request(`/lessons/${id(lessonId)}/wheat-trace`),
     confirmWheat: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/wheat-trace/confirm`, { method: 'POST', body, idempotencyKey: key }),
-    recordWheatException: (lessonId, body, key) => request(`/lessons/${id(lessonId)}/wheat-trace/exception`, { method: 'POST', body, idempotencyKey: key }),
     getWheat: (wheatId) => request(`/wheat-traces/${id(wheatId)}`),
   },
   m5: {

@@ -367,7 +367,7 @@ export const tasks = [
     teacher: '周老师',
     lessonType: '体验课',
     status: '已完成',
-    wheatStatus: '异常',
+    wheatStatus: '已确认',
     importedFrom: '手动补录',
     shareGenerated: false,
     archived: true,
@@ -460,7 +460,7 @@ export const qualityReviews = [
     teacher: '周老师',
     reviewer: '王教务',
     score: 8,
-    comment: '体验课反馈完整，作品归档已完成；小麦消课异常需要当天跟进。',
+    comment: '体验课反馈完整，作品归档已完成；小麦消课已完成。',
     status: '已评分',
     reviewedAt: '2026/6/21 20:12:00'
   },
@@ -797,7 +797,7 @@ export const archiveRecords = [
     updatedAt: '',
     shareUrl: 'https://share.xinghe-art.local/student-archive-4',
     collectionIds: [],
-    wheatStatus: '异常'
+    wheatStatus: '已确认'
   },
   {
     id: 5,
@@ -1204,9 +1204,9 @@ export const wheatTraces = [
     course: '彩色小鱼',
     teacher: '周老师',
     type: '体验课',
-    status: '异常',
+    status: '待确认',
     source: '归档第五步确认',
-    note: '小麦课次名称不一致，待教务确认'
+    note: '请前往小麦完成消课，完成后返回当前页面确认'
   }
 ]
 

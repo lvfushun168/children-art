@@ -276,7 +276,7 @@ export const mapLesson = (value = {}) => ({
   wheat: value.wheat ? {
     ...value.wheat,
     id: safeUiId(value.wheat.id),
-    status: value.wheat.status || '',
+    status: value.wheat.status === 'EXCEPTION' ? 'PENDING' : value.wheat.status || '',
     version: Number(value.wheat.version || 0)
   } : null,
   deliverySummary: value.deliverySummary ? {
@@ -761,8 +761,8 @@ export const mapWheat = (value = {}) => {
     ...source,
     id: safeUiId(source.id),
     lessonId: safeUiId(source.lessonId),
-    status: ({ PENDING: '待确认', MANUALLY_COMPLETED: '已确认', NOT_REQUIRED: '待确认', EXCEPTION: '异常' }[source.status] || source.status || '待确认'),
-    note: source.note === '请回到小麦助教人工处理本节课完成状态'
+    status: ({ PENDING: '待确认', MANUALLY_COMPLETED: '已确认', NOT_REQUIRED: '待确认', EXCEPTION: '待确认' }[source.status] || source.status || '待确认'),
+    note: source.status === 'EXCEPTION' || source.note === '请回到小麦助教人工处理本节课完成状态'
       ? '请前往小麦助教完成消课，完成后返回本系统确认'
       : source.note || '',
     version: Number(source.version || 0)

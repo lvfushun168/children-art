@@ -471,6 +471,7 @@ test('downloads protected files through an authenticated browser blob link', asy
 test('maps protocol IDs, statuses and pages into stable view values', () => {
   assert.equal(sameId('9007199254740993', 9007199254740993n), true)
   assert.equal(mapLesson({ id: '9007199254740993', status: 'PROCESSING', lessonType: 'PAID', dateValue: '2026-08-12', startTime: '18:30:00' }).status, '处理中')
+  assert.equal(mapLesson({ wheat: { status: 'EXCEPTION' } }).wheat.status, 'PENDING')
   assert.equal(mapLesson({ topic: '素描考级' }).topic, '素描考级')
   assert.equal(mapLesson({ lessonType: 'PAID' }).lessonType, '收费课')
   assert.deepEqual(mapPage({ items: [{ id: '1' }], page: 2, pageSize: 20, total: 41 }, (item) => item), {
@@ -596,6 +597,9 @@ test('maps wheat confirmation records without a generic todo association', () =>
   const wheat = mapWheat({ id: '21', lessonId: '22', status: 'PENDING', version: 3 })
   assert.equal(wheat.lessonId, 22)
   assert.equal(wheat.status, '待确认')
+  const historicalException = mapWheat({ status: 'EXCEPTION', note: '历史异常原因' })
+  assert.equal(historicalException.status, '待确认')
+  assert.equal(historicalException.note, '请前往小麦助教完成消课，完成后返回本系统确认')
 })
 
 test('maps supervision and quality review enums', () => {
@@ -722,7 +726,7 @@ test('uses the total feedback endpoints and preserves version fields', async () 
 
 test('uses versioned idempotent wheat confirmation endpoints', async () => {
   assert.equal(pageParams().pageSize, 20)
-  assert.equal(new URLSearchParams(queryString({ status: ['PENDING', 'EXCEPTION'] }).slice(1)).getAll('status').length, 2)
+  assert.equal(new URLSearchParams(queryString({ status: ['PENDING'] }).slice(1)).getAll('status').length, 1)
   const calls = []
   globalThis.fetch = async (url, options = {}) => {
     calls.push({ url, options })
@@ -730,16 +734,12 @@ test('uses versioned idempotent wheat confirmation endpoints', async () => {
   }
 
   await api.todo.confirmWheat('12', { version: 3 }, 'wheat-confirm-test')
-  await api.todo.recordWheatException('12', { version: 4, exceptionType: 'OTHER', reason: '小麦课次名称不一致' }, 'wheat-exception-test')
 
   assert.deepEqual(calls.map((call) => call.url), [
-    '/api/v1/lessons/12/wheat-trace/confirm',
-    '/api/v1/lessons/12/wheat-trace/exception'
+    '/api/v1/lessons/12/wheat-trace/confirm'
   ])
   assert.equal(calls[0].options.headers['Idempotency-Key'], 'wheat-confirm-test')
-  assert.equal(calls[1].options.headers['Idempotency-Key'], 'wheat-exception-test')
   assert.deepEqual(JSON.parse(calls[0].options.body), { version: 3 })
-  assert.deepEqual(JSON.parse(calls[1].options.body), { version: 4, exceptionType: 'OTHER', reason: '小麦课次名称不一致' })
 
   await api.jobs.list({ ids: ['job-1', 'job-2'] })
   const jobsUrl = new URL(calls.at(-1).url, 'http://localhost')

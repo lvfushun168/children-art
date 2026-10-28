@@ -250,7 +250,7 @@ export function useDeliveryWorkflow() {
   const terms = reactive([])
   const supervisionDashboard = reactive([])
   const teacherArchives = reactive([])
-  const providerCatalog = reactive({ cloud: [], wecom: [], ai: [] })
+  const providerCatalog = reactive({ cloud: [], wecom: [], ai: [], dingtalk: [] })
   const permissionCatalog = reactive([])
   const identityUsers = reactive([])
   const identityRoles = reactive([])
@@ -3394,10 +3394,11 @@ export function useDeliveryWorkflow() {
 
   const mapProviderCategory = (provider = {}) => {
     const category = String(provider.category || '').trim().toUpperCase()
-    if (['CLOUD', 'WECOM', 'AI', 'OTHER'].includes(category)) return category
+    if (['CLOUD', 'WECOM', 'AI', 'DINGTALK', 'OTHER'].includes(category)) return category
     const type = String(provider.providerType || provider.type || '').trim().toUpperCase()
     if (type.includes('WECOM') || type.includes('WE_COM') || type.includes('WECHAT')) return 'WECOM'
     if (type.includes('AI') || type.includes('OPENAI') || type.includes('CLAUDE') || type.includes('DEEPSEEK')) return 'AI'
+    if (type.includes('DINGTALK')) return 'DINGTALK'
     return 'CLOUD'
   }
 
@@ -3405,6 +3406,7 @@ export function useDeliveryWorkflow() {
     const providerType = provider.providerType || provider.type || ''
     const isBaidu = String(providerType).toUpperCase() === 'BAIDU_NETDISK'
     const isAi = mapProviderCategory({ ...provider, providerType }) === 'AI'
+    const isDingTalk = mapProviderCategory({ ...provider, providerType }) === 'DINGTALK'
     const config = provider.config && typeof provider.config === 'object' ? { ...provider.config } : {}
     const directoryRule = provider.directoryRule || config.directoryRule || DEFAULT_ARCHIVE_RULE
     const filenameTemplate = provider.filenameTemplate ?? (
@@ -3424,6 +3426,11 @@ export function useDeliveryWorkflow() {
       config.watermark = config.watermark === true
       config.thinkingMode = config.thinkingMode === true
     }
+    if (isDingTalk) {
+      config.appKey = config.appKey || provider.appKey || ''
+      config.robotCode = config.robotCode || provider.robotCode || ''
+      config.openConversationId = config.openConversationId || provider.openConversationId || ''
+    }
     const rawBackendBaseUrl = provider.backendBaseUrl || provider.config?.backendBaseUrl || ''
     const rawFrontendBaseUrl = provider.frontendBaseUrl || provider.config?.frontendBaseUrl || ''
     const rawFrontendReturnPath = provider.frontendReturnPath || provider.config?.frontendReturnPath || ''
@@ -3433,6 +3440,8 @@ export function useDeliveryWorkflow() {
       category: mapProviderCategory({ ...provider, providerType }),
       endpoint: provider.endpoint || config.endpoint || config.textEndpoint || '',
       appKey: provider.appKey || config.appKey || '',
+      robotCode: provider.robotCode || config.robotCode || '',
+      openConversationId: provider.openConversationId || config.openConversationId || '',
       appId: provider.appId || provider.config?.appId || '',
       directoryRule: isBaidu
         ? String(directoryRule).startsWith('/') ? directoryRule : `/${directoryRule}`
@@ -3471,7 +3480,8 @@ export function useDeliveryWorkflow() {
   const providerGroupDefinitions = [
     { key: 'cloud', name: '网盘配置', category: 'CLOUD' },
     { key: 'wecom', name: '企业微信配置', category: 'WECOM' },
-    { key: 'ai', name: 'AI 配置', category: 'AI' }
+    { key: 'ai', name: 'AI 配置', category: 'AI' },
+    { key: 'dingtalk', name: '钉钉课效群', category: 'DINGTALK' }
   ]
 
   const providerGroupStatusLabel = (providers = []) => {
@@ -9135,6 +9145,7 @@ export function useDeliveryWorkflow() {
       }
       const isBaidu = String(providerType).toUpperCase() === 'BAIDU_NETDISK'
       const isAi = mapProviderCategory({ ...provider, providerType }) === 'AI'
+      const isDingTalk = mapProviderCategory({ ...provider, providerType }) === 'DINGTALK'
       const rawFrontendBaseUrl = provider.frontendBaseUrl || provider.config?.frontendBaseUrl || ''
       const rawFrontendReturnPath = provider.frontendReturnPath || provider.config?.frontendReturnPath || ''
       const frontendBaseUrl = isBaidu
@@ -9163,6 +9174,13 @@ export function useDeliveryWorkflow() {
             watermark: provider.config?.watermark === true,
             thinkingMode: provider.config?.thinkingMode === true
           }
+        : isDingTalk
+        ? {
+            ...(provider.config || {}),
+            appKey: provider.config?.appKey || provider.appKey || '',
+            robotCode: provider.config?.robotCode || provider.robotCode || '',
+            openConversationId: provider.config?.openConversationId || provider.openConversationId || ''
+          }
         : {
             ...(provider.config || {}),
             endpoint: provider.endpoint || provider.config?.endpoint || '',
@@ -9170,7 +9188,7 @@ export function useDeliveryWorkflow() {
             authType: provider.authType || provider.config?.authType || ''
           }
       if (!provider.id || String(provider.id).startsWith('provider-')) {
-        const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
+        const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: isDingTalk ? 'ORGANIZATION' : 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
         if (!saved) return null
       } else {
         const saved = await runRemote('正在保存通道配置...', () => api.m5.updateProvider(provider.id, { name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
@@ -9280,7 +9298,8 @@ export function useDeliveryWorkflow() {
       notify('请先保存通道配置后再测试')
       return null
     }
-    const result = await runRemote('正在测试通道连接...', () => api.m5.testProvider(provider.id), '', () => invalidateResource('settings'))
+    const isDingTalk = String(provider.providerType || provider.type).toUpperCase() === 'DINGTALK_APP_ROBOT'
+    const result = await runRemote(isDingTalk ? '正在发送钉钉测试图片...' : '正在测试通道连接...', () => api.m5.testProvider(provider.id), '', () => invalidateResource('settings'))
     if (result) {
       provider.tokenStatus = result.success ? '连接正常' : (result.message || '连接失败')
       notify(result.message || (result.success ? '连接成功' : '连接失败'))

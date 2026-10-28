@@ -26,7 +26,8 @@ defineEmits(['backToGroup'])
 const providerGroupDefinitions = [
   { id: 'cloud', name: '网盘配置', category: 'cloud', providerLabel: '网盘' },
   { id: 'wecom', name: '企业微信配置', category: 'wecom', providerLabel: '企业微信' },
-  { id: 'ai', name: 'AI 配置', category: 'ai', providerLabel: 'AI' }
+  { id: 'ai', name: 'AI 配置', category: 'ai', providerLabel: 'AI' },
+  { id: 'dingtalk', name: '钉钉课效群', category: 'dingtalk', providerLabel: '钉钉' }
 ]
 const DEFAULT_ARCHIVE_RULE = '/{campus}/教学资料归档/课程归总/{year}/{term}+{classType}归总'
 const DEFAULT_FILENAME_TEMPLATE = '{dateShort} 《{topic}》({assetSequence}) {teacherName} {studentName}'
@@ -105,6 +106,7 @@ const providerCategory = (provider = {}) => {
   const type = String(provider.providerType || provider.type || '').trim().toUpperCase()
   if (type.includes('WECOM') || type.includes('WE_COM') || type.includes('WECHAT') || type.includes('企业微信')) return 'wecom'
   if (type.includes('AI') || type.includes('OPENAI') || type.includes('CLAUDE') || type.includes('DEEPSEEK')) return 'ai'
+  if (type.includes('DINGTALK')) return 'dingtalk'
   return 'cloud'
 }
 
@@ -336,6 +338,7 @@ const currentProviderLabel = computed(() => selectedGroup.value?.providerLabel |
 const isCloudCategory = computed(() => selectedGroup.value?.category === 'cloud')
 const isAiCategory = computed(() => selectedGroup.value?.category === 'ai')
 const isWecomCategory = computed(() => selectedGroup.value?.category === 'wecom')
+const isDingTalkCategory = computed(() => selectedGroup.value?.category === 'dingtalk')
 const isProviderSetting = computed(() => Boolean(draft.value.category))
 const canSave = computed(() => Boolean(
   isWecomCategory.value
@@ -345,11 +348,13 @@ const canSave = computed(() => Boolean(
 const providerTypeCatalog = computed(() => props.state.providerTypeCatalog || {
   cloud: props.state.providerTypeOptions || [],
   wecom: [],
-  ai: []
+  ai: [],
+  dingtalk: []
 })
 const providerTypes = computed(() => {
   // 云盘配置固定使用百度网盘，不向用户开放 Provider 类型选择。
   if (isCloudCategory.value) return ['BAIDU_NETDISK']
+  if (isDingTalkCategory.value) return ['DINGTALK_APP_ROBOT']
   const options = providerTypeCatalog.value?.[selectedGroup.value?.category] || []
   if (isAiCategory.value) return ['HTTP_AI']
   if (options.length) return options
@@ -382,6 +387,7 @@ const baiduTestStatusLabel = (provider) => provider.testSuccess === true || prov
 const canAddProvider = computed(() => {
   if (!providerTypes.value.length) return false
   if (isCloudCategory.value) return true
+  if (isDingTalkCategory.value) return !(draft.value.value?.providers || []).length
   return providerTypes.value.some((type) => String(type).toUpperCase() !== 'BAIDU_NETDISK' || !baiduProviders.value.length)
 })
 
@@ -462,7 +468,7 @@ const addProvider = () => {
     name: `新的${currentProviderLabel.value}`,
     type: providerType,
     providerType,
-    authType: isAiCategory.value ? 'API Key' : providerType === 'BAIDU_NETDISK' ? 'OAuth2' : 'Access Token',
+    authType: isAiCategory.value ? 'API Key' : isDingTalkCategory.value ? 'AppSecret' : providerType === 'BAIDU_NETDISK' ? 'OAuth2' : 'Access Token',
     endpoint: '',
     appKey: '',
     appId: '',
@@ -480,7 +486,13 @@ const addProvider = () => {
       imageSize: '1K',
       watermark: false,
       thinkingMode: false
+    } : isDingTalkCategory.value ? {
+      appKey: '',
+      robotCode: '',
+      openConversationId: ''
     } : {},
+    robotCode: '',
+    openConversationId: '',
     backendBaseUrl: DEFAULT_BAIDU_BACKEND_BASE_URL,
     frontendBaseUrl: DEFAULT_BAIDU_FRONTEND_BASE_URL,
     frontendReturnPath: DEFAULT_BAIDU_FRONTEND_RETURN_PATH,
@@ -824,14 +836,44 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <div v-else-if="!isCloudCategory && !draft.value.providers.length" class="notice-box">暂未配置{{ currentProviderLabel }}通道。</div>
+        <div v-else-if="!isCloudCategory && !draft.value.providers.length" class="notice-box">
+          <span>暂未配置{{ currentProviderLabel }}通道。</span>
+          <button v-if="isDingTalkCategory" class="secondary" type="button" :disabled="!canAddProvider" @click="addProvider">
+            <AppIcon name="add" :size="15" />新增钉钉应用机器人
+          </button>
+        </div>
         <template v-else-if="!isCloudCategory">
           <article
             v-for="provider in draft.value.providers"
             :key="provider.id"
             class="cloud-provider-card"
           >
-          <template v-if="isAiCategory">
+          <template v-if="isDingTalkCategory">
+            <div class="cloud-provider-head">
+              <label>配置名称<input v-model="provider.name" placeholder="例如：课效反馈群" /></label>
+              <label>Provider 类型<input value="DINGTALK_APP_ROBOT" disabled /></label>
+              <label>授权方式<input value="AppSecret" disabled /></label>
+            </div>
+            <div class="form-grid">
+              <label>AppKey / Client ID<input v-model="provider.config.appKey" placeholder="钉钉应用 AppKey" /></label>
+              <label>RobotCode<input v-model="provider.config.robotCode" placeholder="应用机器人 RobotCode" /></label>
+              <label class="wide">AppSecret
+                <input v-model="provider.secretRef" type="password" :placeholder="provider.secretRefPresent ? '已配置，留空保持不变' : '钉钉应用 AppSecret'" autocomplete="new-password" />
+              </label>
+              <label class="wide">openConversationId
+                <input v-model="provider.config.openConversationId" placeholder="从 chooseChat 调试结果复制，例如 cid+..." autocomplete="off" />
+              </label>
+              <p class="settings-hint wide">openConversationId 可在钉钉开发者平台 chooseChat 调试结果中获取；这里只维护群会话 ID，不需要填写 chatId 或 Webhook。</p>
+              <label class="inline-check wide"><input v-model="provider.enabled" type="checkbox" /> <span>启用钉钉课效群发送</span></label>
+            </div>
+            <div class="cloud-provider-actions">
+              <button class="ghost" type="button" @click="testProvider(provider)"><AppIcon name="send" :size="15" />测试发送图片</button>
+              <span v-if="provider.testMessage" class="provider-test-feedback" :class="provider.testSuccess ? 'success' : 'error'">
+                {{ provider.testMessage }}
+              </span>
+            </div>
+          </template>
+          <template v-else-if="isAiCategory">
             <div class="cloud-provider-head">
               <label>{{ currentProviderLabel }}名称<input v-model="provider.name" /></label>
               <label>{{ currentProviderLabel }}类型<AdaptiveSelect :model-value="provider.providerType || provider.type" :options="providerTypes" @update:model-value="setProviderType(provider, $event)" /></label>

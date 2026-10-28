@@ -8900,6 +8900,10 @@ textarea:focus,
   gap: 12px;
 }
 
+.form-grid.dingtalk-provider-form {
+  grid-template-columns: minmax(220px, 1fr);
+}
+
 .ai-provider-grid {
   align-items: start;
 }

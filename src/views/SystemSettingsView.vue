@@ -27,7 +27,7 @@ const providerGroupDefinitions = [
   { id: 'cloud', name: '网盘配置', category: 'cloud', providerLabel: '网盘' },
   { id: 'wecom', name: '企业微信配置', category: 'wecom', providerLabel: '企业微信' },
   { id: 'ai', name: 'AI 配置', category: 'ai', providerLabel: 'AI' },
-  { id: 'dingtalk', name: '钉钉课效群', category: 'dingtalk', providerLabel: '钉钉' }
+  { id: 'dingtalk', name: '钉钉群机器人', category: 'dingtalk', providerLabel: '钉钉群机器人' }
 ]
 const DEFAULT_ARCHIVE_RULE = '/{campus}/教学资料归档/课程归总/{year}/{term}+{classType}归总'
 const DEFAULT_FILENAME_TEMPLATE = '{dateShort} 《{topic}》({assetSequence}) {teacherName} {studentName}'
@@ -839,7 +839,7 @@ onBeforeUnmount(() => {
         <div v-else-if="!isCloudCategory && !draft.value.providers.length" class="notice-box">
           <span>暂未配置{{ currentProviderLabel }}通道。</span>
           <button v-if="isDingTalkCategory" class="secondary" type="button" :disabled="!canAddProvider" @click="addProvider">
-            <AppIcon name="add" :size="15" />新增钉钉应用机器人
+            <AppIcon name="add" :size="15" />新增钉钉群机器人
           </button>
         </div>
         <template v-else-if="!isCloudCategory">
@@ -849,12 +849,8 @@ onBeforeUnmount(() => {
             class="cloud-provider-card"
           >
           <template v-if="isDingTalkCategory">
-            <div class="cloud-provider-head">
-              <label>配置名称<input v-model="provider.name" placeholder="例如：课效反馈群" /></label>
-              <label>Provider 类型<input value="DINGTALK_APP_ROBOT" disabled /></label>
-              <label>授权方式<input value="AppSecret" disabled /></label>
-            </div>
-            <div class="form-grid">
+            <div class="form-grid dingtalk-provider-form">
+              <label>配置名称<input v-model="provider.name" placeholder="例如：钉钉群机器人" /></label>
               <label>AppKey / Client ID<input v-model="provider.config.appKey" placeholder="钉钉应用 AppKey" /></label>
               <label>RobotCode<input v-model="provider.config.robotCode" placeholder="应用机器人 RobotCode" /></label>
               <label class="wide">AppSecret
@@ -863,8 +859,7 @@ onBeforeUnmount(() => {
               <label class="wide">openConversationId
                 <input v-model="provider.config.openConversationId" placeholder="从 chooseChat 调试结果复制，例如 cid+..." autocomplete="off" />
               </label>
-              <p class="settings-hint wide">openConversationId 可在钉钉开发者平台 chooseChat 调试结果中获取；这里只维护群会话 ID，不需要填写 chatId 或 Webhook。</p>
-              <label class="inline-check wide"><input v-model="provider.enabled" type="checkbox" /> <span>启用钉钉课效群发送</span></label>
+              <label class="inline-check wide"><input v-model="provider.enabled" type="checkbox" /> <span>启用钉钉群机器人</span></label>
             </div>
             <div class="cloud-provider-actions">
               <button class="ghost" type="button" @click="testProvider(provider)"><AppIcon name="send" :size="15" />测试发送图片</button>

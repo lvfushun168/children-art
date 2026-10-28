@@ -3481,7 +3481,7 @@ export function useDeliveryWorkflow() {
     { key: 'cloud', name: '网盘配置', category: 'CLOUD' },
     { key: 'wecom', name: '企业微信配置', category: 'WECOM' },
     { key: 'ai', name: 'AI 配置', category: 'AI' },
-    { key: 'dingtalk', name: '钉钉课效群', category: 'DINGTALK' }
+    { key: 'dingtalk', name: '钉钉群机器人', category: 'DINGTALK' }
   ]
 
   const providerGroupStatusLabel = (providers = []) => {
@@ -8093,7 +8093,7 @@ export function useDeliveryWorkflow() {
     )
     if (!committed) return false
     await refreshRemoteLesson(lesson.id, { force: true })
-    return true
+    return remoteConfirmTeacherEffect()
   }
 
   const remoteConfirmTeacherEffect = async () => {

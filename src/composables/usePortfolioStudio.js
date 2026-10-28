@@ -846,7 +846,10 @@ export function usePortfolioStudio(context) {
         expectedSha256: digest,
         requestedPageCount: result.pageCount
       })
-      await putUploadSessionContent(session, blob, 'application/pdf')
+      await putUploadSessionContent(session, blob, 'application/pdf', 'portfolio-export', api.files.uploadContent, {
+        uploadChunk: api.files.uploadChunk,
+        uploadStatus: api.files.uploadStatus
+      })
       const exportRecord = await api.portfolio.completeExport(session.fileUploadSessionId, { sizeBytes: blob.size, sha256: digest }, createIdempotencyKey(`portfolio-export:${project.studentId}:${digest}`))
       const job = { ...exportRecord, id: fromApiId(exportRecord.id), fileName: exportRecord.fileName || result.fileName, fileUrl: exportRecord.downloadUrl || '', pageCount: exportRecord.pageCount || result.pageCount, exportedAt: exportRecord.exportedAt || new Date().toISOString(), status: '已导出' }
       exportJobs.unshift(job)

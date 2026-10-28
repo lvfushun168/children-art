@@ -92,6 +92,16 @@ export const api = {
   },
   files: {
     createUploadSession: (body) => request('/files/upload-sessions', { method: 'POST', body }),
+    uploadStatus: (sessionId) => request(`/files/upload-sessions/${id(sessionId)}`),
+    uploadChunk: (sessionId, offset, body, contentType) => request(`/files/upload-sessions/${id(sessionId)}/content`, {
+      method: 'PATCH',
+      body,
+      rawBody: true,
+      headers: {
+        'Content-Type': contentType || 'application/octet-stream',
+        'X-Upload-Offset': String(offset)
+      }
+    }),
     uploadContent: (sessionId, body, contentType) => request(`/files/upload-sessions/${id(sessionId)}/content`, {
       method: 'PUT', body, rawBody: true, headers: { 'Content-Type': contentType || 'application/octet-stream' }
     }),
@@ -113,6 +123,16 @@ export const api = {
     updateItem: (itemId, body) => request(`/courseware/items/${id(itemId)}`, { method: 'PATCH', body }),
     deleteItem: (itemId, version) => request(`/courseware/items/${id(itemId)}${queryString({ version })}`, { method: 'DELETE' }),
     createUploadSession: (body) => request('/courseware/upload-sessions', { method: 'POST', body }),
+    uploadStatus: (sessionId) => request(`/courseware/upload-sessions/${id(sessionId)}`),
+    uploadChunk: (sessionId, offset, body, contentType) => request(`/courseware/upload-sessions/${id(sessionId)}/content`, {
+      method: 'PATCH',
+      body,
+      rawBody: true,
+      headers: {
+        'Content-Type': contentType || 'application/octet-stream',
+        'X-Upload-Offset': String(offset)
+      }
+    }),
     uploadContent: (sessionId, body, contentType) => request(`/courseware/upload-sessions/${id(sessionId)}/content`, {
       method: 'PUT', body, rawBody: true, headers: { 'Content-Type': contentType || 'application/octet-stream' }
     }),

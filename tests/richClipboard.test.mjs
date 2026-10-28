@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildCurrentParentBlocks, buildParentRichContent, copyParentRichContent } from '../src/services/richClipboard.js'
+import {
+  buildCurrentParentBlocks,
+  buildParentRichContent,
+  compressClipboardImage,
+  copyParentRichContent
+} from '../src/services/richClipboard.js'
 
 class FakeFileReader {
   readAsDataURL(blob) {
@@ -54,6 +59,78 @@ test('图文剪贴板保持总课评、独立图片、课堂记录文字、个�
     assert.ok(result.html.includes('data:image/png;base64,'))
   } finally {
     globalThis.FileReader = previous
+  }
+})
+
+test('复制图文使用压缩后的图片 Blob，但不改变原始图片读取结果', async () => {
+  const previous = globalThis.FileReader
+  globalThis.FileReader = FakeFileReader
+  const source = new Blob(['source'], { type: 'image/png' })
+  const compressed = new Blob(['compressed'], { type: 'image/jpeg' })
+  let transformed = null
+  try {
+    const result = await buildParentRichContent(
+      [{ type: 'ARTWORK', fileId: '1', text: '作品' }],
+      async () => source,
+      { transformImage: async (blob) => { transformed = blob; return compressed } }
+    )
+    assert.equal(transformed, source)
+    assert.ok(result.html.includes('data:image/jpeg;base64,'))
+  } finally {
+    globalThis.FileReader = previous
+  }
+})
+
+test('普通图片压缩为 JPEG 并限制最长边，透明图片保留 PNG', async () => {
+  const previousDocument = globalThis.document
+  const previousBitmap = globalThis.createImageBitmap
+  const rendered = []
+  globalThis.createImageBitmap = async () => ({
+    width: 4000,
+    height: 2000,
+    close() {}
+  })
+  globalThis.document = {
+    createElement: () => {
+      const canvas = {
+        width: 0,
+        height: 0,
+        getContext: () => ({
+          drawImage() {},
+          getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 255]) })
+        }),
+        toBlob(callback, type) {
+          rendered.push({ width: canvas.width, height: canvas.height, type })
+          callback(new Blob(['compressed'], { type }))
+        }
+      }
+      return canvas
+    }
+  }
+  try {
+    const jpeg = await compressClipboardImage(new Blob(['large-image-content'], { type: 'image/jpeg' }))
+    assert.equal(jpeg.type, 'image/jpeg')
+    assert.deepEqual(rendered[0], { width: 2048, height: 1024, type: 'image/jpeg' })
+
+    globalThis.document.createElement = () => {
+      const canvas = {
+        width: 0,
+        height: 0,
+        getContext: () => ({
+          drawImage() {},
+          getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 0]) })
+        }),
+        toBlob(callback, type) { callback(new Blob(['compressed'], { type })) }
+      }
+      return canvas
+    }
+    const png = await compressClipboardImage(new Blob(['large-transparent-image'], { type: 'image/png' }))
+    assert.equal(png.type, 'image/png')
+  } finally {
+    if (previousDocument) globalThis.document = previousDocument
+    else delete globalThis.document
+    if (previousBitmap) globalThis.createImageBitmap = previousBitmap
+    else delete globalThis.createImageBitmap
   }
 })
 

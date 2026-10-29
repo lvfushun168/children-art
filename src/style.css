@@ -63,24 +63,6 @@
   gap: 8px;
 }
 
-.student-delivery-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: var(--color-primary-soft);
-  color: var(--color-muted);
-  font-size: 13px;
-}
-
-.student-delivery-summary span::before {
-  content: '·';
-  margin-right: 7px;
-  color: var(--color-primary);
-  font-weight: 900;
-}
-
 .student-delivery-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--color-border-soft);
@@ -566,14 +548,6 @@
   justify-self: start;
 }
 
-.mobile-comment-preview {
-  margin: 0;
-  color: var(--color-muted);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .delivery-status {
   display: inline-flex;
   align-items: center;
@@ -607,37 +581,63 @@
   display: none;
 }
 
-.mobile-total-feedback-card {
+.mobile-text-entry {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
-  padding: 14px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px 12px;
   border: 1px solid var(--color-border-soft);
   border-radius: 10px;
   background: var(--color-surface);
+  color: inherit;
+  text-align: left;
 }
 
-.mobile-total-feedback-card > header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+.mobile-text-entry:active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 
-.mobile-total-feedback-card > header > div {
+.mobile-text-entry-copy {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 
-.mobile-total-feedback-card > header small,
-.mobile-total-feedback-card > small {
+.mobile-text-entry-copy strong {
+  font-size: 15px;
+}
+
+.mobile-text-entry-copy small {
+  display: -webkit-box;
+  overflow: hidden;
   color: var(--color-muted);
+  font-size: 12px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.mobile-total-feedback-card textarea {
-  min-height: 180px;
-  resize: vertical;
+.mobile-text-entry-empty {
+  opacity: 0.75;
+}
+
+.mobile-text-entry-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.mobile-text-entry-status b {
+  color: var(--color-primary);
+  font-size: 20px;
+  line-height: 1;
 }
 
 .artwork-process-drawer {
@@ -871,18 +871,33 @@
     gap: 8px;
   }
 
+  /* 步骤条已标明当前步骤，手机端不再重复展示步骤序号与标题，仅保留给读屏器。 */
+  .student-delivery-head > div {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .student-delivery-head-actions {
     justify-items: start;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
 
-  .student-delivery-summary {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    padding: 10px 12px;
+  .student-delivery-head-actions > button {
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .student-delivery-head-actions > strong {
+    padding: 6px 10px;
+    font-size: 13px;
   }
 
   .student-delivery-desktop {
@@ -3310,7 +3325,8 @@ h2 {
 
 .step-panel {
   min-height: 560px;
-  animation: panel-enter 0.24s ease both;
+  /* 用 backwards 而非 both：动画结束后不保留 transform，否则会成为 fixed 抽屉的包含块并限制其层级。 */
+  animation: panel-enter 0.24s ease backwards;
 }
 
 .context-grid,

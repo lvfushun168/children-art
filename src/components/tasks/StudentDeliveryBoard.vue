@@ -28,7 +28,7 @@ const aiPromptOpen = ref(false)
 const aiPrompt = ref('')
 const aiPromptError = ref('')
 const desktopTotalFeedbackTextarea = ref(null)
-const mobileTotalFeedbackTextarea = ref(null)
+const totalFeedbackOpen = ref(false)
 
 const resizeTotalFeedbackTextarea = (textarea, minHeight) => {
   if (!textarea) return
@@ -41,13 +41,11 @@ const resolveTotalFeedbackTextarea = (textarea) => Array.isArray(textarea) ? tex
 const syncTotalFeedbackTextareaHeight = async () => {
   await nextTick()
   const desktopTextarea = resolveTotalFeedbackTextarea(desktopTotalFeedbackTextarea.value)
-  const mobileTextarea = resolveTotalFeedbackTextarea(mobileTotalFeedbackTextarea.value)
   if (props.state.attendingRows.length > 1) {
     desktopTextarea?.style.removeProperty('height')
   } else {
     resizeTotalFeedbackTextarea(desktopTextarea, 120)
   }
-  resizeTotalFeedbackTextarea(mobileTextarea, 180)
 }
 
 const handleTotalFeedbackInput = () => {
@@ -492,6 +490,19 @@ const closeBatch = () => {
   setDrawerState(false)
 }
 
+const openTotalFeedback = () => {
+  totalFeedbackOpen.value = true
+  setDrawerState(true)
+}
+
+const closeTotalFeedback = async () => {
+  await props.state.flushTotalFeedback?.()
+  totalFeedbackOpen.value = false
+  setDrawerState(false)
+}
+
+const previewText = (text, fallback) => text?.trim() || fallback
+
 const openMobileStudent = async (row) => {
   if (mobileStudent.value && !sameId(mobileStudent.value.studentId, row?.studentId)) await flushDraft(mobileStudent.value)
   setActive(row)
@@ -591,6 +602,7 @@ watch(() => props.state.activeTask.id, () => {
   artworkStudentId.value = null
   commentStudentId.value = null
   batchOpen.value = false
+  totalFeedbackOpen.value = false
   aiPromptOpen.value = false
   aiPromptError.value = ''
   mobileStudentId.value = null
@@ -630,7 +642,6 @@ onMounted(() => {
   <section class="student-delivery-workspace">
     <header class="student-delivery-head">
       <div>
-        <span>第 3 步</span>
       <h2>按学生准备作品、学生记录、课堂记录、个人课评与本节总课评</h2>
       </div>
       <div class="student-delivery-head-actions">
@@ -638,15 +649,6 @@ onMounted(() => {
         <strong>{{ state.counts.studentDeliveryCompleted }}/{{ state.counts.attend }} 位已完成</strong>
       </div>
     </header>
-
-    <div class="student-delivery-summary">
-      <span>到课 {{ state.counts.attend }} 人</span>
-      <span>学生作品 {{ state.counts.matched }}/{{ state.counts.attend }} 人</span>
-      <span>作品 {{ state.counts.artworkCount }} 张</span>
-      <span>课堂记录 {{ state.counts.records }}/{{ state.counts.attend }}</span>
-      <span>个人课评 {{ state.counts.comments }}/{{ state.counts.attend }}</span>
-      <span :class="state.counts.totalFeedbackReady ? 'ok-text' : 'missing-text'">总课评：{{ totalFeedbackStatus() }}</span>
-    </div>
 
     <section class="student-delivery-desktop">
       <div class="student-delivery-table-wrap">
@@ -816,31 +818,6 @@ onMounted(() => {
     </section>
 
     <section class="student-delivery-mobile">
-      <section class="mobile-total-feedback-card">
-        <header>
-          <div>
-            <strong>总课评<RequiredMark /></strong>
-          </div>
-          <AppStatusTag class="delivery-status" :status="totalFeedbackStatus()" :tone="state.counts.totalFeedbackReady ? 'success' : 'pending'" />
-        </header>
-        <textarea
-          id="mobile-total-feedback"
-          name="totalFeedbackMobile"
-          ref="mobileTotalFeedbackTextarea"
-          v-model="state.totalFeedback.content"
-          rows="7"
-          required
-          aria-label="本节课总课评"
-          placeholder="填写本节课面向所有家长的总课评……"
-          :readonly="totalFeedbackReadonly()"
-          @input="handleTotalFeedbackInput"
-          @blur="state.flushTotalFeedback?.()"
-        />
-        <div class="mobile-student-editor-actions">
-          <button type="button" class="ghost" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? 'AI 正在生成…' : 'AI 润色' }}</button>
-        </div>
-        <SaveStatus v-if="['ERROR', 'DIRTY', 'SAVING'].includes(totalFeedbackDraftStatus())" :status="totalFeedbackDraftStatus() === 'ERROR' ? 'error' : 'saving'" :error-label="totalFeedbackDraftError() || '保存失败，点击重试'" saving-label="自动保存中" @retry="state.flushTotalFeedback?.()" />
-      </section>
       <template v-if="!mobileStudent">
         <div class="student-delivery-mobile-list">
           <button v-for="row in state.attendingRows" :key="`${row.lessonId}-${row.studentId}`" type="button" class="student-delivery-mobile-card" @click="openMobileStudent(row)">
@@ -854,6 +831,14 @@ onMounted(() => {
           </button>
           <div v-if="!state.attendingRows.length" class="student-delivery-empty-state">暂无到课学生，请先确认出勤</div>
         </div>
+
+        <button type="button" class="mobile-text-entry mobile-total-feedback-entry" @click="openTotalFeedback">
+          <span class="mobile-text-entry-copy">
+            <strong>总课评<RequiredMark /></strong>
+            <small :class="{ 'mobile-text-entry-empty': !state.totalFeedback.content?.trim() }">{{ previewText(state.totalFeedback.content, '点击填写本节课面向所有家长的总课评') }}</small>
+          </span>
+          <span class="mobile-text-entry-status"><AppStatusTag :status="totalFeedbackStatus()" :tone="state.counts.totalFeedbackReady ? 'success' : 'pending'" /><b>›</b></span>
+        </button>
       </template>
 
       <template v-else>
@@ -891,6 +876,7 @@ onMounted(() => {
               <span class="mobile-section-icon">记</span>
               <span class="mobile-section-copy">
                 <strong>课堂记录</strong>
+                <small>{{ previewText(mobileStudent.record, '记录孩子今天的课堂表现') }}</small>
               </span>
               <span class="mobile-section-status"><span>{{ recordStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
@@ -899,6 +885,7 @@ onMounted(() => {
               <span class="mobile-section-icon">评</span>
               <span class="mobile-section-copy">
                 <strong>个人课评</strong>
+                <small>{{ previewText(mobileStudent.comment, '可补充只针对这名学生的课评') }}</small>
               </span>
               <span class="mobile-section-status"><span>{{ commentStatusFor(mobileStudent) }}</span><b>›</b></span>
             </button>
@@ -995,13 +982,12 @@ onMounted(() => {
           </div>
           <article class="mobile-student-editor-card">
             <header><strong>个人课评</strong></header>
-            <p class="mobile-comment-preview">{{ mobileStudent.comment?.trim() || '可补充只针对这名学生的课评。' }}</p>
             <textarea
               id="mobile-student-comment"
               name="mobileStudentComment"
               aria-label="个人课评"
               v-model="mobileStudent.comment"
-              rows="9"
+              rows="8"
               placeholder="填写学生补充课评……"
               :readonly="state.isProcessing || feedbackJobActive(mobileStudent)"
               @input="markDraftDirty(mobileStudent)"
@@ -1145,6 +1131,33 @@ onMounted(() => {
           <button type="button" class="primary" :disabled="state.isProcessing || artworkJobActive(artworkItem)" @click="submitAiPrompt"><AppIcon name="play" :size="15" />{{ artworkJobActive(artworkItem) ? '处理中…' : '开始 AI 处理' }}</button>
         </footer>
       </section>
+    </div>
+
+    <div v-if="totalFeedbackOpen" class="drawer-backdrop" @click.self="closeTotalFeedback">
+      <aside class="library-drawer comment-review-drawer total-feedback-drawer">
+        <DrawerHead title="本节总课评" :subtitle="totalFeedbackStatus()" @close="closeTotalFeedback" />
+
+        <div class="comment-review-body">
+          <label class="drawer-field comment-editor-field" for="mobile-total-feedback">
+            <textarea
+              id="mobile-total-feedback"
+              name="totalFeedbackMobile"
+              v-model="state.totalFeedback.content"
+              rows="10"
+              required
+              placeholder="填写本节课面向所有家长的总课评……"
+              :readonly="totalFeedbackReadonly()"
+              @input="state.markTotalFeedbackDirty?.()"
+              @blur="state.flushTotalFeedback?.()"
+            />
+          </label>
+        </div>
+
+        <footer class="drawer-action-bar">
+          <button type="button" class="secondary" :disabled="state.isProcessing || totalFeedbackBusy() || !state.totalFeedback.content?.trim()" @click="state.polishTotalFeedback?.()">{{ totalFeedbackStatus() === '润色中' ? 'AI 正在生成…' : 'AI 润色' }}</button>
+          <SaveStatus v-if="['ERROR', 'DIRTY', 'SAVING'].includes(totalFeedbackDraftStatus())" :status="totalFeedbackDraftStatus() === 'ERROR' ? 'error' : 'saving'" :error-label="totalFeedbackDraftError() || '保存失败，点击重试'" saving-label="自动保存中" @retry="state.flushTotalFeedback?.()" />
+        </footer>
+      </aside>
     </div>
 
     <div v-if="commentRow" class="drawer-backdrop" @click.self="closeComment">

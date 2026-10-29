@@ -1,7 +1,8 @@
 <script setup>
 import HighlightMark from '../components/common/HighlightMark.vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useMobileMedia } from '../composables/useMobileMedia'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -38,7 +39,6 @@ const lessonInput = ref('all')
 const statusInput = ref('all')
 const dueFromInput = ref('')
 const dueToInput = ref('')
-let cleanupMobileMedia = () => {}
 const pageState = computed(() => props.state.directoryPages?.extraTasks || { items: [], page: 1, pageSize: 20, total: 0 })
 const tasks = computed(() => pageState.value.items || [])
 const selected = computed(() => detailRecord.value || tasks.value.find((task) => sameId(task.id, selectedId.value)) || null)
@@ -310,17 +310,11 @@ const cancelEdit = () => {
 
 onMounted(() => {
   void loadDirectory(1)
-  const media = window.matchMedia('(max-width: 680px)')
-  const syncMobile = () => {
-    isMobileFlow.value = media.matches
-    if (media.matches) mobileShowingDetail.value = false
-  }
-  syncMobile()
-  media.addEventListener('change', syncMobile)
-  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
 })
 
-onBeforeUnmount(() => cleanupMobileMedia())
+useMobileMedia(isMobileFlow, (matches) => {
+  if (matches) mobileShowingDetail.value = false
+})
 </script>
 
 <template>

@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useMobileMedia } from '../composables/useMobileMedia'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/common/AppIcon.vue'
 import SidebarNav from '../components/layout/SidebarNav.vue'
@@ -57,7 +58,6 @@ const themeFor = (value) => themeOptions.find((theme) => theme.id === String(val
 const themeIdFor = (value) => themeFor(value)?.id || ''
 const savedTheme = typeof window !== 'undefined' ? window.localStorage.getItem('children-art-theme') : ''
 const activeTheme = ref(themeIdFor(state.uiTheme) || themeIdFor(savedTheme) || 'studio')
-let cleanupMobileMedia = () => {}
 
 const routeMode = computed(() => String(route.meta.viewMode || 'home'))
 const activeNav = computed(() => String(route.meta.navId || ''))
@@ -246,17 +246,11 @@ const ensureTaskFromRoute = async () => {
 
 onMounted(() => {
   applyTheme(activeTheme.value)
-  const media = window.matchMedia('(max-width: 680px)')
-  const syncMobile = () => {
-    isMobileApp.value = media.matches
-    if (media.matches) showTodoCenter.value = false
-  }
-  syncMobile()
-  media.addEventListener('change', syncMobile)
-  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
 })
 
-onBeforeUnmount(() => cleanupMobileMedia())
+useMobileMedia(isMobileApp, (matches) => {
+  if (matches) showTodoCenter.value = false
+})
 
 watch(activeTheme, (theme) => {
   applyTheme(theme)

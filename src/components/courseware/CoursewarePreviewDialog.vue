@@ -766,9 +766,9 @@ document.addEventListener('fullscreenchange', syncOfficeFullscreen)
 
 <style scoped>
 .preview-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--color-heading) 42%, transparent); }
-.preview-dialog { display: flex; flex-direction: column; width: min(1180px, 96vw); height: min(820px, 92vh); overflow: hidden; border: 1px solid var(--color-border); border-radius: 18px; background: var(--color-surface); box-shadow: var(--shadow-modal); }
-.preview-dialog-fullscreen { width: 100vw; height: 100vh; border-radius: 0; }
-.preview-dialog:fullscreen { width: 100vw; height: 100vh; border-radius: 0; }
+.preview-dialog { display: flex; flex-direction: column; width: min(1180px, 96vw); height: min(820px, 92dvh); overflow: hidden; border: 1px solid var(--color-border); border-radius: 18px; background: var(--color-surface); box-shadow: var(--shadow-modal); }
+.preview-dialog-fullscreen { width: 100vw; height: 100dvh; border-radius: 0; }
+.preview-dialog:fullscreen { width: 100vw; height: 100dvh; border-radius: 0; }
 .preview-head, .preview-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--color-border-soft); }
 .preview-head-actions { display: inline-flex; align-items: center; gap: 8px; }
 .preview-head-action { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 9px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: 12px; }
@@ -820,12 +820,12 @@ document.addEventListener('fullscreenchange', syncOfficeFullscreen)
 :global(.courseware-pptx-audio-volume) { width: 54px; flex: 0 0 54px; }
 :global(.courseware-pptx-audio-volume-icon) { display: inline-flex; align-items: center; justify-content: center; color: var(--color-muted); }
 :global(.courseware-pptx-audio-controls input:disabled) { opacity: .45; cursor: not-allowed; }
-.office-preview:fullscreen { display: flex; min-height: 100vh; background: var(--color-surface); }
+.office-preview:fullscreen { display: flex; min-height: 100dvh; background: var(--color-surface); }
 .office-preview:fullscreen .office-host { flex: 1; }
 .office-preview:fullscreen .pptx-courseware-viewer { flex: 1; }
 .office-overlay { position: absolute; inset: 0; background: color-mix(in srgb, var(--color-surface-muted) 92%, transparent); }
 .preview-state, .preview-error { display: grid; place-items: center; gap: 14px; padding: 32px; color: var(--color-muted); text-align: center; }
 .preview-error strong { color: var(--color-status-danger-text); }
 .preview-foot { justify-content: flex-end; border-top: 1px solid var(--color-border-soft); border-bottom: 0; color: var(--color-muted); font-size: 12px; }
-@media (max-width: 680px) { .preview-backdrop { padding: 0; } .preview-dialog { width: 100vw; height: 100vh; border-radius: 0; } }
+@media (max-width: 680px) { .preview-backdrop { padding: 0; } .preview-dialog { width: 100vw; height: 100dvh; border-radius: 0; } }
 </style>

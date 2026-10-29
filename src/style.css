@@ -484,9 +484,27 @@
   color: var(--color-muted);
 }
 
-.comment-review-drawer {
-  grid-template-rows: auto auto auto;
-  width: min(560px, 100%);
+/* 桌面端抽屉尺寸：.library-drawer 定义在后面，这里需要更高的优先级；手机端统一走文末的底部弹层规范。 */
+@media (min-width: 681px) {
+  .library-drawer.comment-review-drawer,
+  .library-drawer.batch-operations-drawer,
+  .library-drawer.artwork-process-drawer {
+    height: fit-content;
+    max-height: calc(100dvh - 28px);
+    overflow-y: auto;
+  }
+
+  .library-drawer.comment-review-drawer {
+    width: clamp(560px, 36vw, 860px);
+  }
+
+  .library-drawer.batch-operations-drawer {
+    width: clamp(520px, 32vw, 780px);
+  }
+
+  .library-drawer.artwork-process-drawer {
+    width: clamp(720px, 42vw, 1040px);
+  }
 }
 
 .comment-review-body,
@@ -532,11 +550,6 @@
   gap: 8px;
   padding-top: 12px;
   border-top: 1px solid var(--color-border-soft);
-}
-
-.batch-operations-drawer {
-  grid-template-rows: auto auto;
-  width: min(520px, 100%);
 }
 
 .batch-operation-card > div {
@@ -640,9 +653,8 @@
   line-height: 1;
 }
 
-.artwork-process-drawer {
+.library-drawer.artwork-process-drawer {
   grid-template-rows: auto auto auto auto auto auto;
-  width: min(720px, 100%);
 }
 
 .artwork-version-list {
@@ -1262,26 +1274,6 @@
     padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
     background: color-mix(in srgb, var(--color-surface-warm) 96%, transparent);
     box-shadow: 0 -10px 24px color-mix(in srgb, var(--color-heading) 8%, transparent);
-  }
-
-  .artwork-process-drawer {
-    align-self: flex-end;
-    grid-template-rows: auto auto auto auto auto auto;
-    width: 100%;
-    height: min(90dvh, 760px);
-    max-height: none;
-    border-radius: 18px 18px 0 0;
-    animation: bottom-sheet-enter 0.2s ease both;
-  }
-
-  .comment-review-drawer,
-  .batch-operations-drawer {
-    align-self: flex-end;
-    width: 100%;
-    height: min(90dvh, 760px);
-    max-height: none;
-    border-radius: 18px 18px 0 0;
-    animation: bottom-sheet-enter 0.2s ease both;
   }
 
   .drawer-action-bar {
@@ -2018,6 +2010,9 @@
 
 :root {
   --font-sans: 'Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-ink: var(--color-heading);
+  --color-line: var(--color-border);
   --color-text: #171a22;
   --color-heading: #0b1020;
   --color-muted: #696b75;
@@ -2211,7 +2206,9 @@
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100dvh;
+  /* viewport-fit=cover 后横屏时内容会延伸到刘海下，左右留出安全区。 */
+  padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
   background: var(--body-background);
   color: var(--color-text);
 }
@@ -2252,16 +2249,19 @@ button,
     opacity 0.18s ease;
 }
 
-button:not(:disabled):hover,
-.data-card:hover,
-.work-card:hover {
-  transform: translateY(-1px);
+/* 触屏没有真正的 hover，点按后会停留在“抬起”状态，因此只在支持 hover 的设备上位移。 */
+@media (hover: hover) {
+  button:not(:disabled):hover,
+  .data-card:hover,
+  .work-card:hover {
+    transform: translateY(-1px);
+  }
 }
 
 .app-shell {
   display: grid;
   grid-template-columns: 256px minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 14px;
   gap: 14px;
 }
@@ -2666,7 +2666,7 @@ label {
 }
 
 .mobile-app-content {
-  min-height: calc(100vh - 20px);
+  min-height: calc(100dvh - 20px);
 }
 
 .user-menu {
@@ -3634,7 +3634,7 @@ h2 {
   display: grid;
   gap: 14px;
   width: min(880px, 100%);
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   padding: 16px;
   border-radius: 10px;
   background: var(--color-surface);
@@ -3644,7 +3644,7 @@ h2 {
 .work-preview-modal > img {
   display: block;
   width: 100%;
-  max-height: calc(100vh - 190px);
+  max-height: calc(100dvh - 190px);
   object-fit: contain;
   border-radius: 8px;
   background: var(--color-primary-soft);
@@ -7218,27 +7218,6 @@ textarea:focus,
   }
 }
 
-  .app-shell-mobile .library-drawer.resource-drawer {
-    align-self: flex-end;
-    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-  width: 100%;
-  height: clamp(460px, 88dvh, 720px);
-  max-height: none;
-  padding: 18px 14px max(14px, env(safe-area-inset-bottom));
-  border-radius: 18px 18px 0 0;
-    animation: bottom-sheet-enter 0.2s ease both;
-  }
-
-  .app-shell-mobile .library-drawer.teacher-effect-drawer {
-    align-self: flex-end;
-    width: 100%;
-    height: clamp(560px, 92dvh, 820px);
-    max-height: none;
-    padding: 18px 14px max(14px, env(safe-area-inset-bottom));
-    border-radius: 18px 18px 0 0;
-    animation: bottom-sheet-enter 0.2s ease both;
-  }
-
   .app-shell-mobile .teacher-effect-layout-fields {
     grid-template-columns: 1fr;
   }
@@ -7272,31 +7251,6 @@ textarea:focus,
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .app-shell-mobile .library-drawer.resource-drawer::before {
-  content: '';
-  justify-self: center;
-  width: 42px;
-  height: 4px;
-  margin: -4px 0 2px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-muted) 34%, transparent);
-}
-
-.app-shell-mobile .resource-drawer .drawer-head {
-  align-items: center;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--color-border-soft);
-}
-
-.app-shell-mobile .resource-drawer .drawer-head strong {
-  font-size: 18px;
-}
-
-.app-shell-mobile .resource-drawer .drawer-head small {
-  font-size: 12px;
-  line-height: 1.45;
-}
 
 .app-shell-mobile .resource-picker-tools {
   position: sticky;
@@ -7677,7 +7631,7 @@ textarea:focus,
 
 .parent-h5 {
   width: min(560px, 100%);
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   padding: 16px;
   background: var(--color-surface);
@@ -10686,7 +10640,7 @@ textarea:focus,
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 10px;
   width: min(960px, calc(100vw - 32px));
-  height: min(900px, calc(100vh - 32px));
+  height: min(900px, calc(100dvh - 32px));
   min-height: 0;
   padding: 14px;
   border: 1px solid var(--color-border-soft);
@@ -10746,7 +10700,7 @@ textarea:focus,
   width: auto;
   max-width: calc(100vw - 80px);
   height: auto;
-  max-height: calc(100vh - 180px);
+  max-height: calc(100dvh - 180px);
   object-fit: contain;
   border-radius: 6px;
   background: var(--color-surface);
@@ -10756,7 +10710,7 @@ textarea:focus,
   width: 100%;
   min-height: 180px;
   max-width: calc(100vw - 80px);
-  max-height: calc(100vh - 180px);
+  max-height: calc(100dvh - 180px);
 }
 
 .archive-image-preview-foot {
@@ -11306,7 +11260,7 @@ textarea:focus,
 
 .login-shell {
   display: grid;
-  min-height: 100vh;
+  min-height: 100dvh;
   place-items: center;
   padding: 32px 20px;
 }
@@ -11428,7 +11382,7 @@ textarea:focus,
   display: grid;
   gap: 14px;
   width: min(920px, 100%);
-  max-height: min(760px, calc(100vh - 40px));
+  max-height: min(760px, calc(100dvh - 40px));
   overflow: auto;
   padding: 16px;
   border-radius: 8px;
@@ -12190,7 +12144,7 @@ textarea:focus,
   display: grid;
   gap: 12px;
   align-content: start;
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
 }
 
@@ -12779,7 +12733,7 @@ textarea:focus,
   }
 
   .app-shell-mobile .content {
-    min-height: calc(100vh - 20px);
+    min-height: calc(100dvh - 20px);
     padding: 12px;
   }
 
@@ -13001,7 +12955,7 @@ textarea:focus,
 
   .mobile-app-content .user-popover {
     width: min(320px, calc(100vw - 24px));
-    max-height: calc(100vh - 92px);
+    max-height: calc(100dvh - 92px);
     overflow: auto;
   }
 
@@ -13157,36 +13111,6 @@ textarea:focus,
     flex-direction: column;
   }
 
-  .drawer-backdrop {
-    padding: 8px;
-  }
-
-  .library-drawer {
-    width: 100%;
-    border-radius: 10px;
-  }
-
-  .library-drawer.resource-drawer {
-    align-self: flex-end;
-    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-    width: 100%;
-    height: clamp(460px, 88dvh, 720px);
-    max-height: none;
-    padding: 18px 14px max(14px, env(safe-area-inset-bottom));
-    border-radius: 18px 18px 0 0;
-    animation: bottom-sheet-enter 0.2s ease both;
-  }
-
-  .resource-drawer::before {
-    content: '';
-    justify-self: center;
-    width: 42px;
-    height: 4px;
-    margin: -4px 0 2px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--color-muted) 34%, transparent);
-  }
-
   .resource-drawer .drawer-head {
     align-items: center;
     padding-bottom: 10px;
@@ -13200,101 +13124,6 @@ textarea:focus,
   .resource-drawer .drawer-head small {
     font-size: 12px;
     line-height: 1.45;
-  }
-
-  .resource-picker-tools {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    grid-template-rows: 44px 38px;
-    height: 94px;
-    min-height: 94px;
-    max-height: 94px;
-    padding-bottom: 2px;
-    background: var(--color-surface-warm);
-  }
-
-  .resource-picker-tools input {
-    height: 44px;
-    min-height: 44px;
-    max-height: 44px;
-    border-radius: 10px;
-    font-size: 16px;
-  }
-
-  .resource-filter-tags {
-    flex-wrap: nowrap;
-    align-items: center;
-    height: 38px;
-    min-height: 38px;
-    max-height: 38px;
-    margin: 0 -14px;
-    padding: 0 14px 2px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .resource-filter-tags::-webkit-scrollbar {
-    display: none;
-  }
-
-  .resource-filter-tags button {
-    flex: 0 0 auto;
-    height: 36px;
-    min-height: 36px;
-    max-height: 36px;
-    padding: 8px 12px;
-    border-radius: 999px;
-    white-space: nowrap;
-  }
-
-  .resource-drawer-list {
-    gap: 8px;
-    margin: 0 -2px;
-    padding: 2px 2px 8px;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .resource-choice {
-    grid-template-columns: 24px minmax(0, 1fr);
-    min-height: 66px;
-    padding: 12px;
-    border-radius: 12px;
-  }
-
-  .resource-choice > input {
-    width: 20px;
-    height: 20px;
-  }
-
-  .resource-choice strong {
-    font-size: 15px;
-  }
-
-  .resource-choice small {
-    line-height: 1.45;
-    white-space: normal;
-  }
-
-  .resource-drawer .drawer-actions {
-    position: sticky;
-    bottom: 0;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    margin: 0 -14px calc(-1 * max(14px, env(safe-area-inset-bottom)));
-    padding: 12px 14px max(14px, env(safe-area-inset-bottom));
-    background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface-warm) 86%, transparent), var(--color-surface-warm) 28%);
-  }
-
-  .resource-drawer .drawer-actions span {
-    text-align: center;
-  }
-
-  .resource-drawer .drawer-actions button {
-    width: 100%;
-    min-height: 46px;
-    border-radius: 10px;
   }
 
   .library-drawer-list article {
@@ -14522,12 +14351,6 @@ textarea:focus,
     width: 100%;
   }
 
-  .identity-drawer {
-    width: 100%;
-    height: clamp(500px, 90dvh, 760px);
-    border-radius: 18px 18px 0 0;
-  }
-
   .identity-permission-drawer {
     grid-template-rows: auto auto minmax(0, 1fr) auto;
   }
@@ -14553,50 +14376,6 @@ textarea:focus,
 
   .identity-permission-select-all {
     width: 100%;
-  }
-}
-
-/* 课后交付抽屉需要覆盖通用素材抽屉的尺寸与布局。 */
-.artwork-process-drawer {
-  grid-template-rows: auto auto auto auto auto auto;
-  width: clamp(720px, 42vw, 1040px);
-  height: fit-content;
-  max-height: calc(100dvh - 28px);
-  overflow-y: auto;
-}
-
-.comment-review-drawer,
-.batch-operations-drawer {
-  height: fit-content;
-  max-height: calc(100dvh - 28px);
-  overflow-y: auto;
-}
-
-.comment-review-drawer {
-  width: clamp(560px, 36vw, 860px);
-}
-
-.batch-operations-drawer {
-  width: clamp(520px, 32vw, 780px);
-}
-
-@media (max-width: 680px) {
-  .artwork-process-drawer,
-  .comment-review-drawer,
-  .batch-operations-drawer {
-    align-self: flex-end;
-    width: 100%;
-    height: fit-content;
-    max-height: min(90dvh, 760px);
-    overflow-y: auto;
-    border-radius: 18px 18px 0 0;
-  }
-
-  .artwork-process-drawer {
-    grid-template-rows: auto auto auto auto auto auto;
-    height: fit-content;
-    max-height: min(90dvh, 760px);
-    overflow-y: auto;
   }
 }
 
@@ -15457,4 +15236,93 @@ small .save-status {
 .archive-image-hint .app-icon,
 .artwork-media-hover-hint .app-icon {
   display: block;
+}
+
+/* ---------- 抽屉 / 弹层统一规范 ----------
+   桌面端：.drawer-backdrop 内为右侧抽屉，.modal-backdrop 内为居中弹窗。
+   手机端（≤680px）：
+   - 编辑、选择类面板（.drawer-backdrop 内的面板、AI 处理弹窗）一律是底部弹层，样式由本段统一；
+   - 重型详情编辑（.directory-drawer、.archive-drawer、.todo-drawer）为全屏页，遮罩不留边；
+   - 确认、进度、预览类对话框保持居中。
+   新增抽屉请直接放进 .drawer-backdrop，不要再单独写手机端的圆角、高度和动画。 */
+:root {
+  --backdrop-color: color-mix(in srgb, var(--color-heading) 32%, transparent);
+  --backdrop-blur: blur(2px);
+  --sheet-radius: 18px;
+  --sheet-max-height: min(90dvh, 760px);
+  --sheet-handle-color: color-mix(in srgb, var(--color-muted) 34%, transparent);
+}
+
+.drawer-backdrop,
+.modal-backdrop,
+.todo-backdrop,
+.directory-drawer-backdrop,
+.archive-drawer-backdrop {
+  background: var(--backdrop-color);
+  backdrop-filter: var(--backdrop-blur);
+}
+
+@media (max-width: 680px) {
+  .drawer-backdrop,
+  .ai-image-prompt-backdrop {
+    align-items: flex-end;
+    justify-items: stretch;
+    padding: 0;
+  }
+
+  .drawer-backdrop > *,
+  .ai-image-prompt-backdrop > * {
+    position: relative;
+    align-self: flex-end;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    max-height: var(--sheet-max-height);
+    padding: 26px 14px max(14px, env(safe-area-inset-bottom));
+    border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
+    overflow-y: auto;
+    animation: bottom-sheet-enter 0.2s ease both;
+  }
+
+  .drawer-backdrop > *::before,
+  .ai-image-prompt-backdrop > *::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 42px;
+    height: 4px;
+    margin-left: -21px;
+    border-radius: 999px;
+    background: var(--sheet-handle-color);
+  }
+
+  /* 内部列表自行滚动的面板使用固定高度。 */
+  .drawer-backdrop > .resource-drawer,
+  .drawer-backdrop > .teacher-effect-drawer,
+  .drawer-backdrop > .identity-drawer {
+    height: var(--sheet-max-height);
+    overflow: hidden;
+  }
+
+  .drawer-backdrop > .share-preview-drawer {
+    overflow-y: auto;
+  }
+
+  .drawer-backdrop > * > .drawer-head {
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--color-border-soft);
+  }
+
+  .todo-backdrop,
+  .directory-drawer-backdrop,
+  .archive-drawer-backdrop {
+    padding: 0;
+  }
+
+  .archive-drawer {
+    width: 100%;
+    border-radius: 0;
+  }
 }

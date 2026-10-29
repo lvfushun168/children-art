@@ -196,7 +196,7 @@ const save = () => {
   padding-top: 2px;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 680px) {
   .lesson-editor-form {
     grid-template-columns: 1fr;
   }

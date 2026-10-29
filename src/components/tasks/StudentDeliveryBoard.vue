@@ -641,12 +641,8 @@ onMounted(() => {
 <template>
   <section class="student-delivery-workspace">
     <header class="student-delivery-head">
-      <div>
-      <h2>按学生准备作品、学生记录、课堂记录、个人课评与本节总课评</h2>
-      </div>
       <div class="student-delivery-head-actions">
         <button type="button" class="secondary" @click="openBatch"><AppIcon name="check" :size="15" />批量操作</button>
-        <strong>{{ state.counts.studentDeliveryCompleted }}/{{ state.counts.attend }} 位已完成</strong>
       </div>
     </header>
 

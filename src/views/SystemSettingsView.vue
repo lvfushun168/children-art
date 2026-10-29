@@ -1,6 +1,7 @@
 <script setup>
 import HintTip from '../components/common/HintTip.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useMobileMedia } from '../composables/useMobileMedia'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -73,7 +74,6 @@ const baiduDrawerDraft = ref(null)
 const baiduDrawerBaseline = ref('')
 const isMobileFlow = ref(false)
 const mobileStage = ref('list')
-let cleanupMobileMedia = () => {}
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const BAIDU_EDITABLE_FIELDS = [
   'name',
@@ -666,15 +666,11 @@ const returnToList = () => {
   })
 }
 
+useMobileMedia(isMobileFlow, (matches) => {
+  if (matches) mobileStage.value = 'list'
+})
+
 onMounted(() => {
-  const media = window.matchMedia('(max-width: 680px)')
-  const syncMobile = () => {
-    isMobileFlow.value = media.matches
-    if (media.matches) mobileStage.value = 'list'
-  }
-  syncMobile()
-  media.addEventListener('change', syncMobile)
-  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
   document.addEventListener('pointerdown', closeArchiveRuleVariableMenuFromOutside)
   document.addEventListener('keydown', closeArchiveRuleVariableMenuFromKeyboard)
   const oauthResult = new URLSearchParams(window.location.search).get('baiduOAuth')
@@ -693,7 +689,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  cleanupMobileMedia()
   document.removeEventListener('pointerdown', closeArchiveRuleVariableMenuFromOutside)
   document.removeEventListener('keydown', closeArchiveRuleVariableMenuFromKeyboard)
 })

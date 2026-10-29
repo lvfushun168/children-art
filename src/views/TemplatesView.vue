@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useMobileMedia } from '../composables/useMobileMedia'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -33,7 +34,6 @@ const statusInput = ref('all')
 const isMobileFlow = ref(false)
 const mobileStage = ref('types')
 const saving = ref(false)
-let cleanupMobileMedia = () => {}
 
 const list = computed(() => props.state.templates?.[activeType.value] || [])
 const selected = computed(() => list.value.find((item) => String(item.id) === String(selectedId.value)) || null)
@@ -278,18 +278,9 @@ const backToGroup = () => {
   emit('backToGroup')
 }
 
-onMounted(() => {
-  const media = window.matchMedia('(max-width: 680px)')
-  const syncMobile = () => {
-    isMobileFlow.value = media.matches
-    if (media.matches && !isDrawerOpen.value) mobileStage.value = 'types'
-  }
-  syncMobile()
-  media.addEventListener('change', syncMobile)
-  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
+useMobileMedia(isMobileFlow, (matches) => {
+  if (matches && !isDrawerOpen.value) mobileStage.value = 'types'
 })
-
-onBeforeUnmount(() => cleanupMobileMedia())
 </script>
 
 <template>

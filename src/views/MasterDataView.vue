@@ -1,7 +1,8 @@
 <script setup>
 import HintTip from '../components/common/HintTip.vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useMobileMedia } from '../composables/useMobileMedia'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -55,7 +56,6 @@ const wecomGroupQuery = ref('')
 const selectedWecomGroupId = ref(null)
 const generationClass = ref(null)
 const showGenerationDialog = ref(false)
-let cleanupMobileMedia = () => {}
 
 const studentProfileSections = [
   {
@@ -761,18 +761,9 @@ const className = (classId) => props.state.classes.find((item) => sameId(item.id
 const courseTitle = (courseId) => props.state.courses.find((item) => sameId(item.id, courseId))?.title || '待配置'
 const teacherName = (teacherId) => props.state.teachers.find((item) => sameId(item.id, teacherId))?.name || '待配置'
 
-onMounted(() => {
-  const media = window.matchMedia('(max-width: 680px)')
-  const syncMobile = () => {
-    isMobileFlow.value = media.matches
-    if (media.matches) mobileShowingDetail.value = false
-  }
-  syncMobile()
-  media.addEventListener('change', syncMobile)
-  cleanupMobileMedia = () => media.removeEventListener('change', syncMobile)
+useMobileMedia(isMobileFlow, (matches) => {
+  if (matches) mobileShowingDetail.value = false
 })
-
-onBeforeUnmount(() => cleanupMobileMedia())
 
 </script>
 

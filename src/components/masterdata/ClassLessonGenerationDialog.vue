@@ -200,7 +200,7 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
 .generation-preview strong {
   font-size: 20px;
 }
-@media (max-width: 640px) {
+@media (max-width: 680px) {
   .generation-form { grid-template-columns: 1fr; }
   .dialog-actions { flex-wrap: wrap; justify-content: flex-end; }
 }

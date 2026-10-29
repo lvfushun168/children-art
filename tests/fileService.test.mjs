@@ -68,8 +68,8 @@ test('keeps the SHA-256 output compatible with Web Crypto for binary content', a
   })
 })
 
-test('uses 256 KiB as the default upload chunk size for slow public links', () => {
-  assert.equal(UPLOAD_CHUNK_SIZE_BYTES, 256 * 1024)
+test('uses 1 MiB as the default upload chunk size for direct and fallback uploads', () => {
+  assert.equal(UPLOAD_CHUNK_SIZE_BYTES, 1024 * 1024)
   assert.equal(UPLOAD_CONCURRENCY, 4)
 })
 
@@ -261,4 +261,197 @@ test('keeps the ordered append path available when no parallel endpoint is suppl
 
   assert.deepEqual(patchOffsets, [0, 2])
   assert.equal(statusCalls, 0)
+})
+
+test('uses the direct upload origin for file parts after a successful probe', async () => {
+  const file = new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/jpeg' })
+  Object.defineProperty(file, 'name', { value: '直传.jpg' })
+  const calls = []
+  const directOrigin = 'https://direct-success.example'
+
+  await withTemporaryFetch(async (url, options) => {
+    calls.push({ url: String(url), options })
+    const path = String(url)
+    if (path === `${directOrigin}/actuator/health/liveness`) return jsonResponse({ status: 'UP' })
+    if (path.endsWith('/files/upload-sessions')) {
+      return jsonResponse({ data: {
+        sessionId: '51', fileId: '61', expectedSize: file.size,
+        mediaType: file.type, originalFilename: file.name,
+        expiresAt: '2026-08-31T00:00:00Z', status: 'OPEN', receivedBytes: 0,
+        uploadUrl: '/api/v1/files/upload-sessions/51/content'
+      }, meta: {} })
+    }
+    if (path.startsWith(directOrigin) && path.includes('/parts/')) {
+      const size = (await options.body.arrayBuffer()).byteLength
+      return jsonResponse({ data: { chunkSizeBytes: size, receivedBytes: size }, meta: {} })
+    }
+    return jsonResponse({ data: { id: '61', originalFilename: file.name, sizeBytes: file.size }, meta: {} })
+  }, async () => {
+    await uploadFile(file, 'artwork', {
+      sha256: 'e'.repeat(64),
+      directOrigin,
+      chunkSizeBytes: 2,
+      concurrency: 1
+    })
+  })
+
+  const partCalls = calls.filter(({ url }) => url.includes('/parts/'))
+  assert.equal(partCalls.length, 2)
+  assert.ok(partCalls.every(({ url }) => url.startsWith(directOrigin)))
+  assert.ok(calls.some(({ url }) => url === '/api/v1/files/upload-sessions'))
+  assert.equal(calls.at(-1).url, '/api/v1/files/upload-sessions/51/complete')
+})
+
+test('uses the direct upload origin for courseware parts after a successful probe', async () => {
+  const file = new Blob([new Uint8Array([1, 2, 3, 4])], {
+    type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  })
+  Object.defineProperty(file, 'name', { value: '直传课件.pptx' })
+  const calls = []
+  const directOrigin = 'https://direct-courseware.example'
+
+  await withTemporaryFetch(async (url, options) => {
+    calls.push({ url: String(url), options })
+    const path = String(url)
+    if (path === `${directOrigin}/actuator/health/liveness`) return jsonResponse({ status: 'UP' })
+    if (path.endsWith('/courseware/upload-sessions')) {
+      return jsonResponse({ data: {
+        sessionId: '56', fileId: '66', expectedSize: file.size,
+        mediaType: file.type, originalFilename: file.name,
+        expiresAt: '2026-08-31T00:00:00Z', status: 'OPEN', receivedBytes: 0,
+        uploadUrl: '/api/v1/courseware/upload-sessions/56/content'
+      }, meta: {} })
+    }
+    if (path.startsWith(directOrigin) && path.includes('/courseware/upload-sessions/56/parts/')) {
+      const size = (await options.body.arrayBuffer()).byteLength
+      return jsonResponse({ data: { chunkSizeBytes: size, receivedBytes: size }, meta: {} })
+    }
+    return jsonResponse({ data: { id: '66', originalFilename: file.name, sizeBytes: file.size }, meta: {} })
+  }, async () => {
+    await uploadCoursewareFile(file, {
+      sha256: 'c'.repeat(64),
+      directOrigin,
+      chunkSizeBytes: 2,
+      concurrency: 1
+    })
+  })
+
+  const partCalls = calls.filter(({ url }) => url.includes('/parts/'))
+  assert.equal(partCalls.length, 2)
+  assert.ok(partCalls.every(({ url }) => url.startsWith(`${directOrigin}/api/v1/courseware/`)))
+  assert.ok(calls.some(({ url }) => url === '/api/v1/courseware/upload-sessions'))
+  assert.equal(calls.at(-1).url, '/api/v1/courseware/upload-sessions/56/complete')
+})
+
+test('falls back to the Tunnel when the direct upload probe fails', async () => {
+  const file = new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/jpeg' })
+  Object.defineProperty(file, 'name', { value: '回退.jpg' })
+  const calls = []
+  const directOrigin = 'https://direct-unavailable.example'
+
+  await withTemporaryFetch(async (url, options) => {
+    calls.push({ url: String(url), options })
+    const path = String(url)
+    if (path === `${directOrigin}/actuator/health/liveness`) throw new TypeError('IPv6 不可达')
+    if (path.endsWith('/files/upload-sessions')) {
+      return jsonResponse({ data: {
+        sessionId: '52', fileId: '62', expectedSize: file.size,
+        mediaType: file.type, originalFilename: file.name,
+        expiresAt: '2026-08-31T00:00:00Z', status: 'OPEN', receivedBytes: 0,
+        uploadUrl: '/api/v1/files/upload-sessions/52/content'
+      }, meta: {} })
+    }
+    if (path.includes('/parts/')) {
+      const size = (await options.body.arrayBuffer()).byteLength
+      return jsonResponse({ data: { chunkSizeBytes: size, receivedBytes: size }, meta: {} })
+    }
+    return jsonResponse({ data: { id: '62', originalFilename: file.name, sizeBytes: file.size }, meta: {} })
+  }, async () => {
+    await uploadFile(file, 'artwork', {
+      sha256: 'f'.repeat(64),
+      directOrigin,
+      chunkSizeBytes: 2,
+      concurrency: 1
+    })
+  })
+
+  const partCalls = calls.filter(({ url }) => url.includes('/parts/'))
+  assert.equal(partCalls.length, 2)
+  assert.ok(partCalls.every(({ url }) => !url.startsWith(directOrigin)))
+})
+
+test('switches the current upload session to the Tunnel after a direct part failure', async () => {
+  const file = new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/jpeg' })
+  Object.defineProperty(file, 'name', { value: '中途回退.jpg' })
+  const calls = []
+  const directOrigin = 'https://direct-interrupted.example'
+
+  await withTemporaryFetch(async (url, options) => {
+    calls.push({ url: String(url), options })
+    const path = String(url)
+    if (path === `${directOrigin}/actuator/health/liveness`) return jsonResponse({ status: 'UP' })
+    if (path.endsWith('/files/upload-sessions')) {
+      return jsonResponse({ data: {
+        sessionId: '53', fileId: '63', expectedSize: file.size,
+        mediaType: file.type, originalFilename: file.name,
+        expiresAt: '2026-08-31T00:00:00Z', status: 'OPEN', receivedBytes: 0,
+        uploadUrl: '/api/v1/files/upload-sessions/53/content'
+      }, meta: {} })
+    }
+    if (path.startsWith(directOrigin) && path.includes('/parts/')) {
+      throw new TypeError('直连中断')
+    }
+    if (path.includes('/parts/')) {
+      const size = (await options.body.arrayBuffer()).byteLength
+      return jsonResponse({ data: { chunkSizeBytes: size, receivedBytes: size }, meta: {} })
+    }
+    return jsonResponse({ data: { id: '63', sizeBytes: file.size }, meta: {} })
+  }, async () => {
+    await uploadFile(file, 'artwork', {
+      sha256: 'a'.repeat(64),
+      directOrigin,
+      chunkSizeBytes: 2,
+      concurrency: 1
+    })
+  })
+
+  const partCalls = calls.filter(({ url }) => url.includes('/parts/'))
+  assert.equal(partCalls[0].url, `${directOrigin}/api/v1/files/upload-sessions/53/parts/0`)
+  assert.equal(partCalls[1].url, '/api/v1/files/upload-sessions/53/parts/0')
+  assert.equal(partCalls[2].url, '/api/v1/files/upload-sessions/53/parts/1')
+})
+
+test('does not hide direct-upload business errors behind the Tunnel fallback', async () => {
+  const file = new Blob([new Uint8Array([1, 2])], { type: 'image/jpeg' })
+  Object.defineProperty(file, 'name', { value: '业务错误.jpg' })
+  const calls = []
+  const directOrigin = 'https://direct-business-error.example'
+
+  await assert.rejects(
+    withTemporaryFetch(async (url, options) => {
+      calls.push({ url: String(url), options })
+      const path = String(url)
+      if (path === `${directOrigin}/actuator/health/liveness`) return jsonResponse({ status: 'UP' })
+      if (path.endsWith('/files/upload-sessions')) {
+        return jsonResponse({ data: {
+          sessionId: '54', fileId: '64', expectedSize: file.size,
+          mediaType: file.type, originalFilename: file.name,
+          expiresAt: '2026-08-31T00:00:00Z', status: 'OPEN', receivedBytes: 0,
+          uploadUrl: '/api/v1/files/upload-sessions/54/content'
+        }, meta: {} })
+      }
+      if (path.startsWith(directOrigin) && path.includes('/parts/')) {
+        return jsonResponse({ error: { message: '没有上传权限' }, meta: {} }, 403)
+      }
+      return jsonResponse({ data: { id: '64', sizeBytes: file.size }, meta: {} })
+    }, () => uploadFile(file, 'artwork', {
+      sha256: 'b'.repeat(64),
+      directOrigin,
+      chunkSizeBytes: 2,
+      concurrency: 1
+    })),
+    (error) => error.status === 403
+  )
+
+  assert.equal(calls.filter(({ url }) => url.includes('/parts/') && !url.startsWith(directOrigin)).length, 0)
 })

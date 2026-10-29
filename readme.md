@@ -21,8 +21,11 @@ Vite 默认监听 `http://localhost:5173`。主站首页为 `http://localhost:51
 
 ```bash
 VITE_API_BASE_URL=https://api.example.com/api/v1
+VITE_UPLOAD_DIRECT_ORIGIN=https://up.example.com
 VITE_API_PROXY_TARGET=http://localhost:8080
 ```
+
+生产环境配置了 `VITE_UPLOAD_DIRECT_ORIGIN` 后，文件分片会先尝试通过该地址直传；直连不可用时自动回到 `VITE_API_BASE_URL`。上传会话、完成校验和其他业务请求仍使用主 API 地址。
 
 百度 OAuth 使用的前端回跳地址和后端公开地址在系统设置的【网盘配置】中维护，不通过百度相关环境变量配置。前端构建只需要通过 `VITE_API_BASE_URL` 指向当前后端 API。
 

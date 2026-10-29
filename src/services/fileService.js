@@ -1,5 +1,5 @@
 import { api } from './api.js'
-import { createIdempotencyKey } from './apiClient.js'
+import { createIdempotencyKey, request } from './apiClient.js'
 import { mapFile } from './mappers.js'
 
 const SHA256_INITIAL_HASH = [
@@ -26,11 +26,19 @@ const SHA256_ROUND_CONSTANTS = [
   0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 ]
 
-// 默认 256 KiB，降低慢速公网链路下单次请求触发写入超时的概率。
-export const UPLOAD_CHUNK_SIZE_BYTES = 256 * 1024
+// 默认 1 MiB，在直传和 Tunnel 回退之间保持一致的分片粒度。
+export const UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 export const UPLOAD_CONCURRENCY = 4
 const MAX_UPLOAD_RETRIES = 3
 const UPLOAD_RETRY_DELAYS_MS = [500, 1000, 2000]
+const DIRECT_UPLOAD_PROBE_TIMEOUT_MS = 2500
+const DIRECT_UPLOAD_REQUEST_TIMEOUT_MS = 20000
+const DIRECT_UPLOAD_PROBE_CACHE_MS = 30000
+const DIRECT_UPLOAD_ORIGIN = String(import.meta.env?.VITE_UPLOAD_DIRECT_ORIGIN || '')
+  .trim()
+  .replace(/\/+$/, '')
+const directProbeCache = new Map()
+const directProbePromises = new Map()
 
 const rightRotate = (value, bits) => (value >>> bits) | (value << (32 - bits))
 
@@ -117,6 +125,134 @@ const sha256 = async (file) => {
 const isRetryableUploadError = (error) => {
   const status = Number(error?.status || 0)
   return error?.code === 'NETWORK_ERROR' || status === 0 || status === 408 || status === 429 || status >= 500
+}
+
+const normalizeDirectUploadOrigin = (value) => {
+  const origin = String(value || '').trim().replace(/\/+$/, '')
+  return /^https?:\/\//i.test(origin) ? origin : ''
+}
+
+const directUploadApiBase = (origin) => `${normalizeDirectUploadOrigin(origin)}/api/v1`
+
+const requestWithTimeout = (path, options, timeoutMs = DIRECT_UPLOAD_REQUEST_TIMEOUT_MS) => {
+  if (typeof AbortController !== 'function') return request(path, options)
+  const controller = new AbortController()
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs)
+  return request(path, { ...options, signal: controller.signal }).finally(() => {
+    globalThis.clearTimeout(timer)
+  })
+}
+
+const probeDirectUpload = async (origin) => {
+  const normalizedOrigin = normalizeDirectUploadOrigin(origin)
+  if (!normalizedOrigin || typeof fetch !== 'function') return false
+
+  const now = Date.now()
+  const cached = directProbeCache.get(normalizedOrigin)
+  if (cached && now - cached.checkedAt < DIRECT_UPLOAD_PROBE_CACHE_MS) return cached.available
+
+  const pending = directProbePromises.get(normalizedOrigin)
+  if (pending) return pending
+
+  const promise = (async () => {
+    let controller
+    let timer
+    try {
+      controller = typeof AbortController === 'function' ? new AbortController() : null
+      if (controller) timer = globalThis.setTimeout(() => controller.abort(), DIRECT_UPLOAD_PROBE_TIMEOUT_MS)
+      const response = await fetch(`${normalizedOrigin}/actuator/health/liveness`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        signal: controller?.signal
+      })
+      return response.ok
+    } catch {
+      return false
+    } finally {
+      if (timer) globalThis.clearTimeout(timer)
+    }
+  })().then((available) => {
+    directProbeCache.set(normalizedOrigin, { available, checkedAt: Date.now() })
+    return available
+  }).finally(() => {
+    directProbePromises.delete(normalizedOrigin)
+  })
+
+  directProbePromises.set(normalizedOrigin, promise)
+  return promise
+}
+
+const directChunkApi = (origin, pathPrefix) => {
+  const baseUrl = directUploadApiBase(origin)
+  const prefix = String(pathPrefix || 'files').replace(/^\/+|\/+$/g, '')
+  const sessionPath = (sessionId) => `${baseUrl}/${prefix}/upload-sessions/${encodeURIComponent(String(sessionId))}`
+
+  return {
+    uploadChunk: (sessionId, offset, body, contentType) => requestWithTimeout(`${sessionPath(sessionId)}/content`, {
+      method: 'PATCH',
+      body,
+      rawBody: true,
+      headers: {
+        'Content-Type': contentType || 'application/octet-stream',
+        'X-Upload-Offset': String(offset)
+      }
+    }),
+    uploadPart: (sessionId, partIndex, offset, body, contentType) => requestWithTimeout(
+      `${sessionPath(sessionId)}/parts/${encodeURIComponent(String(partIndex))}`,
+      {
+        method: 'PUT',
+        body,
+        rawBody: true,
+        headers: {
+          'Content-Type': contentType || 'application/octet-stream',
+          'X-Upload-Offset': String(offset)
+        }
+      }
+    )
+  }
+}
+
+const fallbackOnTransportError = (directRequest, tunnelRequest, state) => async (...args) => {
+  if (!state.direct) return tunnelRequest(...args)
+  try {
+    return await directRequest(...args)
+  } catch (error) {
+    if (!isRetryableUploadError(error)) throw error
+    state.direct = false
+    return tunnelRequest(...args)
+  }
+}
+
+/**
+ * 创建当前上传会话使用的分片传输接口，直连失败时切换到 Tunnel。
+ */
+export const createUploadTransport = async ({
+  directOrigin = DIRECT_UPLOAD_ORIGIN,
+  directPathPrefix = 'files',
+  uploadChunk,
+  uploadPart,
+  uploadStatus,
+  directUpload = true
+} = {}) => {
+  const tunnel = { uploadChunk, uploadPart, uploadStatus, direct: false }
+  const normalizedOrigin = normalizeDirectUploadOrigin(directOrigin)
+  if (!directUpload || !normalizedOrigin || (!uploadChunk && !uploadPart)) return tunnel
+  if (!(await probeDirectUpload(normalizedOrigin))) return tunnel
+
+  const direct = directChunkApi(normalizedOrigin, directPathPrefix)
+  const state = { direct: true }
+  return {
+    uploadChunk: uploadChunk
+      ? fallbackOnTransportError(direct.uploadChunk, uploadChunk, state)
+      : uploadChunk,
+    uploadPart: uploadPart
+      ? fallbackOnTransportError(direct.uploadPart, uploadPart, state)
+      : uploadPart,
+    uploadStatus,
+    direct: true,
+    isDirectActive: () => state.direct
+  }
 }
 
 const finiteOffset = (value, fallback = 0) => {
@@ -300,6 +436,9 @@ export const uploadFile = async (file, purpose = 'lesson-asset', options = {}) =
     uploadChunk: api.files.uploadChunk,
     uploadPart: api.files.uploadPart,
     uploadStatus: api.files.uploadStatus,
+    directOrigin: options.directOrigin,
+    directPathPrefix: 'files',
+    directUpload: options.directUpload,
     onProgress: options.onProgress,
     chunkSizeBytes: options.chunkSizeBytes,
     concurrency: options.concurrency,
@@ -327,6 +466,9 @@ export const uploadCoursewareFile = async (file, options = {}) => {
     uploadChunk: api.courseware.uploadChunk,
     uploadPart: api.courseware.uploadPart,
     uploadStatus: api.courseware.uploadStatus,
+    directOrigin: options.directOrigin,
+    directPathPrefix: 'courseware',
+    directUpload: options.directUpload,
     onProgress: options.onProgress,
     chunkSizeBytes: options.chunkSizeBytes,
     concurrency: options.concurrency,
@@ -370,11 +512,19 @@ export const putUploadSessionContent = async (
   }
 
   if (body instanceof Blob && options.uploadChunk) {
-    return uploadBlobByChunks(session, body, {
-      contentType,
+    const transport = await createUploadTransport({
+      directOrigin: options.directOrigin,
+      directPathPrefix: options.directPathPrefix,
       uploadChunk: options.uploadChunk,
       uploadPart: options.uploadPart,
       uploadStatus: options.uploadStatus,
+      directUpload: options.directUpload
+    })
+    return uploadBlobByChunks(session, body, {
+      contentType,
+      uploadChunk: transport.uploadChunk,
+      uploadPart: transport.uploadPart,
+      uploadStatus: transport.uploadStatus,
       chunkSizeBytes: options.chunkSizeBytes,
       concurrency: options.concurrency,
       maxRetries: options.maxRetries,

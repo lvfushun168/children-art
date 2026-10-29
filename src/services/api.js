@@ -102,6 +102,15 @@ export const api = {
         'X-Upload-Offset': String(offset)
       }
     }),
+    uploadPart: (sessionId, partIndex, offset, body, contentType) => request(`/files/upload-sessions/${id(sessionId)}/parts/${partIndex}`, {
+      method: 'PUT',
+      body,
+      rawBody: true,
+      headers: {
+        'Content-Type': contentType || 'application/octet-stream',
+        'X-Upload-Offset': String(offset)
+      }
+    }),
     uploadContent: (sessionId, body, contentType) => request(`/files/upload-sessions/${id(sessionId)}/content`, {
       method: 'PUT', body, rawBody: true, headers: { 'Content-Type': contentType || 'application/octet-stream' }
     }),
@@ -126,6 +135,15 @@ export const api = {
     uploadStatus: (sessionId) => request(`/courseware/upload-sessions/${id(sessionId)}`),
     uploadChunk: (sessionId, offset, body, contentType) => request(`/courseware/upload-sessions/${id(sessionId)}/content`, {
       method: 'PATCH',
+      body,
+      rawBody: true,
+      headers: {
+        'Content-Type': contentType || 'application/octet-stream',
+        'X-Upload-Offset': String(offset)
+      }
+    }),
+    uploadPart: (sessionId, partIndex, offset, body, contentType) => request(`/courseware/upload-sessions/${id(sessionId)}/parts/${partIndex}`, {
+      method: 'PUT',
       body,
       rawBody: true,
       headers: {

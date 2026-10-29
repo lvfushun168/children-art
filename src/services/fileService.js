@@ -26,7 +26,9 @@ const SHA256_ROUND_CONSTANTS = [
   0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 ]
 
-export const UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+// 默认 256 KiB，降低慢速公网链路下单次请求触发写入超时的概率。
+export const UPLOAD_CHUNK_SIZE_BYTES = 256 * 1024
+export const UPLOAD_CONCURRENCY = 4
 const MAX_UPLOAD_RETRIES = 3
 const UPLOAD_RETRY_DELAYS_MS = [500, 1000, 2000]
 
@@ -140,7 +142,7 @@ const waitBeforeRetry = (attempt) => new Promise((resolve) => {
   globalThis.setTimeout(resolve, delay)
 })
 
-export const uploadBlobByChunks = async (session, body, {
+const uploadBlobBySequentialChunks = async (session, body, {
   contentType = 'application/octet-stream',
   uploadChunk,
   uploadStatus,
@@ -209,6 +211,79 @@ export const uploadBlobByChunks = async (session, body, {
   return { sessionId, sizeBytes: offset }
 }
 
+const uploadBlobByConcurrentParts = async (session, body, {
+  contentType = 'application/octet-stream',
+  uploadPart,
+  chunkSizeBytes = UPLOAD_CHUNK_SIZE_BYTES,
+  concurrency = UPLOAD_CONCURRENCY,
+  maxRetries = MAX_UPLOAD_RETRIES,
+  onProgress
+} = {}) => {
+  if (!(body instanceof Blob)) throw new Error('分片上传内容必须是 Blob')
+  if (typeof uploadPart !== 'function') throw new Error('并发分片上传接口不可用')
+
+  const sessionId = session?.fileUploadSessionId || session?.sessionId || session?.id
+  if (!sessionId) throw new Error('上传会话不存在')
+
+  const totalBytes = body.size
+  const expectedSize = session?.expectedSize == null
+    ? totalBytes
+    : finiteOffset(session.expectedSize, totalBytes)
+  if (expectedSize !== totalBytes) throw new Error('上传文件大小与会话预期不一致')
+
+  const effectiveChunkSize = Math.max(1, finiteOffset(chunkSizeBytes, UPLOAD_CHUNK_SIZE_BYTES))
+  const retryLimit = Math.max(0, finiteOffset(maxRetries, MAX_UPLOAD_RETRIES))
+  const totalParts = Math.ceil(totalBytes / effectiveChunkSize)
+  const workerCount = Math.max(1, Math.min(finiteOffset(concurrency, UPLOAD_CONCURRENCY), totalParts))
+  const completedPartSizes = new Map()
+  let nextPartIndex = 0
+  notifyUploadProgress(onProgress, 0, totalBytes)
+
+  const progressBytes = () => [...completedPartSizes.values()].reduce((sum, value) => sum + value, 0)
+
+  const uploadPartWithRetry = async (partIndex) => {
+    const offset = partIndex * effectiveChunkSize
+    const end = Math.min(offset + effectiveChunkSize, totalBytes)
+    const chunk = body.slice(offset, end, contentType)
+    let attempt = 0
+
+    while (true) {
+      try {
+        const result = await uploadPart(sessionId, partIndex, offset, chunk, contentType)
+        const reportedSize = finiteOffset(result?.chunkSizeBytes, chunk.size)
+        if (reportedSize !== chunk.size) throw new Error('服务器返回的分片大小无效')
+        completedPartSizes.set(partIndex, chunk.size)
+        notifyUploadProgress(onProgress, progressBytes(), totalBytes)
+        return
+      } catch (error) {
+        if (!isRetryableUploadError(error) || attempt >= retryLimit) throw error
+        await waitBeforeRetry(attempt)
+        attempt += 1
+      }
+    }
+  }
+
+  const worker = async () => {
+    while (true) {
+      const partIndex = nextPartIndex
+      nextPartIndex += 1
+      if (partIndex >= totalParts) return
+      await uploadPartWithRetry(partIndex)
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+  notifyUploadProgress(onProgress, totalBytes, totalBytes)
+  return { sessionId, sizeBytes: totalBytes }
+}
+
+export const uploadBlobByChunks = async (session, body, options = {}) => {
+  if (typeof options.uploadPart === 'function') {
+    return uploadBlobByConcurrentParts(session, body, options)
+  }
+  return uploadBlobBySequentialChunks(session, body, options)
+}
+
 export const uploadFile = async (file, purpose = 'lesson-asset', options = {}) => {
   if (!file) throw new Error('未选择文件')
   const digest = options.sha256 || await sha256(file)
@@ -223,9 +298,11 @@ export const uploadFile = async (file, purpose = 'lesson-asset', options = {}) =
   })
   await putUploadSessionContent(session, file, mediaType, 'file-content', api.files.uploadContent, {
     uploadChunk: api.files.uploadChunk,
+    uploadPart: api.files.uploadPart,
     uploadStatus: api.files.uploadStatus,
     onProgress: options.onProgress,
     chunkSizeBytes: options.chunkSizeBytes,
+    concurrency: options.concurrency,
     maxRetries: options.maxRetries
   })
   const fileId = session.fileId || session.id
@@ -248,9 +325,11 @@ export const uploadCoursewareFile = async (file, options = {}) => {
   })
   await putUploadSessionContent(session, file, mediaType, 'courseware', api.courseware.uploadContent, {
     uploadChunk: api.courseware.uploadChunk,
+    uploadPart: api.courseware.uploadPart,
     uploadStatus: api.courseware.uploadStatus,
     onProgress: options.onProgress,
     chunkSizeBytes: options.chunkSizeBytes,
+    concurrency: options.concurrency,
     maxRetries: options.maxRetries
   })
   const completed = await api.courseware.completeUpload(
@@ -294,8 +373,10 @@ export const putUploadSessionContent = async (
     return uploadBlobByChunks(session, body, {
       contentType,
       uploadChunk: options.uploadChunk,
+      uploadPart: options.uploadPart,
       uploadStatus: options.uploadStatus,
       chunkSizeBytes: options.chunkSizeBytes,
+      concurrency: options.concurrency,
       maxRetries: options.maxRetries,
       onProgress: options.onProgress
     })

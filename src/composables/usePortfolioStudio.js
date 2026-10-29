@@ -848,6 +848,7 @@ export function usePortfolioStudio(context) {
       })
       await putUploadSessionContent(session, blob, 'application/pdf', 'portfolio-export', api.files.uploadContent, {
         uploadChunk: api.files.uploadChunk,
+        uploadPart: api.files.uploadPart,
         uploadStatus: api.files.uploadStatus
       })
       const exportRecord = await api.portfolio.completeExport(session.fileUploadSessionId, { sizeBytes: blob.size, sha256: digest }, createIdempotencyKey(`portfolio-export:${project.studentId}:${digest}`))

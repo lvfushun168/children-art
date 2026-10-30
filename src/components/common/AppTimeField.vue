@@ -23,22 +23,12 @@ const pickerValue = computed(() => {
   return { hours, minutes, seconds: 0 }
 })
 
-// 菜单里拨动时间时实时写回输入框，这样点空白处关闭菜单也不会丢掉选择。
-// 菜单刚打开时会先报一次“当前时间”，那一次不算用户的选择，要跳过。
-let skipInitialChange = false
-const syncWhileEditing = (value) => {
-  if (skipInitialChange) {
-    skipInitialChange = false
-    return
-  }
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return
-  update({ hours: value.getHours(), minutes: value.getMinutes() })
-}
-
 const update = (value) => {
-  const next = value && value.hours !== undefined && value.hours !== null
-    ? `${pad(value.hours)}:${pad(value.minutes ?? 0)}`
-    : ''
+  const next = value instanceof Date && !Number.isNaN(value.getTime())
+    ? `${pad(value.getHours())}:${pad(value.getMinutes())}`
+    : value && value.hours !== undefined && value.hours !== null
+      ? `${pad(value.hours)}:${pad(value.minutes ?? 0)}`
+      : ''
   emit('update:modelValue', next)
   emit('change', next)
 }
@@ -55,13 +45,10 @@ const update = (value) => {
       :auto-apply="true"
       :time-config="{ is24: true, enableSeconds: false, minutesGridIncrement: 5, minutesIncrement: 5 }"
       :formats="{ input: 'HH:mm', preview: 'HH:mm' }"
-      :text-input="{ format: 'HH:mm', enterSubmit: true, tabSubmit: true, applyOnBlur: true, selectOnFocus: false }"
       :input-attrs="{ clearable: !required, required, inputmode: 'none' }"
       :aria-labels="{ input: ariaLabel }"
       :placeholder="placeholder"
       @update:model-value="update"
-      @open="skipInitialChange = true"
-      @internal-model-change="syncWhileEditing"
     />
   </div>
 </template>

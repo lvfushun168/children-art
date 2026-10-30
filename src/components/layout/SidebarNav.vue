@@ -33,7 +33,7 @@ defineEmits(['select-group', 'open-todo-center'])
       <span class="brand-mark"><AppIcon name="brand" :size="22" /></span>
       <div>
         <strong>课后交付系统</strong>
-        <small>{{ school.name }} · {{ school.campus }}</small>
+        <small>{{ school.campus }}</small>
       </div>
     </div>
 

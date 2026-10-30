@@ -6,6 +6,7 @@ import LoadingSpinner from '../common/LoadingSpinner.vue'
 import DrawerHead from '../common/DrawerHead.vue'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import AppDatePicker from '../common/AppDatePicker.vue'
 import AppStatusTag from '../common/AppStatusTag.vue'
 import TaskReport from './TaskReport.vue'
 import DeliveryPreview from './DeliveryPreview.vue'
@@ -47,7 +48,6 @@ const homeworkEditorField = ref('content')
 const homeworkEditorDraft = ref('')
 const homeworkEditorTextarea = ref(null)
 const homeworkEditorRef = ref(null)
-const homeworkDateInput = ref(null)
 const teacherEffectDraft = reactive({
   title: '',
   width: 1080,
@@ -177,18 +177,6 @@ const toggleHomeworkOptionalField = async (field, enabled, event) => {
   homeworkOptionalFieldEnabled[field] = false
   props.state.homework[field] = ''
   if (previousValue !== '') props.state.markShareDraftDirty?.()
-}
-const openHomeworkDatePicker = () => {
-  const input = homeworkDateInput.value
-  if (!input) return
-  input.focus({ preventScroll: true })
-  if (typeof input.showPicker === 'function') {
-    try {
-      input.showPicker()
-    } catch {
-      // Native date controls may already be open or may reject programmatic opening.
-    }
-  }
 }
 const resolveStateValue = (value) => value?.value ?? value
 const materialSections = computed(() => {
@@ -897,19 +885,15 @@ watch(homeworkEditorOpen, async (open) => {
                     <small>{{ !homeworkOptionalFieldEnabled.dueDate ? '未设置' : (state.homework.dueDate ? '已设置' : '待填写') }}</small>
                   </label>
                 </div>
-                <div
-                  class="homework-date-field"
-                  :class="{ disabled: !homeworkOptionalFieldEnabled.dueDate }"
-                  @click="homeworkOptionalFieldEnabled.dueDate && openHomeworkDatePicker()"
-                >
-                  <input
-                    ref="homeworkDateInput"
-                    v-model="state.homework.dueDate"
-                    type="date"
-                    :min="state.activeTask.dateValue || undefined"
+                <div class="homework-date-field" :class="{ disabled: !homeworkOptionalFieldEnabled.dueDate }">
+                  <AppDatePicker
+                    :model-value="state.homework.dueDate || ''"
+                    :min="state.activeTask.dateValue || ''"
                     :disabled="!homeworkOptionalFieldEnabled.dueDate"
+                    :presets="false"
                     aria-label="预计回收或检查日期"
-                    @change="state.markShareDraftDirty?.()"
+                    placeholder="选择预计回收或检查日期"
+                    @update:model-value="state.homework.dueDate = $event; state.markShareDraftDirty?.()"
                   />
                 </div>
               </div>

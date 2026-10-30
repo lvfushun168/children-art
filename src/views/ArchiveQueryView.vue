@@ -8,7 +8,10 @@ import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
-import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
+import AppDatePicker from '../components/common/AppDatePicker.vue'
+import AppDateRangePicker from '../components/common/AppDateRangePicker.vue'
+import FilterBar from '../components/common/FilterBar.vue'
+import FilterField from '../components/common/FilterField.vue'
 import ArchiveImagePreview from '../components/common/ArchiveImagePreview.vue'
 import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import PaginationBar from '../components/common/PaginationBar.vue'
@@ -190,13 +193,13 @@ const framerOptions = computed(() => [
 
 const sourceParam = (value) => ({ all: 'ALL', lesson: 'LESSON', extraTask: 'EXTRA_TASK' }[value] || 'ALL')
 const mountingParam = (value) => ({ all: undefined, framed: 'MOUNTED', unframed: 'UNMOUNTED' }[value])
-const loadStudentWorks = async (page = 1) => {
+const loadStudentWorks = async (page = 1, pageSize = workPage.value.pageSize || 20) => {
   selectedId.value = null
   detailRecord.value = null
   selectedRecordIds.value = []
   await props.state.loadDirectoryPage?.('archiveRecords', {
     page,
-    pageSize: 20,
+    pageSize,
     sourceType: sourceParam(props.state.archiveFilter.sourceType),
     studentId: props.state.archiveFilter.studentId === 'all' ? undefined : props.state.archiveFilter.studentId,
     classId: props.state.archiveFilter.classId === 'all' ? undefined : props.state.archiveFilter.classId,
@@ -208,12 +211,12 @@ const loadStudentWorks = async (page = 1) => {
     includeCurrent: true
   })
 }
-const loadLessonArchives = async (page = 1) => {
+const loadLessonArchives = async (page = 1, pageSize = lessonPage.value.pageSize || 20) => {
   selectedLessonId.value = null
   lessonDetail.value = null
   await props.state.loadDirectoryPage?.('classroomArchives', {
     page,
-    pageSize: 20,
+    pageSize,
     archiveVisible: true,
     classId: lessonFilter.classId === 'all' ? undefined : lessonFilter.classId,
     teacherId: lessonFilter.teacher === 'all' ? undefined : lessonFilter.teacher,
@@ -221,12 +224,12 @@ const loadLessonArchives = async (page = 1) => {
     dateTo: lessonFilter.dateEnd || undefined
   })
 }
-const loadTeacherEffects = async (page = 1) => {
+const loadTeacherEffects = async (page = 1, pageSize = effectPage.value.pageSize || 20) => {
   selectedEffectId.value = null
   effectDetail.value = null
   await props.state.loadDirectoryPage?.('teacherArchives', {
     page,
-    pageSize: 20,
+    pageSize,
     teacherId: effectFilter.teacher === 'all' ? undefined : effectFilter.teacher,
     classId: effectFilter.classId === 'all' ? undefined : effectFilter.classId,
     classTypeId: effectFilter.classTypeId === 'all' ? undefined : effectFilter.classTypeId,
@@ -236,6 +239,18 @@ const loadTeacherEffects = async (page = 1) => {
   })
 }
 const selectFirstIfMissing = () => loadStudentWorks(1)
+const resetWorkFilters = () => {
+  Object.assign(props.state.archiveFilter, { studentId: 'all', classId: 'all', teacher: 'all', dateStart: '', dateEnd: '', sourceType: 'all', highlightOnly: false, frameStatus: 'all' })
+  return loadStudentWorks(1)
+}
+const resetLessonFilters = () => {
+  Object.assign(lessonFilter, { classId: 'all', teacher: 'all', dateStart: '', dateEnd: '' })
+  return loadLessonArchives(1)
+}
+const resetEffectFilters = () => {
+  Object.assign(effectFilter, { teacher: 'all', classId: 'all', classTypeId: 'all', status: 'all', dateStart: '', dateEnd: '' })
+  return loadTeacherEffects(1)
+}
 
 const toggleRecord = (record) => {
   if (record.archiveStatus === 'CURRENT') return
@@ -584,35 +599,30 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
   </section>
 
   <section v-if="activeTab === 'studentWorks'" class="archive-workspace-layout">
-    <section class="archive-filter-bar panel">
-      <div class="archive-filter-fields student-work-filter-fields">
-        <label>
-          学生
-          <AdaptiveSelect v-model="state.archiveFilter.studentId" :options="studentFilterOptions" @change="selectFirstIfMissing" />
-        </label>
-        <label>
-          班级
-          <AdaptiveSelect v-model="state.archiveFilter.classId" :options="classFilterOptions" @change="selectFirstIfMissing" />
-        </label>
-        <label>
-          老师
-          <AdaptiveSelect v-model="state.archiveFilter.teacher" :options="teacherFilterOptions" @change="selectFirstIfMissing" />
-        </label>
-        <label>
-          来源
-          <AdaptiveSelect v-model="state.archiveFilter.sourceType" :options="sourceTypeOptions" @change="selectFirstIfMissing" />
-        </label>
-        <label>
-          装裱状态
-          <AdaptiveSelect v-model="state.archiveFilter.frameStatus" :options="frameStatusOptions" @change="selectFirstIfMissing" />
-        </label>
-        <label class="archive-check">
-          <input v-model="state.archiveFilter.highlightOnly" type="checkbox" @change="selectFirstIfMissing" />
-          <span>只看高光作品</span>
-        </label>
-      </div>
-      <DateRangeFilter v-model:start="state.archiveFilter.dateStart" v-model:end="state.archiveFilter.dateEnd" @change="selectFirstIfMissing" />
-    </section>
+    <FilterBar class="archive-filter-bar" @reset="resetWorkFilters">
+      <FilterField label="学生">
+        <AdaptiveSelect v-model="state.archiveFilter.studentId" :options="studentFilterOptions" @change="selectFirstIfMissing" />
+      </FilterField>
+      <FilterField label="班级">
+        <AdaptiveSelect v-model="state.archiveFilter.classId" :options="classFilterOptions" @change="selectFirstIfMissing" />
+      </FilterField>
+      <FilterField label="老师">
+        <AdaptiveSelect v-model="state.archiveFilter.teacher" :options="teacherFilterOptions" @change="selectFirstIfMissing" />
+      </FilterField>
+      <FilterField label="来源">
+        <AdaptiveSelect v-model="state.archiveFilter.sourceType" :options="sourceTypeOptions" @change="selectFirstIfMissing" />
+      </FilterField>
+      <FilterField label="装裱状态">
+        <AdaptiveSelect v-model="state.archiveFilter.frameStatus" :options="frameStatusOptions" @change="selectFirstIfMissing" />
+      </FilterField>
+      <FilterField label="日期范围" kind="range">
+        <AppDateRangePicker v-model:start="state.archiveFilter.dateStart" v-model:end="state.archiveFilter.dateEnd" aria-label="作品日期范围" @change="selectFirstIfMissing" />
+      </FilterField>
+      <label class="filter-check">
+        <input v-model="state.archiveFilter.highlightOnly" type="checkbox" @change="selectFirstIfMissing" />
+        <span>只看高光作品</span>
+      </label>
+    </FilterBar>
 
     <section class="archive-results panel">
       <div class="section-head">
@@ -658,29 +668,23 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
       </article>
       <div v-if="state.directoryErrors?.archiveRecords" class="notice-box error-box"><small>{{ state.directoryErrors.archiveRecords }}</small><button class="ghost" type="button" @click="loadStudentWorks(workPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <div v-else-if="!workRecords.length && !state.directoryLoading?.archiveRecords"><EmptyState icon="image" title="还没有作品档案" description="课次归档完成后，学生作品会汇集到这里。" /></div>
-      <PaginationBar :page="workPage.page" :page-size="workPage.pageSize" :total="workPage.total" :loading="state.directoryLoading?.archiveRecords" @change="loadStudentWorks" />
+      <PaginationBar :page="workPage.page" :page-size="workPage.pageSize" :total="workPage.total" :loading="state.directoryLoading?.archiveRecords" @change="loadStudentWorks" @size-change="(size) => loadStudentWorks(1, size)" />
     </section>
 
   </section>
 
   <section v-if="activeTab === 'lessons'" class="archive-workspace-layout lesson-archive-layout">
-    <section class="archive-filter-bar panel">
-      <div class="archive-filter-fields compact-archive-filter-fields">
-        <label>
-          班级
-          <AdaptiveSelect v-model="lessonFilter.classId" :options="classFilterOptions" @change="loadLessonArchives(1)" />
-        </label>
-        <label>
-          老师
-          <AdaptiveSelect v-model="lessonFilter.teacher" :options="teacherFilterOptions" @change="loadLessonArchives(1)" />
-        </label>
-      </div>
-      <DateRangeFilter
-        v-model:start="lessonFilter.dateStart"
-        v-model:end="lessonFilter.dateEnd"
-        @change="loadLessonArchives(1)"
-      />
-    </section>
+    <FilterBar class="archive-filter-bar" @reset="resetLessonFilters">
+      <FilterField label="班级">
+        <AdaptiveSelect v-model="lessonFilter.classId" :options="classFilterOptions" @change="loadLessonArchives(1)" />
+      </FilterField>
+      <FilterField label="老师">
+        <AdaptiveSelect v-model="lessonFilter.teacher" :options="teacherFilterOptions" @change="loadLessonArchives(1)" />
+      </FilterField>
+      <FilterField label="日期范围" kind="range">
+        <AppDateRangePicker v-model:start="lessonFilter.dateStart" v-model:end="lessonFilter.dateEnd" aria-label="课堂日期范围" @change="loadLessonArchives(1)" />
+      </FilterField>
+    </FilterBar>
 
     <section class="archive-results panel">
       <button
@@ -712,31 +716,29 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
       </button>
       <div v-if="!filteredLessonArchives.length"><EmptyState icon="archive" title="还没有课堂档案" description="课次完成归档后会出现在这里。" /></div>
       <div v-if="state.directoryErrors?.classroomArchives" class="notice-box error-box"><small>{{ state.directoryErrors.classroomArchives }}</small><button class="ghost" type="button" @click="loadLessonArchives(lessonPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
-      <PaginationBar :page="lessonPage.page" :page-size="lessonPage.pageSize" :total="lessonPage.total" :loading="state.directoryLoading?.classroomArchives" @change="loadLessonArchives" />
+      <PaginationBar :page="lessonPage.page" :page-size="lessonPage.pageSize" :total="lessonPage.total" :loading="state.directoryLoading?.classroomArchives" @change="loadLessonArchives" @size-change="(size) => loadLessonArchives(1, size)" />
     </section>
 
   </section>
 
   <section v-if="activeTab === 'teacherEffects'" class="archive-workspace-layout teacher-effect-layout">
-    <section class="archive-filter-bar panel">
-      <div class="archive-filter-fields compact-archive-filter-fields">
-        <label>
-          老师
-          <AdaptiveSelect v-model="effectFilter.teacher" :options="teacherFilterOptions" @change="loadTeacherEffects(1)" />
-        </label>
-        <label>
-          班级
-          <AdaptiveSelect v-model="effectFilter.classId" :options="classFilterOptions" @change="loadTeacherEffects(1)" />
-        </label>
-        <label>班型<AdaptiveSelect v-model="effectFilter.classTypeId" :options="classTypeOptions" @change="loadTeacherEffects(1)" /></label>
-        <label>状态<AdaptiveSelect v-model="effectFilter.status" :options="effectStatusOptions" @change="loadTeacherEffects(1)" /></label>
-      </div>
-      <DateRangeFilter
-        v-model:start="effectFilter.dateStart"
-        v-model:end="effectFilter.dateEnd"
-        @change="loadTeacherEffects(1)"
-      />
-    </section>
+    <FilterBar class="archive-filter-bar" @reset="resetEffectFilters">
+      <FilterField label="老师">
+        <AdaptiveSelect v-model="effectFilter.teacher" :options="teacherFilterOptions" @change="loadTeacherEffects(1)" />
+      </FilterField>
+      <FilterField label="班级">
+        <AdaptiveSelect v-model="effectFilter.classId" :options="classFilterOptions" @change="loadTeacherEffects(1)" />
+      </FilterField>
+      <FilterField label="班型">
+        <AdaptiveSelect v-model="effectFilter.classTypeId" :options="classTypeOptions" @change="loadTeacherEffects(1)" />
+      </FilterField>
+      <FilterField label="状态">
+        <AdaptiveSelect v-model="effectFilter.status" :options="effectStatusOptions" @change="loadTeacherEffects(1)" />
+      </FilterField>
+      <FilterField label="日期范围" kind="range">
+        <AppDateRangePicker v-model:start="effectFilter.dateStart" v-model:end="effectFilter.dateEnd" aria-label="课效日期范围" @change="loadTeacherEffects(1)" />
+      </FilterField>
+    </FilterBar>
 
     <section class="archive-results panel">
       <button
@@ -757,7 +759,7 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
       </button>
       <div v-if="!filteredTeacherEffects.length"><EmptyState icon="archive" title="还没有课效档案" description="生成并确认课效长图后会出现在这里。" /></div>
       <div v-if="state.directoryErrors?.teacherArchives" class="notice-box error-box"><small>{{ state.directoryErrors.teacherArchives }}</small><button class="ghost" type="button" @click="loadTeacherEffects(effectPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
-      <PaginationBar :page="effectPage.page" :page-size="effectPage.pageSize" :total="effectPage.total" :loading="state.directoryLoading?.teacherArchives" @change="loadTeacherEffects" />
+      <PaginationBar :page="effectPage.page" :page-size="effectPage.pageSize" :total="effectPage.total" :loading="state.directoryLoading?.teacherArchives" @change="loadTeacherEffects" @size-change="(size) => loadTeacherEffects(1, size)" />
     </section>
 
   </section>
@@ -877,7 +879,7 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
             <span>作品已装裱</span>
           </label>
           <div v-if="workDraft.framed" class="form-grid archive-edit-grid">
-            <label>装裱日期<input v-model="workDraft.framedAt" type="date" /></label>
+            <label>装裱日期<AppDatePicker v-model="workDraft.framedAt" aria-label="装裱日期" placeholder="选择装裱日期" /></label>
             <label>装裱费用（元）<input v-model="workDraft.frameFee" type="number" min="0" step="0.01" /></label>
             <label class="wide">
               装裱人

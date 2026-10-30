@@ -5,6 +5,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
+import AdaptiveSelect from '../components/common/AdaptiveSelect.vue'
+import AppDateRangePicker from '../components/common/AppDateRangePicker.vue'
+import FilterBar from '../components/common/FilterBar.vue'
+import FilterField from '../components/common/FilterField.vue'
 import ClassLessonGenerationDialog from '../components/masterdata/ClassLessonGenerationDialog.vue'
 import ScheduleCalendar from '../components/schedule/ScheduleCalendar.vue'
 import LessonActionDrawer from '../components/schedule/LessonActionDrawer.vue'
@@ -212,32 +216,20 @@ useBackLayer(showLessonEditor, closeLessonEditor)
       <button class="primary" type="button" :disabled="!canGenerateLessons" @click="showGenerationDialog = true"><AppIcon name="add" :size="16" />创建固定排课</button>
     </PageHead>
 
-    <form class="directory-toolbar panel schedule-toolbar" @submit.prevent="reload">
-      <label class="schedule-range-select">
-        <span>查看范围</span>
+    <FilterBar class="schedule-toolbar" :loading="state.scheduleLoading" @reset="resetFilters">
+      <FilterField label="查看范围">
         <AdaptiveSelect v-model="preset" :options="rangeOptions" @change="applyPreset" />
-      </label>
-      <label>
-        <span>开始日期</span>
-        <input v-model="dateFrom" type="date" @change="markCustom" />
-      </label>
-      <label>
-        <span>结束日期</span>
-        <input v-model="dateTo" type="date" @change="markCustom" />
-      </label>
-      <label>
-        <span>任课老师</span>
+      </FilterField>
+      <FilterField label="日期范围" kind="range">
+        <AppDateRangePicker v-model:start="dateFrom" v-model:end="dateTo" aria-label="课表日期范围" :clearable="false" @change="markCustom" />
+      </FilterField>
+      <FilterField label="任课老师">
         <AdaptiveSelect v-model="teacherId" :options="[{ label: '全部老师', value: 'all' }, ...teacherOptions]" />
-      </label>
-      <label>
-        <span>班级</span>
+      </FilterField>
+      <FilterField label="班级">
         <AdaptiveSelect v-model="classId" :options="[{ label: '全部班级', value: 'all' }, ...classOptions]" />
-      </label>
-      <div class="button-pair directory-toolbar-actions">
-        <button class="secondary" type="submit" :disabled="state.scheduleLoading"><AppIcon name="search" :size="15" />查询</button>
-        <button class="ghost" type="button" @click="resetFilters"><AppIcon name="reset" :size="15" />重置</button>
-      </div>
-    </form>
+      </FilterField>
+    </FilterBar>
 
     <section class="master-list panel directory-list-panel">
 

@@ -4474,33 +4474,6 @@ textarea:focus,
   min-width: 0;
 }
 
-.directory-toolbar {
-  align-items: end;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 14px 16px;
-}
-
-.directory-toolbar label {
-  display: grid;
-  gap: 6px;
-  min-width: 150px;
-}
-
-.directory-toolbar label > span {
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.directory-toolbar .directory-search {
-  flex: 1 1 240px;
-}
-
-.directory-toolbar-actions {
-  margin-left: auto;
-}
-
 .directory-list-panel {
   min-width: 0;
   padding: 18px;
@@ -4604,22 +4577,201 @@ textarea:focus,
   font-size: 12px;
 }
 
-.directory-pagination {
+/* 统一筛选区：FilterBar + FilterField */
+.filter-bar {
+  align-items: end;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.filter-bar-fields {
+  align-items: end;
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.filter-field {
+  display: grid;
+  flex: 0 1 180px;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.filter-field-label {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.filter-field > input {
+  min-width: 0;
+  width: 100%;
+}
+
+.filter-field-search {
+  flex: 1 1 240px;
+  max-width: 480px;
+  min-width: 200px;
+}
+
+.filter-field-range {
+  flex: 0 1 300px;
+  min-width: 260px;
+}
+
+.filter-check {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.filter-bar-actions {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* 统一分页：PaginationBar */
+.app-pagination {
   align-items: center;
   border-top: 1px solid var(--color-border-soft);
   color: var(--color-muted);
   display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 10px 16px;
   justify-content: space-between;
   margin-top: 14px;
   padding-top: 14px;
 }
 
-.directory-page-number {
+.app-pagination-summary,
+.app-pagination-controls {
   align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.app-pagination-controls {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.app-pagination-size {
+  width: 118px;
+}
+
+.app-pagination-size .adaptive-select-trigger {
+  min-height: 34px;
+  padding: 5px 10px;
+}
+
+.app-pagination-size .adaptive-select-menu {
+  bottom: calc(100% + 6px);
+  top: auto;
+}
+
+.app-pagination-page {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
   color: var(--color-text);
-  display: inline-flex;
+  font-weight: 700;
+  min-height: 34px;
+  min-width: 34px;
+  padding: 0 8px;
+}
+
+.app-pagination-page:hover:not(:disabled):not(.current) {
+  background: var(--color-primary-soft);
+}
+
+.app-pagination-page.current {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.app-pagination-gap {
+  min-width: 22px;
+  text-align: center;
+}
+
+.app-pagination-compact {
+  color: var(--color-text);
+  display: none;
   min-width: 58px;
-  justify-content: center;
+  text-align: center;
+}
+
+.app-pagination-jump {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 10px;
+}
+
+.app-pagination-jump input {
+  min-height: 34px;
+  padding: 4px 6px;
+  text-align: center;
+  width: 58px;
+}
+
+@media (max-width: 680px) {
+  .filter-bar {
+    display: grid;
+  }
+
+  .filter-bar-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filter-field {
+    min-width: 0;
+  }
+
+  .filter-field-search,
+  .filter-field-range,
+  .filter-check {
+    grid-column: 1 / -1;
+  }
+
+  .filter-bar-actions {
+    margin-left: 0;
+  }
+
+  .filter-bar-actions > button {
+    flex: 1;
+  }
+
+  .app-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-pagination-page,
+  .app-pagination-gap,
+  .app-pagination-jump {
+    display: none;
+  }
+
+  .app-pagination-compact {
+    display: inline-block;
+  }
+
+  .app-pagination-controls {
+    justify-content: space-between;
+  }
 }
 
 .directory-drawer-backdrop {
@@ -4724,24 +4876,6 @@ textarea:focus,
 }
 
 @media (max-width: 680px) {
-  .directory-toolbar {
-    align-items: stretch;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .directory-toolbar .directory-search,
-  .directory-toolbar-actions {
-    grid-column: 1 / -1;
-  }
-
-  .directory-toolbar-actions {
-    margin-left: 0;
-  }
-
-  .directory-toolbar-actions > button {
-    flex: 1;
-  }
 
   .directory-list-panel {
     padding: 14px;
@@ -4754,16 +4888,6 @@ textarea:focus,
   .directory-mobile-cards {
     display: grid;
     gap: 10px;
-  }
-
-  .directory-pagination {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .directory-pagination .button-pair {
-    justify-content: space-between;
   }
 
   .directory-drawer-backdrop {
@@ -4899,13 +5023,27 @@ textarea:focus,
 
 .supervision-toolbar {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
   gap: 12px;
   align-items: end;
 }
 
-.supervision-toolbar label {
-  max-width: 240px;
+.supervision-date-field {
+  display: grid;
+  gap: 6px;
+  max-width: 300px;
+}
+
+.supervision-date-field > span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.supervision-date-stepper {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .supervision-toolbar-metrics,
@@ -6027,6 +6165,15 @@ textarea:focus,
 .homework-date-field.disabled input {
   cursor: not-allowed;
   opacity: 0.72;
+}
+
+.homework-date-field .app-dp .dp--input {
+  height: 72px;
+  min-height: 72px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .homework-editor-backdrop {
@@ -9477,25 +9624,12 @@ textarea:focus,
   max-width: none;
 }
 
-.identity-toolbar,
 .identity-intro-panel {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
   padding: 14px 16px;
-}
-
-.identity-filter-form {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) 150px auto;
-  gap: 8px;
-  min-width: min(620px, 100%);
-}
-
-.identity-filter-form .adaptive-select,
-.identity-filter-form .adaptive-select-trigger {
-  width: 100%;
 }
 
 .identity-list-panel {
@@ -9691,16 +9825,6 @@ textarea:focus,
 
 .identity-empty.identity-error {
   color: var(--color-status-warning-text);
-}
-
-.identity-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 14px;
-  color: var(--color-muted);
-  font-size: 13px;
 }
 
 .identity-drawer {
@@ -10064,70 +10188,6 @@ textarea:focus,
 
 .archive-filter-bar {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-}
-
-.archive-filter-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 220px));
-  gap: 10px;
-  align-items: end;
-}
-
-.student-work-filter-fields {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.compact-archive-filter-fields {
-  grid-template-columns: repeat(2, minmax(180px, 260px));
-}
-
-.archive-date-range {
-  display: grid;
-  grid-template-columns: max-content minmax(320px, 380px) max-content;
-  gap: 12px;
-  align-items: end;
-  justify-content: start;
-  min-width: 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--color-border-soft);
-}
-
-.archive-date-range > span {
-  align-self: center;
-  padding-bottom: 2px;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.archive-date-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.archive-date-fields label {
-  gap: 4px;
-  color: var(--color-muted);
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.archive-date-fields input {
-  min-height: 39px;
-  cursor: pointer;
-}
-
-.archive-date-clear {
-  justify-self: start;
-  min-height: 30px;
-  padding: 5px 9px;
-  color: var(--color-danger);
-  font-size: 12px;
 }
 
 .archive-center-shell {
@@ -11535,6 +11595,101 @@ textarea:focus,
   grid-column: 1 / -1;
 }
 
+/* 日期/时间选择器：AppDatePicker、AppDateRangePicker、AppTimeField 和 DateTimeRangeField 共用。 */
+.app-dp {
+  min-width: 0;
+  width: 100%;
+}
+
+.app-dp .dp--main,
+.app-dp .dp--input-wrap {
+  width: 100%;
+}
+
+.app-dp .dp--input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 36px 9px 36px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 7px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.app-dp .dp--input:focus,
+.app-dp .dp--input-focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+.app-dp .dp--input-icon,
+.app-dp .dp--clear-btn {
+  color: var(--color-primary);
+}
+
+.app-dp .dp--input:disabled {
+  background: var(--color-surface-muted);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+/* 组件库把配色写死在 .dp--theme-light 上，这里改接项目主题 token，切换主题时自动跟随。
+   菜单通过 teleport 挂到 body，所以选择器不能再用 .app-dp 限定。 */
+.dp--theme-light,
+.dp--theme-dark {
+  --dp-font-family: var(--font-sans);
+  --dp-background-color: var(--color-surface);
+  --dp-text-color: var(--color-text);
+  --dp-hover-color: var(--color-primary-soft);
+  --dp-hover-text-color: var(--color-primary);
+  --dp-hover-icon-color: var(--color-primary);
+  --dp-primary-color: var(--color-primary);
+  --dp-primary-disabled-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-surface));
+  --dp-primary-text-color: var(--color-primary-contrast);
+  --dp-secondary-color: var(--color-muted);
+  --dp-border-color: var(--color-border);
+  --dp-menu-border-color: var(--color-border);
+  --dp-border-color-hover: var(--color-border-strong);
+  --dp-border-color-focus: var(--color-primary);
+  --dp-disabled-color: var(--color-surface-muted);
+  --dp-disabled-color-text: var(--color-subtle);
+  --dp-icon-color: var(--color-primary);
+  --dp-danger-color: var(--color-danger);
+  --dp-marker-color: var(--color-accent);
+  --dp-highlight-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  --dp-range-between-dates-background-color: var(--color-primary-soft);
+  --dp-range-between-dates-text-color: var(--color-primary-strong);
+  --dp-range-between-border-color: var(--color-primary-mist);
+  --dp-scroll-bar-background: var(--color-surface-muted);
+  --dp-scroll-bar-color: var(--color-border-strong);
+  --dp-tooltip-color: var(--color-surface-subtle);
+}
+
+.dp--menu {
+  z-index: 1000;
+  border-color: var(--color-border);
+  border-radius: 9px;
+  box-shadow: var(--shadow-popover);
+  font-family: inherit;
+}
+
+.dp--preset-dates {
+  gap: 4px;
+  padding: 8px;
+}
+
+.dp--preset-range {
+  border-radius: 6px;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dp--preset-range:hover {
+  background: var(--color-primary-soft);
+}
+
 .date-time-range-field {
   display: grid;
   gap: 7px;
@@ -11546,37 +11701,36 @@ textarea:focus,
   font-size: 13px;
 }
 
-.date-time-range-field .dp__main,
-.date-time-range-field .dp__input_wrap {
-  width: 100%;
+.date-time-range-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
 }
 
-.date-time-range-field .dp__input {
-  width: 100%;
-  min-height: 40px;
-  padding: 9px 36px 9px 10px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 7px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
+.date-time-range-grid label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
 }
 
-.date-time-range-field .dp__input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
+.date-time-range-grid label > span {
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
-.date-time-range-field .dp__input_icon {
-  color: var(--color-primary);
+@media (max-width: 680px) {
+  .date-time-range-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .date-time-range-date {
+    grid-column: 1 / -1;
+  }
 }
 
-.date-time-range-field .dp__menu {
-  z-index: 60;
-  border-color: var(--color-border);
-  border-radius: 9px;
-  box-shadow: var(--shadow-popover);
-  font-family: inherit;
+.date-time-range-error {
+  color: var(--color-danger);
+  font-size: 12px;
 }
 
 .lesson-mode-switch {
@@ -13134,14 +13288,6 @@ textarea:focus,
     margin-top: 0;
   }
 
-  .archive-date-range {
-    grid-template-columns: max-content minmax(280px, 1fr) max-content;
-  }
-
-  .student-work-filter-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .archive-drawer-backdrop {
     padding: 0;
   }
@@ -13309,40 +13455,13 @@ textarea:focus,
     grid-template-columns: 1fr;
   }
 
-  .generate-subnav,
-  .generate-flow-status,
-  .generation-template-form,
-  .setting-summary-grid,
-  .batch-progress-grid,
-  .archive-overview-grid,
-  .archive-edit-grid,
-  .archive-frame-summary,
-  .archive-date-fields,
-  .lesson-status-grid,
-  .lesson-asset-grid,
-  .lesson-work-grid,
-  .homework-editor,
-  .markdown-editor-panels,
-  .content-settings-body,
-  .publish-check-grid,
-  .publish-defaults,
-  .publish-settings,
-  .publish-result {
+  .generate-subnav,.generate-flow-status,.generation-template-form,.setting-summary-grid,.batch-progress-grid,.archive-overview-grid,.archive-edit-grid,.archive-frame-summary,.lesson-status-grid,.lesson-asset-grid,.lesson-work-grid,.homework-editor,.markdown-editor-panels,.content-settings-body,.publish-check-grid,.publish-defaults,.publish-settings,.publish-result{
     grid-template-columns: 1fr;
   }
 
   .homework-field-row {
     grid-template-columns: 1fr;
     gap: 6px;
-  }
-
-  .archive-filter-fields,
-  .archive-date-range {
-    grid-template-columns: 1fr;
-  }
-
-  .archive-date-clear {
-    justify-self: start;
   }
 
   .generate-flow-status > i {
@@ -13696,7 +13815,7 @@ textarea:focus,
     justify-self: start;
   }
 
-  .app-shell-mobile .date-time-range-field .dp__input {
+  .app-shell-mobile .app-dp .dp--input {
     min-height: 44px;
     font-size: 15px;
   }
@@ -14769,20 +14888,10 @@ textarea:focus,
 }
 
 @media (max-width: 680px) {
-  .identity-toolbar,
+  
   .identity-intro-panel {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .identity-filter-form {
-    grid-template-columns: 1fr;
-    min-width: 0;
-    width: 100%;
-  }
-
-  .identity-filter-form button {
-    width: 100%;
   }
 
   .identity-list-panel > .section-head.identity-list-head {

@@ -9,6 +9,8 @@ import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import AdaptiveSelect from '../components/common/AdaptiveSelect.vue'
+import FilterBar from '../components/common/FilterBar.vue'
+import FilterField from '../components/common/FilterField.vue'
 import { identityStatusClass, identityStatusLabel } from '../data/identity'
 import { sameId } from '../services/mappers'
 
@@ -26,13 +28,13 @@ const props = defineProps({
 defineEmits(['backToGroup'])
 
 const statusOptions = [
-  { value: '', label: '全部状态' },
+  { value: 'all', label: '全部状态' },
   { value: 'ENABLED', label: '启用' },
   { value: 'DISABLED', label: '停用' }
 ]
 const editorStatusOptions = statusOptions.slice(1)
 const query = ref('')
-const status = ref('')
+const status = ref('all')
 const editorOpen = ref(false)
 const campusForm = ref(null)
 
@@ -43,7 +45,7 @@ const filteredCampuses = computed(() => {
   return (props.state.campuses || []).filter((campus) => {
     const matchesKeyword = !keyword || [campus.name, campus.code, campus.address, campus.contactPhone]
       .some((value) => String(value || '').toLocaleLowerCase().includes(keyword))
-    const matchesStatus = !status.value || campus.status === status.value
+    const matchesStatus = status.value === 'all' || campus.status === status.value
     return matchesKeyword && matchesStatus
   })
 })
@@ -107,13 +109,14 @@ useBackLayer(editorOpen, closeEditor)
   </PageHead>
 
   <section class="identity-page campus-management-page">
-    <section class="panel identity-toolbar">
-      <form class="identity-filter-form" @submit.prevent>
-        <input v-model="query" placeholder="搜索校区名称、编码或联系方式" aria-label="搜索校区" />
+    <FilterBar @reset="query = ''; status = 'all'">
+      <FilterField label="关键词" kind="search">
+        <input v-model="query" placeholder="校区名称、编码或联系方式" />
+      </FilterField>
+      <FilterField label="状态">
         <AdaptiveSelect v-model="status" :options="statusOptions" />
-        <button class="secondary" type="button" @click="query = ''; status = ''"><AppIcon name="reset" :size="15" />重置</button>
-      </form>
-    </section>
+      </FilterField>
+    </FilterBar>
 
     <section class="panel identity-list-panel">
       <div class="section-head identity-list-head">

@@ -3,6 +3,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
+import AppDatePicker from '../components/common/AppDatePicker.vue'
+import { addDaysValue } from '../utils/scheduleCalendar.js'
 import { sameId } from '../services/mappers'
 
 const props = defineProps({
@@ -184,10 +186,14 @@ const backToReviewList = () => {
 
     <template v-if="activeTab === 'today'">
       <div class="supervision-toolbar">
-        <label>
-          日期
-          <input v-model="selectedDate" type="date" />
-        </label>
+        <div class="supervision-date-field">
+          <span>日期</span>
+          <div class="supervision-date-stepper">
+            <button class="ghost icon-only" type="button" aria-label="前一天" :disabled="!selectedDate" @click="selectedDate = addDaysValue(selectedDate, -1)"><AppIcon name="back" :size="15" /></button>
+            <AppDatePicker v-model="selectedDate" aria-label="督导日期" :clearable="false" />
+            <button class="ghost icon-only" type="button" aria-label="后一天" :disabled="!selectedDate" @click="selectedDate = addDaysValue(selectedDate, 1)"><AppIcon name="next" :size="15" /></button>
+          </div>
+        </div>
         <div class="supervision-toolbar-metrics">
           <article><span>今日课次</span><strong>{{ todayStats.total }}</strong></article>
           <article><span>已完成</span><strong>{{ todayStats.completed }}</strong></article>

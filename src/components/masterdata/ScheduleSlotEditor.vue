@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import AppTimeField from '../common/AppTimeField.vue'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -60,11 +61,11 @@ const removeRow = (index) => {
       </label>
       <label>
         <span>开始</span>
-        <input :value="row.startTime || ''" type="time" :disabled="disabled" @input="updateRow(index, 'startTime', $event.target.value)" />
+        <AppTimeField :model-value="row.startTime || ''" aria-label="开始时间" placeholder="开始时间" :disabled="disabled" @update:model-value="updateRow(index, 'startTime', $event)" />
       </label>
       <label>
         <span>结束</span>
-        <input :value="row.endTime || ''" type="time" :required="!row.id" :disabled="disabled" @input="updateRow(index, 'endTime', $event.target.value)" />
+        <AppTimeField :model-value="row.endTime || ''" aria-label="结束时间" placeholder="结束时间" :required="!row.id" :disabled="disabled" @update:model-value="updateRow(index, 'endTime', $event)" />
       </label>
       <button class="danger-text" type="button" :disabled="disabled" @click="removeRow(index)"><AppIcon name="delete" :size="14" />删除</button>
       <small v-if="row.id && !row.endTime" class="legacy-slot-note">历史数据未识别到结束时间，可先保留，之后补充。</small>

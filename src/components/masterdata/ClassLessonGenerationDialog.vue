@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import AppDatePicker from '../common/AppDatePicker.vue'
 
 const props = defineProps({
   state: { type: Object, required: true },
@@ -109,11 +110,11 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
         </div>
         <label>
           <span>开始日期</span>
-          <input v-model="dateFrom" type="date" />
+          <AppDatePicker v-model="dateFrom" aria-label="开始日期" placeholder="开始日期" :presets="false" />
         </label>
         <label>
           <span>结束日期</span>
-          <input v-model="dateTo" type="date" />
+          <AppDatePicker v-model="dateTo" aria-label="结束日期" placeholder="结束日期" :min="dateFrom" :presets="false" />
         </label>
         <label>
           <span>课次类型</span>

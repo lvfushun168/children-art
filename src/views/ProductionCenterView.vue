@@ -5,7 +5,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
-import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
+import AppDateRangePicker from '../components/common/AppDateRangePicker.vue'
 import PptistWorkspace from '../components/production/PptistWorkspace.vue'
 import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import { sameId } from '../services/mappers'
@@ -373,7 +373,7 @@ useBackLayer(showTemplateSaveDialog, () => { showTemplateSaveDialog.value = fals
 
               <label class="wide">作品册标题<input v-model="createDraft.title" placeholder="留空使用学生姓名和学期命名" /></label>
             </div>
-            <DateRangeFilter v-model:start="createDraft.dateStart" v-model:end="createDraft.dateEnd" />
+            <label class="wide">作品日期范围<AppDateRangePicker v-model:start="createDraft.dateStart" v-model:end="createDraft.dateEnd" aria-label="作品日期范围" /></label>
 
             <section class="pc-create-preview">
               <div>

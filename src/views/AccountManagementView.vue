@@ -9,6 +9,10 @@ import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import AdaptiveMultiSelect from '../components/common/AdaptiveMultiSelect.vue'
 import AdaptiveSelect from '../components/common/AdaptiveSelect.vue'
+import FilterBar from '../components/common/FilterBar.vue'
+import FilterField from '../components/common/FilterField.vue'
+import PaginationBar from '../components/common/PaginationBar.vue'
+import { useAutoFilter } from '../composables/useAutoFilter'
 import { identityStatusLabel, identityStatusOptions, identityStatusClass } from '../data/identity'
 import { sameId } from '../services/mappers'
 
@@ -25,9 +29,8 @@ const props = defineProps({
 
 defineEmits(['backToGroup'])
 
-const pageSize = 20
 const queryInput = ref('')
-const statusInput = ref('')
+const statusInput = ref('all')
 const drawer = ref('')
 const selectedUser = ref(null)
 const userForm = ref(null)
@@ -44,7 +47,6 @@ const campusOptions = computed(() => (props.state.campuses || [])
   .filter((campus) => campus.status === 'ENABLED')
   .map((campus) => ({ value: campus.id, label: campus.name, description: campus.code })))
 
-const totalPages = computed(() => Math.max(1, Math.ceil(Number(props.state.identityUserPage?.total || 0) / pageSize)))
 const isEditing = computed(() => Boolean(userForm.value?.id))
 const canAssignRoles = computed(() => Boolean(props.state.canManageIdentityRoles))
 const canManageMemberships = computed(() => Boolean(props.state.canManageIdentityMemberships))
@@ -66,12 +68,12 @@ const blankUser = () => ({
   campusIds: []
 })
 
-const loadUsers = async (page = 1) => {
+const loadUsers = async (page = 1, pageSize = props.state.identityUserPage?.pageSize || 20) => {
   await props.state.loadIdentityUsers({
     page,
     pageSize,
     query: queryInput.value.trim(),
-    status: statusInput.value
+    status: statusInput.value === 'all' ? '' : statusInput.value
   })
 }
 
@@ -84,6 +86,12 @@ const loadPage = async () => {
 }
 
 const applyFilters = () => loadUsers(1)
+const { flush: applyFiltersNow } = useAutoFilter(applyFilters, { immediate: [statusInput], debounced: [queryInput] })
+const resetFilters = () => {
+  queryInput.value = ''
+  statusInput.value = 'all'
+  return applyFiltersNow()
+}
 
 const roleNamesFor = (user) => user.roles?.map((role) => role.name).filter(Boolean).join('、') || '未绑定角色'
 const campusNamesFor = (user) => user.campuses?.map((campus) => campus.name).filter(Boolean).join('、') || '未配置校区'
@@ -209,13 +217,14 @@ useBackLayer(() => Boolean(drawer.value), closeDrawer)
   <PageHead title="账号管理" />
 
   <section class="identity-page">
-    <section class="panel identity-toolbar">
-      <form class="identity-filter-form" @submit.prevent="applyFilters">
-        <input v-model="queryInput" placeholder="搜索姓名、手机号或账号" aria-label="搜索账号" />
-        <AdaptiveSelect v-model="statusInput" placeholder="全部状态" :options="[{ value: '', label: '全部状态' }, ...identityStatusOptions]" />
-        <button class="secondary" type="submit"><AppIcon name="search" :size="15" />查询</button>
-      </form>
-    </section>
+    <FilterBar @submit="applyFiltersNow" @reset="resetFilters">
+      <FilterField label="关键词" kind="search">
+        <input v-model="queryInput" placeholder="姓名、手机号或账号" />
+      </FilterField>
+      <FilterField label="状态">
+        <AdaptiveSelect v-model="statusInput" :options="[{ value: 'all', label: '全部状态' }, ...identityStatusOptions]" />
+      </FilterField>
+    </FilterBar>
 
     <section class="panel identity-list-panel">
       <div class="section-head identity-list-head">
@@ -272,11 +281,7 @@ useBackLayer(() => Boolean(drawer.value), closeDrawer)
         </article>
       </div>
 
-      <div v-if="state.identityUserPage.total > pageSize" class="identity-pagination">
-        <button class="ghost" type="button" :disabled="state.identityUserPage.page <= 1" @click="loadUsers(state.identityUserPage.page - 1)"><AppIcon name="back" :size="15" />上一页</button>
-        <span>第 {{ state.identityUserPage.page }} / {{ totalPages }} 页</span>
-        <button class="ghost" type="button" :disabled="state.identityUserPage.page >= totalPages" @click="loadUsers(state.identityUserPage.page + 1)">下一页<AppIcon name="next" :size="15" /></button>
-      </div>
+      <PaginationBar :page="state.identityUserPage.page" :page-size="state.identityUserPage.pageSize" :total="state.identityUserPage.total" :loading="state.identityLoading.users" @change="loadUsers" @size-change="(size) => loadUsers(1, size)" />
     </section>
   </section>
 

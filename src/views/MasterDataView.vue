@@ -11,6 +11,9 @@ import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import PaginationBar from '../components/common/PaginationBar.vue'
+import FilterBar from '../components/common/FilterBar.vue'
+import FilterField from '../components/common/FilterField.vue'
+import { useAutoFilter } from '../composables/useAutoFilter'
 import ScheduleSlotEditor from '../components/masterdata/ScheduleSlotEditor.vue'
 import ClassLessonGenerationDialog from '../components/masterdata/ClassLessonGenerationDialog.vue'
 import { sameId } from '../services/mappers'
@@ -357,7 +360,7 @@ const backToGroup = async () => {
 
 const buildDirectoryFilters = () => {
   const filters = {
-    pageSize: 20,
+    pageSize: directoryState.value.pageSize || 20,
     query: queryInput.value.trim() || undefined,
     status: statusInput.value === 'all' ? undefined : statusInput.value,
   }
@@ -467,9 +470,10 @@ const loadRecordDetail = async (record, { skipGuard = false, preferredMode = nul
   }
 }
 
-const loadDirectory = async (page = 1, { skipGuard = false, preserveSelection = false, selectionId = selectedId.value } = {}) => {
+const loadDirectory = async (page = 1, { skipGuard = false, preserveSelection = false, selectionId = selectedId.value, pageSize } = {}) => {
   if (!skipGuard && !(await confirmDiscardChanges('离开当前编辑并刷新列表'))) return false
   const filters = buildDirectoryFilters()
+  if (pageSize) filters.pageSize = pageSize
   const preservedId = preserveSelection ? selectionId : null
   const preservedMode = preserveSelection ? mode.value : 'detail'
   let requestId = detailRequestId.value
@@ -500,6 +504,11 @@ const loadDirectory = async (page = 1, { skipGuard = false, preserveSelection = 
 }
 
 const applyFilters = () => loadDirectory(1)
+const changePageSize = (pageSize) => loadDirectory(1, { pageSize })
+const { flush: applyFiltersNow } = useAutoFilter(applyFilters, {
+  immediate: [statusInput, teacherInput, courseInput, classTypeInput, classInput],
+  debounced: [queryInput]
+})
 const resetFilters = () => {
   queryInput.value = ''
   statusInput.value = 'all'
@@ -507,7 +516,7 @@ const resetFilters = () => {
   courseInput.value = 'all'
   classTypeInput.value = 'all'
   classInput.value = 'all'
-  return loadDirectory(1)
+  return applyFiltersNow()
 }
 
 const reloadArchiveState = async (value = archiveState.value) => {
@@ -806,37 +815,28 @@ useBackLayer(wecomGroupDialogOpen, closeStudentWecomGroupDialog)
   </PageHead>
 
   <section class="directory-page" :class="{ 'mobile-detail-open': isMobileFlow && mobileShowingDetail }">
-    <form class="directory-toolbar panel" @submit.prevent="applyFilters">
-      <label class="directory-search">
-        <span>关键词</span>
+    <FilterBar @submit="applyFiltersNow" @reset="resetFilters">
+      <FilterField label="关键词" kind="search">
         <input v-model="queryInput" :placeholder="entity === 'teachers' ? '姓名、手机号' : entity === 'students' ? '姓名、家长电话' : entity === 'classes' ? '班级名称' : entity === 'externalLinks' ? '标题、URL' : '课程类别/资料、年龄段'" />
-      </label>
-      <label>
-        <span>状态</span>
+      </FilterField>
+      <FilterField label="状态">
         <AdaptiveSelect v-model="statusInput" :options="statusOptions" />
-      </label>
-      <label v-if="isArchivableEntity">
-        <span>归档状态</span>
+      </FilterField>
+      <FilterField v-if="isArchivableEntity" label="归档状态">
         <AdaptiveSelect :model-value="archiveState" :options="archiveStateOptions" @update:model-value="reloadArchiveState" />
-      </label>
-      <label v-if="entity === 'students'">
-        <span>班级</span>
+      </FilterField>
+      <FilterField v-if="entity === 'students'" label="班级">
         <AdaptiveSelect v-model="classInput" :options="[{ label: '全部班级', value: 'all' }, ...state.classes.map((item) => ({ label: item.name, value: item.id }))]" />
-      </label>
+      </FilterField>
       <template v-if="entity === 'classes'">
-        <label><span>老师</span><AdaptiveSelect v-model="teacherInput" :options="teacherFilterOptions" /></label>
-        <label><span>课程</span><AdaptiveSelect v-model="courseInput" :options="courseFilterOptions" /></label>
-        <label><span>班型</span><AdaptiveSelect v-model="classTypeInput" :options="classTypeFilterOptions" /></label>
+        <FilterField label="老师"><AdaptiveSelect v-model="teacherInput" :options="teacherFilterOptions" /></FilterField>
+        <FilterField label="课程"><AdaptiveSelect v-model="courseInput" :options="courseFilterOptions" /></FilterField>
+        <FilterField label="班型"><AdaptiveSelect v-model="classTypeInput" :options="classTypeFilterOptions" /></FilterField>
       </template>
-      <label v-if="entity === 'externalLinks'">
-        <span>课程</span>
+      <FilterField v-if="entity === 'externalLinks'" label="课程">
         <AdaptiveSelect v-model="courseInput" :options="courseFilterOptions" />
-      </label>
-      <div class="button-pair directory-toolbar-actions">
-        <button class="secondary" type="submit"><AppIcon name="search" :size="15" />查询</button>
-        <button class="ghost" type="button" @click="resetFilters"><AppIcon name="reset" :size="15" />重置</button>
-      </div>
-    </form>
+      </FilterField>
+    </FilterBar>
 
     <section v-show="!isMobileFlow || !mobileShowingDetail" class="master-list panel directory-list-panel">
       <div class="section-head">
@@ -902,7 +902,7 @@ useBackLayer(wecomGroupDialogOpen, closeStudentWecomGroupDialog)
             <AppStatusTag :status="record.archived ? '已归档' : record.status" />
           </button>
         </div>
-        <PaginationBar :page="directoryState.page" :page-size="directoryState.pageSize" :total="directoryState.total" :loading="state.directoryLoading?.[entity]" @change="loadDirectory" />
+        <PaginationBar :page="directoryState.page" :page-size="directoryState.pageSize" :total="directoryState.total" :loading="state.directoryLoading?.[entity]" @change="loadDirectory" @size-change="changePageSize" />
       </div>
     </section>
 

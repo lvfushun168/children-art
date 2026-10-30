@@ -11,6 +11,11 @@ import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import PaginationBar from '../components/common/PaginationBar.vue'
+import AppDatePicker from '../components/common/AppDatePicker.vue'
+import AppDateRangePicker from '../components/common/AppDateRangePicker.vue'
+import FilterBar from '../components/common/FilterBar.vue'
+import FilterField from '../components/common/FilterField.vue'
+import { useAutoFilter } from '../composables/useAutoFilter'
 import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import { sameId } from '../services/mappers'
 
@@ -110,7 +115,7 @@ const resetWorkDraft = () => {
   workError.value = ''
 }
 
-const loadDirectory = async (page = 1) => {
+const loadDirectory = async (page = 1, pageSize = pageState.value.pageSize || 20) => {
   detailRecord.value = null
   detailError.value = ''
   selectedId.value = null
@@ -118,7 +123,7 @@ const loadDirectory = async (page = 1) => {
   try {
     return await props.state.loadDirectoryPage?.('extraTasks', {
       page,
-      pageSize: 20,
+      pageSize,
       query: queryInput.value.trim() || undefined,
       taskType: taskTypeInput.value === 'all' ? undefined : taskTypeInput.value,
       ownerId: ownerInput.value === 'all' ? undefined : ownerInput.value,
@@ -132,6 +137,10 @@ const loadDirectory = async (page = 1) => {
     return null
   }
 }
+const { flush: applyFiltersNow } = useAutoFilter(() => loadDirectory(1), {
+  immediate: [taskTypeInput, ownerInput, lessonInput, statusInput, dueFromInput, dueToInput],
+  debounced: [queryInput]
+})
 const resetFilters = () => {
   queryInput.value = ''
   taskTypeInput.value = 'all'
@@ -140,7 +149,7 @@ const resetFilters = () => {
   statusInput.value = 'all'
   dueFromInput.value = ''
   dueToInput.value = ''
-  return loadDirectory(1)
+  return applyFiltersNow()
 }
 
 watch(selected, () => {
@@ -350,16 +359,16 @@ useBackLayer(drawerOpen, returnToList)
   </PageHead>
 
   <section class="directory-page" :class="{ 'mobile-detail-open': isMobileFlow && mobileShowingDetail }">
-    <form class="directory-toolbar panel" @submit.prevent="loadDirectory(1)">
-      <label class="directory-search"><span>关键词</span><input v-model="queryInput" placeholder="任务标题、内容" /></label>
-      <label><span>任务类型</span><AdaptiveSelect v-model="taskTypeInput" :options="taskTypeOptions" /></label>
-      <label><span>负责人</span><AdaptiveSelect v-model="ownerInput" :options="ownerOptions" /></label>
-      <label><span>课次</span><AdaptiveSelect v-model="lessonInput" :options="lessonFilterOptions" /></label>
-      <label><span>状态</span><AdaptiveSelect v-model="statusInput" :options="taskStatusOptions" /></label>
-      <label><span>截止日期起</span><input v-model="dueFromInput" type="date" /></label>
-      <label><span>截止日期止</span><input v-model="dueToInput" type="date" /></label>
-      <div class="button-pair directory-toolbar-actions"><button class="secondary" type="submit">查询</button><button class="ghost" type="button" @click="resetFilters">重置</button></div>
-    </form>
+    <FilterBar @submit="applyFiltersNow" @reset="resetFilters">
+      <FilterField label="关键词" kind="search"><input v-model="queryInput" placeholder="任务标题、内容" /></FilterField>
+      <FilterField label="任务类型"><AdaptiveSelect v-model="taskTypeInput" :options="taskTypeOptions" /></FilterField>
+      <FilterField label="负责人"><AdaptiveSelect v-model="ownerInput" :options="ownerOptions" /></FilterField>
+      <FilterField label="课次"><AdaptiveSelect v-model="lessonInput" :options="lessonFilterOptions" /></FilterField>
+      <FilterField label="状态"><AdaptiveSelect v-model="statusInput" :options="taskStatusOptions" /></FilterField>
+      <FilterField label="截止日期" kind="range">
+        <AppDateRangePicker v-model:start="dueFromInput" v-model:end="dueToInput" aria-label="截止日期范围" placeholder="选择截止日期范围" />
+      </FilterField>
+    </FilterBar>
 
     <section v-show="!isMobileFlow || !mobileShowingDetail" class="panel directory-list-panel">
       <div class="section-head">
@@ -375,7 +384,7 @@ useBackLayer(drawerOpen, returnToList)
           <tbody><tr v-for="task in tasks" :key="task.id" class="directory-table-row" :class="{ active: sameId(selected?.id, task.id) }" @click="selectTask(task)"><td><strong>{{ task.title }}</strong></td><td>{{ task.taskType }} · {{ task.owner || '未指定' }}</td><td>{{ task.relatedLessonDate || task.relatedLesson || '无归属课次' }}<small v-if="task.relatedClassName"> · {{ task.relatedClassName }}</small></td><td>{{ task.dueDate || '—' }}</td><td>{{ task.artworkCount || 0 }}<span v-if="task.highlightArtworkCount"> · <HighlightMark :size="12" /> {{ task.highlightArtworkCount }}</span></td><td><AppStatusTag :status="task.status" /></td><td><button class="ghost" type="button" @click.stop="selectTask(task)"><AppIcon name="view" :size="15" />查看详情</button></td></tr></tbody>
         </table>
         <div class="directory-mobile-cards"><button v-for="task in tasks" :key="task.id" class="directory-card" type="button" @click="selectTask(task)"><strong>{{ task.title }}</strong><span>{{ task.taskType }} · {{ task.owner || '未指定负责人' }}</span><small>{{ task.relatedLessonDate || task.relatedLesson || '无归属课次' }} · {{ task.artworkCount || 0 }} 件作品</small><AppStatusTag :status="task.status" /></button></div>
-        <PaginationBar :page="pageState.page" :page-size="pageState.pageSize" :total="pageState.total" :loading="state.directoryLoading?.extraTasks" @change="loadDirectory" />
+        <PaginationBar :page="pageState.page" :page-size="pageState.pageSize" :total="pageState.total" :loading="state.directoryLoading?.extraTasks" @change="loadDirectory" @size-change="(size) => loadDirectory(1, size)" />
       </div>
     </section>
 
@@ -438,7 +447,7 @@ useBackLayer(drawerOpen, returnToList)
               学生
               <AdaptiveSelect v-model="workDraft.studentId" :options="studentOptions" />
             </label>
-            <label>提交日期<input v-model="workDraft.dateValue" type="date" /></label>
+            <label>提交日期<AppDatePicker v-model="workDraft.dateValue" aria-label="提交日期" placeholder="选择提交日期" :clearable="false" /></label>
             <label class="wide file-button extra-task-file" :class="{ disabled: workMode === 'edit' }">
               选择作品图片
               <input type="file" accept="image/*" :disabled="workMode === 'edit'" @change="handleWorkImage" />

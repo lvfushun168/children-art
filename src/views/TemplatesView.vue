@@ -7,6 +7,8 @@ import { useMobileMedia } from '../composables/useMobileMedia'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
+import FilterBar from '../components/common/FilterBar.vue'
+import FilterField from '../components/common/FilterField.vue'
 import { normalizeImageTemplate } from '../services/imageTemplateRenderer'
 
 const props = defineProps({
@@ -339,19 +341,14 @@ useBackLayer(isDrawerOpen, closeDrawer)
     </aside>
 
     <section v-show="!isMobileFlow || mobileStage === 'list'" class="template-config-content directory-page">
-      <form class="directory-toolbar panel" @submit.prevent>
-        <label class="directory-search">
-          <span>关键词</span>
+      <FilterBar @reset="resetFilters">
+        <FilterField label="关键词" kind="search">
           <input v-model="queryInput" placeholder="模板名称或模型" />
-        </label>
-        <label>
-          <span>状态</span>
+        </FilterField>
+        <FilterField label="状态">
           <AdaptiveSelect v-model="statusInput" :options="statusOptions" />
-        </label>
-        <div class="button-pair directory-toolbar-actions">
-          <button class="ghost" type="button" @click="resetFilters"><AppIcon name="reset" :size="15" />重置</button>
-        </div>
-      </form>
+        </FilterField>
+      </FilterBar>
 
       <section class="master-list panel directory-list-panel">
         <div class="section-head">

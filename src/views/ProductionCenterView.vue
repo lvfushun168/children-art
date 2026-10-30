@@ -2,10 +2,11 @@
 import HighlightMark from '../components/common/HighlightMark.vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import AppDateRangePicker from '../components/common/AppDateRangePicker.vue'
+import AppModal from '../components/common/AppModal.vue'
+import FormField from '../components/common/FormField.vue'
 import PptistWorkspace from '../components/production/PptistWorkspace.vue'
 import ProtectedMedia from '../components/common/ProtectedMedia.vue'
 import { sameId } from '../services/mappers'
@@ -338,7 +339,6 @@ watch(
   { immediate: true }
 )
 
-useBackLayer(showTemplateSaveDialog, () => { showTemplateSaveDialog.value = false })
 </script>
 
 <template>
@@ -523,24 +523,20 @@ useBackLayer(showTemplateSaveDialog, () => { showTemplateSaveDialog.value = fals
     </div>
   </template>
 
-  <div v-if="showTemplateSaveDialog" class="modal-backdrop">
-    <section class="import-modal pc-template-modal">
-      <div class="modal-head">
-        <div>
-          <span>{{ leaveAfterTemplateDecision ? '离开工作台' : '保存模板' }}</span>
-          <strong>{{ leaveAfterTemplateDecision ? '是否把本次排版保存成新模板？' : '为本次排版命名' }}</strong>
-        </div>
-        <button class="ghost icon-only" @click="showTemplateSaveDialog = false" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
-      </div>
-      <label>
-        模板名称
-        <input v-model="templateName" placeholder="例如：彤彤春季成长册模板" />
-      </label>
-      <div class="modal-actions">
-        <button v-if="leaveAfterTemplateDecision" class="ghost" @click="skipTemplateSave"><AppIcon name="back" :size="15" />不保存，返回模板选择</button>
-        <button v-else class="ghost icon-only" @click="showTemplateSaveDialog = false" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
-        <button class="primary" :disabled="!templateName.trim()" @click="saveAsTemplate"><AppIcon name="save" :size="16" />保存模板</button>
-      </div>
-    </section>
-  </div>
+  <AppModal
+    :open="showTemplateSaveDialog"
+    :eyebrow="leaveAfterTemplateDecision ? '离开工作台' : '保存模板'"
+    :title="leaveAfterTemplateDecision ? '是否把本次排版保存成新模板？' : '为本次排版命名'"
+    modal-class="pc-template-modal"
+    @close="showTemplateSaveDialog = false"
+  >
+    <FormField label="模板名称">
+      <input v-model="templateName" placeholder="例如：彤彤春季成长册模板" @keydown.enter.prevent="templateName.trim() && saveAsTemplate()" />
+    </FormField>
+    <template #actions>
+      <button v-if="leaveAfterTemplateDecision" class="ghost" type="button" @click="skipTemplateSave"><AppIcon name="back" :size="15" />不保存，返回模板选择</button>
+      <button v-else class="ghost icon-only" type="button" @click="showTemplateSaveDialog = false" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
+      <button class="primary" type="button" :disabled="!templateName.trim()" @click="saveAsTemplate"><AppIcon name="save" :size="16" />保存模板</button>
+    </template>
+  </AppModal>
 </template>

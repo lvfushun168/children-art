@@ -2,7 +2,6 @@
 import SkeletonList from '../components/common/SkeletonList.vue'
 import { confirmAction } from '../services/confirmDialog'
 import { computed, onMounted, ref, watch } from 'vue'
-import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import AdaptiveSelect from '../components/common/AdaptiveSelect.vue'
@@ -205,8 +204,6 @@ onMounted(async () => {
   await reload()
 })
 
-useBackLayer(showLessonActions, closeLessonActions)
-useBackLayer(showLessonEditor, closeLessonEditor)
 </script>
 
 <template>

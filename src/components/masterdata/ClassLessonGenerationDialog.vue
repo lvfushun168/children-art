@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import AppModal from '../common/AppModal.vue'
 import AppDatePicker from '../common/AppDatePicker.vue'
 
 const props = defineProps({
@@ -90,15 +91,7 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
 </script>
 
 <template>
-  <div class="dialog-backdrop" role="presentation" @click.self="emit('close')">
-    <section class="generation-dialog" role="dialog" aria-modal="true" aria-labelledby="generation-title">
-      <header class="dialog-head">
-        <div>
-          <h2 id="generation-title">固定排课</h2>
-        </div>
-        <button class="ghost icon-only" type="button" @click="emit('close')" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
-      </header>
-
+  <AppModal title="固定排课" size="lg" :close-disabled="loading" modal-class="generation-dialog" @close="emit('close')">
       <div class="generation-form">
         <label v-if="allowClassSelect">
           <span>班级</span>
@@ -129,45 +122,15 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
         <small v-if="preview.conflicts?.length">已存在的课次不会被覆盖。</small>
       </div>
 
-      <footer class="dialog-actions">
+      <template #actions>
         <button class="ghost icon-only" type="button" :disabled="loading" @click="emit('close')" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
         <button class="secondary" type="button" :disabled="loading || !canSubmit" @click="loadPreview"><AppIcon name="view" :size="15" />{{ loading ? '处理中…' : '预览数量' }}</button>
         <button class="primary" type="button" :disabled="loading || !canSubmit" @click="generate"><AppIcon name="calendar" :size="16" />确认生成</button>
-      </footer>
-    </section>
-  </div>
+      </template>
+  </AppModal>
 </template>
 
 <style scoped>
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: color-mix(in srgb, var(--color-heading) 42%, transparent);
-}
-.generation-dialog {
-  width: min(680px, 100%);
-  display: grid;
-  gap: 20px;
-  padding: 24px;
-  border-radius: 20px;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-modal);
-}
-.dialog-head,
-.dialog-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-.dialog-head h2 {
-  margin: 5px 0;
-}
-.dialog-head small,
 .generation-class-summary span,
 .generation-form label span,
 .generation-preview span,
@@ -203,6 +166,5 @@ watch(() => [selectedClassId.value, dateFrom.value, dateTo.value, lessonType.val
 }
 @media (max-width: 680px) {
   .generation-form { grid-template-columns: 1fr; }
-  .dialog-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
 </style>

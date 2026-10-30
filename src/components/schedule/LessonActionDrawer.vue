@@ -1,5 +1,5 @@
 <script setup>
-import DrawerHead from '../common/DrawerHead.vue'
+import AppDrawer from '../common/AppDrawer.vue'
 import { computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import AppStatusTag from '../common/AppStatusTag.vue'
@@ -34,10 +34,7 @@ const lessonSource = computed(() => ({
 </script>
 
 <template>
-  <div v-if="lesson" class="drawer-backdrop lesson-action-drawer-backdrop" @click.self="$emit('close')">
-    <aside class="library-drawer lesson-action-drawer" role="dialog" aria-modal="true" aria-label="课次操作">
-      <DrawerHead :title="lessonName" :close-disabled="busy" @close="$emit('close')" />
-
+  <AppDrawer v-if="lesson" :title="lessonName" :close-disabled="busy" backdrop-class="lesson-action-drawer-backdrop" drawer-class="lesson-action-drawer" @close="$emit('close')">
       <div class="lesson-action-content">
         <div class="lesson-action-summary">
           <strong>{{ lessonTime }}</strong>
@@ -70,12 +67,12 @@ const lessonSource = computed(() => ({
 
         <p v-if="isCompleted" class="lesson-action-hint">已完成课次不可删除，如需调整请进入课后处理查看归档状态。</p>
       </div>
-    </aside>
-  </div>
+  </AppDrawer>
 </template>
 
 <style scoped>
-.lesson-action-drawer {
+/* 抽屉外壳在 AppDrawer 里，scoped 样式需要穿透 */
+:deep(.lesson-action-drawer) {
   grid-template-rows: auto minmax(0, 1fr);
 }
 

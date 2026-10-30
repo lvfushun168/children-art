@@ -1,5 +1,5 @@
 <script setup>
-import DrawerHead from '../common/DrawerHead.vue'
+import AppDrawer from '../common/AppDrawer.vue'
 import { computed, ref, watch } from 'vue'
 import { sameId } from '../../services/mappers'
 import DateTimeRangeField from '../common/DateTimeRangeField.vue'
@@ -97,10 +97,7 @@ const save = () => {
 </script>
 
 <template>
-  <div v-if="lesson" class="drawer-backdrop lesson-editor-drawer-backdrop" @click.self="$emit('close')">
-    <aside class="library-drawer lesson-editor-drawer" role="dialog" aria-modal="true" aria-label="编辑课次">
-      <DrawerHead title="编辑课次" :subtitle="lesson.className || '未配置班级'" :close-disabled="saving" @close="$emit('close')" />
-
+  <AppDrawer v-if="lesson" title="编辑课次" :subtitle="lesson.className || '未配置班级'" :close-disabled="saving" backdrop-class="lesson-editor-drawer-backdrop" drawer-class="lesson-editor-drawer" @close="$emit('close')">
       <form class="lesson-editor-form" @submit.prevent="save">
         <DateTimeRangeField
           class="wide"
@@ -139,12 +136,12 @@ const save = () => {
           </button>
         </div>
       </form>
-    </aside>
-  </div>
+  </AppDrawer>
 </template>
 
 <style scoped>
-.lesson-editor-drawer {
+/* 抽屉外壳在 AppDrawer 里，scoped 样式需要穿透 */
+:deep(.lesson-editor-drawer) {
   grid-template-rows: auto minmax(0, 1fr);
 }
 

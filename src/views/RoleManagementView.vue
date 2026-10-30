@@ -1,9 +1,9 @@
 <script setup>
-import SkeletonList from '../components/common/SkeletonList.vue'
-import EmptyState from '../components/common/EmptyState.vue'
-import DrawerHead from '../components/common/DrawerHead.vue'
+import AsyncState from '../components/common/AsyncState.vue'
+import AppDrawer from '../components/common/AppDrawer.vue'
+import FormField from '../components/common/FormField.vue'
 import { computed, onMounted, ref } from 'vue'
-import { useBackLayer } from '../composables/useBackLayer'
+import { useFieldErrors } from '../composables/useFieldErrors'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -75,16 +75,26 @@ const openRoleEditor = (role = null) => {
   editorOpen.value = true
 }
 
+const roleFormRef = ref(null)
+const { errors: fieldErrors, clear: clearFieldError, validate: validateForm } = useFieldErrors()
+const ROLE_KEY_PATTERN = /^[a-z][a-z0-9_.-]{1,99}$/
+
 const closeRoleEditor = () => {
   editorOpen.value = false
   roleForm.value = null
+  clearFieldError()
 }
 
 const saveRole = async () => {
-  if (!roleForm.value?.roleKey?.trim() || !roleForm.value?.name?.trim()) {
-    props.state.notify('请填写角色键和角色名称')
-    return
-  }
+  const valid = await validateForm(roleForm.value, {
+    name: (value) => !value?.trim() && '请填写角色名称',
+    roleKey: (value) => {
+      if (!value?.trim()) return '请填写角色键'
+      if (!ROLE_KEY_PATTERN.test(value.trim())) return '以小写字母开头，只能包含小写字母、数字、下划线、点和短横线，2–100 个字符'
+      return ''
+    }
+  }, roleFormRef)
+  if (!valid) return
   const result = roleForm.value.id
     ? await props.state.updateIdentityRole(roleForm.value.id, roleForm.value)
     : await props.state.createIdentityRole(roleForm.value)
@@ -131,8 +141,6 @@ const savePermissions = async () => {
 
 onMounted(loadData)
 
-useBackLayer(editorOpen, closeRoleEditor)
-useBackLayer(permissionDrawerOpen, closePermissionDrawer)
 </script>
 
 <template>
@@ -154,63 +162,59 @@ useBackLayer(permissionDrawerOpen, closePermissionDrawer)
         </div>
       </div>
 
-      <SkeletonList v-if="state.identityLoading.roles" :rows="4" />
-      <div v-else-if="state.identityErrors.roles" class="identity-empty identity-error">
-        <strong>{{ state.identityErrors.roles }}</strong>
-        <button class="ghost" type="button" @click="loadData"><AppIcon name="retry" :size="15" />重试</button>
-      </div>
-      <div v-else-if="!state.identityRoles.length">
-        <EmptyState icon="role" title="还没有角色" description="点击上方“新增角色”创建第一个角色。" />
-      </div>
-
-      <div v-else class="identity-role-list">
-        <article v-for="role in state.identityRoles" :key="role.id" class="identity-role-card">
-          <header>
-            <div>
-              <strong>{{ role.name }}</strong>
-              <small>{{ role.roleKey }}</small>
+      <AsyncState
+        :loading="state.identityLoading.roles"
+        :rows="4"
+        :error="state.identityErrors.roles"
+        :empty="!state.identityRoles.length"
+        empty-icon="role"
+        empty-title="还没有角色"
+        empty-description="点击上方“新增角色”创建第一个角色。"
+        @retry="loadData"
+      >
+        <div class="identity-role-list">
+          <article v-for="role in state.identityRoles" :key="role.id" class="identity-role-card">
+            <header>
+              <div>
+                <strong>{{ role.name }}</strong>
+                <small>{{ role.roleKey }}</small>
+              </div>
+              <div class="identity-card-badges">
+                <span v-if="role.system" class="identity-badge">系统角色</span>
+                <AppStatusTag class="identity-status" :class="identityStatusClass(role.status)" :status="identityStatusLabel(role.status)" />
+              </div>
+            </header>
+            <p>{{ role.description || '暂无角色说明' }}</p>
+            <div class="identity-role-metrics">
+              <span><b>{{ userCountFor(role) }}</b> 个当前校区账号</span>
+              <span><b>{{ permissionCountFor(role) }}</b> 项功能权限</span>
             </div>
-            <div class="identity-card-badges">
-              <span v-if="role.system" class="identity-badge">系统角色</span>
-              <AppStatusTag class="identity-status" :class="identityStatusClass(role.status)" :status="identityStatusLabel(role.status)" />
-            </div>
-          </header>
-          <p>{{ role.description || '暂无角色说明' }}</p>
-          <div class="identity-role-metrics">
-            <span><b>{{ userCountFor(role) }}</b> 个当前校区账号</span>
-            <span><b>{{ permissionCountFor(role) }}</b> 项功能权限</span>
-          </div>
-          <footer class="identity-card-actions">
-            <button class="ghost" type="button" @click="openRoleEditor(role)"><AppIcon name="edit" :size="15" />编辑角色</button>
-            <button class="secondary" type="button" @click="openPermissionDrawer(role)"><AppIcon name="permission" :size="15" />配置权限</button>
-          </footer>
-        </article>
-      </div>
+            <footer class="identity-card-actions">
+              <button class="ghost" type="button" @click="openRoleEditor(role)"><AppIcon name="edit" :size="15" />编辑角色</button>
+              <button class="secondary" type="button" @click="openPermissionDrawer(role)"><AppIcon name="permission" :size="15" />配置权限</button>
+            </footer>
+          </article>
+        </div>
+      </AsyncState>
     </section>
   </section>
 
-  <div v-if="editorOpen" class="drawer-backdrop" @click.self="closeRoleEditor">
-    <aside class="library-drawer identity-drawer">
-      <DrawerHead :title="roleForm?.id ? '编辑角色' : '新增角色'" @close="closeRoleEditor" />
-      <form class="identity-form" @submit.prevent="saveRole">
-        <label><span>角色名称</span><input v-model="roleForm.name" required /></label>
-        <label><span>角色键</span><input v-model="roleForm.roleKey" required :disabled="roleForm.id || roleForm.system" pattern="[a-z][a-z0-9_.-]{1,99}" placeholder="例如：academic_admin" /></label>
-        <label><span>角色说明</span><textarea v-model="roleForm.description" rows="4" placeholder="说明这个角色可以做什么" /></label>
-        <label v-if="roleForm.id"><span>状态</span><AdaptiveSelect v-model="roleForm.status" :options="identityStatusOptions" /></label>
-        <div class="drawer-actions">
-          <button class="ghost icon-only" type="button" @click="closeRoleEditor" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
-          <button class="primary" type="submit" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)"><span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="save" :size="15" />{{ state.processingAction ? '保存中…' : '保存角色' }}</button>
-        </div>
-      </form>
-    </aside>
-  </div>
+  <AppDrawer :open="editorOpen" :title="roleForm?.id ? '编辑角色' : '新增角色'" drawer-class="identity-drawer" @close="closeRoleEditor">
+    <form ref="roleFormRef" class="identity-form" novalidate @submit.prevent="saveRole">
+      <FormField label="角色名称" required :error="fieldErrors.name"><input v-model="roleForm.name" @input="clearFieldError('name')" /></FormField>
+      <FormField label="角色键" required :error="fieldErrors.roleKey"><input v-model="roleForm.roleKey" :disabled="roleForm.id || roleForm.system" placeholder="例如：academic_admin" @input="clearFieldError('roleKey')" /></FormField>
+      <FormField label="角色说明"><textarea v-model="roleForm.description" rows="4" placeholder="说明这个角色可以做什么" /></FormField>
+      <FormField v-if="roleForm.id" label="状态"><AdaptiveSelect v-model="roleForm.status" :options="identityStatusOptions" /></FormField>
+      <div class="drawer-actions">
+        <button class="ghost icon-only" type="button" @click="closeRoleEditor" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
+        <button class="primary" type="submit" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)"><span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="save" :size="15" />{{ state.processingAction ? '保存中…' : '保存角色' }}</button>
+      </div>
+    </form>
+  </AppDrawer>
 
-  <div v-if="permissionDrawerOpen" class="drawer-backdrop" @click.self="closePermissionDrawer">
-    <aside class="library-drawer identity-drawer identity-permission-drawer">
-      <DrawerHead :title="`${selectedRole?.name} · 配置权限`" @close="closePermissionDrawer" />
-      <SkeletonList v-if="state.identityLoading.permissions" :rows="6" />
-      <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">{{ state.identityErrors.permissions }}</div>
-      <div v-else class="identity-permission-groups">
+  <AppDrawer :open="permissionDrawerOpen" :title="`${selectedRole?.name || ''} · 配置权限`" drawer-class="identity-drawer identity-permission-drawer" @close="closePermissionDrawer">
+      <AsyncState :loading="state.identityLoading.permissions" :rows="6" :error="state.identityErrors.permissions" @retry="loadData">
+      <div class="identity-permission-groups">
         <section v-for="group in permissionGroups" :key="group.module" class="identity-permission-group">
           <header>
             <button class="identity-permission-group-toggle" type="button" @click="toggleModule(group.module)">
@@ -234,10 +238,10 @@ useBackLayer(permissionDrawerOpen, closePermissionDrawer)
           </div>
         </section>
       </div>
+      </AsyncState>
       <div class="drawer-actions">
         <span>已选 {{ selectedPermissionKeys.length }} 项</span>
         <button class="primary" type="button" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)" @click="savePermissions"><span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="save" :size="15" />{{ state.processingAction ? '保存中…' : '保存权限' }}</button>
       </div>
-    </aside>
-  </div>
+  </AppDrawer>
 </template>

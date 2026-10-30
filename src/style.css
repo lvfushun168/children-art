@@ -4360,7 +4360,15 @@ textarea:focus,
   box-shadow: var(--shadow-popover);
 }
 
+.adaptive-select-list {
+  display: grid;
+  gap: 5px;
+}
+
 .adaptive-select-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   width: 100%;
   min-height: 38px;
   padding: 8px 10px;
@@ -4409,6 +4417,24 @@ textarea:focus,
   color: var(--color-muted);
   font-weight: 500;
   line-height: 1.35;
+}
+
+.adaptive-select.drop-up .adaptive-select-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.adaptive-select-trigger span.is-placeholder {
+  color: var(--color-muted);
+}
+
+.adaptive-select-menu button.active:not(.selected) {
+  background: var(--color-primary-soft);
+}
+
+.adaptive-select-menu button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .adaptive-select-menu button.selected {
@@ -4575,6 +4601,104 @@ textarea:focus,
   margin-top: 4px;
   color: var(--color-muted);
   font-size: 12px;
+}
+
+/* 统一弹层：AppDrawer / AppModal */
+.library-drawer:focus,
+.app-modal:focus {
+  outline: none;
+}
+
+.app-modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-modal);
+  display: grid;
+  gap: 16px;
+  max-height: min(760px, calc(100dvh - 40px));
+  overflow: auto;
+  padding: 20px;
+  width: min(560px, 100%);
+}
+
+.app-modal-sm {
+  width: min(420px, 100%);
+}
+
+.app-modal-lg {
+  width: min(720px, 100%);
+}
+
+.app-modal-head,
+.app-modal-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.app-modal-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.app-modal-head span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.app-modal-head strong {
+  color: var(--color-heading);
+  font-size: 18px;
+}
+
+.app-modal-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* 统一表单项：FormField */
+.form-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.form-field-label {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.form-field-hint,
+.form-field-error {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.form-field-hint {
+  color: var(--color-muted);
+}
+
+.form-field-error {
+  color: var(--color-danger);
+}
+
+.form-field.has-error input,
+.form-field.has-error textarea,
+.form-field.has-error .adaptive-select-trigger,
+.form-field.has-error .app-dp .dp--input {
+  border-color: var(--color-danger);
+}
+
+/* 统一列表三态：AsyncState */
+.async-state-error {
+  color: var(--color-status-warning-text);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 42px 16px;
+  text-align: center;
 }
 
 /* 统一筛选区：FilterBar + FilterField */

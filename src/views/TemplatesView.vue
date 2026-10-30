@@ -1,4 +1,6 @@
 <script setup>
+import EmptyState from '../components/common/EmptyState.vue'
+import { confirmAction } from '../services/confirmDialog'
 import { computed, ref, watch } from 'vue'
 import { useBackLayer } from '../composables/useBackLayer'
 import { useMobileMedia } from '../composables/useMobileMedia'
@@ -148,9 +150,9 @@ const resetDraft = () => {
   setDraft(mode.value === 'new' ? blankDraft() : draftFor(selected.value))
 }
 
-const confirmDiscardChanges = (action = '离开当前编辑') => {
+const confirmDiscardChanges = async (action = '离开当前编辑') => {
   if (!isDirty.value) return true
-  return window.confirm(`当前模板有未保存修改，确定${action}吗？`)
+  return confirmAction({ title: '放弃未保存修改', message: `当前模板有未保存修改，确定${action}吗？`, confirmText: '放弃修改', cancelText: '继续编辑', tone: 'danger' })
 }
 
 const filteredList = computed(() => {
@@ -191,12 +193,12 @@ watch(
   { immediate: true }
 )
 
-const selectType = (type) => {
+const selectType = async (type) => {
   if (type === activeType.value) {
     if (isMobileFlow.value) mobileStage.value = 'list'
     return
   }
-  if (!confirmDiscardChanges('切换模板类型')) return
+  if (!(await confirmDiscardChanges('切换模板类型'))) return
   isDrawerOpen.value = false
   mode.value = 'detail'
   selectedId.value = null
@@ -204,8 +206,8 @@ const selectType = (type) => {
   if (isMobileFlow.value) mobileStage.value = 'list'
 }
 
-const selectTemplate = (item) => {
-  if (!item || !confirmDiscardChanges('切换模板')) return
+const selectTemplate = async (item) => {
+  if (!item || !(await confirmDiscardChanges('切换模板'))) return
   selectedId.value = item.id
   mode.value = canWriteTemplates.value ? 'edit' : 'detail'
   setDraft(draftFor(item))
@@ -213,12 +215,12 @@ const selectTemplate = (item) => {
   if (isMobileFlow.value) mobileStage.value = 'detail'
 }
 
-const startNew = () => {
+const startNew = async () => {
   if (!canWriteTemplates.value) {
     props.state.notify?.('无权限')
     return
   }
-  if (!confirmDiscardChanges('放弃当前编辑并新建模板')) return
+  if (!(await confirmDiscardChanges('放弃当前编辑并新建模板'))) return
   selectedId.value = null
   mode.value = 'new'
   setDraft(blankDraft())
@@ -232,8 +234,8 @@ const startEdit = () => {
   setDraft(draftFor(selected.value))
 }
 
-const closeDrawer = () => {
-  if (!confirmDiscardChanges('放弃当前编辑并关闭抽屉')) return false
+const closeDrawer = async () => {
+  if (!(await confirmDiscardChanges('放弃当前编辑并关闭抽屉'))) return false
   isDrawerOpen.value = false
   mode.value = 'detail'
   resetDraft()
@@ -265,17 +267,17 @@ const resetFilters = () => {
   statusInput.value = 'all'
 }
 
-const returnToTypes = () => {
-  if (!closeDrawer()) return
+const returnToTypes = async () => {
+  if (!(await closeDrawer())) return
   mobileStage.value = 'types'
 }
 
-const returnToList = () => {
-  closeDrawer()
+const returnToList = async () => {
+  await closeDrawer()
 }
 
-const backToGroup = () => {
-  if (!confirmDiscardChanges('放弃当前编辑并返回上一级')) return
+const backToGroup = async () => {
+  if (!(await confirmDiscardChanges('放弃当前编辑并返回上一级'))) return
   emit('backToGroup')
 }
 
@@ -284,7 +286,7 @@ useMobileMedia(isMobileFlow, (matches) => {
 })
 
 // 系统返回手势：先关闭详情，再从列表回到模板类型。
-useBackLayer(() => isMobileFlow.value && mobileStage.value === 'list', returnToTypes)
+useBackLayer(() => isMobileFlow.value && mobileStage.value === 'list', returnToTypes, { escapable: false })
 useBackLayer(isDrawerOpen, closeDrawer)
 </script>
 
@@ -359,8 +361,8 @@ useBackLayer(isDrawerOpen, closeDrawer)
           </div>
         </div>
 
-        <div v-if="!filteredList.length" class="notice-box">
-          <small>{{ list.length ? '无匹配模板' : `暂无${activeLabel}` }}</small>
+        <div v-if="!filteredList.length">
+          <EmptyState icon="template" :title="list.length ? '没有匹配的模板' : `还没有${activeLabel}`" :description="list.length ? '换个关键词或状态再试试。' : '点击上方“新增”创建第一个模板。'" />
         </div>
 
         <div v-else class="directory-table-wrap">

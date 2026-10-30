@@ -1,5 +1,7 @@
 <script setup>
-import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import SkeletonList from '../components/common/SkeletonList.vue'
+import EmptyState from '../components/common/EmptyState.vue'
+import { confirmAction } from '../services/confirmDialog'
 import DrawerHead from '../components/common/DrawerHead.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useBackLayer } from '../composables/useBackLayer'
@@ -82,8 +84,7 @@ const saveCampus = async () => {
     ? props.state.campuses.find((campus) => sameId(campus.id, campusForm.value.id))
     : null
   if (current?.status === 'ENABLED' && campusForm.value.status === 'DISABLED'
-    && typeof window !== 'undefined'
-    && !window.confirm('确定停用该校区吗？')) return
+    && !(await confirmAction({ title: '停用校区', message: '确定停用该校区吗？停用后该校区将不能再被选用。', confirmText: '确认停用', tone: 'danger' }))) return
 
   const result = isEditing.value
     ? await props.state.updateCampus(campusForm.value.id, campusForm.value)
@@ -122,13 +123,13 @@ useBackLayer(editorOpen, closeEditor)
         </div>
       </div>
 
-      <div v-if="state.campusLoading" class="identity-empty"><LoadingSpinner /></div>
+      <SkeletonList v-if="state.campusLoading" variant="table" :rows="5" />
       <div v-else-if="state.campusError" class="identity-empty identity-error">
         <strong>{{ state.campusError }}</strong>
         <button class="ghost" type="button" @click="loadCampuses"><AppIcon name="retry" :size="15" />重试</button>
       </div>
-      <div v-else-if="!filteredCampuses.length" class="identity-empty">
-        <strong>{{ state.campuses.length ? '无匹配校区' : '暂无校区' }}</strong>
+      <div v-else-if="!filteredCampuses.length">
+        <EmptyState icon="campus" :title="state.campuses.length ? '没有匹配的校区' : '还没有校区'" :description="state.campuses.length ? '换个关键词或状态再试试。' : '点击右上角“新增校区”添加第一个校区。'" />
       </div>
 
       <div v-else class="directory-table-wrap">

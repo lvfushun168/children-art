@@ -1,4 +1,7 @@
 <script setup>
+import SkeletonList from '../components/common/SkeletonList.vue'
+import EmptyState from '../components/common/EmptyState.vue'
+import { confirmAction, promptAction } from '../services/confirmDialog'
 import HintTip from '../components/common/HintTip.vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, ref, watch } from 'vue'
@@ -101,11 +104,11 @@ const studentProfileBlank = () =>
 
 const config = computed(() => {
   const map = {
-    teachers: { title: '老师管理', action: '新增老师', empty: '暂无老师' },
-    students: { title: '学生管理', action: '新增学生', empty: '暂无学生' },
-    classes: { title: '班级管理', action: '新增班级', empty: '暂无班级' },
-    courses: { title: '课程资料', action: '新增课程', empty: '暂无课程' },
-    externalLinks: { title: '学习资源', action: '新增学习资源', empty: '暂无学习资源' }
+    teachers: { title: '老师管理', action: '新增老师', empty: '还没有老师', emptyIcon: 'teacher' },
+    students: { title: '学生管理', action: '新增学生', empty: '还没有学生', emptyIcon: 'student' },
+    classes: { title: '班级管理', action: '新增班级', empty: '还没有班级', emptyIcon: 'class' },
+    courses: { title: '课程资料', action: '新增课程', empty: '还没有课程', emptyIcon: 'course' },
+    externalLinks: { title: '学习资源', action: '新增学习资源', empty: '还没有学习资源', emptyIcon: 'link' }
   }
   return map[props.entity]
 })
@@ -342,13 +345,13 @@ const selectedReferenceCount = computed(() => {
   return (props.state.classes || []).filter((item) => sameId(item.courseId, selected.value.id)).length
 })
 
-const confirmDiscardChanges = (action = '离开当前编辑') => {
+const confirmDiscardChanges = async (action = '离开当前编辑') => {
   if (!isDirty.value) return true
-  return window.confirm(`当前${entityLabel.value}有未保存修改，确定${action}吗？`)
+  return confirmAction({ title: '放弃未保存修改', message: `当前${entityLabel.value}有未保存修改，确定${action}吗？`, confirmText: '放弃修改', cancelText: '继续编辑', tone: 'danger' })
 }
 
-const backToGroup = () => {
-  if (!confirmDiscardChanges('放弃当前编辑并返回上一级')) return
+const backToGroup = async () => {
+  if (!(await confirmDiscardChanges('放弃当前编辑并返回上一级'))) return
   emit('backToGroup')
 }
 
@@ -415,7 +418,7 @@ const hydrateStudentProfile = async (record) => {
 
 const loadRecordDetail = async (record, { skipGuard = false, preferredMode = null } = {}) => {
   if (!record?.id) return false
-  if (!skipGuard && !confirmDiscardChanges('切换记录')) return false
+  if (!skipGuard && !(await confirmDiscardChanges('切换记录'))) return false
 
   const requestId = ++detailRequestId.value
   selectedId.value = record.id
@@ -465,7 +468,7 @@ const loadRecordDetail = async (record, { skipGuard = false, preferredMode = nul
 }
 
 const loadDirectory = async (page = 1, { skipGuard = false, preserveSelection = false, selectionId = selectedId.value } = {}) => {
-  if (!skipGuard && !confirmDiscardChanges('离开当前编辑并刷新列表')) return false
+  if (!skipGuard && !(await confirmDiscardChanges('离开当前编辑并刷新列表'))) return false
   const filters = buildDirectoryFilters()
   const preservedId = preserveSelection ? selectionId : null
   const preservedMode = preserveSelection ? mode.value : 'detail'
@@ -508,7 +511,7 @@ const resetFilters = () => {
 }
 
 const reloadArchiveState = async (value = archiveState.value) => {
-  if (!confirmDiscardChanges('切换归档筛选并刷新列表')) return false
+  if (!(await confirmDiscardChanges('切换归档筛选并刷新列表'))) return false
   archiveState.value = value
   return loadDirectory(1, { skipGuard: true })
 }
@@ -527,12 +530,12 @@ watch(
 )
 
 const selectRecord = async (record) => {
-  if (!confirmDiscardChanges('切换记录')) return false
+  if (!(await confirmDiscardChanges('切换记录'))) return false
   return loadRecordDetail(record, { skipGuard: true })
 }
 
 const startNew = async () => {
-  if (!confirmDiscardChanges('放弃当前编辑并新建记录')) return false
+  if (!(await confirmDiscardChanges('放弃当前编辑并新建记录'))) return false
   detailRequestId.value += 1
   mode.value = 'new'
   selectedId.value = null
@@ -636,10 +639,16 @@ const save = async () => {
 
 const archiveSelected = async () => {
   if (!selected.value || selected.value.archived || !canEditMasterData.value || detailLoading.value || saving.value) return
-  const reason = window.prompt(`归档“${selected.value.name || selected.value.title}”的原因（可选）`, selected.value.archiveReason || '')
+  const reason = await promptAction({
+    title: '归档记录',
+    message: `归档“${selected.value.name || selected.value.title}”`,
+    label: '归档原因（可选）',
+    value: selected.value.archiveReason || '',
+    confirmText: '继续归档'
+  })
   if (reason === null) return
-  if (selectedReferenceCount.value > 0 && !window.confirm(`该数据当前被 ${selectedReferenceCount.value} 条业务关系引用，归档不会删除引用，是否继续？`)) return
-  if (!confirmDiscardChanges('放弃未保存修改并归档当前记录')) return
+  if (selectedReferenceCount.value > 0 && !(await confirmAction({ title: '数据仍被引用', message: `该数据当前被 ${selectedReferenceCount.value} 条业务关系引用，归档不会删除引用，是否继续？`, confirmText: '继续归档', tone: 'danger' }))) return
+  if (!(await confirmDiscardChanges('放弃未保存修改并归档当前记录'))) return
   resetDraft()
   const saved = await props.state.archiveMasterData?.(props.entity, selected.value.id, reason)
   if (saved) {
@@ -734,18 +743,18 @@ const deleteCommunicationRecord = async (record) => {
   if (deleted && sameId(communicationEditingId.value, record.id)) resetCommunicationDraft()
 }
 
-const selectStudentTab = (tab) => {
+const selectStudentTab = async (tab) => {
   if (tab === studentDetailTab.value) return
   if (tab === 'communication' && studentDetailTab.value === 'profile' && isDirty.value) {
-    if (!confirmDiscardChanges('放弃未保存修改并查看沟通记录')) return
+    if (!(await confirmDiscardChanges('放弃未保存修改并查看沟通记录'))) return
     resetDraft()
   }
   studentDetailTab.value = tab
   communicationView.value = 'list'
 }
 
-const returnToList = () => {
-  if (!confirmDiscardChanges('放弃当前编辑并返回列表')) return
+const returnToList = async () => {
+  if (!(await confirmDiscardChanges('放弃当前编辑并返回列表'))) return
   clearSelection()
 }
 
@@ -841,8 +850,9 @@ useBackLayer(wecomGroupDialogOpen, closeStudentWecomGroupDialog)
         <small>{{ state.directoryErrors[entity] }}</small>
         <button class="ghost" type="button" @click="loadDirectory(directoryState.page)"><AppIcon name="retry" :size="15" />重试</button>
       </div>
-      <div v-else-if="!records.length && !state.directoryLoading?.[entity]" class="notice-box">
-        <small>{{ config.empty }}</small>
+      <SkeletonList v-else-if="!records.length && state.directoryLoading?.[entity]" variant="table" :rows="6" />
+      <div v-else-if="!records.length">
+        <EmptyState :icon="config.emptyIcon" :title="config.empty" description="可以调整筛选条件，或新建一条记录。" />
       </div>
       <div v-else class="directory-table-wrap">
         <table class="directory-table">

@@ -2,6 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, proxyRefs, ref } from 'vue'
 import LoginView from './views/LoginView.vue'
 import ParentSharePage from './views/ParentSharePage.vue'
+import ConfirmDialogHost from './components/layout/ConfirmDialogHost.vue'
+import ToastHost from './components/layout/ToastHost.vue'
+import ErrorBoundary from './components/common/ErrorBoundary.vue'
 import { useDeliveryWorkflow } from './composables/useDeliveryWorkflow'
 
 const state = proxyRefs(useDeliveryWorkflow())
@@ -21,11 +24,15 @@ const shareRoute = computed(() => {
 </script>
 
 <template>
+  <ToastHost :state="state" />
+  <ConfirmDialogHost />
   <ParentSharePage v-if="shareRoute" :state="state" :route="shareRoute" />
 
   <LoginView v-else-if="!state.isLoggedIn" :state="state" />
 
-  <RouterView v-else v-slot="{ Component }">
-    <component :is="Component" :state="state" />
-  </RouterView>
+  <ErrorBoundary v-else :state="state">
+    <RouterView v-slot="{ Component }">
+      <component :is="Component" :state="state" />
+    </RouterView>
+  </ErrorBoundary>
 </template>

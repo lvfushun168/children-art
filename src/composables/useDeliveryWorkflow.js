@@ -81,6 +81,7 @@ import {
   saveAndConfirmFeedback
 } from '../services/feedbackWorkflow.js'
 import { sha256ForFile, uploadCoursewareFile, uploadFile } from '../services/fileService'
+import { confirmAction } from '../services/confirmDialog'
 import { clearProtectedMediaCache } from '../services/protectedMediaCache'
 import { markdownToPlainText } from '../services/markdown.js'
 import { copyTextToClipboard } from '../services/clipboard'
@@ -351,6 +352,7 @@ export function useDeliveryWorkflow() {
   let jobProgressFor = null
   const jobWatchers = new Map()
   const toast = ref('')
+  const toasts = ref([])
   const studentDraftStates = reactive({})
   const studentDraftRows = new Map()
   const studentDraftSaveTimers = new Map()
@@ -1585,11 +1587,47 @@ export function useDeliveryWorkflow() {
       .join('\n\n')
   )
 
-  const notify = (message) => {
-    toast.value = message
+  // 提示按类型决定停留时间：错误要留够时间让老师看清，成功提示则尽快退场。
+  const TOAST_DURATIONS = { success: 2600, info: 3200, warning: 5000, error: 7000 }
+  const TOAST_LIMIT = 4
+  const toastTimers = new Map()
+  let toastSeq = 0
+  const classifyToast = (message) => {
+    if (/失败|出错|超时|无法|未能/.test(message)) return 'error'
+    if (/^请|请先|请填写|请稍|请保留|无权限|没有权限|未启用|不能|必须|不得|仍在|暂不可用|数据已变化|已被其他人|超过|需要|暂无/.test(message)) return 'warning'
+    if (/错误|异常|不可用|不支持|不受支持/.test(message)) return 'error'
+    if (/^已|已[复保存创建删除更新提交发送恢复确认]|成功|完成/.test(message)) return 'success'
+    return 'info'
+  }
+  const dismissToast = (id) => {
+    clearTimeout(toastTimers.get(id))
+    toastTimers.delete(id)
+    toasts.value = toasts.value.filter((item) => item.id !== id)
+  }
+  const armToast = (item) => {
+    clearTimeout(toastTimers.get(item.id))
+    toastTimers.set(item.id, setTimeout(() => dismissToast(item.id), TOAST_DURATIONS[item.type] || TOAST_DURATIONS.info))
+  }
+  const notify = (message, type = 'auto') => {
+    const text = String(message ?? '').trim()
+    if (!text) return
+    // 旧代码在失败后会立刻读取 toast 当作错误文案，保留这个短暂的最近一条消息。
+    toast.value = text
     setTimeout(() => {
-      if (toast.value === message) toast.value = ''
+      if (toast.value === text) toast.value = ''
     }, 2200)
+    const resolved = type === 'auto' ? classifyToast(text) : type
+    const existing = toasts.value.find((item) => item.message === text && item.type === resolved)
+    if (existing) {
+      existing.count += 1
+      armToast(existing)
+      return
+    }
+    const item = { id: ++toastSeq, type: resolved, message: text, count: 1 }
+    const next = [...toasts.value, item]
+    while (next.length > TOAST_LIMIT) dismissToast(next.shift().id)
+    toasts.value = next
+    armToast(item)
   }
 
   const markStudentLinkCopied = (studentId) => {
@@ -3052,7 +3090,7 @@ export function useDeliveryWorkflow() {
         return recovered.value ?? true
       }
       if (recovered) return recovered
-      notify(remoteErrorMessage(error))
+      notify(remoteErrorMessage(error), 'error')
       return null
     } finally {
       endProcessing(processingToken)
@@ -3075,7 +3113,7 @@ export function useDeliveryWorkflow() {
           // 原始冲突信息仍由统一错误提示展示。
         }
       }
-      notify(remoteErrorMessage(error))
+      notify(remoteErrorMessage(error), 'error')
       return false
     } finally {
       endProcessing(processingToken)
@@ -3096,7 +3134,7 @@ export function useDeliveryWorkflow() {
           // 保留原始版本冲突提示。
         }
       }
-      notify(remoteErrorMessage(error))
+      notify(remoteErrorMessage(error), 'error')
       return { ok: false, value: null }
     } finally {
       endProcessing(processingToken)
@@ -3670,7 +3708,7 @@ export function useDeliveryWorkflow() {
         firstError ||= error
       }
     }))
-    if (firstError) notify(remoteErrorMessage(firstError, '百度网盘授权状态加载失败，请稍后重试'))
+    if (firstError) notify(remoteErrorMessage(firstError, '百度网盘授权状态加载失败，请稍后重试'), 'error')
     return candidates
   }
 
@@ -3710,7 +3748,7 @@ export function useDeliveryWorkflow() {
       try {
         available = await loadCloudProvidersForSelection()
       } catch (error) {
-        notify(remoteErrorMessage(error, '百度网盘账号加载失败，请稍后重试'))
+        notify(remoteErrorMessage(error, '百度网盘账号加载失败，请稍后重试'), 'error')
         return null
       }
       if (!available.length) {
@@ -4256,7 +4294,7 @@ export function useDeliveryWorkflow() {
       }
       if (result?.reason === 'MEMORY_FILE_UNAVAILABLE') notify(preparationApplyReasonMessage(result.reason))
     } catch (error) {
-      if (error?.name !== 'AbortError') notify(remoteErrorMessage(error, '主题材料自动带入失败'))
+      if (error?.name !== 'AbortError') notify(remoteErrorMessage(error, '主题材料自动带入失败'), 'error')
     }
     return workspace
   }
@@ -5037,7 +5075,7 @@ export function useDeliveryWorkflow() {
             bindings = await api.wecom.studentGroups(mapped.items.map((item) => item.id))
           } catch (error) {
             // 客户群补充信息失败不应阻断学生主列表，但必须让用户知道这部分信息没有加载成功。
-            notify(remoteErrorMessage(error, '学生家长群信息加载失败'))
+            notify(remoteErrorMessage(error, '学生家长群信息加载失败'), 'error')
           }
           const byStudent = new Map((Array.isArray(bindings) ? bindings : []).map((binding) => [String(binding.studentId), {
             ...binding,
@@ -5148,7 +5186,7 @@ export function useDeliveryWorkflow() {
       })) : [])
       return teacherSourceMappings
     } catch (error) {
-      notify(remoteErrorMessage(error, '老师来源映射加载失败'))
+      notify(remoteErrorMessage(error, '老师来源映射加载失败'), 'error')
       return null
     }
   }
@@ -5418,7 +5456,7 @@ export function useDeliveryWorkflow() {
       currentUserId.value = null
       isLoggedIn.value = false
       remoteReady.value = false
-      notify(remoteErrorMessage(error, '登录失败，请检查账号密码或稍后重试'))
+      notify(remoteErrorMessage(error, '登录失败，请检查账号密码或稍后重试'), 'error')
       return false
     }
   }
@@ -5632,7 +5670,7 @@ export function useDeliveryWorkflow() {
       return remoteSelectTask(task, selectionSequence)
     } catch (error) {
       if (selectionSequence !== lessonSelectionSequence) return null
-      notify(remoteErrorMessage(error, '课次加载失败'))
+      notify(remoteErrorMessage(error, '课次加载失败'), 'error')
       return null
     }
   }
@@ -7646,7 +7684,7 @@ export function useDeliveryWorkflow() {
       notify('图文已复制，请到微信粘贴发送，发送后勾选“已发送”')
       return true
     } catch (error) {
-      notify(remoteErrorMessage(error, '图文复制失败，请重试'))
+      notify(remoteErrorMessage(error, '图文复制失败，请重试'), 'error')
       return false
     }
   }
@@ -7696,7 +7734,7 @@ export function useDeliveryWorkflow() {
     try {
       configuration = await ensureWecomConfiguration({ force: true })
     } catch (error) {
-      notify(remoteErrorMessage(error, '企业微信配置读取失败，请联系管理员'))
+      notify(remoteErrorMessage(error, '企业微信配置读取失败，请联系管理员'), 'error')
       return false
     }
     if (!configuration?.id || configuration.status !== 'ENABLED') {
@@ -7730,7 +7768,7 @@ export function useDeliveryWorkflow() {
       }
     }
     if (resendable.length) {
-      if (typeof window !== 'undefined' && !window.confirm('原消息不会撤回，将再次发送一条企业微信消息，是否继续？')) return false
+      if (!(await confirmAction({ title: '再次发送企业微信消息', message: '原消息不会撤回，将再次发送一条企业微信消息，是否继续？', confirmText: '继续发送' }))) return false
       const items = resendable.map((task) => ({
         taskId: String(task.id),
         version: task.version,
@@ -7863,7 +7901,7 @@ export function useDeliveryWorkflow() {
   const remoteRetryWecomSendTask = async (task) => {
     if (!task?.id) return false
     if (canResendWecomTask(task)) {
-      if (typeof window !== 'undefined' && !window.confirm('原消息不会撤回，将再次发送一条企业微信消息，是否继续？')) return false
+      if (!(await confirmAction({ title: '再次发送企业微信消息', message: '原消息不会撤回，将再次发送一条企业微信消息，是否继续？', confirmText: '继续发送' }))) return false
       const result = await runRemote('正在重新发送企业微信消息...', () => api.parent.resendTouch(task.id, {
         version: task.version,
         shareUrl: remoteStudentShareUrlFor({ studentId: task.studentId }) || task.shareUrl || ''
@@ -8057,7 +8095,7 @@ export function useDeliveryWorkflow() {
         effect = await api.m5.teacherEffect(lesson.id)
       } catch (error) {
         if (error?.status !== 404 && error?.code !== 'RESOURCE_NOT_FOUND') {
-          notify(remoteErrorMessage(error, '老师课效图加载失败'))
+          notify(remoteErrorMessage(error, '老师课效图加载失败'), 'error')
           return false
         }
       }
@@ -8723,7 +8761,7 @@ export function useDeliveryWorkflow() {
       }
       return studentProfiles[String(studentId)]
     } catch (error) {
-      notify(remoteErrorMessage(error, '学生 CRM 档案加载失败'))
+      notify(remoteErrorMessage(error, '学生 CRM 档案加载失败'), 'error')
       return null
     }
   }
@@ -8736,7 +8774,7 @@ export function useDeliveryWorkflow() {
       studentProfileAudits[String(studentId)] = { ...result, items: rows }
       return rows
     } catch (error) {
-      notify(remoteErrorMessage(error, '学生 CRM 档案审计加载失败'))
+      notify(remoteErrorMessage(error, '学生 CRM 档案审计加载失败'), 'error')
       return []
     }
   }
@@ -8768,7 +8806,7 @@ export function useDeliveryWorkflow() {
       notify('已保存')
       return true
     } catch (error) {
-      notify(remoteErrorMessage(error, '学生 CRM 档案保存失败'))
+      notify(remoteErrorMessage(error, '学生 CRM 档案保存失败'), 'error')
       return false
     } finally {
       endProcessing(processingToken)
@@ -8791,7 +8829,7 @@ export function useDeliveryWorkflow() {
       }))])
       return rows
     } catch (error) {
-      notify(remoteErrorMessage(error, '沟通记录加载失败'))
+      notify(remoteErrorMessage(error, '沟通记录加载失败'), 'error')
       return []
     }
   }
@@ -9289,7 +9327,7 @@ export function useDeliveryWorkflow() {
       if (student) student.wecomGroup = mapped?.group || null
       return mapped
     } catch (error) {
-      notify(remoteErrorMessage(error, '学生家长群信息加载失败'))
+      notify(remoteErrorMessage(error, '学生家长群信息加载失败'), 'error')
       return null
     }
   }
@@ -9464,7 +9502,7 @@ export function useDeliveryWorkflow() {
     try {
       return (await api.imports.allRows(batchId)).map(mapImportRow)
     } catch (error) {
-      notify(remoteErrorMessage(error, '导入明细加载失败，请稍后重试'))
+      notify(remoteErrorMessage(error, '导入明细加载失败，请稍后重试'), 'error')
       return null
     }
   }
@@ -9659,7 +9697,7 @@ export function useDeliveryWorkflow() {
   if (isLoggedIn.value) {
     void loadShellData().catch((error) => {
       remoteLoading.value = false
-      notify(remoteErrorMessage(error, '登录状态已失效，请重新登录'))
+      notify(remoteErrorMessage(error, '登录状态已失效，请重新登录'), 'error')
     })
   }
 
@@ -9789,6 +9827,8 @@ export function useDeliveryWorkflow() {
     jobProgress,
     jobProgressFor,
     toast,
+    toasts,
+    dismissToast,
     previewPulse,
     commentPulse,
     reportPulse,

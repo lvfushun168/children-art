@@ -1,5 +1,6 @@
 <script setup>
-import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import SkeletonList from '../components/common/SkeletonList.vue'
+import EmptyState from '../components/common/EmptyState.vue'
 import DrawerHead from '../components/common/DrawerHead.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useBackLayer } from '../composables/useBackLayer'
@@ -227,13 +228,13 @@ useBackLayer(() => Boolean(drawer.value), closeDrawer)
         </div>
       </div>
 
-      <div v-if="state.identityLoading.users" class="identity-empty"><LoadingSpinner /></div>
+      <SkeletonList v-if="state.identityLoading.users" :rows="5" />
       <div v-else-if="state.identityErrors.users" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.users }}</strong>
         <button class="ghost" type="button" @click="loadUsers(state.identityUserPage.page)"><AppIcon name="retry" :size="15" />重试</button>
       </div>
-      <div v-else-if="!state.identityUsers.length" class="identity-empty">
-        <strong>暂无账号</strong>
+      <div v-else-if="!state.identityUsers.length">
+        <EmptyState icon="account" title="没有找到账号" description="可以换个关键词或状态筛选，或新增一个账号。" />
       </div>
 
       <div v-else class="identity-user-list">
@@ -312,7 +313,7 @@ useBackLayer(() => Boolean(drawer.value), closeDrawer)
 
       <form v-else-if="drawer === 'memberships'" class="identity-form" @submit.prevent="saveMemberships">
         <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>所属校区</span></div>
-        <div v-if="membershipLoading" class="identity-empty"><LoadingSpinner /></div>
+        <SkeletonList v-if="membershipLoading" :rows="3" />
         <div v-else-if="state.identityErrors.memberships" class="identity-empty identity-error">
           <strong>{{ state.identityErrors.memberships }}</strong>
           <button class="ghost" type="button" @click="openMembershipDrawer(selectedUser)"><AppIcon name="retry" :size="15" />重试</button>

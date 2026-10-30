@@ -1,5 +1,6 @@
 <script setup>
-import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import SkeletonList from '../components/common/SkeletonList.vue'
+import EmptyState from '../components/common/EmptyState.vue'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AdaptiveSelect from '../components/common/AdaptiveSelect.vue'
@@ -280,7 +281,7 @@ onMounted(async () => {
           </article>
         </div>
 
-        <div v-if="state.coursewareLoading?.items" class="loading-note"><LoadingSpinner /></div>
+        <SkeletonList v-if="state.coursewareLoading?.items" :rows="5" />
         <div v-else-if="state.coursewareItems?.length" class="courseware-list">
           <article v-for="item in state.coursewareItems" :key="item.id" class="courseware-card">
             <div class="file-icon" :data-mode="item.previewMode">
@@ -300,7 +301,7 @@ onMounted(async () => {
           </article>
         </div>
         <div v-else-if="!state.coursewareLoading?.items" class="courseware-empty">
-          <strong>这个目录还没有课件</strong>
+          <EmptyState icon="courseware" title="这个目录还没有课件" description="上传或移动课件到这个目录后会显示在这里。" />
         </div>
       </main>
     </div>

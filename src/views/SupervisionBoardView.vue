@@ -155,7 +155,6 @@ const backToReviewList = () => {
 </script>
 
 <template>
-  <div v-if="state.toast" class="toast">{{ state.toast }}</div>
   <button v-if="groupLabel && isListStage" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>
 
   <PageHead title="教管看板" />

@@ -98,9 +98,9 @@ const onPopState = async (event) => {
   if (depth > 0 && backward && !layers.some((layer) => layer.depth === depth)) window.history.back()
 }
 
-export const openBackLayer = ({ onBack, isActive }) => {
+export const openBackLayer = ({ onBack, isActive, escapable = true }) => {
   if (!hasWindow()) return null
-  const layer = { onBack, isActive, depth: 0, open: false }
+  const layer = { onBack, isActive, escapable, depth: 0, open: false }
   pushEntry(layer, stateDepth() + 1)
   return layer
 }
@@ -134,9 +134,28 @@ export const navigateUp = (router, location) => {
   return router.push(location)
 }
 
+// 正在展开的下拉、菜单、日期面板自己会处理 Esc，这时不能连抽屉一起关掉。
+const POPUP_SELECTOR = '[aria-expanded="true"], .adaptive-select-menu, .user-popover, .dp__menu, .confirm-backdrop'
+
+// Esc 关闭最上面一层浮层，效果等同系统返回，所以“放弃未保存修改”的确认也会照常触发。
+const onEscape = (event) => {
+  if (event.key !== 'Escape' || event.isComposing) return
+  const top = layers.reduce((best, layer) => (!best || layer.depth > best.depth ? layer : best), null)
+  if (!top || top.escapable === false) return
+  if (document.querySelector(POPUP_SELECTOR)) return
+  const count = layers.length
+  // 等其他组件自己的 Esc 处理跑完：它们若已关闭了某一层或阻止了默认行为，这里就不再重复关闭。
+  setTimeout(() => {
+    if (event.defaultPrevented || layers.length !== count || pendingBacks > 0 || reconcileQueued) return
+    if (!layers.includes(top) || document.querySelector('.confirm-backdrop')) return
+    window.history.back()
+  }, 0)
+}
+
 export const installBackLayers = (router) => {
   if (installed || !hasWindow()) return
   installed = true
+  window.addEventListener('keydown', onEscape, true)
   // 刷新后历史记录里保留着旧的深度，但对应的层已经不存在。
   if (stateDepth() > 0) window.history.replaceState({ ...window.history.state, [STATE_KEY]: 0 }, '')
   router.beforeEach(async (to, from) => {

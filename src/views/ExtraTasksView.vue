@@ -1,4 +1,7 @@
 <script setup>
+import SkeletonList from '../components/common/SkeletonList.vue'
+import EmptyState from '../components/common/EmptyState.vue'
+import { confirmAction } from '../services/confirmDialog'
 import HighlightMark from '../components/common/HighlightMark.vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -280,7 +283,7 @@ const saveWork = async () => {
 }
 
 const deleteWork = async (record) => {
-  if (!window.confirm(`确定删除「${record.title}」吗？删除后课外作品档案中也会同步移除。`)) return
+  if (!(await confirmAction({ title: '删除课外作品', message: `确定删除「${record.title}」吗？删除后课外作品档案中也会同步移除。`, confirmText: '确认删除', tone: 'danger' }))) return
   const deleted = await props.state.deleteExtraTaskWork?.(record.id)
   if (deleted && sameId(editingWorkId.value, record.id)) cancelWorkEdit()
 }
@@ -364,7 +367,8 @@ useBackLayer(drawerOpen, returnToList)
         <small v-if="state.directoryLoading?.extraTasks"><LoadingSpinner /></small>
       </div>
       <div v-if="state.directoryErrors?.extraTasks" class="notice-box error-box"><small>{{ state.directoryErrors.extraTasks }}</small><button class="ghost" type="button" @click="loadDirectory(pageState.page)"><AppIcon name="retry" :size="15" />重试</button></div>
-      <div v-else-if="!tasks.length && !state.directoryLoading?.extraTasks" class="notice-box"><small>暂无课外任务</small></div>
+      <SkeletonList v-else-if="!tasks.length && state.directoryLoading?.extraTasks" variant="table" :rows="6" />
+      <div v-else-if="!tasks.length"><EmptyState icon="file" title="还没有课外任务" description="创建课外任务后，会在这里集中管理。" /></div>
       <div v-else class="directory-table-wrap">
         <table class="directory-table">
           <thead><tr><th>任务标题</th><th>类型 / 负责人</th><th>关联课次</th><th>截止日期</th><th>作品数</th><th>状态</th><th>操作</th></tr></thead>
@@ -463,9 +467,7 @@ useBackLayer(drawerOpen, returnToList)
         </div>
 
         <template v-else>
-          <div v-if="!selectedWorks.length" class="notice-box">
-            <small>暂无课外作品</small>
-          </div>
+          <div v-if="!selectedWorks.length"><EmptyState icon="image" title="还没有课外作品" description="上传作品后会显示在这里。" /></div>
           <div v-else class="extra-task-work-grid">
             <article v-for="work in selectedWorks" :key="work.id" class="archive-block extra-task-work-card">
               <ProtectedMedia :file-id="work.fileId" :src="work.artwork" :alt="work.title" />

@@ -1,4 +1,5 @@
 <script setup>
+import EmptyState from '../common/EmptyState.vue'
 import { computed, ref, watch } from 'vue'
 import AppStatusTag from '../common/AppStatusTag.vue'
 import {
@@ -238,7 +239,7 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
               <strong>{{ selectedDateLabel }}</strong>
             </div>
           </div>
-          <div v-if="!selectedLessons.length" class="schedule-day-empty">当天没有课次</div>
+          <EmptyState v-if="!selectedLessons.length" icon="calendar" title="当天没有课次" compact />
           <div v-else class="schedule-day-detail-list">
             <button
               v-for="lesson in selectedLessons"
@@ -376,7 +377,7 @@ watch(() => [props.dateFrom, props.dateTo, props.today], () => {
             <strong>{{ selectedDateLabel }}</strong>
           </div>
         </div>
-        <div v-if="!selectedLessons.length" class="schedule-day-empty">当天没有课次</div>
+        <EmptyState v-if="!selectedLessons.length" icon="calendar" title="当天没有课次" compact />
         <div v-else class="schedule-day-detail-list">
           <button
             v-for="lesson in selectedLessons"

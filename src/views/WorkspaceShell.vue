@@ -91,10 +91,8 @@ const activeGroup = computed(() =>
   filteredNavGroups.value.find((group) => group.id === activeGroupId.value) || filteredNavGroups.value[0]
 )
 const navIdsWithLocalBack = new Set(['schedule', 'tasks', 'supervision', 'production', 'archives', 'teachers', 'students', 'classes', 'courses', 'courseware', 'externalLinks', 'extraTasks', 'campuses', 'templates', 'accountManagement', 'roleManagement', 'permissionResources', 'settings'])
-const navIdsWithLocalToast = new Set(['tasks', 'supervision', 'production', 'settings'])
 const showActivePage = computed(() => Boolean(activeNav.value && (!isMobileApp.value || routeMode.value === 'page')))
 const showModuleBack = computed(() => Boolean(showActivePage.value && !navIdsWithLocalBack.has(activeNav.value)))
-const showShellToast = computed(() => Boolean(state.toast) && !navIdsWithLocalToast.has(activeNav.value))
 const activePageError = computed(() => state.pageErrors?.[activeNav.value] || '')
 const mobileGroupEntries = computed(() =>
   filteredNavGroups.value.map((group) => ({
@@ -361,9 +359,6 @@ onBeforeRouteUpdate(async (to, from) => {
     </div>
 
     <section class="content" :class="{ 'mobile-app-content': isMobileApp }">
-      <div v-if="showShellToast" class="toast" role="status" aria-live="polite">
-        {{ state.toast }}
-      </div>
       <div v-if="activePageError" class="notice-box error-box workspace-page-error" role="alert">
         <small>{{ activePageError }}</small>
         <button class="ghost" type="button" @click="retryActivePage"><AppIcon name="retry" :size="15" />重试</button>

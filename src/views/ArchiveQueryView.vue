@@ -1,4 +1,6 @@
 <script setup>
+import EmptyState from '../components/common/EmptyState.vue'
+import { confirmAction } from '../services/confirmDialog'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import HighlightMark from '../components/common/HighlightMark.vue'
 import { computed, reactive, ref, watch } from 'vue'
@@ -295,14 +297,16 @@ const startWorkEdit = () => {
   isEditingWork.value = true
 }
 
-const cancelWorkEdit = () => {
-  if (hasUnsavedWorkChanges.value && !window.confirm('尚有未保存的修改，确定放弃吗？')) return
+const confirmDiscard = (title, message) => confirmAction({ title, message, confirmText: '放弃修改', cancelText: '继续编辑', tone: 'danger' })
+
+const cancelWorkEdit = async () => {
+  if (hasUnsavedWorkChanges.value && !(await confirmDiscard('放弃修改', '尚有未保存的修改，确定放弃吗？'))) return
   isEditingWork.value = false
   workEditError.value = ''
 }
 
-const closeWorkDrawer = () => {
-  if (hasUnsavedWorkChanges.value && !window.confirm('尚有未保存的修改，确定关闭吗？')) return
+const closeWorkDrawer = async () => {
+  if (hasUnsavedWorkChanges.value && !(await confirmDiscard('关闭编辑', '尚有未保存的修改，确定关闭吗？'))) return
   closeImagePreview()
   isEditingWork.value = false
   workEditError.value = ''
@@ -653,7 +657,7 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
         </span>
       </article>
       <div v-if="state.directoryErrors?.archiveRecords" class="notice-box error-box"><small>{{ state.directoryErrors.archiveRecords }}</small><button class="ghost" type="button" @click="loadStudentWorks(workPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
-      <div v-else-if="!workRecords.length && !state.directoryLoading?.archiveRecords" class="notice-box"><small>暂无学生作品档案</small></div>
+      <div v-else-if="!workRecords.length && !state.directoryLoading?.archiveRecords"><EmptyState icon="image" title="还没有作品档案" description="课次归档完成后，学生作品会汇集到这里。" /></div>
       <PaginationBar :page="workPage.page" :page-size="workPage.pageSize" :total="workPage.total" :loading="state.directoryLoading?.archiveRecords" @change="loadStudentWorks" />
     </section>
 
@@ -706,9 +710,7 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
           <small>{{ lesson.worksCount }} 件作品<template v-if="lesson.highlights"> · <HighlightMark :size="12" /> {{ lesson.highlights }}</template></small>
         </div>
       </button>
-      <div v-if="!filteredLessonArchives.length" class="notice-box">
-        <small>暂无课堂档案</small>
-      </div>
+      <div v-if="!filteredLessonArchives.length"><EmptyState icon="archive" title="还没有课堂档案" description="课次完成归档后会出现在这里。" /></div>
       <div v-if="state.directoryErrors?.classroomArchives" class="notice-box error-box"><small>{{ state.directoryErrors.classroomArchives }}</small><button class="ghost" type="button" @click="loadLessonArchives(lessonPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <PaginationBar :page="lessonPage.page" :page-size="lessonPage.pageSize" :total="lessonPage.total" :loading="state.directoryLoading?.classroomArchives" @change="loadLessonArchives" />
     </section>
@@ -753,9 +755,7 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
           <small>{{ effect.imageCount ?? 0 }} 张图片</small>
         </div>
       </button>
-      <div v-if="!filteredTeacherEffects.length" class="notice-box">
-        <small>暂无老师课效档案</small>
-      </div>
+      <div v-if="!filteredTeacherEffects.length"><EmptyState icon="archive" title="还没有课效档案" description="生成并确认课效长图后会出现在这里。" /></div>
       <div v-if="state.directoryErrors?.teacherArchives" class="notice-box error-box"><small>{{ state.directoryErrors.teacherArchives }}</small><button class="ghost" type="button" @click="loadTeacherEffects(effectPage.page)"><AppIcon name="retry" :size="15" />重试</button></div>
       <PaginationBar :page="effectPage.page" :page-size="effectPage.pageSize" :total="effectPage.total" :loading="state.directoryLoading?.teacherArchives" @change="loadTeacherEffects" />
     </section>
@@ -837,9 +837,7 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
             </figcaption>
           </figure>
         </div>
-        <div v-else class="notice-box">
-          <small>暂无学生记录</small>
-        </div>
+        <div v-else><EmptyState icon="student" title="没有学生记录" compact /></div>
         <small class="archive-image-readonly-caption">仅老师可见 · 不计入作品数量 · {{ selected.archiveStatus === 'CURRENT' ? '当前课次实时数据' : '正式归档快照' }}</small>
       </section>
       <section class="archive-detail-group">
@@ -1064,9 +1062,7 @@ useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () =
             <small>{{ assetMeta(asset) }}</small>
           </article>
         </div>
-        <div v-else class="notice-box">
-          <small>暂无课堂资料</small>
-        </div>
+        <div v-else><EmptyState icon="file" title="没有课堂资料" compact /></div>
         <div v-if="fileDownloadError" class="notice-box archive-download-error">
           <small>{{ fileDownloadError }}</small>
         </div>

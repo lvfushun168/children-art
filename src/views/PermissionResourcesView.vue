@@ -1,5 +1,6 @@
 <script setup>
-import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import SkeletonList from '../components/common/SkeletonList.vue'
+import EmptyState from '../components/common/EmptyState.vue'
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -64,13 +65,13 @@ onMounted(loadResources)
         <input v-model="query" class="identity-resource-search" placeholder="搜索权限名称或权限键" aria-label="搜索权限资源" />
       </div>
 
-      <div v-if="state.identityLoading.permissions" class="identity-empty"><LoadingSpinner /></div>
+      <SkeletonList v-if="state.identityLoading.permissions" :rows="6" />
       <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.permissions }}</strong>
         <button class="ghost" type="button" @click="loadResources"><AppIcon name="retry" :size="15" />重试</button>
       </div>
-      <div v-else-if="!permissionGroups.length" class="identity-empty">
-        <strong>无匹配权限资源</strong>
+      <div v-else-if="!permissionGroups.length">
+        <EmptyState icon="permission" title="没有匹配的权限资源" description="换个关键词再试试。" />
       </div>
 
       <div v-else class="identity-resource-groups">

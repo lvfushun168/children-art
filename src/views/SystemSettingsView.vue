@@ -1,4 +1,6 @@
 <script setup>
+import EmptyState from '../components/common/EmptyState.vue'
+import { confirmAction } from '../services/confirmDialog'
 import HintTip from '../components/common/HintTip.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBackLayer } from '../composables/useBackLayer'
@@ -224,8 +226,8 @@ watch(providerSettings, (settings) => {
   }
 }, { deep: true, immediate: true })
 
-const selectSetting = (setting) => {
-  if (isBaiduDrawerOpen.value && !closeBaiduProviderDrawer()) return
+const selectSetting = async (setting) => {
+  if (isBaiduDrawerOpen.value && !(await closeBaiduProviderDrawer())) return
   isBaiduDrawerOpen.value = false
   baiduDrawerDraft.value = null
   selectedId.value = setting.id
@@ -421,8 +423,8 @@ const openBaiduProviderDrawer = (provider, mode = 'edit') => {
 
 const selectBaiduProvider = (provider) => openBaiduProviderDrawer(provider)
 
-const closeBaiduProviderDrawer = () => {
-  if (baiduDrawerDirty.value && typeof window !== 'undefined' && !window.confirm('当前百度网盘账号有未保存修改，确定关闭吗？')) return false
+const closeBaiduProviderDrawer = async () => {
+  if (baiduDrawerDirty.value && !(await confirmAction({ title: '放弃未保存修改', message: '当前百度网盘账号有未保存修改，确定关闭吗？', confirmText: '放弃修改', cancelText: '继续编辑', tone: 'danger' }))) return false
   closeArchiveRuleVariableMenu()
   isBaiduDrawerOpen.value = false
   baiduDrawerDraft.value = null
@@ -658,8 +660,8 @@ watch(() => (providerSettings.value || []).flatMap((group) => group.value?.provi
   })
 }, { immediate: true })
 
-const returnToList = () => {
-  if (isBaiduDrawerOpen.value && !closeBaiduProviderDrawer()) return
+const returnToList = async () => {
+  if (isBaiduDrawerOpen.value && !(await closeBaiduProviderDrawer())) return
   draft.value = clone(selected() || {})
   mobileStage.value = 'list'
   refreshBaiduStatuses().catch((error) => {
@@ -695,14 +697,11 @@ onBeforeUnmount(() => {
 })
 
 // 系统返回手势：先关闭百度网盘抽屉，再从详情回到列表。
-useBackLayer(() => isMobileFlow.value && mobileStage.value === 'detail', returnToList)
+useBackLayer(() => isMobileFlow.value && mobileStage.value === 'detail', returnToList, { escapable: false })
 useBackLayer(isBaiduDrawerOpen, closeBaiduProviderDrawer)
 </script>
 
 <template>
-  <div v-if="props.state.toast" class="toast" role="status" aria-live="polite">
-    {{ props.state.toast }}
-  </div>
 
   <button
     v-if="groupLabel && (!isMobileFlow || mobileStage === 'list')"
@@ -746,7 +745,7 @@ useBackLayer(isBaiduDrawerOpen, closeBaiduProviderDrawer)
           <strong>{{ draft.name || '请选择配置项' }}</strong>
         </div>
       </div>
-      <div v-if="!isProviderSetting" class="notice-box">暂无可配置的第三方通道。</div>
+      <div v-if="!isProviderSetting"><EmptyState icon="settings" title="暂无可配置的第三方通道" /></div>
       <div v-else class="cloud-setting-panel">
         <section v-if="isCloudCategory" class="master-list panel directory-list-panel">
           <div class="section-head settings-baidu-account-toolbar">
@@ -755,7 +754,7 @@ useBackLayer(isBaiduDrawerOpen, closeBaiduProviderDrawer)
             </div>
             <button class="primary settings-baidu-add-button" type="button" :disabled="!canAddProvider" @click="addProvider"><AppIcon name="add" :size="15" />新增账号</button>
           </div>
-          <div v-if="!baiduProviders.length" class="notice-box">暂无百度网盘账号</div>
+          <div v-if="!baiduProviders.length"><EmptyState icon="link" title="还没有百度网盘账号" description="点击右上角“新增账号”添加。" /></div>
           <div v-else class="directory-table-wrap">
             <table class="directory-table settings-baidu-account-table">
               <thead>

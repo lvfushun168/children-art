@@ -342,7 +342,6 @@ useBackLayer(showTemplateSaveDialog, () => { showTemplateSaveDialog.value = fals
 </script>
 
 <template>
-  <div v-if="state.toast" class="toast">{{ state.toast }}</div>
 
   <template v-if="!project">
     <button v-if="groupLabel && setupStep === 'student'" class="module-back-link" type="button" @click="$emit('backToGroup')"><AppIcon name="back" :size="16" />返回{{ groupLabel }}</button>

@@ -1,5 +1,6 @@
 <script setup>
-import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import SkeletonList from '../components/common/SkeletonList.vue'
+import EmptyState from '../components/common/EmptyState.vue'
 import DrawerHead from '../components/common/DrawerHead.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useBackLayer } from '../composables/useBackLayer'
@@ -153,13 +154,13 @@ useBackLayer(permissionDrawerOpen, closePermissionDrawer)
         </div>
       </div>
 
-      <div v-if="state.identityLoading.roles" class="identity-empty"><LoadingSpinner /></div>
+      <SkeletonList v-if="state.identityLoading.roles" :rows="4" />
       <div v-else-if="state.identityErrors.roles" class="identity-empty identity-error">
         <strong>{{ state.identityErrors.roles }}</strong>
         <button class="ghost" type="button" @click="loadData"><AppIcon name="retry" :size="15" />重试</button>
       </div>
-      <div v-else-if="!state.identityRoles.length" class="identity-empty">
-        <strong>暂无角色</strong>
+      <div v-else-if="!state.identityRoles.length">
+        <EmptyState icon="role" title="还没有角色" description="点击上方“新增角色”创建第一个角色。" />
       </div>
 
       <div v-else class="identity-role-list">
@@ -207,7 +208,7 @@ useBackLayer(permissionDrawerOpen, closePermissionDrawer)
   <div v-if="permissionDrawerOpen" class="drawer-backdrop" @click.self="closePermissionDrawer">
     <aside class="library-drawer identity-drawer identity-permission-drawer">
       <DrawerHead :title="`${selectedRole?.name} · 配置权限`" @close="closePermissionDrawer" />
-      <div v-if="state.identityLoading.permissions" class="identity-empty"><LoadingSpinner /></div>
+      <SkeletonList v-if="state.identityLoading.permissions" :rows="6" />
       <div v-else-if="state.identityErrors.permissions" class="identity-empty identity-error">{{ state.identityErrors.permissions }}</div>
       <div v-else class="identity-permission-groups">
         <section v-for="group in permissionGroups" :key="group.module" class="identity-permission-group">

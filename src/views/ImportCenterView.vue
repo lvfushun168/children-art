@@ -1,6 +1,6 @@
 <script setup>
+import SkeletonList from '../components/common/SkeletonList.vue'
 import RequiredMark from '../components/common/RequiredMark.vue'
-import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import PageHead from '../components/layout/PageHead.vue'
 import AppIcon from '../components/common/AppIcon.vue'
@@ -392,7 +392,7 @@ const confirmImport = async () => {
         <p>{{ detailBatch?.time }} · {{ detailBatch?.statusLabel }} · 共 {{ detailBatch?.totalRows || 0 }} 行，已写入 {{ detailBatch?.importedRows || 0 }} 条</p>
       </div>
 
-      <div v-if="detailLoading" class="import-empty-preview"><LoadingSpinner /></div>
+      <SkeletonList v-if="detailLoading" variant="table" :rows="6" />
       <div v-else-if="detailError" class="import-error" role="alert">
         <strong>加载失败</strong>
         <span>{{ detailError }}</span>

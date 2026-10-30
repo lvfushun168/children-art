@@ -1,4 +1,6 @@
 <script setup>
+import EmptyState from '../common/EmptyState.vue'
+import { confirmAction } from '../../services/confirmDialog'
 import HighlightMark from '../common/HighlightMark.vue'
 import RequiredMark from '../common/RequiredMark.vue'
 import SaveStatus from '../common/SaveStatus.vue'
@@ -380,7 +382,7 @@ const replaceStudentRecord = async (event, row, record) => {
 }
 
 const removeStudentRecord = async (row, record) => {
-  if (!row || !record || !confirmDestructiveAction(`确定删除学生记录“${studentRecordName(record)}”吗？`)) return
+  if (!row || !record || !(await confirmDestructiveAction(`确定删除学生记录“${studentRecordName(record)}”吗？`, '删除学生记录'))) return
   setActive(row)
   await props.state.removeStudentRecord?.(record, row)
 }
@@ -565,7 +567,7 @@ const processCurrentImage = async (row) => {
   await props.state.retryCurrentImageProcess()
 }
 
-const confirmDestructiveAction = (message) => typeof window === 'undefined' || window.confirm(message)
+const confirmDestructiveAction = (message, title = '确认删除', confirmText = '确认删除') => confirmAction({ title, message, confirmText, tone: 'danger' })
 
 const replaceOriginalImage = async (event, row) => {
   if (!row) return
@@ -575,14 +577,14 @@ const replaceOriginalImage = async (event, row) => {
 }
 
 const removeOriginalArtwork = async (row) => {
-  if (!row || !confirmDestructiveAction('移除后将删除这张作品及其处理结果，确定继续吗？')) return
+  if (!row || !(await confirmDestructiveAction('移除后将删除这张作品及其处理结果，确定继续吗？', '移除作品', '确认移除'))) return
   setActive(row)
   const remove = props.state.removeArtwork || props.state.removeStudentImage
   await remove?.(row)
 }
 
 const removeProcessedArtwork = async (row) => {
-  if (!row || !hasProcessedImage(row) || !confirmDestructiveAction('确定删除这张处理图吗？原图会保留。')) return
+  if (!row || !hasProcessedImage(row) || !(await confirmDestructiveAction('确定删除这张处理图吗？原图会保留。', '删除处理图'))) return
   setActive(row)
   const removed = await props.state.removeArtworkVersion?.(row)
   if (removed !== false) props.state.notify('处理图已删除，请重新确认')
@@ -816,7 +818,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!state.attendingRows.length">
-              <td colspan="7" class="student-delivery-empty-state">暂无到课学生，请先确认出勤</td>
+              <td colspan="7" class="student-delivery-empty-state"><EmptyState icon="student" title="还没有到课学生" description="请先在“课次与出勤”中确认出勤。" compact /></td>
             </tr>
           </tbody>
         </table>
@@ -835,7 +837,7 @@ onMounted(() => {
             </span>
             <span class="mobile-student-status"><AppStatusTag :status="statusFor(row)" :tone="statusClassFor(row) === 'done' ? 'success' : 'pending'" /><b>›</b></span>
           </button>
-          <div v-if="!state.attendingRows.length" class="student-delivery-empty-state">暂无到课学生，请先确认出勤</div>
+          <div v-if="!state.attendingRows.length" class="student-delivery-empty-state"><EmptyState icon="student" title="还没有到课学生" description="请先在“课次与出勤”中确认出勤。" compact /></div>
         </div>
 
         <button type="button" class="mobile-text-entry mobile-total-feedback-entry" @click="openTotalFeedback">

@@ -1,5 +1,6 @@
 <script setup>
-import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import SkeletonList from '../components/common/SkeletonList.vue'
+import { confirmAction } from '../services/confirmDialog'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
@@ -175,7 +176,7 @@ const saveLesson = async (payload) => {
 const deleteLesson = async () => {
   const lesson = selectedLesson.value
   if (!lesson || !canEditLessons.value || ['已完成', 'COMPLETED'].includes(lesson.status)) return
-  const confirmed = window.confirm('删除后该课次及出勤记录将永久移除，确定删除吗？')
+  const confirmed = await confirmAction({ title: '删除课次', message: '删除后该课次及出勤记录将永久移除，确定删除吗？', confirmText: '确认删除', tone: 'danger' })
   if (!confirmed || typeof props.state.deleteLesson !== 'function') return
   const deleted = await props.state.deleteLesson(lesson.id, lesson.version)
   if (!deleted) return
@@ -245,9 +246,7 @@ useBackLayer(showLessonEditor, closeLessonEditor)
         <small>{{ state.scheduleError }}</small>
         <button class="ghost" type="button" @click="reload"><AppIcon name="retry" :size="15" />重试</button>
       </div>
-      <div v-else-if="state.scheduleLoading" class="notice-box">
-        <small><LoadingSpinner /></small>
-      </div>
+      <SkeletonList v-else-if="state.scheduleLoading" variant="table" :rows="7" />
       <div v-else class="schedule-calendar-state">
         <div v-if="!visibleLessons.length" class="notice-box">
           <strong>当前范围没有课次</strong>

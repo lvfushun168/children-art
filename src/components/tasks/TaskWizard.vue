@@ -1,4 +1,5 @@
 <script setup>
+import { confirmAction } from '../../services/confirmDialog'
 import RequiredMark from '../common/RequiredMark.vue'
 import SaveStatus from '../common/SaveStatus.vue'
 import LoadingSpinner from '../common/LoadingSpinner.vue'
@@ -149,16 +150,23 @@ const handleHomeworkImageUpload = async (file, insert) => {
   const alt = String(file.name || '任务图片').replace(/[\[\]]/g, '')
   insert?.(`![${alt}](homework-file://${uploaded.id})`)
 }
-const toggleHomeworkOptionalField = (field, enabled, event) => {
+const toggleHomeworkOptionalField = async (field, enabled, event) => {
   if (enabled) {
     homeworkOptionalFieldEnabled[field] = true
     return
   }
 
   const currentValue = String(props.state.homework?.[field] || '').trim()
-  if (currentValue && typeof window !== 'undefined' && !window.confirm(`关闭“${homeworkOptionalFieldLabels[field]}”后将清空当前内容，是否继续？`)) {
+  if (currentValue) {
+    // 复选框在点击瞬间已被浏览器取消勾选，先还原，等确认后再由状态驱动。
     if (event?.target) event.target.checked = true
-    return
+    const confirmed = await confirmAction({
+      title: `关闭${homeworkOptionalFieldLabels[field]}`,
+      message: `关闭“${homeworkOptionalFieldLabels[field]}”后将清空当前内容，是否继续？`,
+      confirmText: '关闭并清空',
+      tone: 'danger'
+    })
+    if (!confirmed) return
   }
 
   const previousValue = String(props.state.homework?.[field] || '')
@@ -488,7 +496,7 @@ const handleMaterialReplace = async (event) => {
   await props.state.replaceLessonMaterial(target.material, file, target.category)
 }
 // 系统返回手势：先关闭抽屉，再逐步回到上一步，最后才离开课次。
-useBackLayer(() => props.state.currentStep > 0 && !props.state.showReport, () => goToStep(props.state.currentStep - 1))
+useBackLayer(() => props.state.currentStep > 0 && !props.state.showReport, () => goToStep(props.state.currentStep - 1), { escapable: false })
 useBackLayer(showResourceDrawer, () => { showResourceDrawer.value = false })
 useBackLayer(showSharePreview, () => { showSharePreview.value = false })
 useBackLayer(homeworkEditorOpen, closeHomeworkEditor)

@@ -15914,9 +15914,11 @@ small .save-status {
 }
 
 /* ===== 页面淡入：切换页面时内容轻轻浮现，而不是硬切 ===== */
-/* 只用透明度：用 transform 会让页面内 fixed 定位的抽屉在动画期间错位。 */
+/* 只用透明度：用 transform 会让页面内 fixed 定位的抽屉在动画期间错位。
+   填充模式必须是 backwards：用 both/forwards 会让页面根节点在动画结束后仍带着透明度动画，
+   浏览器会为它保留独立的层叠上下文，页面里抽屉、弹窗的 z-index 就被困在里面，反而被用户菜单盖住。 */
 .content > :not(.user-menu) {
-  animation: page-enter 0.2s ease both;
+  animation: page-enter 0.2s ease backwards;
 }
 
 @keyframes page-enter {

@@ -333,6 +333,20 @@ export function useDeliveryWorkflow() {
   const directoryPromises = new Map()
   const schedulePromises = new Map()
   const processingAction = ref('')
+  // 多个操作并发时用栈记录，先结束的操作不会提前清掉后者的提示。
+  const processingStack = []
+  let processingSeq = 0
+  const beginProcessing = (label) => {
+    const token = ++processingSeq
+    processingStack.push({ token, label })
+    processingAction.value = label
+    return token
+  }
+  const endProcessing = (token) => {
+    const index = processingStack.findIndex((entry) => entry.token === token)
+    if (index >= 0) processingStack.splice(index, 1)
+    processingAction.value = processingStack.length ? processingStack[processingStack.length - 1].label : ''
+  }
   const jobProgress = reactive({})
   let jobProgressFor = null
   const jobWatchers = new Map()
@@ -1644,11 +1658,14 @@ export function useDeliveryWorkflow() {
   }
 
   const runAction = async (label, message, action) => {
-    processingAction.value = label
-    await wait(420)
-    await action()
-    await wait(220)
-    processingAction.value = ''
+    const token = beginProcessing(label)
+    try {
+      await wait(420)
+      await action()
+      await wait(220)
+    } finally {
+      endProcessing(token)
+    }
     notify(message)
   }
 
@@ -1945,16 +1962,19 @@ export function useDeliveryWorkflow() {
   }
 
   const generateAll = async () => {
-    processingAction.value = '正在生成全班 1v1 课评...'
-    for (const row of attendingRows.value) {
-      await wait(260)
-      generateOne(row)
-      activeStudentId.value = row.studentId
-      addAiLog('课评生成', students.find((item) => item.id === row.studentId)?.name || '学生', '成功', '生成 1v1 课评并自动保存')
-      pulseComment()
+    const token = beginProcessing('正在生成全班 1v1 课评...')
+    try {
+      for (const row of attendingRows.value) {
+        await wait(260)
+        generateOne(row)
+        activeStudentId.value = row.studentId
+        addAiLog('课评生成', students.find((item) => item.id === row.studentId)?.name || '学生', '成功', '生成 1v1 课评并自动保存')
+        pulseComment()
+      }
+      await wait(180)
+    } finally {
+      endProcessing(token)
     }
-    await wait(180)
-    processingAction.value = ''
   }
 
   const confirmAll = () => {
@@ -3011,7 +3031,7 @@ export function useDeliveryWorkflow() {
   }
 
   const runRemote = async (label, action, success = '', onConflict = null) => {
-    processingAction.value = label
+    const processingToken = beginProcessing(label)
     try {
       const result = await action()
       if (success) notify(success)
@@ -3035,12 +3055,12 @@ export function useDeliveryWorkflow() {
       notify(remoteErrorMessage(error))
       return null
     } finally {
-      processingAction.value = ''
+      endProcessing(processingToken)
     }
   }
 
   const runRemoteVoid = async (label, action, success = '', onConflict = null) => {
-    processingAction.value = label
+    const processingToken = beginProcessing(label)
     try {
       await action()
       if (success) notify(success)
@@ -3058,12 +3078,12 @@ export function useDeliveryWorkflow() {
       notify(remoteErrorMessage(error))
       return false
     } finally {
-      processingAction.value = ''
+      endProcessing(processingToken)
     }
   }
 
   const runIdentity = async (label, action, success = '', onConflict = null) => {
-    processingAction.value = label
+    const processingToken = beginProcessing(label)
     try {
       const value = await action()
       if (success) notify(success)
@@ -3079,7 +3099,7 @@ export function useDeliveryWorkflow() {
       notify(remoteErrorMessage(error))
       return { ok: false, value: null }
     } finally {
-      processingAction.value = ''
+      endProcessing(processingToken)
     }
   }
 
@@ -7321,12 +7341,11 @@ export function useDeliveryWorkflow() {
 
   const requestShareDraft = async (lessonId, payload, { silent = false, keepalive = false } = {}) => {
     const label = '正在保存家长页面草稿...'
-    const previousProcessingAction = processingAction.value
-    if (!silent) processingAction.value = label
+    const processingToken = silent ? 0 : beginProcessing(label)
     try {
       return await api.parent.saveDraft(lessonId, payload, { keepalive })
     } finally {
-      if (!silent && processingAction.value === label) processingAction.value = previousProcessingAction
+      if (processingToken) endProcessing(processingToken)
     }
   }
 
@@ -8742,7 +8761,7 @@ export function useDeliveryWorkflow() {
         ...(current ? { version: String(current.version) } : {})
       }
     })
-    processingAction.value = '正在保存学生 CRM 档案...'
+    const processingToken = beginProcessing('正在保存学生 CRM 档案...')
     try {
       await api.m6.saveProfileValues(studentId, requests)
       await remoteLoadStudentProfile(studentId)
@@ -8752,7 +8771,7 @@ export function useDeliveryWorkflow() {
       notify(remoteErrorMessage(error, '学生 CRM 档案保存失败'))
       return false
     } finally {
-      processingAction.value = ''
+      endProcessing(processingToken)
     }
   }
 

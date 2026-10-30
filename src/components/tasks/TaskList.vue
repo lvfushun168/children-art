@@ -227,8 +227,9 @@ useBackLayer(showLessonDialog, () => { showLessonDialog.value = false })
           </div>
           <div class="button-pair lesson-drawer-actions">
             <button class="ghost icon-only" type="button" @click="showLessonDialog = false" aria-label="关闭" title="关闭"><AppIcon name="close" :size="16" /></button>
-            <button class="primary" type="button" :disabled="isSubmitting" @click="saveLesson">
-              <AppIcon name="save" :size="16" />
+            <button class="primary" type="button" :class="{ 'is-loading': isSubmitting }" :disabled="isSubmitting" @click="saveLesson">
+              <span v-if="isSubmitting" class="btn-spinner" aria-hidden="true"></span>
+              <AppIcon v-else name="save" :size="16" />
               {{ isSubmitting ? '正在创建…' : isTemporary ? '创建临时课' : '创建课后待办' }}
             </button>
           </div>

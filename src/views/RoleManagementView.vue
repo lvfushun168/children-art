@@ -198,7 +198,7 @@ useBackLayer(permissionDrawerOpen, closePermissionDrawer)
         <label v-if="roleForm.id"><span>状态</span><AdaptiveSelect v-model="roleForm.status" :options="identityStatusOptions" /></label>
         <div class="drawer-actions">
           <button class="ghost icon-only" type="button" @click="closeRoleEditor" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="save" :size="15" />保存角色</button>
+          <button class="primary" type="submit" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)"><span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="save" :size="15" />{{ state.processingAction ? '保存中…' : '保存角色' }}</button>
         </div>
       </form>
     </aside>
@@ -235,7 +235,7 @@ useBackLayer(permissionDrawerOpen, closePermissionDrawer)
       </div>
       <div class="drawer-actions">
         <span>已选 {{ selectedPermissionKeys.length }} 项</span>
-        <button class="primary" type="button" :disabled="Boolean(state.processingAction)" @click="savePermissions"><AppIcon name="save" :size="15" />保存权限</button>
+        <button class="primary" type="button" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)" @click="savePermissions"><span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="save" :size="15" />{{ state.processingAction ? '保存中…' : '保存权限' }}</button>
       </div>
     </aside>
   </div>

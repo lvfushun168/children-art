@@ -463,7 +463,7 @@ useBackLayer(showTemplateSaveDialog, () => { showTemplateSaveDialog.value = fals
         </div>
         <div class="pc-editor-actions">
           <button class="ghost" @click="openTemplateSaveDialog(false)"><AppIcon name="save" :size="15" />保存为模板</button>
-          <button class="primary" :disabled="exporting" @click="recordExport"><AppIcon name="download" :size="16" />{{ exporting ? '导出中…' : '导出作品册' }}</button>
+          <button class="primary" :class="{ 'is-loading': exporting }" :disabled="exporting" @click="recordExport"><span v-if="exporting" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="download" :size="16" />{{ exporting ? '导出中…' : '导出作品册' }}</button>
         </div>
       </header>
 

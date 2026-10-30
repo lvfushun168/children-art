@@ -132,8 +132,9 @@ const save = () => {
         <p v-if="formError" class="lesson-form-error" role="alert">{{ formError }}</p>
         <div class="lesson-editor-actions">
           <button class="ghost icon-only" type="button" :disabled="saving" @click="$emit('close')" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
-          <button class="primary" type="submit" :disabled="saving">
-            <AppIcon name="save" :size="16" />
+          <button class="primary" type="submit" :class="{ 'is-loading': saving }" :disabled="saving">
+            <span v-if="saving" class="btn-spinner" aria-hidden="true"></span>
+            <AppIcon v-else name="save" :size="16" />
             {{ saving ? '正在保存…' : '保存课次' }}
           </button>
         </div>

@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useMobileMedia } from '../composables/useMobileMedia'
 import { navigateUp } from '../services/backLayers'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/common/AppIcon.vue'
+import BusyOverlay from '../components/layout/BusyOverlay.vue'
 import SidebarNav from '../components/layout/SidebarNav.vue'
 import TodoCenterDrawer from '../components/layout/TodoCenterDrawer.vue'
 import UserMenu from '../components/layout/UserMenu.vue'
@@ -245,8 +246,28 @@ const ensureTaskFromRoute = async () => {
   }
 }
 
+// 写入、上传、归档由当前页面驱动，中途离开会丢失结果，关闭标签页前让浏览器二次确认。
+// AI 生成任务由后端 Worker 执行，离开页面不会中断，只需要提示老师可以稍后回来查看。
+const ACTIVE_JOB_STATUSES = new Set(['QUEUED', 'RUNNING', 'PROCESSING'])
+const activeJobCount = computed(() => Object.values(state.jobProgress || {})
+  .filter((job) => ACTIVE_JOB_STATUSES.has(String(job?.status || '').toUpperCase())).length)
+const hasUnfinishedWork = computed(() => Boolean(
+  state.isProcessing
+  || state.archiveRunState?.phase === 'running'
+))
+const confirmBeforeUnload = (event) => {
+  if (!hasUnfinishedWork.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
 onMounted(() => {
   applyTheme(activeTheme.value)
+  window.addEventListener('beforeunload', confirmBeforeUnload)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', confirmBeforeUnload)
 })
 
 useMobileMedia(isMobileApp, (matches) => {
@@ -332,6 +353,12 @@ onBeforeRouteUpdate(async (to, from) => {
       @select-task="selectTodoTask"
       @open-supervision="openNav('supervision')"
     />
+
+    <BusyOverlay :active="Boolean(state.isProcessing)" :label="state.processingAction" />
+    <div v-if="activeJobCount && !state.isProcessing" class="job-chip" role="status" aria-live="polite">
+      <span class="btn-spinner" aria-hidden="true"></span>
+      <span>{{ activeJobCount }} 个 AI 任务后台处理中，可以先去做别的，完成后回来查看</span>
+    </div>
 
     <section class="content" :class="{ 'mobile-app-content': isMobileApp }">
       <div v-if="showShellToast" class="toast" role="status" aria-live="polite">

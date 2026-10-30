@@ -1001,7 +1001,7 @@ onMounted(() => {
             />
             <div class="mobile-student-editor-actions">
               <small v-if="feedbackProgress(mobileStudent)" class="delivery-job-progress" :class="{ 'delivery-job-failed': feedbackProgress(mobileStudent).status === 'FAILED' }">{{ feedbackJobActive(mobileStudent) ? 'AI 正在生成' : jobProgressLabel(feedbackProgress(mobileStudent)) }}</small>
-              <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)"><AppIcon name="retry" :size="15" />{{ feedbackJobActive(mobileStudent) ? '生成中…' : '重新生成' }}</button>
+              <button type="button" class="secondary" :class="{ 'is-loading': feedbackJobActive(mobileStudent) }" :disabled="state.isProcessing || feedbackJobActive(mobileStudent) || !mobileStudent.record?.trim()" @click="regenerateComment(mobileStudent)"><span v-if="feedbackJobActive(mobileStudent)" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="retry" :size="15" />{{ feedbackJobActive(mobileStudent) ? '生成中…' : '重新生成' }}</button>
               <SaveStatus v-if="draftStatusTextFor(mobileStudent, 'comment')" :status="draftSaveState(mobileStudent)" @retry="retryDraft(mobileStudent)" />
             </div>
           </article>
@@ -1093,7 +1093,7 @@ onMounted(() => {
 
         <footer v-if="!clientTemplateSelected" class="artwork-process-actions">
           <small v-if="artworkProgress(artworkItem)" class="delivery-job-progress" :class="{ 'delivery-job-failed': artworkProgress(artworkItem).status === 'FAILED' }">{{ jobProgressLabel(artworkProgress(artworkItem)) }}</small>
-          <button type="button" class="secondary" :disabled="state.isProcessing || artworkJobActive(artworkItem) || !artworkItem.imageMatched" @click="processCurrentImage(artworkItem)">{{ artworkJobActive(artworkItem) ? '处理中…' : processActionLabel }}</button>
+          <button type="button" class="secondary" :class="{ 'is-loading': artworkJobActive(artworkItem) }" :disabled="state.isProcessing || artworkJobActive(artworkItem) || !artworkItem.imageMatched" @click="processCurrentImage(artworkItem)"><span v-if="artworkJobActive(artworkItem)" class="btn-spinner" aria-hidden="true"></span>{{ artworkJobActive(artworkItem) ? '处理中…' : processActionLabel }}</button>
         </footer>
 
         <label class="inline-check artwork-highlight-setting" for="artwork-highlight"><input id="artwork-highlight" name="artworkHighlight" type="checkbox" :checked="artworkItem.highlight" @change="state.toggleHighlight(artworkItem)" /><span>标记为本节高光作品</span></label>
@@ -1134,7 +1134,7 @@ onMounted(() => {
 
         <footer class="modal-actions">
           <button type="button" class="ghost icon-only" :disabled="state.isProcessing" @click="closeAiPrompt" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
-          <button type="button" class="primary" :disabled="state.isProcessing || artworkJobActive(artworkItem)" @click="submitAiPrompt"><AppIcon name="play" :size="15" />{{ artworkJobActive(artworkItem) ? '处理中…' : '开始 AI 处理' }}</button>
+          <button type="button" class="primary" :class="{ 'is-loading': artworkJobActive(artworkItem) }" :disabled="state.isProcessing || artworkJobActive(artworkItem)" @click="submitAiPrompt"><span v-if="artworkJobActive(artworkItem)" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="play" :size="15" />{{ artworkJobActive(artworkItem) ? '处理中…' : '开始 AI 处理' }}</button>
         </footer>
       </section>
     </div>
@@ -1202,7 +1202,7 @@ onMounted(() => {
         </div>
 
         <footer class="drawer-action-bar">
-          <button type="button" class="secondary" :disabled="state.isProcessing || feedbackJobActive(commentRow) || !commentRow.record?.trim()" @click="regenerateComment(commentRow)"><AppIcon name="retry" :size="15" />{{ feedbackJobActive(commentRow) ? '生成中…' : '重新生成' }}</button>
+          <button type="button" class="secondary" :class="{ 'is-loading': feedbackJobActive(commentRow) }" :disabled="state.isProcessing || feedbackJobActive(commentRow) || !commentRow.record?.trim()" @click="regenerateComment(commentRow)"><span v-if="feedbackJobActive(commentRow)" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="retry" :size="15" />{{ feedbackJobActive(commentRow) ? '生成中…' : '重新生成' }}</button>
           <SaveStatus v-if="draftStatusTextFor(commentRow, 'comment')" :status="draftSaveState(commentRow)" @retry="retryDraft(commentRow)" />
         </footer>
       </aside>
@@ -1228,7 +1228,7 @@ onMounted(() => {
               />
             </label>
             <small v-if="batchJobProgressText('ARTWORK')" class="delivery-job-progress">{{ batchJobProgressText('ARTWORK') }}</small>
-            <button type="button" class="secondary" :disabled="state.isProcessing || !state.counts.matched" @click="processAll">{{ state.isProcessing ? '处理中…' : '批量处理作品' }}</button>
+            <button type="button" class="secondary" :class="{ 'is-loading': state.isProcessing }" :disabled="state.isProcessing || !state.counts.matched" @click="processAll"><span v-if="state.isProcessing" class="btn-spinner" aria-hidden="true"></span>{{ state.isProcessing ? '处理中…' : '批量处理作品' }}</button>
           </section>
 
           <section class="batch-operation-card">
@@ -1246,7 +1246,7 @@ onMounted(() => {
               />
             </label>
             <small v-if="batchJobProgressText('FEEDBACK')" class="delivery-job-progress">{{ batchJobProgressText('FEEDBACK') }}</small>
-            <button type="button" class="secondary" :disabled="state.isProcessing || !state.counts.records" @click="generateAll">{{ state.isProcessing ? '生成中…' : '批量生成课评' }}</button>
+            <button type="button" class="secondary" :class="{ 'is-loading': state.isProcessing }" :disabled="state.isProcessing || !state.counts.records" @click="generateAll"><span v-if="state.isProcessing" class="btn-spinner" aria-hidden="true"></span>{{ state.isProcessing ? '生成中…' : '批量生成课评' }}</button>
           </section>
         </div>
       </aside>

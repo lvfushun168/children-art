@@ -579,10 +579,6 @@ watch(homeworkEditorOpen, async (open) => {
 
 <template>
   <section class="wizard panel">
-    <div v-if="state.isProcessing" class="processing-bar">
-      <span></span>
-      <strong>处理中…</strong>
-    </div>
     <header class="wizard-head">
       <div>
         <span>{{ state.activeTask.date }} · {{ state.activeTask.time }} · {{ state.activeTask.lessonType }}</span>

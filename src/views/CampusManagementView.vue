@@ -177,9 +177,10 @@ useBackLayer(editorOpen, closeEditor)
         <label v-if="isEditing"><span>状态</span><AdaptiveSelect v-model="campusForm.status" :options="editorStatusOptions" /></label>
         <div class="drawer-actions">
           <button class="ghost icon-only" type="button" @click="closeEditor" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)">
-            <AppIcon name="save" :size="15" />
-            {{ isEditing ? '保存修改' : '创建校区' }}
+          <button class="primary" type="submit" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)">
+            <span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span>
+            <AppIcon v-else name="save" :size="15" />
+            {{ state.processingAction ? '保存中…' : isEditing ? '保存修改' : '创建校区' }}
           </button>
         </div>
       </form>

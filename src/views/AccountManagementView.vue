@@ -297,7 +297,7 @@ useBackLayer(() => Boolean(drawer.value), closeDrawer)
         </div>
         <div class="drawer-actions">
           <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="save" :size="15" />保存</button>
+          <button class="primary" type="submit" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)"><span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="save" :size="15" />{{ state.processingAction ? '保存中…' : '保存' }}</button>
         </div>
       </form>
 
@@ -306,7 +306,7 @@ useBackLayer(() => Boolean(drawer.value), closeDrawer)
         <label><span>绑定角色</span><AdaptiveMultiSelect v-model="selectedRoleIds" :options="roleOptions" placeholder="请选择角色" /></label>
         <div class="drawer-actions">
           <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="save" :size="15" />保存角色</button>
+          <button class="primary" type="submit" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)"><span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="save" :size="15" />{{ state.processingAction ? '保存中…' : '保存角色' }}</button>
         </div>
       </form>
 
@@ -331,7 +331,7 @@ useBackLayer(() => Boolean(drawer.value), closeDrawer)
         <label><span>新密码</span><input v-model="passwordForm.password" type="password" minlength="6" required /></label>
         <div class="drawer-actions">
           <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
-          <button class="primary" type="submit" :disabled="Boolean(state.processingAction)"><AppIcon name="check" :size="15" />确认重置</button>
+          <button class="primary" type="submit" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)"><span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="check" :size="15" />{{ state.processingAction ? '处理中…' : '确认重置' }}</button>
         </div>
       </form>
     </aside>

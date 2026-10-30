@@ -8,6 +8,7 @@ import ProtectedMedia from '../common/ProtectedMedia.vue'
 import AppIcon from '../common/AppIcon.vue'
 import AppStatusTag from '../common/AppStatusTag.vue'
 import { sameId } from '../../services/mappers'
+import { useBackLayer } from '../../composables/useBackLayer'
 import { imageTemplateSummary, isClientCanvasTemplate, renderArtworkFile } from '../../services/imageTemplateRenderer'
 
 const props = defineProps({
@@ -597,6 +598,15 @@ const regenerateComment = async (row) => {
     props.state.pulseComment?.()
   }
 }
+
+// 系统返回手势按打开顺序逐层关闭：学生详情 → 事项子页 → 各抽屉。
+useBackLayer(() => Boolean(mobileStudent.value), closeMobileStudent)
+useBackLayer(() => Boolean(mobileSection.value), closeMobileSection)
+useBackLayer(() => Boolean(artworkRow.value), closeArtwork)
+useBackLayer(() => aiPromptOpen.value && Boolean(artworkItem.value), closeAiPrompt)
+useBackLayer(() => Boolean(commentRow.value), closeComment)
+useBackLayer(batchOpen, closeBatch)
+useBackLayer(totalFeedbackOpen, closeTotalFeedback)
 
 watch(() => props.state.activeTask.id, () => {
   artworkStudentId.value = null

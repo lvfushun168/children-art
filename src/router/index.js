@@ -1,3 +1,4 @@
+import '../services/backLayers.js'
 import { createRouter, createWebHistory } from 'vue-router'
 import WorkspaceShell from '../views/WorkspaceShell.vue'
 import {
@@ -48,7 +49,8 @@ const routes = [
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
-  scrollBehavior: () => ({ top: 0 })
+  // 关闭抽屉等页面内层级也会触发同地址的导航，此时不能把页面滚回顶部。
+  scrollBehavior: (to, from) => (to.fullPath === from.fullPath ? false : { top: 0 })
 })
 
 export default router

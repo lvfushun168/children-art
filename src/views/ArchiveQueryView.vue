@@ -2,6 +2,7 @@
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import HighlightMark from '../components/common/HighlightMark.vue'
 import { computed, reactive, ref, watch } from 'vue'
+import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -558,6 +559,10 @@ const isVideoAsset = (asset) => mediaTypeOf(asset).startsWith('video/') || video
 const assetFileLabel = (asset) => (extensionOf(asset) || (isVideoAsset(asset) ? 'VIDEO' : 'FILE')).toUpperCase()
 
 const formatFrameFee = (value) => `¥${Number(value || 0).toFixed(2)}`
+
+useBackLayer(showWorkDrawer, closeWorkDrawer)
+useBackLayer(() => showLessonDrawer.value && Boolean(selectedLesson.value), () => { showLessonDrawer.value = false })
+useBackLayer(() => showEffectDrawer.value && Boolean(selectedEffect.value), () => { showEffectDrawer.value = false })
 </script>
 
 <template>

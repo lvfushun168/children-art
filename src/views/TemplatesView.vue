@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { useBackLayer } from '../composables/useBackLayer'
 import { useMobileMedia } from '../composables/useMobileMedia'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -281,6 +282,10 @@ const backToGroup = () => {
 useMobileMedia(isMobileFlow, (matches) => {
   if (matches && !isDrawerOpen.value) mobileStage.value = 'types'
 })
+
+// 系统返回手势：先关闭详情，再从列表回到模板类型。
+useBackLayer(() => isMobileFlow.value && mobileStage.value === 'list', returnToTypes)
+useBackLayer(isDrawerOpen, closeDrawer)
 </script>
 
 <template>

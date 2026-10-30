@@ -2,6 +2,7 @@
 import HintTip from '../components/common/HintTip.vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, ref, watch } from 'vue'
+import { useBackLayer } from '../composables/useBackLayer'
 import { useMobileMedia } from '../composables/useMobileMedia'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -765,6 +766,8 @@ useMobileMedia(isMobileFlow, (matches) => {
   if (matches) mobileShowingDetail.value = false
 })
 
+useBackLayer(drawerOpen, returnToList)
+useBackLayer(wecomGroupDialogOpen, closeStudentWecomGroupDialog)
 </script>
 
 <template>

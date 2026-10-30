@@ -1,5 +1,6 @@
 <script setup>
 import { onBeforeUnmount, watch } from 'vue'
+import { useBackLayer } from '../../composables/useBackLayer'
 import ProtectedMedia from './ProtectedMedia.vue'
 import AppIcon from './AppIcon.vue'
 
@@ -27,6 +28,8 @@ watch(() => props.open, (open) => {
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown)
 })
+
+useBackLayer(() => props.open, close)
 </script>
 
 <template>

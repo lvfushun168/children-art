@@ -6,6 +6,7 @@ import App from './App.vue'
 import AdaptiveMultiSelect from './components/common/AdaptiveMultiSelect.vue'
 import AdaptiveSelect from './components/common/AdaptiveSelect.vue'
 import router from './router/index.js'
+import { installBackLayers } from './services/backLayers'
 import '@vuepic/vue-datepicker/dist/main.css'
 import './style.css'
 
@@ -18,6 +19,8 @@ const i18n = createI18n({
     'zh-CN': toVueI18nSyntax(translationsZhCN)
   }
 })
+
+installBackLayers(router)
 
 createApp(App)
   .component('AdaptiveMultiSelect', AdaptiveMultiSelect)

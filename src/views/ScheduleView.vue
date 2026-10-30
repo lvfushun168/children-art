@@ -1,6 +1,7 @@
 <script setup>
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, onMounted, ref, watch } from 'vue'
+import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import ClassLessonGenerationDialog from '../components/masterdata/ClassLessonGenerationDialog.vue'
@@ -198,6 +199,9 @@ onMounted(async () => {
   ready.value = true
   await reload()
 })
+
+useBackLayer(showLessonActions, closeLessonActions)
+useBackLayer(showLessonEditor, closeLessonEditor)
 </script>
 
 <template>

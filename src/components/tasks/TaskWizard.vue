@@ -13,6 +13,7 @@ import TeacherEffectPreview from './TeacherEffectPreview.vue'
 import ProtectedMedia from '../common/ProtectedMedia.vue'
 import MarkdownEditor from '../common/MarkdownEditor.vue'
 import { sameId } from '../../services/mappers'
+import { useBackLayer } from '../../composables/useBackLayer'
 import { markdownToPlainText } from '../../services/markdown.js'
 import { isReferenceMaterialType, MATERIAL_CATEGORIES } from '../../services/materialTypes'
 import { finishArchiveAndExit as runArchiveAndExit } from '../../services/lessonWorkflow.js'
@@ -486,6 +487,14 @@ const handleMaterialReplace = async (event) => {
   if (!file || !target) return
   await props.state.replaceLessonMaterial(target.material, file, target.category)
 }
+// 系统返回手势：先关闭抽屉，再逐步回到上一步，最后才离开课次。
+useBackLayer(() => props.state.currentStep > 0 && !props.state.showReport, () => goToStep(props.state.currentStep - 1))
+useBackLayer(showResourceDrawer, () => { showResourceDrawer.value = false })
+useBackLayer(showSharePreview, () => { showSharePreview.value = false })
+useBackLayer(homeworkEditorOpen, closeHomeworkEditor)
+useBackLayer(showTeacherEffectDrawer, closeTeacherEffectDrawer)
+useBackLayer(() => Boolean(props.state.cloudProviderPicker?.open), () => props.state.cancelCloudProviderPicker?.())
+
 watch(() => props.state.activeTask.id, () => {
   props.state.cancelCloudProviderPicker?.()
   showResourceDrawer.value = false

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import { useBackLayer } from '../../composables/useBackLayer'
 import AppIcon from '../common/AppIcon.vue'
 import AppStatusTag from '../common/AppStatusTag.vue'
 import { sameId } from '../../services/mappers'
@@ -87,6 +88,8 @@ const openSupervision = () => {
   emit('open-supervision')
   emit('close')
 }
+
+useBackLayer(() => props.open, () => emit('close'))
 </script>
 
 <template>

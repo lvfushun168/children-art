@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { useBackLayer } from '../../composables/useBackLayer'
 import { sameId } from '../../services/mappers'
 import DateTimeRangeField from '../common/DateTimeRangeField.vue'
 import AppIcon from '../common/AppIcon.vue'
@@ -171,6 +172,8 @@ const saveLesson = () => {
   })
   showLessonDialog.value = false
 }
+
+useBackLayer(showLessonDialog, () => { showLessonDialog.value = false })
 </script>
 
 <template>

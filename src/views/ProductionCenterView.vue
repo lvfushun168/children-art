@@ -2,6 +2,7 @@
 import HighlightMark from '../components/common/HighlightMark.vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
 import PageHead from '../components/layout/PageHead.vue'
 import DateRangeFilter from '../components/archive/DateRangeFilter.vue'
@@ -336,6 +337,8 @@ watch(
   },
   { immediate: true }
 )
+
+useBackLayer(showTemplateSaveDialog, () => { showTemplateSaveDialog.value = false })
 </script>
 
 <template>

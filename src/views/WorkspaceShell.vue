@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useMobileMedia } from '../composables/useMobileMedia'
+import { navigateUp } from '../services/backLayers'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/common/AppIcon.vue'
 import SidebarNav from '../components/layout/SidebarNav.vue'
@@ -137,12 +138,12 @@ const retryActivePage = async () => {
 
 const returnToGroup = () => {
   productionHandoff.value = null
-  void router.push(groupPathFor(activeGroup.value?.id || activeGroupId.value))
+  void navigateUp(router, groupPathFor(activeGroup.value?.id || activeGroupId.value))
 }
 
 const returnToMobileGroups = () => {
   productionHandoff.value = null
-  void router.push(HOME_ROUTE_PATH)
+  void navigateUp(router, HOME_ROUTE_PATH)
 }
 
 const openImportCenter = (type = '综合课表') => {
@@ -168,7 +169,7 @@ const launchTaskWorkspace = (task, source = 'today') => {
 const selectTodoTask = (task) => launchTaskWorkspace(task, 'today')
 const openScheduleTask = (task) => launchTaskWorkspace(task, 'schedule')
 const exitTaskWorkspace = (source) => {
-  void router.push(source === 'schedule' ? NAV_ROUTE_PATHS.schedule : NAV_ROUTE_PATHS.tasks)
+  void navigateUp(router, source === 'schedule' ? NAV_ROUTE_PATHS.schedule : NAV_ROUTE_PATHS.tasks)
 }
 
 const flushTaskDraftsBeforeNavigation = async (lessonId) => {

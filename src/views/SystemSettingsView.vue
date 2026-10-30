@@ -1,6 +1,7 @@
 <script setup>
 import HintTip from '../components/common/HintTip.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useBackLayer } from '../composables/useBackLayer'
 import { useMobileMedia } from '../composables/useMobileMedia'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -692,6 +693,10 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', closeArchiveRuleVariableMenuFromOutside)
   document.removeEventListener('keydown', closeArchiveRuleVariableMenuFromKeyboard)
 })
+
+// 系统返回手势：先关闭百度网盘抽屉，再从详情回到列表。
+useBackLayer(() => isMobileFlow.value && mobileStage.value === 'detail', returnToList)
+useBackLayer(isBaiduDrawerOpen, closeBaiduProviderDrawer)
 </script>
 
 <template>

@@ -1265,13 +1265,13 @@
 
   .mobile-student-detail-actions {
     position: sticky;
-    bottom: -14px;
+    bottom: -12px;
     z-index: 4;
     display: grid;
     grid-template-columns: 110px minmax(0, 1fr);
     gap: 8px;
-    margin: 4px -14px -14px;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    margin: 4px -12px -12px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
     background: color-mix(in srgb, var(--color-surface-warm) 96%, transparent);
     box-shadow: 0 -10px 24px color-mix(in srgb, var(--color-heading) 8%, transparent);
   }
@@ -12728,13 +12728,18 @@ textarea:focus,
     gap: 10px;
   }
 
+  /* 手机端不再用页面、内容、向导三层卡片，内容铺满屏幕，只有各个条目自己是卡片。 */
   .app-shell-mobile {
-    padding: 10px;
+    padding: 0;
   }
 
   .app-shell-mobile .content {
-    min-height: calc(100dvh - 20px);
+    min-height: 100dvh;
     padding: 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .nav-rail {
@@ -13233,8 +13238,11 @@ textarea:focus,
   }
 
   .app-shell-mobile .wizard.panel {
-    padding: 14px;
+    padding: 0;
+    border: 0;
     border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .app-shell-mobile .wizard-head {
@@ -13257,8 +13265,8 @@ textarea:focus,
     grid-auto-flow: column;
     grid-template-columns: none;
     gap: 8px;
-    margin: 4px -14px 18px;
-    padding: 0 14px 8px;
+    margin: 4px -12px 18px;
+    padding: 0 12px 8px;
     overflow-x: auto;
     border-bottom: 1px solid var(--color-border-soft);
     scroll-snap-type: x proximity;
@@ -13490,8 +13498,8 @@ textarea:focus,
     z-index: 20;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    margin: 16px -14px -14px;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    margin: 16px -12px -12px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
     background: color-mix(in srgb, var(--color-surface-warm) 96%, transparent);
     box-shadow: 0 -10px 24px color-mix(in srgb, var(--color-heading) 8%, transparent);
   }

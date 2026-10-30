@@ -2,6 +2,7 @@
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import DrawerHead from '../components/common/DrawerHead.vue'
 import { computed, onMounted, ref } from 'vue'
+import { useBackLayer } from '../composables/useBackLayer'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
 import PageHead from '../components/layout/PageHead.vue'
@@ -128,6 +129,9 @@ const savePermissions = async () => {
 }
 
 onMounted(loadData)
+
+useBackLayer(editorOpen, closeRoleEditor)
+useBackLayer(permissionDrawerOpen, closePermissionDrawer)
 </script>
 
 <template>

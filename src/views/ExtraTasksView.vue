@@ -2,6 +2,7 @@
 import HighlightMark from '../components/common/HighlightMark.vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import { computed, onMounted, ref, watch } from 'vue'
+import { useBackLayer } from '../composables/useBackLayer'
 import { useMobileMedia } from '../composables/useMobileMedia'
 import AppIcon from '../components/common/AppIcon.vue'
 import AppStatusTag from '../components/common/AppStatusTag.vue'
@@ -315,6 +316,8 @@ onMounted(() => {
 useMobileMedia(isMobileFlow, (matches) => {
   if (matches) mobileShowingDetail.value = false
 })
+
+useBackLayer(drawerOpen, returnToList)
 </script>
 
 <template>

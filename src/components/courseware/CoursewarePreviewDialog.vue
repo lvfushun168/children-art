@@ -1,6 +1,7 @@
 <script setup>
 import LoadingSpinner from '../common/LoadingSpinner.vue'
 import { computed, createVNode, defineAsyncComponent, nextTick, onBeforeUnmount, ref, render, watch } from 'vue'
+import { useBackLayer } from '../../composables/useBackLayer'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import JSZip from 'jszip'
@@ -645,6 +646,8 @@ onBeforeUnmount(() => {
   destroyOffice(); destroyPptxViewer(); destroyPdf(); destroyContent()
 })
 document.addEventListener('fullscreenchange', syncOfficeFullscreen)
+
+useBackLayer(() => Boolean(props.preview || props.loading), () => emit('close'))
 </script>
 
 <template>

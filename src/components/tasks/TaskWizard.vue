@@ -624,9 +624,6 @@ watch(homeworkEditorOpen, async (open) => {
 
       <section v-if="state.currentStep === 1" class="step-panel">
         <div class="section-head">
-          <div>
-            <strong>确认课次信息和学生出勤</strong>
-          </div>
         </div>
         <div v-if="state.activeTask.status === '异常'" class="lesson-warning">
           <strong>这节课的信息需要确认</strong>
@@ -672,9 +669,6 @@ watch(homeworkEditorOpen, async (open) => {
 
       <section v-if="state.currentStep === 0" class="step-panel">
         <div class="section-head">
-          <div>
-            <strong>整理本节课的课堂素材</strong>
-          </div>
           <button v-if="state.canReadCourseware" class="ghost" type="button" @click="$emit('navigate', 'courseware')"><AppIcon name="courseware" :size="15" />打开课件库</button>
         </div>
 
@@ -800,9 +794,6 @@ watch(homeworkEditorOpen, async (open) => {
 
       <section v-if="state.currentStep === 3" class="step-panel">
         <div class="section-head">
-          <div>
-            <strong>课后任务与家长页面</strong>
-          </div>
           <div class="section-actions">
             <SaveStatus v-if="shareDraftStatusText()" :status="shareDraftStatus() === 'ERROR' ? 'error' : ['DIRTY', 'SAVING'].includes(shareDraftStatus()) ? 'saving' : 'saved'" saved-label="已自动保存" saving-label="自动保存中" :error-label="state.shareDraftErrorFor?.() || '保存失败，点击重试'" @retry="retryShareDraft()" />
             <button class="secondary" type="button" @click="showSharePreview = true"><AppIcon name="view" :size="15" />家长页面预览</button>
@@ -1025,9 +1016,6 @@ watch(homeworkEditorOpen, async (open) => {
 
       <section v-if="state.currentStep === 4" class="step-panel">
         <div class="section-head">
-          <div>
-            <strong>完成本节归档</strong>
-          </div>
         </div>
         <section class="archive-checklist-panel">
           <article class="archive-summary-card">

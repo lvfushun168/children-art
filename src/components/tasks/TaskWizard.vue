@@ -1048,7 +1048,6 @@ watch(homeworkEditorOpen, async (open) => {
             </div>
             <div v-if="state.currentWarnings.length" class="archive-blocker">
               <strong>还有 {{ state.currentWarnings.length }} 项内容未完成</strong>
-              <small>{{ state.currentWarnings.slice(0, 3).join('、') }}{{ state.currentWarnings.length > 3 ? '……' : '' }}</small>
             </div>
             <div v-else-if="!state.archiveChecklistReady" class="archive-result-status">
               <strong>待完成项</strong>
@@ -1083,17 +1082,16 @@ watch(homeworkEditorOpen, async (open) => {
                   </div>
                 </template>
                 <div v-if="item.key === 'parentTouch' && state.activeTask?.status !== '已完成'" class="touch-fallback">
-                  <p>按顺序复制总课评、作品、课堂记录和个人课评；在微信发送后，再勾选对应学生。</p>
                   <div v-for="row in state.attendingRows" :key="`touch-${row.lessonId}-${row.studentId}`" class="touch-fallback-row">
                     <div>
                       <strong>{{ studentFor(row.studentId).name }}<em v-if="row.studentArchived" class="archived-reference" title="已归档" aria-label="已归档"><AppIcon name="archive" :size="13" /></em></strong>
                       <small>{{ studentFor(row.studentId).parent }}</small>
                     </div>
-                    <button class="ghost" type="button" :disabled="state.isProcessing" @click="state.copyParentRichContent(row)"><AppIcon name="copy" :size="15" />复制图文</button>
+                    <button class="secondary" type="button" :disabled="state.isProcessing" @click="state.copyParentRichContent(row)"><AppIcon name="copy" :size="15" />复制图文</button>
                     <label class="send-check-control" :class="{ 'is-checked': Boolean(state.parentSendCheckFor(row)?.checked) }">
                       <input type="checkbox" :checked="Boolean(state.parentSendCheckFor(row)?.checked)" :disabled="!sameId(state.parentSendChecklist?.lessonId, state.activeTask?.id) || state.isProcessing" @change="state.setParentSendCheck(row, $event.target.checked)" />
                       <span class="send-check-mark" aria-hidden="true">✓</span>
-                      <span>已发送</span>
+                      <span>{{ state.parentSendCheckFor(row)?.checked ? '已发送' : '标记已发送' }}</span>
                     </label>
                   </div>
                 </div>

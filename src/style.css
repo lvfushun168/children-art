@@ -7344,8 +7344,9 @@ textarea:focus,
 }
 
 .send-check-control.is-checked {
-  background: var(--color-primary-soft);
-  border-color: var(--color-border-strong);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
 }
 
 .send-check-control:focus-within {
@@ -7382,8 +7383,9 @@ textarea:focus,
 }
 
 .send-check-control.is-checked .send-check-mark {
-  background: var(--color-primary);
-  color: var(--color-surface);
+  border-color: var(--color-primary-contrast);
+  background: var(--color-primary-contrast);
+  color: var(--color-primary);
 }
 
 .qr-code.mini {
@@ -13925,14 +13927,21 @@ textarea:focus,
     padding: 12px;
   }
 
+  /* 手机端：第一行学生姓名，第二行“复制图文”和“标记已发送”等宽并排，顺序正好对应操作流程 */
   .app-shell-mobile .touch-fallback-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-    padding: 10px 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px 0;
+  }
+
+  .app-shell-mobile .touch-fallback-row > div {
+    grid-column: 1 / -1;
   }
 
   .app-shell-mobile .touch-fallback-row .send-check-control {
-    justify-self: end;
+    justify-self: stretch;
+    min-width: 0;
+    min-height: 44px;
   }
 
   .app-shell-mobile .touch-fallback-row .qr-code {
@@ -13940,9 +13949,8 @@ textarea:focus,
   }
 
   .app-shell-mobile .touch-fallback-row button {
-    grid-column: 1 / -1;
     width: 100%;
-    min-height: 40px;
+    min-height: 44px;
   }
 
   .app-shell-mobile .archive-check-actions {

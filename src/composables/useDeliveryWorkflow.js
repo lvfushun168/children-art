@@ -418,7 +418,7 @@ export function useDeliveryWorkflow() {
     teacherEffectArchive: { status: '待生成', detail: '', title: '', imageCount: 0, updatedAt: '' },
     wheatTrace: {
       status: '待确认',
-      detail: '请先在小麦完成本节课消课，再返回当前页面确认',
+      detail: '',
       traceId: null,
       version: 0,
       updatedAt: ''
@@ -1516,9 +1516,8 @@ export function useDeliveryWorkflow() {
     {
       key: 'wheatTrace',
       title: '小麦消课确认',
-      meta: archiveChecklist.value.wheatTrace.status === '已确认'
-        ? '已记录本节课小麦消课结果'
-        : '请先在小麦完成本节课消课，再返回当前页面确认',
+      // 状态标签和下方的勾选框已经说明了要做什么、做没做，不再重复提示文案
+      meta: '',
       action: '确认已完成',
       required: true,
       item: archiveChecklist.value.wheatTrace
@@ -2242,7 +2241,7 @@ export function useDeliveryWorkflow() {
       status: '已确认',
       traceId: trace.id,
       version: Number(trace.version || 0),
-      detail: '已在小麦完成本节课消课'
+      detail: ''
     })
     return trace
   }
@@ -4212,9 +4211,7 @@ export function useDeliveryWorkflow() {
         status: wheat.status === '已确认' ? '已确认' : '待确认',
         traceId: wheat.id || null,
         version: Number(wheat.version || 0),
-        detail: wheat.status === '已确认'
-          ? '已记录本节课小麦消课结果'
-          : '请先在小麦完成本节课消课，再返回当前页面确认'
+        detail: ''
       }
     })
     replaceReactive(wheatTraces, [...wheatTraces.filter((item) => !sameId(item.lessonId, lesson.id)), wheat.id ? { ...wheat, lesson: `${lesson.date} ${lesson.time} · ${lesson.className}`, course: lesson.courseTitle, teacher: lesson.teacher } : null].filter(Boolean))

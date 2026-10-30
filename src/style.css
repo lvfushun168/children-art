@@ -2324,7 +2324,6 @@ small,
 .nav-summary small,
 .page-head span,
 .task-card small,
-.wizard-head span,
 .stepper small,
 .context-grid span,
 .context-grid small,
@@ -3434,8 +3433,7 @@ h2 {
   }
 }
 
-.section-head,
-.wizard-head {
+.section-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3600,34 +3598,154 @@ h2 {
   }
 }
 
-.wizard-head {
+.lesson-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px auto;
-  padding-bottom: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 210px);
+  align-items: center;
+  gap: 12px 28px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--color-border-soft);
 }
 
-.lesson-topic-line {
-  display: block;
-  margin-top: 4px;
-}
-
-.lesson-status {
+.lesson-head-main {
   display: grid;
-  gap: 4px;
-  align-self: center;
+  gap: 8px;
   min-width: 0;
 }
 
-.lesson-status strong {
-  font-size: 18px;
-  line-height: 1;
+.lesson-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
-.lesson-status span,
-.lesson-status small {
+.lesson-chip,
+.lesson-type-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.lesson-chip {
+  background: var(--color-surface-muted);
+  color: var(--color-subtle);
+  font-weight: 700;
+}
+
+.lesson-type-tag {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lesson-head h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.lesson-head-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.lesson-head-sub span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.lesson-topic {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lesson-topic strong {
+  flex: 0 0 auto;
+}
+
+.lesson-head-aside {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.lesson-head-aside .app-status-tag {
+  justify-self: end;
+}
+
+.lesson-progress {
+  display: grid;
+  gap: 6px;
+}
+
+.lesson-progress-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   color: var(--color-muted);
   font-size: 12px;
+}
+
+.lesson-progress-label strong {
+  color: var(--color-primary);
+  font-size: 13px;
+}
+
+.lesson-progress-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--color-progress-track);
+}
+
+.lesson-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-progress-fill);
+  transition: width 0.4s ease;
+}
+
+@media (max-width: 680px) {
+  .lesson-head {
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-head-aside {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .lesson-head-aside .app-status-tag {
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson-progress-fill {
+    transition: none;
+  }
 }
 
 .stepper {
@@ -13174,7 +13292,6 @@ textarea:focus,
   }
 
   .page-head,
-  .wizard-head,
   .section-head {
     align-items: stretch;
   }
@@ -13266,10 +13383,6 @@ textarea:focus,
 
   .section-actions > button {
     flex: 1;
-  }
-
-  .wizard-head {
-    grid-template-columns: 1fr;
   }
 
   .page-head {
@@ -13594,18 +13707,18 @@ textarea:focus,
     box-shadow: none;
   }
 
-  .app-shell-mobile .wizard-head {
-    min-height: 54px;
+  .app-shell-mobile .lesson-head {
+    grid-template-columns: 1fr;
+  }
+
+  /* 右上角是用户菜单，第一行标签要给它让出位置 */
+  .app-shell-mobile .lesson-head-meta {
+    min-height: 34px;
     padding-right: 106px;
   }
 
-  .app-shell-mobile .wizard-head h2 {
+  .app-shell-mobile .lesson-head h2 {
     font-size: 20px;
-    line-height: 1.25;
-  }
-
-  .app-shell-mobile .wizard-head span {
-    font-size: 13px;
   }
 
   .app-shell-mobile .stepper {

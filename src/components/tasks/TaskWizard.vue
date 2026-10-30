@@ -114,6 +114,10 @@ const shareDraftStatusText = () => {
 }
 const retryShareDraft = () => props.state.retryShareDraft?.()
 const goToStep = (index) => props.state.goToStep?.(index) ?? (props.state.currentStep = index)
+// 头部进度：还没排出勤时进度没有意义，不显示；课次完成后固定为 100%。
+const lessonDone = computed(() => props.state.activeTask?.status === '已完成')
+const showLessonProgress = computed(() => lessonDone.value || (props.state.attendingRows?.length || 0) > 0)
+const lessonProgress = computed(() => lessonDone.value ? 100 : Math.max(0, Math.min(100, Number(props.state.taskProgress) || 0)))
 const homeworkEditorTitle = computed(() => homeworkEditorField.value === 'content' ? '编辑任务内容' : '编辑完成方式 / 家长配合')
 const homeworkEditorPlaceholder = computed(() => homeworkEditorField.value === 'content'
   ? '例如：回家观察一种暖色系物品，说一说它的颜色和形状。'
@@ -587,13 +591,29 @@ watch(homeworkEditorOpen, async (open) => {
 
 <template>
   <section class="wizard panel">
-    <header class="wizard-head">
-      <div>
-        <span>{{ state.activeTask.date }} · {{ state.activeTask.time }} · {{ state.activeTask.lessonType }}</span>
-        <h2>{{ state.activeClass.name }} · {{ state.activeCourse.title }}</h2>
-        <small v-if="state.activeTask.topic" class="lesson-topic-line">本次课题：{{ state.activeTask.topic }}</small>
+    <header class="lesson-head">
+      <div class="lesson-head-main">
+        <div class="lesson-head-meta">
+          <span v-if="state.activeTask.date" class="lesson-chip"><AppIcon name="calendar" :size="14" />{{ state.activeTask.date }}</span>
+          <span v-if="state.activeTask.time" class="lesson-chip"><AppIcon name="pending" :size="14" />{{ state.activeTask.time }}</span>
+          <span v-if="state.activeTask.lessonType" class="lesson-type-tag">{{ state.activeTask.lessonType }}</span>
+        </div>
+        <h2>{{ state.activeCourse.title }}</h2>
+        <div class="lesson-head-sub">
+          <span><AppIcon name="class" :size="15" />{{ state.activeClass.name }}</span>
+          <span v-if="state.attendingRows?.length"><AppIcon name="student" :size="15" />到课 {{ state.attendingRows.length }} 人</span>
+        </div>
+        <p v-if="state.activeTask.topic" class="lesson-topic"><strong>本次课题</strong><span>{{ state.activeTask.topic }}</span></p>
       </div>
-
+      <div class="lesson-head-aside">
+        <AppStatusTag v-if="state.activeTask.status" :status="state.activeTask.status" />
+        <div v-if="showLessonProgress" class="lesson-progress">
+          <div class="lesson-progress-label"><span>整体进度</span><strong>{{ lessonProgress }}%</strong></div>
+          <div class="lesson-progress-track" role="progressbar" aria-label="整体进度" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="lessonProgress">
+            <span class="lesson-progress-fill" :style="{ width: `${lessonProgress}%` }"></span>
+          </div>
+        </div>
+      </div>
     </header>
 
 

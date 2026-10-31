@@ -647,11 +647,13 @@ onBeforeUnmount(() => {
 })
 document.addEventListener('fullscreenchange', syncOfficeFullscreen)
 
-useBackLayer(() => Boolean(props.preview || props.loading), () => emit('close'))
+// 弹层是否打开由父页面的 previewOpen 控制。预览请求完成时，loading 会先结束，
+// preview 随后才写入；不能用这两个状态判断弹层是否仍然存在，否则会触发返回层竞态并自动关闭弹窗。
+useBackLayer(() => true, () => emit('close'))
 </script>
 
 <template>
-  <div v-if="preview || loading" class="preview-backdrop" @click.self="emit('close')">
+  <div class="preview-backdrop" @click.self="emit('close')">
     <section ref="previewDialog" class="preview-dialog" :class="{ 'preview-dialog-fullscreen': officeFullscreen && mode === 'OFFICE' }" role="dialog" aria-modal="true" aria-label="课件预览">
       <header class="preview-head">
         <div>

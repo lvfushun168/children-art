@@ -9379,7 +9379,7 @@ export function useDeliveryWorkflow() {
 
   const remoteCreateBaiduProvider = async (provider) => {
     const saved = await runRemote('正在创建百度网盘账号配置...', () => api.m5.createProvider({
-      scopeType: 'CAMPUS',
+      scopeType: 'ORGANIZATION',
       providerType: 'BAIDU_NETDISK',
       ...baiduProviderBodyFor(provider)
     }), '', () => refreshProviderSettingsState())
@@ -9491,7 +9491,8 @@ export function useDeliveryWorkflow() {
             authType: provider.authType || provider.config?.authType || ''
           }
       if (!provider.id || String(provider.id).startsWith('provider-')) {
-        const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: isDingTalk ? 'ORGANIZATION' : 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
+        const sharedProvider = isBaidu || isAi || isDingTalk
+        const saved = await runRemote('正在创建通道配置...', () => api.m5.createProvider({ scopeType: sharedProvider ? 'ORGANIZATION' : 'CAMPUS', providerType, name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))
         if (!saved) return null
       } else {
         const saved = await runRemote('正在保存通道配置...', () => api.m5.updateProvider(provider.id, { name: provider.name, capabilities: provider.capabilities || [], config, secretRef: isBaidu ? null : provider.secretRef, status: provider.enabled ? 'ENABLED' : 'DISABLED' }), '', () => invalidateResource('settings'))

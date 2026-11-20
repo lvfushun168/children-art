@@ -745,6 +745,9 @@ useBackLayer(isBaiduDrawerOpen, closeBaiduProviderDrawer)
           <strong>{{ draft.name || '请选择配置项' }}</strong>
         </div>
       </div>
+      <p v-if="isCloudCategory || isAiCategory" class="settings-hint">
+        AI 与网盘账号配置按机构共用；课次、作品和归档任务仍按当前校区处理。
+      </p>
       <div v-if="!isProviderSetting"><EmptyState icon="settings" title="暂无可配置的第三方通道" /></div>
       <div v-else class="cloud-setting-panel">
         <section v-if="isCloudCategory" class="master-list panel directory-list-panel">
@@ -874,7 +877,7 @@ useBackLayer(isBaiduDrawerOpen, closeBaiduProviderDrawer)
               <label>授权方式<input value="API Key" disabled /></label>
             </div>
             <div class="form-grid ai-provider-grid">
-              <label class="wide">API Key（直接保存到当前校区配置）
+              <label class="wide">API Key（机构共用配置）
                 <input v-model="provider.secretRef" type="password" :placeholder="provider.secretRefPresent ? '已配置，留空保持不变' : '请输入 API Key'" autocomplete="new-password" />
               </label>
               <label>授权状态<input :value="provider.tokenStatus" disabled /></label>
@@ -951,7 +954,7 @@ useBackLayer(isBaiduDrawerOpen, closeBaiduProviderDrawer)
         <section class="master-form-section">
           <strong>账号配置</strong>
           <div class="form-grid baidu-meta-grid">
-            <label>配置名称<input v-model="baiduDrawerProvider.name" placeholder="例如：大学城校区百度网盘" /></label>
+            <label>配置名称<input v-model="baiduDrawerProvider.name" placeholder="例如：机构百度网盘账号" /></label>
             <label>百度 AppID<input v-model="baiduDrawerProvider.appId" placeholder="百度开放平台 AppID" /></label>
             <label>百度 AppKey<input v-model="baiduDrawerProvider.appKey" placeholder="百度开放平台 AppKey" /></label>
             <label>百度 SecretKey<input v-model="baiduDrawerProvider.secretKey" type="password" :placeholder="baiduDrawerProvider.baiduSecretKeyConfigured ? '已配置，留空保持不变' : '百度开放平台 SecretKey'" autocomplete="new-password" /></label>
@@ -1022,7 +1025,7 @@ useBackLayer(isBaiduDrawerOpen, closeBaiduProviderDrawer)
                   </div>
                 </div>
               </div>
-              <HintTip text="使用花括号变量组成目录层级，保存后由该百度账号的归档任务按当前校区、课次和资料信息渲染。" />
+              <HintTip text="使用花括号变量组成目录层级，保存后由该机构共用百度账号的归档任务按当前校区、课次和资料信息渲染。" />
               <p class="archive-rule-preview">目录预览：<code>{{ archiveRulePreview }}</code></p>
               <HintTip text="文件名模板不填写扩展名；文件扩展名由系统根据源文件自动追加。留空时新归档优先使用素材或作品名称，未填写时沿用源文件名。" />
               <p class="archive-rule-preview">文件名预览：<code>{{ archiveFilenamePreview }}</code></p>

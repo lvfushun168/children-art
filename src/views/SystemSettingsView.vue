@@ -96,6 +96,7 @@ const BAIDU_EDITABLE_FIELDS = [
   'uploadBaseUrl',
   'stateTtl',
   'chunkSizeBytes',
+  'uploadConcurrency',
   'tokenRefreshSkew',
   'enabled'
 ]
@@ -507,6 +508,7 @@ const addProvider = () => {
     uploadBaseUrl: '',
     stateTtl: 'PT10M',
     chunkSizeBytes: 4194304,
+    uploadConcurrency: 2,
     tokenRefreshSkew: 'PT5M',
     tokenStatus: '未授权',
     archiveDefault: false,
@@ -1043,7 +1045,8 @@ useBackLayer(isBaiduDrawerOpen, closeBaiduProviderDrawer)
             <label>百度 API 地址<input v-model="baiduDrawerProvider.apiBaseUrl" placeholder="https://pan.baidu.com" /></label>
             <label>分片上传地址<input v-model="baiduDrawerProvider.uploadBaseUrl" placeholder="https://d.pcs.baidu.com" /></label>
             <label>OAuth State 有效期<input v-model="baiduDrawerProvider.stateTtl" placeholder="PT10M" /></label>
-            <label>分片大小（字节）<input v-model="baiduDrawerProvider.chunkSizeBytes" type="number" min="262144" max="33554432" /></label>
+            <label>分片大小（字节）<input v-model="baiduDrawerProvider.chunkSizeBytes" type="number" min="262144" max="4194304" /></label>
+            <label>分片并发数<input v-model="baiduDrawerProvider.uploadConcurrency" type="number" min="1" max="4" /></label>
             <label>Token 刷新提前量<input v-model="baiduDrawerProvider.tokenRefreshSkew" placeholder="PT5M" /></label>
           </div>
         </details>

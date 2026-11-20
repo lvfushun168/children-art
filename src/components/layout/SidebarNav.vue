@@ -1,7 +1,9 @@
 <script setup>
+import { computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import AdaptiveSelect from '../common/AdaptiveSelect.vue'
 
-defineProps({
+const props = defineProps({
   activeGroupId: {
     type: String,
     required: true
@@ -21,19 +23,43 @@ defineProps({
   school: {
     type: Object,
     required: true
+  },
+  availableCampuses: {
+    type: Array,
+    default: () => []
+  },
+  activeCampusId: {
+    type: [String, Number],
+    default: ''
+  },
+  campusSwitching: {
+    type: Boolean,
+    default: false
   }
 })
 
-defineEmits(['select-group', 'open-todo-center'])
+defineEmits(['select-group', 'open-todo-center', 'switch-campus'])
+
+const campusOptions = computed(() => (props.availableCampuses || []).map((campus) => ({
+  value: campus.id,
+  label: campus.name,
+  description: campus.code
+})))
 </script>
 
 <template>
   <aside class="nav-rail">
-    <div class="brand">
+    <div class="brand campus-brand">
       <span class="brand-mark"><AppIcon name="brand" :size="22" /></span>
-      <div>
+      <div class="campus-brand-copy">
         <strong>课后交付系统</strong>
-        <small>{{ school.campus }}</small>
+        <AdaptiveSelect
+          :model-value="activeCampusId"
+          :options="campusOptions"
+          placeholder="请选择校区"
+          :disabled="campusSwitching || campusOptions.length < 2"
+          @update:model-value="$emit('switch-campus', $event)"
+        />
       </div>
     </div>
 

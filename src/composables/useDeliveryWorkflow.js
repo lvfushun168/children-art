@@ -270,6 +270,7 @@ export function useDeliveryWorkflow() {
   const campusError = ref('')
   let campusLoadPromise = null
   let campusRequestGeneration = 0
+  let campusScopeGeneration = 0
   const statusChangeLogs = reactive([])
   const archiveEditLogs = reactive([])
   const wecomSendTasks = reactive([])
@@ -291,6 +292,8 @@ export function useDeliveryWorkflow() {
   const isLoggedIn = ref(Boolean(getAccessToken() && storedMe.value))
   const currentUserId = ref(null)
   const loginForm = reactive({ phone: '', password: '' })
+  const pendingCampusSelection = ref(false)
+  const campusSwitching = ref(false)
   const remoteLoading = ref(false)
   const remoteReady = ref(false)
   const pageLoading = reactive({})
@@ -641,6 +644,8 @@ export function useDeliveryWorkflow() {
       role: teacher.role || '老师'
     }
   })
+  const availableCampuses = computed(() => (storedMe.value?.campuses || []).filter((campus) => campus?.status === 'ENABLED'))
+  const activeCampusId = computed(() => storedMe.value?.activeCampusId || '')
   const uiTheme = computed(() => String(storedMe.value?.preferences?.uiTheme || ''))
   const isAdmin = computed(() => {
     const permissions = storedMe.value?.permissions || []
@@ -3207,6 +3212,7 @@ export function useDeliveryWorkflow() {
   }
 
   const loadIdentityUsers = async ({ page = 1, pageSize = identityUserPage.pageSize, query = identityUserQuery.value, status = identityUserStatus.value } = {}) => {
+    const scopeGeneration = campusScopeGeneration
     identityLoading.users = true
     identityErrors.users = ''
     const nextPage = Math.max(1, Number(page) || 1)
@@ -3220,6 +3226,7 @@ export function useDeliveryWorkflow() {
         query: identityUserQuery.value || undefined,
         status: identityUserStatus.value || undefined
       }), mapIdentityUser)
+      if (scopeGeneration !== campusScopeGeneration) return null
       replaceReactive(identityUsers, result.items)
       Object.assign(identityUserPage, {
         page: result.page,
@@ -3229,10 +3236,10 @@ export function useDeliveryWorkflow() {
       identityLoaded.users = true
       return result
     } catch (error) {
-      identityErrors.users = remoteErrorMessage(error, '账号列表加载失败')
+      if (scopeGeneration === campusScopeGeneration) identityErrors.users = remoteErrorMessage(error, '账号列表加载失败')
       return null
     } finally {
-      identityLoading.users = false
+      if (scopeGeneration === campusScopeGeneration) identityLoading.users = false
     }
   }
 
@@ -3282,12 +3289,14 @@ export function useDeliveryWorkflow() {
       notify('数据已变化，请刷新后重试')
       return null
     }
-    const outcome = await runIdentity('正在保存账号资料...', () => api.auth.updateUser(userId, {
+    const body = {
       phone: String(payload.phone ?? current?.phone ?? '').trim(),
       displayName: String(payload.displayName ?? current?.displayName ?? '').trim(),
       status: payload.status || current?.status || 'ENABLED',
       version: Number(payload.version ?? current?.version ?? 0)
-    }), '', refreshIdentityUsers)
+    }
+    if (Array.isArray(payload.campusIds)) body.campusIds = identityIdStrings(payload.campusIds)
+    const outcome = await runIdentity('正在保存账号资料...', () => api.auth.updateUser(userId, body), '', refreshIdentityUsers)
     if (!outcome.ok) return null
     await refreshIdentityUsers()
     return mapIdentityUser(outcome.value)
@@ -4854,6 +4863,7 @@ export function useDeliveryWorkflow() {
 
   const refreshInboxLessons = async () => {
     if (!isLoggedIn.value) return null
+    const scopeGeneration = campusScopeGeneration
     const scope = currentTodoScope()
     if (!scope) {
       replaceReactive(inboxLessons)
@@ -4864,6 +4874,7 @@ export function useDeliveryWorkflow() {
     // context. The drawer filters out completed lessons, while WeCom/wheat
     // records may still need their lesson context for display.
     const page = await loadAllPageItems(api.lessons.list, mapLesson, scope)
+    if (scopeGeneration !== campusScopeGeneration) return null
     const items = page.items.filter((lesson) =>
       lesson?.id && lesson.dateValue && lesson.dateValue <= scope.dateTo
     )
@@ -4879,6 +4890,7 @@ export function useDeliveryWorkflow() {
 
   const refreshCloudArchiveTodos = async () => {
     if (!isLoggedIn.value) return null
+    const scopeGeneration = campusScopeGeneration
     const scope = currentTodoScope()
     if (!scope) {
       replaceReactive(cloudArchiveTodos)
@@ -4886,6 +4898,7 @@ export function useDeliveryWorkflow() {
       return []
     }
     const page = await loadAllPageItems(api.m5.cloudJobs, mapCloudArchiveJob, { ...scope, status: 'FAILED' })
+    if (scopeGeneration !== campusScopeGeneration) return null
     const items = page.items.filter((job) => job?.statusCode === 'FAILED' || job?.status === '同步失败')
     replaceReactive(cloudArchiveTodos, items)
     updateListPageMeta('cloudArchiveTodos', { page: 1, pageSize: 200, total: items.length })
@@ -4894,12 +4907,14 @@ export function useDeliveryWorkflow() {
 
   const refreshWecomSendTasks = async () => {
     if (!isLoggedIn.value) return null
+    const scopeGeneration = campusScopeGeneration
     const scope = currentTodoScope()
     if (!scope) {
       replaceReactive(wecomSendTasks)
       return []
     }
     const values = await api.parent.touchTasksForLesson(null, scope)
+    if (scopeGeneration !== campusScopeGeneration) return null
     const items = (Array.isArray(values) ? values : []).map((value) => decorateTouchTask(value))
     replaceReactive(wecomSendTasks, items)
     return items
@@ -4910,9 +4925,11 @@ export function useDeliveryWorkflow() {
       replaceReactive(pendingReviewQueue)
       return []
     }
+    const scopeGeneration = campusScopeGeneration
     const pages = await Promise.all(['PENDING_REVIEW', 'RETURNED'].map((status) =>
       loadAllPageItems(api.m6.qualityReviews, mapQualityReview, { status })
     ))
+    if (scopeGeneration !== campusScopeGeneration) return null
     const byId = new Map()
     pages.flatMap((page) => page.items).forEach((review) => {
       if (review?.id) byId.set(String(review.id), review)
@@ -4938,6 +4955,7 @@ export function useDeliveryWorkflow() {
 
   const loadScheduleLessons = async (params = {}, { force = false, allPages = false } = {}) => {
     if (!isLoggedIn.value) return null
+    const scopeGeneration = campusScopeGeneration
     const page = Math.max(1, Number(params.page || scheduleMeta.page || 1))
     const pageSize = Math.min(200, Math.max(1, Number(params.pageSize || scheduleMeta.pageSize || 200)))
     const filters = { ...params }
@@ -4951,6 +4969,7 @@ export function useDeliveryWorkflow() {
       try {
         if (allPages) {
           const result = await loadAllPageItems(api.lessons.list, mapLesson, filters, pageSize)
+          if (scopeGeneration !== campusScopeGeneration) return null
           const byId = new Map()
           result.items.forEach((lesson) => {
             const hasId = lesson?.id !== null && lesson?.id !== undefined && lesson?.id !== ''
@@ -4963,15 +4982,18 @@ export function useDeliveryWorkflow() {
           return mapped
         }
         const mapped = mapPage(await api.lessons.list({ ...filters, page, pageSize }), mapLesson)
+        if (scopeGeneration !== campusScopeGeneration) return null
         replaceReactive(scheduleLessons, mapped.items)
         Object.assign(scheduleMeta, { page: mapped.page, pageSize: mapped.pageSize, total: mapped.total, filters, allPages: false })
         return mapped
       } catch (error) {
-        scheduleError.value = remoteErrorMessage(error, '课表加载失败')
+        if (scopeGeneration === campusScopeGeneration) scheduleError.value = remoteErrorMessage(error, '课表加载失败')
         throw error
       } finally {
-        scheduleLoading.value = false
-        schedulePromises.delete(promiseKey)
+        if (scopeGeneration === campusScopeGeneration) {
+          scheduleLoading.value = false
+          schedulePromises.delete(promiseKey)
+        }
       }
     })()
     schedulePromises.set(promiseKey, load)
@@ -4998,21 +5020,23 @@ export function useDeliveryWorkflow() {
     const loader = masterApiFor(entity)
     if (!collection || !mapper || !loader || !isLoggedIn.value) return null
     if (!force && pageLoaded[`master:${entity}:${archiveState}`]) return pageMeta[entity]
+    const scopeGeneration = campusScopeGeneration
     const pageKey = `master:${entity}`
     pageLoading[pageKey] = true
     pageErrors[pageKey] = ''
     try {
       const result = mapPage(await loader({ page: 1, pageSize: 50, archiveState }), mapper)
+      if (scopeGeneration !== campusScopeGeneration) return null
       replaceReactive(collection, result.items)
       masterArchiveState[entity] = archiveState
       updateListPageMeta(entity, result)
       pageLoaded[`master:${entity}:${archiveState}`] = true
       return result
     } catch (error) {
-      pageErrors[pageKey] = remoteErrorMessage(error, '基础数据加载失败')
+      if (scopeGeneration === campusScopeGeneration) pageErrors[pageKey] = remoteErrorMessage(error, '基础数据加载失败')
       throw error
     } finally {
-      pageLoading[pageKey] = false
+      if (scopeGeneration === campusScopeGeneration) pageLoading[pageKey] = false
     }
   }
 
@@ -5061,11 +5085,13 @@ export function useDeliveryWorkflow() {
     }
     const promiseKey = `${key}:${page}:${pageSize}:${JSON.stringify(filters)}`
     if (directoryPromises.has(promiseKey)) return directoryPromises.get(promiseKey)
+    const scopeGeneration = campusScopeGeneration
     const load = (async () => {
       directoryLoading[key] = true
       directoryErrors[key] = ''
       try {
         const mapped = mapPage(await loader({ ...filters, page, pageSize }), mapper)
+        if (scopeGeneration !== campusScopeGeneration) return null
         if (key === 'students' && mapped.items.length) {
           let bindings = []
           try {
@@ -5074,6 +5100,7 @@ export function useDeliveryWorkflow() {
             // 客户群补充信息失败不应阻断学生主列表，但必须让用户知道这部分信息没有加载成功。
             notify(remoteErrorMessage(error, '学生家长群信息加载失败'), 'error')
           }
+          if (scopeGeneration !== campusScopeGeneration) return null
           const byStudent = new Map((Array.isArray(bindings) ? bindings : []).map((binding) => [String(binding.studentId), {
             ...binding,
             id: fromApiId(binding.id),
@@ -5086,11 +5113,13 @@ export function useDeliveryWorkflow() {
         Object.assign(pageState, { page: mapped.page, pageSize: mapped.pageSize, total: mapped.total, filters })
         return mapped
       } catch (error) {
-        directoryErrors[key] = remoteErrorMessage(error, '列表加载失败')
+        if (scopeGeneration === campusScopeGeneration) directoryErrors[key] = remoteErrorMessage(error, '列表加载失败')
         throw error
       } finally {
-        directoryLoading[key] = false
-        directoryPromises.delete(promiseKey)
+        if (scopeGeneration === campusScopeGeneration) {
+          directoryLoading[key] = false
+          directoryPromises.delete(promiseKey)
+        }
       }
     })()
     directoryPromises.set(promiseKey, load)
@@ -5099,7 +5128,9 @@ export function useDeliveryWorkflow() {
 
   const loadResourceExternalLinks = async () => {
     if (!isLoggedIn.value) return []
+    const scopeGeneration = campusScopeGeneration
     const page = mapPage(await api.master.externalLinks({ page: 1, pageSize: 200, status: 'ENABLED' }), mapExternalLink)
+    if (scopeGeneration !== campusScopeGeneration) return externalLinks
     replaceReactive(externalLinks, page.items)
     return externalLinks
   }
@@ -5133,13 +5164,15 @@ export function useDeliveryWorkflow() {
 
   const loadDirectoryExtraTaskWorks = async (taskId) => {
     if (!taskId) return []
+    const scopeGeneration = campusScopeGeneration
     try {
       const values = await api.m6.extraArtworks(taskId)
+      if (scopeGeneration !== campusScopeGeneration) return []
       const mapped = (Array.isArray(values) ? values : []).map(mapExtraArtwork)
       replaceReactive(extraTaskWorks, mapped)
       return mapped
     } catch (error) {
-      directoryErrors.extraTasks = remoteErrorMessage(error, '课外作品加载失败')
+      if (scopeGeneration === campusScopeGeneration) directoryErrors.extraTasks = remoteErrorMessage(error, '课外作品加载失败')
       throw error
     }
   }
@@ -5147,7 +5180,9 @@ export function useDeliveryWorkflow() {
   const loadClassTypes = async ({ force = false } = {}) => {
     if (!isLoggedIn.value) return []
     if (classTypes.length && !force) return classTypes
+    const scopeGeneration = campusScopeGeneration
     const page = await api.master.classTypes({ page: 1, pageSize: 100, status: 'ENABLED' })
+    if (scopeGeneration !== campusScopeGeneration) return []
     const values = mapPage(page, (value) => ({
       ...value,
       id: fromApiId(value.id),
@@ -5161,19 +5196,23 @@ export function useDeliveryWorkflow() {
 
   const loadCurrentTeacherProfile = async () => {
     if (!isLoggedIn.value) return null
+    const scopeGeneration = campusScopeGeneration
     try {
       const value = mapTeacher(await api.master.currentTeacher())
+      if (scopeGeneration !== campusScopeGeneration) return null
       currentTeacherProfile.value = value
       return value
     } catch {
-      currentTeacherProfile.value = null
+      if (scopeGeneration === campusScopeGeneration) currentTeacherProfile.value = null
       return null
     }
   }
 
   const loadTeacherSourceMappings = async (params = {}) => {
+    const scopeGeneration = campusScopeGeneration
     try {
       const values = await api.master.teacherSourceMappings(params)
+      if (scopeGeneration !== campusScopeGeneration) return null
       replaceReactive(teacherSourceMappings, Array.isArray(values) ? values.map((value) => ({
         ...value,
         id: fromApiId(value.id),
@@ -5190,14 +5229,18 @@ export function useDeliveryWorkflow() {
 
   const refreshWorkbenchSummary = async () => {
     if (!isLoggedIn.value) return null
+    const scopeGeneration = campusScopeGeneration
     const value = await api.workbench.summary()
+    if (scopeGeneration !== campusScopeGeneration) return null
     if (value) Object.assign(shellSummary, value)
     return shellSummary
   }
 
   const refreshTodayLessons = async () => {
     if (!isLoggedIn.value) return null
+    const scopeGeneration = campusScopeGeneration
     const page = mapPage(await api.lessons.today({ page: 1, pageSize: 20 }), mapLesson)
+    if (scopeGeneration !== campusScopeGeneration) return null
     replaceReactive(tasks, page.items)
     updatePageMeta(shellPages.lessons, page)
     updateListPageMeta('tasks', page)
@@ -5207,7 +5250,9 @@ export function useDeliveryWorkflow() {
 
   const refreshTodos = async () => {
     if (!isLoggedIn.value) return null
+    const scopeGeneration = campusScopeGeneration
     const page = mapPage(await api.todo.list({ status: 'OPEN', page: 1, pageSize: 20 }), mapTodo)
+    if (scopeGeneration !== campusScopeGeneration) return null
     replaceReactive(todos, page.items)
     updatePageMeta(shellPages.todos, page)
     updateListPageMeta('todos', page)
@@ -5217,6 +5262,7 @@ export function useDeliveryWorkflow() {
   const loadShellData = async ({ force = false, initialMe = null } = {}) => {
     if (!isLoggedIn.value) return null
     if (remoteReady.value && !force && pageLoaded.shell) return shellSummary
+    const scopeGeneration = campusScopeGeneration
     remoteLoading.value = true
     try {
       const results = await Promise.allSettled([
@@ -5224,6 +5270,7 @@ export function useDeliveryWorkflow() {
         api.lessons.today({ page: 1, pageSize: 20 }),
         api.workbench.summary()
       ])
+      if (scopeGeneration !== campusScopeGeneration) return null
       if (results[0].status === 'rejected') throw results[0].reason
       const valueAt = (index) => results[index].status === 'fulfilled' ? results[index].value : null
       applyMe(valueAt(0))
@@ -5244,12 +5291,13 @@ export function useDeliveryWorkflow() {
         refreshWecomSendTasks(),
         refreshPendingReviewQueue()
       ])
+      if (scopeGeneration !== campusScopeGeneration) return null
       if (!activeTaskId.value && tasks[0]) activeTaskId.value = tasks[0].id
       pageLoaded.shell = true
       remoteReady.value = true
       return shellSummary
     } finally {
-      remoteLoading.value = false
+      if (scopeGeneration === campusScopeGeneration) remoteLoading.value = false
     }
   }
 
@@ -5273,11 +5321,13 @@ export function useDeliveryWorkflow() {
 
   const loadTemplates = async ({ force = false } = {}) => {
     if (pageLoaded.templates && !force) return templates
+    const scopeGeneration = campusScopeGeneration
     try {
       const [feedbackValues, imageValues] = await Promise.all([
         api.feedback.templates(),
         api.feedback.imageTemplates()
       ])
+      if (scopeGeneration !== campusScopeGeneration) return templates
       templates.comment = (feedbackValues || []).map(mapFeedbackTemplate)
       templates.image = (imageValues || []).map(mapImageTemplate)
       pageLoaded.templates = true
@@ -5293,6 +5343,7 @@ export function useDeliveryWorkflow() {
     if (!isLoggedIn.value) return null
     if (pageLoaded[pageName] && !force) return true
     if (pagePromises.has(pageName) && !force) return pagePromises.get(pageName)
+    const scopeGeneration = campusScopeGeneration
     const load = (async () => {
       pageLoading[pageName] = true
       pageErrors[pageName] = ''
@@ -5311,6 +5362,7 @@ export function useDeliveryWorkflow() {
             const mappedStudents = mapPage(studentPage, mapStudent)
             const mappedClasses = mapPage(classPage, mapClass)
             const mappedCourses = mapPage(coursePage, mapCourse)
+            if (scopeGeneration !== campusScopeGeneration) return null
             replaceReactive(teachers, mappedTeachers.items)
             replaceReactive(students, mappedStudents.items)
             replaceReactive(classes, mappedClasses.items)
@@ -5331,6 +5383,7 @@ export function useDeliveryWorkflow() {
             const mappedTeachers = mapPage(teacherPage, mapTeacher)
             const mappedClasses = mapPage(classPage, mapClass)
             const mappedCourses = mapPage(coursePage, mapCourse)
+            if (scopeGeneration !== campusScopeGeneration) return null
             replaceReactive(teachers, mappedTeachers.items)
             replaceReactive(classes, mappedClasses.items)
             replaceReactive(courses, mappedCourses.items)
@@ -5348,6 +5401,7 @@ export function useDeliveryWorkflow() {
           case 'externalLinks': await loadDirectoryPage('externalLinks', { page: 1, pageSize: 20 }); break
           case 'supervision': {
             const page = mapPage(await api.m6.supervision({ page: 1, pageSize: 20 }), mapSupervisionLesson)
+            if (scopeGeneration !== campusScopeGeneration) return null
             replaceReactive(supervisionDashboard, page.items)
             updateListPageMeta('supervision', page)
             break
@@ -5355,6 +5409,7 @@ export function useDeliveryWorkflow() {
           case 'archives': await loadDirectoryPage('archiveRecords', { page: 1, pageSize: 20, sourceType: 'ALL' }); break
           case 'imports': {
             const page = mapPage(await api.imports.list({ page: 1, pageSize: 20 }), mapImportBatch)
+            if (scopeGeneration !== campusScopeGeneration) return null
             replaceReactive(importBatches, page.items)
             updateListPageMeta('imports', page)
             break
@@ -5372,6 +5427,7 @@ export function useDeliveryWorkflow() {
             const mappedArchives = mapPage(archivePage, mapArchiveRecord)
             const mappedStudents = { items: studentData.items, page: 1, pageSize: 200, total: studentData.total }
             const mappedClasses = { items: classData.items, page: 1, pageSize: 200, total: classData.total }
+            if (scopeGeneration !== campusScopeGeneration) return null
             replaceReactive(archiveRecords, mappedArchives.items)
             pageLoaded.archives = true
             replaceReactive(students, mappedStudents.items)
@@ -5388,6 +5444,7 @@ export function useDeliveryWorkflow() {
               api.m5.providerGroups(),
               api.wecom.configuration().catch(() => null)
             ])
+            if (scopeGeneration !== campusScopeGeneration) return null
             mapProviderSetting(providers?.items || providers || [])
             Object.assign(providerCatalog, providerTypes || {})
             if (groups) mapProviderGroups(groups)
@@ -5396,19 +5453,23 @@ export function useDeliveryWorkflow() {
           }
           case 'permissions': {
             const values = await api.auth.permissions()
+            if (scopeGeneration !== campusScopeGeneration) return null
             replaceReactive(permissionCatalog, (values || []).map((permission) => typeof permission === 'string' ? permission : permission?.permissionKey).filter(Boolean))
             break
           }
           default: break
         }
+        if (scopeGeneration !== campusScopeGeneration) return null
         pageLoaded[pageName] = true
         return true
       } catch (error) {
-        pageErrors[pageName] = remoteErrorMessage(error, '页面数据加载失败')
+        if (scopeGeneration === campusScopeGeneration) pageErrors[pageName] = remoteErrorMessage(error, '页面数据加载失败')
         throw error
       } finally {
-        pageLoading[pageName] = false
-        pagePromises.delete(pageName)
+        if (scopeGeneration === campusScopeGeneration) {
+          pageLoading[pageName] = false
+          pagePromises.delete(pageName)
+        }
       }
     })()
     pagePromises.set(pageName, load)
@@ -5435,12 +5496,188 @@ export function useDeliveryWorkflow() {
     }
   }
 
+  const resetCampusScopedState = () => {
+    campusScopeGeneration += 1
+    cancelJobWatchers()
+    if (cloudProviderPickerResolver) cloudProviderPickerResolver(null)
+    lessonWorkspaceControllers.forEach((controller) => controller.abort())
+    lessonWorkspaceControllers.clear()
+    lessonWorkspacePromises.clear()
+    lessonWorkspaceEpochs.clear()
+    lessonWorkspaceLoaded.clear()
+    preparationAutoApplyAttempts.clear()
+    lessonStartPromises.clear()
+    lessonSelectionSequence += 1
+    portfolioStudioRef?.clearPortfolioSession?.()
+
+    ;[
+      teachers, students, classes, courses, scheduleLessons, tasks, inboxLessons,
+      archiveRecords, communicationRecords, extraTaskArchives, extraTaskWorks,
+      externalLinks, wheatTraces, todos, cloudArchiveTodos, pendingReviewQueue,
+      importBatches, importPreviewRows, qualityReviews, terms, supervisionDashboard,
+      teacherArchives, studentProfileFields, wecomSendTasks, templates.image,
+      templates.comment, classTypes, settings, providerGroups, wecomGroups,
+      aiCallLogStore, statusChangeLogs, archiveEditLogs
+    ].forEach((collection) => replaceReactive(collection))
+
+    Object.values(providerCatalog).forEach((collection) => replaceReactive(collection))
+    Object.keys(studentProfiles).forEach((key) => delete studentProfiles[key])
+    Object.keys(studentProfileAudits).forEach((key) => delete studentProfileAudits[key])
+    Object.keys(lessonWorkspaces).forEach((key) => delete lessonWorkspaces[key])
+    Object.keys(pageLoaded).forEach((key) => delete pageLoaded[key])
+    Object.keys(pageErrors).forEach((key) => delete pageErrors[key])
+    Object.keys(pageMeta).forEach((key) => delete pageMeta[key])
+    Object.keys(pageLoading).forEach((key) => delete pageLoading[key])
+    Object.keys(directoryLoading).forEach((key) => delete directoryLoading[key])
+    Object.keys(directoryErrors).forEach((key) => delete directoryErrors[key])
+    Object.values(directoryPages).forEach((page) => {
+      replaceReactive(page.items)
+      Object.assign(page, { page: 1, total: 0, filters: {} })
+    })
+    pagePromises.clear()
+    directoryPromises.clear()
+    schedulePromises.clear()
+
+    replaceReactive(coursewareFolders)
+    Object.keys(coursewareFolderChildren).forEach((key) => delete coursewareFolderChildren[key])
+    replaceReactive(coursewareItems)
+    coursewareCurrentFolderId.value = null
+    coursewarePreview.value = null
+    coursewareError.value = ''
+    Object.assign(coursewareLoading, { folders: false, items: false, mutation: false })
+    replaceReactive(permissionCatalog)
+    replaceReactive(identityUsers)
+    replaceReactive(teacherSourceMappings)
+    currentTeacherProfile.value = null
+    Object.assign(masterArchiveState, { teachers: 'ACTIVE', students: 'ACTIVE', classes: 'ACTIVE', courses: 'ACTIVE' })
+    Object.assign(identityUserPage, { page: 1, total: 0 })
+    identityUserQuery.value = ''
+    identityUserStatus.value = ''
+    Object.assign(identityLoaded, { users: false })
+    Object.assign(identityErrors, { users: '', memberships: '' })
+    replaceReactive(archiveCollections)
+    replaceReactive(archives)
+    Object.assign(archiveFilter, {
+      studentId: 'all', classId: 'all', teacher: 'all', dateStart: '', dateEnd: '',
+      sourceType: 'all', highlightOnly: false, frameStatus: 'all'
+    })
+    Object.assign(cloudArchiveRule, {
+      id: null, pathTemplate: DEFAULT_ARCHIVE_RULE, filenameTemplate: '', required: false,
+      duplicateStrategy: 'SUFFIX', configured: false
+    })
+    Object.assign(wecomConfiguration, {
+      id: null, name: '企业微信客户群', corpId: '', corpSecret: '',
+      apiBaseUrl: 'https://qyapi.weixin.qq.com/cgi-bin', status: 'DISABLED',
+      lastTestSuccess: null, lastTestCode: '', lastTestMessage: '', lastTestedAt: null, version: 0
+    })
+    wecomConfigurationLoaded.value = false
+    wecomConfigurationLoading.value = false
+    wecomConfigurationLoadError.value = ''
+    wecomConfigurationLoadPromise = null
+    cloudProviderPicker.open = false
+    cloudProviderPicker.lessonId = null
+    cloudProviderPicker.providers = []
+    cloudProviderPicker.selectedProviderId = null
+    cloudProviderPickerPromise = null
+    cloudProviderSelectionPromise = null
+    cloudProviderCatalogPromise = null
+    studentDraftRows.clear()
+    Object.keys(studentDraftStates).forEach((key) => delete studentDraftStates[key])
+    shareDraftSaveTimers.forEach((timer) => clearTimeout(timer))
+    shareDraftSaveTimers.clear()
+    shareDraftSaveChains.clear()
+    totalFeedbackSaveTimer.forEach((timer) => clearTimeout(timer))
+    totalFeedbackSaveTimer.clear()
+    totalFeedbackSaveChains.clear()
+    studentDraftSaveTimers.forEach((timer) => clearTimeout(timer))
+    studentDraftSaveTimers.clear()
+    studentDraftSaveChains.clear()
+    if (archiveRunCloseTimer) {
+      clearTimeout(archiveRunCloseTimer)
+      archiveRunCloseTimer = null
+    }
+    Object.assign(archiveRunState, { open: false, phase: 'idle', currentKey: '', items: [], errorMessage: '', successMessage: '' })
+    parentSendChecklist.value = { lessonId: null, students: [] }
+    selectedTaskSnapshot.value = null
+    activeTaskId.value = null
+    Object.assign(shellPages.lessons, { page: 1, pageSize: 20, total: 0 })
+    Object.assign(shellPages.todos, { page: 1, pageSize: 20, total: 0 })
+    Object.assign(shellSummary, { pendingLessons: 0, openTodos: 0, importIssues: 0, cloudArchiveFailures: 0, pendingQualityReviews: 0, pendingParentTouches: 0 })
+    Object.assign(scheduleMeta, { page: 1, pageSize: 200, total: 0, filters: {}, allPages: false })
+    scheduleError.value = ''
+    remoteReady.value = false
+  }
+
+  const switchCampusSession = async (campusId) => {
+    const auth = await api.auth.switchCampus({ campusId: String(campusId) })
+    setSession(auth)
+    applyMe(auth.me)
+    return auth
+  }
+
+  const remoteConfirmLoginCampus = async (campusId) => {
+    if (!pendingCampusSelection.value || !campusId) return false
+    campusSwitching.value = true
+    remoteLoading.value = true
+    try {
+      const auth = await switchCampusSession(campusId)
+      pendingCampusSelection.value = false
+      isLoggedIn.value = true
+      await loadShellData({ force: true, initialMe: auth.me })
+      return true
+    } catch (error) {
+      if (!getAccessToken()) {
+        storedMe.value = null
+        pendingCampusSelection.value = false
+        isLoggedIn.value = false
+      }
+      notify(remoteErrorMessage(error, '校区进入失败，请重试'), 'error')
+      return false
+    } finally {
+      remoteLoading.value = false
+      campusSwitching.value = false
+    }
+  }
+
+  const remoteSwitchCampus = async (campusId) => {
+    if (!isLoggedIn.value || !campusId || sameId(activeCampusId.value, campusId)) return true
+    if (campusSwitching.value) return false
+    campusSwitching.value = true
+    try {
+      if (!(await flushShareDraft())) {
+        notify('课后任务草稿保存失败，暂不能切换校区', 'error')
+        return false
+      }
+      if (!(await flushTotalFeedback())) {
+        notify('总课评保存失败，暂不能切换校区', 'error')
+        return false
+      }
+      if (!(await flushStudentDrafts())) {
+        notify('有内容未保存，暂不能切换校区', 'error')
+        return false
+      }
+      const auth = await switchCampusSession(campusId)
+      resetCampusScopedState()
+      await loadShellData({ force: true, initialMe: auth.me })
+      return true
+    } catch (error) {
+      notify(remoteErrorMessage(error, '校区切换失败，请重试'), 'error')
+      return false
+    } finally {
+      campusSwitching.value = false
+    }
+  }
+
   const remoteLoginWithForm = async () => {
+    remoteLoading.value = true
     try {
       const auth = await api.auth.login({ account: loginForm.phone.trim(), password: loginForm.password })
       setSession(auth)
-      storedMe.value = auth.me
-      currentUserId.value = auth.me?.user?.id || null
+      applyMe(auth.me)
+      if ((auth.me?.campuses || []).length > 1) {
+        pendingCampusSelection.value = true
+        return true
+      }
       isLoggedIn.value = true
       await loadShellData({ initialMe: auth.me })
       return true
@@ -5452,9 +5689,12 @@ export function useDeliveryWorkflow() {
       storedMe.value = null
       currentUserId.value = null
       isLoggedIn.value = false
+      pendingCampusSelection.value = false
       remoteReady.value = false
       notify(remoteErrorMessage(error, '登录失败，请检查账号密码或稍后重试'), 'error')
       return false
+    } finally {
+      remoteLoading.value = false
     }
   }
 
@@ -5488,6 +5728,7 @@ export function useDeliveryWorkflow() {
       // 服务端会话失效时仍清理本地凭据。
     }
     clearSession()
+    campusScopeGeneration += 1
     cancelJobWatchers()
     lessonWorkspaceControllers.forEach((controller) => controller.abort())
     lessonWorkspaceControllers.clear()
@@ -5501,6 +5742,8 @@ export function useDeliveryWorkflow() {
     portfolioStudioRef?.clearPortfolioSession?.()
     storedMe.value = null
     currentUserId.value = null
+    pendingCampusSelection.value = false
+    campusSwitching.value = false
     loginForm.phone = ''
     loginForm.password = ''
     isLoggedIn.value = false
@@ -5571,6 +5814,8 @@ export function useDeliveryWorkflow() {
     Object.keys(pageLoaded).forEach((key) => delete pageLoaded[key])
     Object.keys(pageErrors).forEach((key) => delete pageErrors[key])
     Object.keys(pageMeta).forEach((key) => delete pageMeta[key])
+    pagePromises.clear()
+    directoryPromises.clear()
     Object.assign(scheduleMeta, { page: 1, pageSize: 200, total: 0, filters: {}, allPages: false })
     scheduleError.value = ''
     schedulePromises.clear()
@@ -5812,6 +6057,7 @@ export function useDeliveryWorkflow() {
 
   const loadCoursewareFolders = async (parentId = null, { force = false } = {}) => {
     if (!isLoggedIn.value || !canReadCourseware.value) return []
+    const scopeGeneration = campusScopeGeneration
     const safeParentId = parentId === '' || parentId === undefined ? null : parentId
     const key = coursewareFolderKey(safeParentId)
     if (!force && Object.prototype.hasOwnProperty.call(coursewareFolderChildren, key)) {
@@ -5824,34 +6070,37 @@ export function useDeliveryWorkflow() {
     coursewareError.value = ''
     try {
       const values = await api.courseware.folders(safeParentId)
+      if (scopeGeneration !== campusScopeGeneration) return []
       const mapped = (Array.isArray(values) ? values : []).map(mapCoursewareFolder)
       coursewareFolderChildren[key] = mapped
       if (sameId(coursewareCurrentFolderId.value, safeParentId)) replaceReactive(coursewareFolders, mapped)
       return mapped
     } catch (error) {
-      coursewareError.value = remoteErrorMessage(error, '课件目录加载失败')
+      if (scopeGeneration === campusScopeGeneration) coursewareError.value = remoteErrorMessage(error, '课件目录加载失败')
       throw error
     } finally {
-      coursewareLoading.folders = false
+      if (scopeGeneration === campusScopeGeneration) coursewareLoading.folders = false
     }
   }
 
   const loadCoursewareItems = async (folderId = coursewareCurrentFolderId.value) => {
     if (!isLoggedIn.value || !canReadCourseware.value) return []
+    const scopeGeneration = campusScopeGeneration
     const safeFolderId = folderId === '' || folderId === undefined ? null : folderId
     coursewareCurrentFolderId.value = safeFolderId
     coursewareLoading.items = true
     coursewareError.value = ''
     try {
       const values = await api.courseware.items(safeFolderId)
+      if (scopeGeneration !== campusScopeGeneration) return []
       replaceReactive(coursewareItems, (Array.isArray(values) ? values : []).map(mapCoursewareItem))
       await loadCoursewareFolders(safeFolderId)
       return coursewareItems
     } catch (error) {
-      coursewareError.value = remoteErrorMessage(error, '课件列表加载失败')
+      if (scopeGeneration === campusScopeGeneration) coursewareError.value = remoteErrorMessage(error, '课件列表加载失败')
       throw error
     } finally {
-      coursewareLoading.items = false
+      if (scopeGeneration === campusScopeGeneration) coursewareLoading.items = false
     }
   }
 
@@ -9721,6 +9970,10 @@ export function useDeliveryWorkflow() {
     ...portfolioStudio,
     school,
     campuses,
+    availableCampuses,
+    activeCampusId,
+    pendingCampusSelection,
+    campusSwitching,
     campusLoading,
     campusLoaded,
     campusError,
@@ -9956,6 +10209,8 @@ export function useDeliveryWorkflow() {
       return false
     },
     loginWithForm: remoteLoginWithForm,
+    confirmLoginCampus: remoteConfirmLoginCampus,
+    switchCampus: remoteSwitchCampus,
     logout: remoteLogout,
     savePreferences: remoteSavePreferences,
     setAttendance: remoteSetAttendance,

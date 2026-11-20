@@ -137,7 +137,6 @@ onBeforeUnmount(() => {
       >
         <span>
           <strong>{{ option.label }}</strong>
-          <small v-if="option.description">{{ option.description }}</small>
         </span>
         <i>{{ hasValue(option.value) ? '✓' : '+' }}</i>
       </button>

@@ -272,7 +272,6 @@ onBeforeUnmount(() => {
         >
           <span>
             <strong>{{ option.label }}</strong>
-            <small v-if="option.description">{{ option.description }}</small>
           </span>
         </button>
         <div v-if="!visibleOptions.length" class="adaptive-select-empty">没有匹配项</div>

@@ -16,6 +16,5 @@ defineProps({
     <span class="form-field-label">{{ label }}<RequiredMark v-if="required" /></span>
     <slot />
     <small v-if="error" class="form-field-error" role="alert">{{ error }}</small>
-    <small v-else-if="hint" class="form-field-hint">{{ hint }}</small>
   </label>
 </template>

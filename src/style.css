@@ -2306,6 +2306,47 @@ button,
   font-weight: 900;
 }
 
+.campus-brand {
+  align-items: flex-start;
+}
+
+.campus-brand-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+
+.campus-brand-copy .adaptive-select {
+  max-width: 190px;
+}
+
+.campus-brand-copy .adaptive-select-trigger {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.campus-brand-copy .adaptive-select-trigger:hover:not(:disabled),
+.campus-brand-copy .adaptive-select.open .adaptive-select-trigger {
+  color: var(--color-primary);
+  box-shadow: none;
+}
+
+.campus-brand-copy .adaptive-select-trigger b {
+  font-size: 14px;
+}
+
+.login-campus-field {
+  display: grid;
+  gap: 7px;
+}
+
 strong,
 .brand strong,
 .section-head strong,
@@ -9992,6 +10033,12 @@ textarea:focus,
 .identity-readonly-field > span {
   color: var(--color-muted);
   font-size: 13px;
+}
+
+.identity-field-hint {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .campus-management-table {

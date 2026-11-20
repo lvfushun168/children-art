@@ -32,6 +32,7 @@ export const api = {
   auth: {
     login: (body) => request('/auth/login', { method: 'POST', body, auth: false }),
     refresh: (body) => request('/auth/refresh', { method: 'POST', body, auth: false }),
+    switchCampus: (body) => request('/auth/switch-campus', { method: 'POST', body }),
     logout: () => request('/auth/logout', { method: 'POST' }),
     me: () => request('/me'),
     permissions: () => request('/permissions'),

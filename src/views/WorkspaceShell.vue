@@ -167,6 +167,23 @@ const launchTaskWorkspace = (task, source = 'today') => {
 
 const selectTodoTask = (task) => launchTaskWorkspace(task, 'today')
 const openScheduleTask = (task) => launchTaskWorkspace(task, 'schedule')
+const switchCampus = async (campusId) => {
+  const switched = await state.switchCampus?.(campusId)
+  if (!switched) return
+  if (route.name === 'workspace-task') {
+    await router.replace(NAV_ROUTE_PATHS.tasks)
+  }
+  if (activeNav.value) {
+    try {
+      await state.ensurePageData?.(activeNav.value, { force: true })
+      if (activeNav.value === 'accountManagement') {
+        await state.loadIdentityUsers?.({ page: 1 })
+      }
+    } catch (error) {
+      state.notify?.(state.pageErrors?.[activeNav.value] || error?.message || '校区数据加载失败，请稍后重试')
+    }
+  }
+}
 const exitTaskWorkspace = (source) => {
   void navigateUp(router, source === 'schedule' ? NAV_ROUTE_PATHS.schedule : NAV_ROUTE_PATHS.tasks)
 }
@@ -340,8 +357,12 @@ onBeforeRouteUpdate(async (to, from) => {
       :pending-count="pendingCount"
       :todo-count="todoCount"
       :school="state.school"
+      :available-campuses="state.availableCampuses"
+      :active-campus-id="state.activeCampusId"
+      :campus-switching="state.campusSwitching"
       @select-group="openGroup"
       @open-todo-center="showTodoCenter = true"
+      @switch-campus="switchCampus"
     />
 
     <TodoCenterDrawer
@@ -369,8 +390,12 @@ onBeforeRouteUpdate(async (to, from) => {
         :permission-summary="state.permissionSummary"
         :theme-options="themeOptions"
         :active-theme="activeTheme"
+        :available-campuses="state.availableCampuses"
+        :active-campus-id="state.activeCampusId"
+        :campus-switching="state.campusSwitching"
         @update-theme="activeTheme = $event"
         @logout="state.logout"
+        @switch-campus="switchCampus"
       />
 
       <ModuleHubView

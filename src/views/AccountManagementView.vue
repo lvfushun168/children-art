@@ -36,7 +36,7 @@ const selectedUser = ref(null)
 const userForm = ref(null)
 const passwordForm = ref({ password: '' })
 const selectedRoleIds = ref([])
-const selectedCampusId = ref('')
+const selectedCampusIds = ref([])
 const membershipLoading = ref(false)
 
 const roleOptions = computed(() => (props.state.identityRoles || [])
@@ -52,8 +52,10 @@ const canAssignRoles = computed(() => Boolean(props.state.canManageIdentityRoles
 const canManageMemberships = computed(() => Boolean(props.state.canManageIdentityMemberships))
 const isCurrentUser = computed(() => sameId(selectedUser.value?.id, props.state.currentUser?.id))
 const selectedUserCampusName = computed(() => {
-  const campusId = userForm.value?.campusIds?.[0]
-  return props.state.campuses?.find((campus) => sameId(campus.id, campusId))?.name || '未配置校区'
+  const names = (userForm.value?.campusIds || [])
+    .map((campusId) => props.state.campuses?.find((campus) => sameId(campus.id, campusId))?.name)
+    .filter(Boolean)
+  return names.join('、') || '未配置校区'
 })
 
 const blankUser = () => ({
@@ -129,11 +131,11 @@ const openRoleDrawer = (user) => {
 
 const openMembershipDrawer = async (user) => {
   selectedUser.value = user
-  selectedCampusId.value = user.campuses?.[0]?.id || ''
+  selectedCampusIds.value = user.campuses?.map((campus) => campus.id) || []
   drawer.value = 'memberships'
   membershipLoading.value = true
   const memberships = await props.state.loadIdentityMemberships(user.id)
-  if (memberships) selectedCampusId.value = memberships[0]?.campusId || ''
+  if (memberships) selectedCampusIds.value = memberships.map((membership) => membership.campusId)
   membershipLoading.value = false
 }
 
@@ -165,12 +167,14 @@ const saveUser = async () => {
     displayName: (value) => !value?.trim() && '请填写姓名',
     phone: (value) => !value?.trim() && '请填写手机号',
     password: (value) => !isEditing.value && String(value || '').length < 6 && '请设置至少 6 位的初始密码',
-    campusIds: (value) => !isEditing.value && value?.length !== 1 && '请选择所属校区'
+    campusIds: (value) => !value?.length && '至少选择一个所属校区'
   }, drawerFormRef)
   if (!valid) return
+  const payload = { ...userForm.value }
+  if (isEditing.value && (!canManageMemberships.value || isCurrentUser.value)) payload.campusIds = undefined
   const result = isEditing.value
-    ? await props.state.updateIdentityUser(userForm.value.id, userForm.value)
-    : await props.state.createIdentityUser(userForm.value)
+    ? await props.state.updateIdentityUser(userForm.value.id, payload)
+    : await props.state.createIdentityUser(payload)
   if (result) closeDrawer()
 }
 
@@ -188,14 +192,14 @@ const saveRoles = async () => {
 }
 
 const saveMemberships = async () => {
-  if (!selectedUser.value || !selectedCampusId.value) {
-    props.state.notify('请选择一个启用校区')
+  if (!selectedUser.value || !selectedCampusIds.value.length) {
+    props.state.notify('至少选择一个启用校区')
     return
   }
   const success = await props.state.replaceIdentityUserMemberships(
     selectedUser.value.id,
     selectedUser.value.version,
-    [selectedCampusId.value]
+    selectedCampusIds.value
   )
   if (success) closeDrawer()
 }
@@ -298,13 +302,16 @@ onMounted(loadPage)
       <FormField v-if="!isEditing" label="初始密码" required :error="fieldErrors.password" hint="至少 6 位"><input v-model="userForm.password" type="password" autocomplete="new-password" @input="clearFieldError('password')" /></FormField>
       <FormField v-if="isEditing" label="账号状态"><AdaptiveSelect v-model="userForm.status" :options="identityStatusOptions" /></FormField>
       <FormField label="角色"><AdaptiveMultiSelect v-model="userForm.roleIds" :options="roleOptions" placeholder="请选择角色" :disabled="!canAssignRoles" /></FormField>
-      <FormField v-if="!isEditing" label="所属校区" required :error="fieldErrors.campusIds">
-        <AdaptiveSelect :model-value="userForm.campusIds[0] || ''" :options="campusOptions" placeholder="请选择校区" @update:model-value="userForm.campusIds = $event ? [$event] : []; clearFieldError('campusIds')" />
+      <FormField label="所属校区" required :error="fieldErrors.campusIds" hint="可选择多个校区；当前登录账号不能移除正在使用的校区">
+        <AdaptiveMultiSelect
+          v-model="userForm.campusIds"
+          :options="campusOptions"
+          placeholder="请选择所属校区"
+          :disabled="isEditing && (!canManageMemberships || isCurrentUser)"
+          @update:model-value="clearFieldError('campusIds')"
+        />
+        <small v-if="isEditing" class="identity-field-hint">当前：{{ selectedUserCampusName }}</small>
       </FormField>
-      <div v-else class="identity-readonly-field">
-        <span>所属校区</span>
-        <strong>{{ selectedUserCampusName }}</strong>
-      </div>
       <div class="drawer-actions">
         <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>
         <button class="primary" type="submit" :class="{ 'is-loading': state.processingAction }" :disabled="Boolean(state.processingAction)"><span v-if="state.processingAction" class="btn-spinner" aria-hidden="true"></span><AppIcon v-else name="save" :size="15" />{{ state.processingAction ? '保存中…' : '保存' }}</button>
@@ -324,8 +331,9 @@ onMounted(loadPage)
       <div class="identity-drawer-target"><strong>{{ selectedUser?.displayName }}</strong><span>所属校区</span></div>
       <AsyncState :loading="membershipLoading" :rows="3" :error="state.identityErrors.memberships" @retry="openMembershipDrawer(selectedUser)">
         <div class="identity-check-grid">
-          <AdaptiveSelect v-model="selectedCampusId" :options="campusOptions" placeholder="请选择校区" :disabled="isCurrentUser" />
+          <AdaptiveMultiSelect v-model="selectedCampusIds" :options="campusOptions" placeholder="请选择校区" :disabled="isCurrentUser" />
         </div>
+        <small v-if="isCurrentUser" class="identity-field-hint">当前正在使用的校区不能移除。</small>
       </AsyncState>
       <div class="drawer-actions">
         <button class="ghost icon-only" type="button" @click="closeDrawer" aria-label="取消" title="取消"><AppIcon name="close" :size="15" /></button>

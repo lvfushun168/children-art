@@ -70,7 +70,6 @@ const submitLogin = async () => {
         <div class="login-form-head">
           <span>欢迎回来</span>
           <h1>{{ state.pendingCampusSelection ? '选择进入校区' : '登录工作台' }}</h1>
-          <p>{{ state.pendingCampusSelection ? '该账号已关联多个校区，请选择本次要进入的工作范围。' : '请输入手机号和密码登录，系统将根据账号已分配的角色权限进入工作台。' }}</p>
         </div>
 
         <template v-if="!state.pendingCampusSelection">
